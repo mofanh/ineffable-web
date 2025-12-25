@@ -1,9 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ineffable Web</title>
+    <meta name="theme-color" content="#4a7c59" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1a2e" media="(prefers-color-scheme: dark)" />
+    <title>冲气以为和 · Ineffable Agent</title>
+    <style>
+      /* 防止闪烁：在 JS 加载前应用正确的主题 */
+      :root {
+        color-scheme: light dark;
+      }
+    </style>
+    <script>
+      // 在页面加载前立即应用主题，防止闪烁
+      (function() {
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

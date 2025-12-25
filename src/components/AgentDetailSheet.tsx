@@ -24,11 +24,11 @@ interface AgentDetailSheetProps {
 }
 
 const statusConfig: Record<AgentStatus, { label: string; color: string }> = {
-  idle: { label: '空闲', color: 'text-gray-500' },
-  running: { label: '运行中', color: 'text-green-500' },
-  completed: { label: '已完成', color: 'text-blue-500' },
-  error: { label: '错误', color: 'text-red-500' },
-  paused: { label: '已暂停', color: 'text-yellow-500' },
+  idle: { label: '空闲', color: 'text-muted-foreground' },
+  running: { label: '运行中', color: 'text-success' },
+  completed: { label: '已完成', color: 'text-primary' },
+  error: { label: '错误', color: 'text-destructive' },
+  paused: { label: '已暂停', color: 'text-warning' },
 }
 
 export default function AgentDetailSheet({
@@ -64,26 +64,26 @@ export default function AgentDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col">
-        <SheetHeader className="border-b pb-4">
+      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col bg-linear-to-b from-card to-background">
+        <SheetHeader className="border-b border-border/50 pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+            <div className="p-2.5 rounded-xl bg-linear-to-br from-primary/20 to-accent/10 text-primary shadow-sm">
               <Bot className="size-6" />
             </div>
             <div className="flex-1">
-              <SheetTitle className="text-lg">{agent.name}</SheetTitle>
-              <SheetDescription>{agent.description || '智能体详情'}</SheetDescription>
+              <SheetTitle className="text-lg font-semibold tracking-tight">{agent.name}</SheetTitle>
+              <SheetDescription className="opacity-80">{agent.description || '智能体详情'}</SheetDescription>
             </div>
           </div>
         </SheetHeader>
 
         {/* Status Section */}
-        <div className="px-4 py-3 bg-muted/30 rounded-lg mx-4 mt-4">
+        <div className="px-4 py-3 bg-muted/30 backdrop-blur-sm rounded-xl mx-4 mt-4 border border-border/30">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <div className="text-muted-foreground text-xs mb-1">状态</div>
               <div className={cn('font-medium flex items-center gap-1.5', config.color)}>
-                <span className={cn('size-2 rounded-full', agent.status === 'running' ? 'bg-green-500 animate-pulse' : 'bg-gray-400')} />
+                <span className={cn('size-2 rounded-full', agent.status === 'running' ? 'bg-success animate-pulse' : 'bg-muted-foreground/40')} />
                 {config.label}
               </div>
             </div>
@@ -97,7 +97,7 @@ export default function AgentDetailSheet({
             </div>
           </div>
           {agent.currentTask && (
-            <div className="mt-3 pt-3 border-t">
+            <div className="mt-3 pt-3 border-t border-border/30">
               <div className="text-muted-foreground text-xs mb-1">当前任务</div>
               <div className="text-sm font-medium">{agent.currentTask}</div>
             </div>
@@ -115,14 +115,14 @@ export default function AgentDetailSheet({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="输入任务描述..."
-              className="flex-1"
+              className="flex-1 rounded-xl bg-muted/30 border-border/50 focus:border-primary/50"
             />
             <button
               type="submit"
               disabled={loading || !prompt.trim()}
               className={cn(
-                'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-                'bg-primary text-primary-foreground hover:bg-primary/90',
+                'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
+                'bg-linear-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20',
                 'disabled:opacity-50 disabled:pointer-events-none',
                 'flex items-center gap-2'
               )}
@@ -137,15 +137,15 @@ export default function AgentDetailSheet({
           </form>
         </div>
 
-        <Separator className="my-4" />
+        <Separator className="my-4 opacity-30" />
 
         {/* Tabs */}
         <div className="px-4 flex gap-1">
           <button
             onClick={() => setActiveTab('output')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-              activeTab === 'output' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300',
+              activeTab === 'output' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/50'
             )}
           >
             <Terminal className="size-4" />
@@ -154,8 +154,8 @@ export default function AgentDetailSheet({
           <button
             onClick={() => setActiveTab('events')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-              activeTab === 'events' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-300',
+              activeTab === 'events' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/50'
             )}
           >
             <Activity className="size-4" />
@@ -171,17 +171,17 @@ export default function AgentDetailSheet({
         {/* Content */}
         <div className="flex-1 overflow-hidden mx-4 mt-3 mb-4">
           {activeTab === 'output' ? (
-            <div className="h-full bg-gray-900 rounded-lg p-4 overflow-auto">
-              <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+            <div className="h-full bg-foreground/95 dark:bg-background/95 rounded-xl p-4 overflow-auto shadow-inner">
+              <div className="flex items-center gap-2 text-xs text-muted dark:text-muted-foreground mb-3">
                 <FileText className="size-3" />
                 <span>输出终端</span>
               </div>
-              <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                {output || <span className="text-gray-500 italic">等待输出...</span>}
+              <pre className="text-sm text-success font-mono whitespace-pre-wrap">
+                {output || <span className="text-muted-foreground/50 italic">等待输出...</span>}
               </pre>
             </div>
           ) : (
-            <div className="h-full bg-muted/30 rounded-lg p-3 overflow-auto">
+            <div className="h-full bg-muted/20 backdrop-blur-sm rounded-xl p-3 overflow-auto border border-border/30">
               <div className="space-y-2">
                 {events.length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-8">
@@ -189,7 +189,7 @@ export default function AgentDetailSheet({
                   </div>
                 ) : (
                   events.slice(-50).reverse().map((ev, i) => (
-                    <div key={i} className="p-2 bg-background rounded border text-xs">
+                    <div key={i} className="p-2.5 bg-card/50 rounded-lg border border-border/30 text-xs transition-colors hover:bg-card">
                       <div className="flex items-center justify-between mb-1">
                         <Badge variant="outline" className="text-[10px]">
                           {ev.type}
@@ -200,7 +200,7 @@ export default function AgentDetailSheet({
                           </span>
                         )}
                       </div>
-                      <div className="text-muted-foreground break-all">
+                      <div className="text-muted-foreground break-all opacity-80">
                         {JSON.stringify(ev).slice(0, 200)}
                         {JSON.stringify(ev).length > 200 && '...'}
                       </div>
