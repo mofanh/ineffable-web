@@ -1,8 +1,8 @@
 import React from 'react'
-import { Bot, Activity, CheckCircle2, AlertCircle, Server, Sun, Moon } from 'lucide-react'
+import { Bot, Activity, CheckCircle2, AlertCircle, Server, Sun, Moon, Sparkles } from 'lucide-react'
 import { Badge } from './ui/badge'
 import { cn } from '../utils/cn'
-import { Theme } from '../hooks/useTheme'
+import { Theme, themeNames } from '../hooks/useTheme'
 
 interface DashboardHeaderProps {
   totalAgents: number
@@ -77,14 +77,20 @@ export default function DashboardHeader({
             {/* Theme Toggle */}
             <button
               onClick={onThemeToggle}
-              className="p-2 rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-300 hover:scale-105"
-              aria-label={theme === 'light' ? '切换到夜间模式' : '切换到日间模式'}
-            >
-              {theme === 'light' ? (
-                <Moon className="size-5" />
-              ) : (
-                <Sun className="size-5" />
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-300 hover:scale-105",
+                theme.startsWith('zhenwu') 
+                  ? "bg-primary/10 hover:bg-primary/20 text-primary" 
+                  : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
               )}
+              aria-label={`当前主题: ${themeNames[theme]}，点击切换`}
+              title={themeNames[theme]}
+            >
+              {theme === 'light' && <Moon className="size-4" />}
+              {theme === 'dark' && <Sun className="size-4" />}
+              {theme === 'zhenwu' && <Sparkles className="size-4" />}
+              {theme === 'zhenwu-dark' && <Sparkles className="size-4" />}
+              <span className="text-xs font-medium hidden sm:inline">{themeNames[theme]}</span>
             </button>
           </div>
         </div>

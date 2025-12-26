@@ -112,6 +112,118 @@
   --color-warning-foreground: oklch(0.18 0.015 260);
 }
 
+/* 
+ * 我見真武見真我 Theme - 源自《黄庭经》
+ * "观道观道观道，休道修到修道
+ * 黄庭内人服锦衣，紫华飞裙云气罗，丹青绿条翠灵柯，七蕤玉龠闭两扉。
+ * 重扇金阙密枢机，玄泉幽阙高崔巍，三田之中精气微，娇女窈窕翳霄晖。
+ * 重堂焕焕明八威，天庭地关列釜斤，灵台盘固永不衰。"
+ * 
+ * 设计理念：
+ * - 紫华：神秘高贵的紫色华光，如霞云飞裙
+ * - 丹青：炼丹的朱红与道法自然的青绿
+ * - 金阙：天宫殿阙的辉煌金色
+ * - 玄泉：幽深玄妙的黑水之色
+ * - 玉龠：温润如玉的洁白
+ * - 八威：天庭的威严紫金
+ */
+
+/* 真武主题 - 浅色 "明" */
+:root.zhenwu {
+  /* 基础色：玉白，如七蕤玉龠 */
+  --color-background: oklch(0.97 0.012 290);
+  --color-foreground: oklch(0.22 0.04 285);
+  
+  /* 卡片：淡紫云雾 */
+  --color-card: oklch(0.985 0.018 295);
+  --color-card-foreground: oklch(0.22 0.04 285);
+  
+  /* 弹出层 */
+  --color-popover: oklch(0.985 0.018 295);
+  --color-popover-foreground: oklch(0.22 0.04 285);
+  
+  /* 主色：紫华飞裙 */
+  --color-primary: oklch(0.52 0.18 300);
+  --color-primary-foreground: oklch(0.98 0.01 290);
+  
+  /* 次要色：翠灵柯 */
+  --color-secondary: oklch(0.92 0.04 160);
+  --color-secondary-foreground: oklch(0.30 0.08 160);
+  
+  /* 静默色：云气罗 */
+  --color-muted: oklch(0.94 0.015 280);
+  --color-muted-foreground: oklch(0.48 0.03 285);
+  
+  /* 强调色：金阙辉煌 */
+  --color-accent: oklch(0.88 0.08 85);
+  --color-accent-foreground: oklch(0.28 0.06 60);
+  
+  /* 警示色：丹青之丹 */
+  --color-destructive: oklch(0.55 0.20 30);
+  --color-destructive-foreground: oklch(0.98 0.01 290);
+  
+  /* 边框：淡紫霞 */
+  --color-border: oklch(0.88 0.025 290);
+  --color-input: oklch(0.90 0.02 290);
+  --color-ring: oklch(0.52 0.18 300);
+  
+  /* 成功色：丹青之青 */
+  --color-success: oklch(0.58 0.14 160);
+  --color-success-foreground: oklch(0.98 0.01 290);
+  
+  /* 警告色：琥珀金 */
+  --color-warning: oklch(0.68 0.16 75);
+  --color-warning-foreground: oklch(0.22 0.04 60);
+}
+
+/* 真武主题 - 深色 "玄" */
+:root.zhenwu-dark {
+  /* 基础色：玄泉幽阙 */
+  --color-background: oklch(0.14 0.025 285);
+  --color-foreground: oklch(0.92 0.015 290);
+  
+  /* 卡片：幽阙墨紫 */
+  --color-card: oklch(0.18 0.03 290);
+  --color-card-foreground: oklch(0.92 0.015 290);
+  
+  /* 弹出层 */
+  --color-popover: oklch(0.18 0.03 290);
+  --color-popover-foreground: oklch(0.92 0.015 290);
+  
+  /* 主色：紫华夜光 */
+  --color-primary: oklch(0.68 0.16 295);
+  --color-primary-foreground: oklch(0.14 0.025 285);
+  
+  /* 次要色：暗翠柯 */
+  --color-secondary: oklch(0.26 0.04 165);
+  --color-secondary-foreground: oklch(0.82 0.06 160);
+  
+  /* 静默色：玄墨 */
+  --color-muted: oklch(0.22 0.025 285);
+  --color-muted-foreground: oklch(0.62 0.025 290);
+  
+  /* 强调色：暗金阙 */
+  --color-accent: oklch(0.35 0.06 75);
+  --color-accent-foreground: oklch(0.88 0.08 80);
+  
+  /* 警示色：暗丹朱 */
+  --color-destructive: oklch(0.50 0.18 25);
+  --color-destructive-foreground: oklch(0.95 0.01 290);
+  
+  /* 边框：玄紫线 */
+  --color-border: oklch(0.30 0.04 290);
+  --color-input: oklch(0.25 0.03 290);
+  --color-ring: oklch(0.68 0.16 295);
+  
+  /* 成功色：暗翠青 */
+  --color-success: oklch(0.55 0.12 160);
+  --color-success-foreground: oklch(0.14 0.025 285);
+  
+  /* 警告色：暗金琥 */
+  --color-warning: oklch(0.58 0.14 75);
+  --color-warning-foreground: oklch(0.14 0.025 285);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
