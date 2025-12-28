@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Bot, Plus, RefreshCw } from 'lucide-react'
 import DashboardHeader from '../components/DashboardHeader'
 import AgentCard, { Agent, AgentStatus } from '../components/AgentCard'
-import { getHealth, getStatus } from '../api'
+import CreateAgentDialog from '../components/CreateAgentDialog'
+import { getHealth, getStatus, getAgents, RegisteredAgent } from '../api'
 import { useSSE } from '../hooks/useSSE'
 import { useTheme } from '../hooks/useTheme'
 
@@ -13,96 +14,103 @@ type EventRecord = {
   task_id?: string
   content?: string
   delta?: string
+  agent_id?: string
   [k: string]: any
 }
 
-// 模拟多个智能体（实际项目中应从 API 获取）
-const mockAgents: Agent[] = [
-  {
-    id: 'agent-1',
-    name: '通用助手',
-    description: '处理各类通用任务',
-    status: 'idle',
-    taskCount: 12,
-    lastActivity: '2分钟前',
-  },
-  {
-    id: 'agent-2',
-    name: '代码审查',
-    description: '自动代码审查和优化建议',
-    status: 'running',
-    currentTask: '正在分析 src/components 目录...',
-    taskCount: 8,
-    lastActivity: '刚刚',
-  },
-  {
-    id: 'agent-3',
-    name: '文档生成',
-    description: '自动生成API文档',
-    status: 'completed',
-    taskCount: 5,
-    lastActivity: '10分钟前',
-  },
-  {
-    id: 'agent-4',
-    name: '测试助手',
-    description: '自动化测试生成与执行',
-    status: 'error',
-    currentTask: '测试执行失败',
-    taskCount: 3,
-    lastActivity: '5分钟前',
-  },
-]
+// 将后端 RegisteredAgent 转换为前端 Agent 格式
+function toAgent(ra: RegisteredAgent): Agent {
+  const now = Math.floor(Date.now() / 1000)
+  const diff = now - ra.last_activity
+  let lastActivity = '未知'
+  if (diff < 60) lastActivity = '刚刚'
+  else if (diff < 3600) lastActivity = `${Math.floor(diff / 60)}分钟前`
+  else if (diff < 86400) lastActivity = `${Math.floor(diff / 3600)}小时前`
+  else lastActivity = `${Math.floor(diff / 86400)}天前`
+
+  return {
+    id: ra.id,
+    name: ra.name,
+    description: ra.description,
+    status: ra.status as AgentStatus,
+    currentTask: ra.current_task,
+    taskCount: ra.task_count,
+    lastActivity,
+  }
+}
 
 export default function HomePage() {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
   const [status, setStatus] = useState<any>(null)
   const [health, setHealth] = useState<any>(null)
-  const [agents, setAgents] = useState<Agent[]>(mockAgents)
+  const [agents, setAgents] = useState<Agent[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const [isHubMode, setIsHubMode] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
 
-  // 加载系统状态
+  // 加载系统状态和智能体列表
   async function loadStatus() {
     setRefreshing(true)
     try {
       const s = await getStatus()
       setStatus(s.data)
-      // 根据状态更新第一个智能体
-      if (s.data?.is_running) {
-        setAgents(prev => prev.map((a, i) => 
-          i === 0 ? { ...a, status: 'running' as AgentStatus } : a
-        ))
-      }
     } catch (_) {}
     try {
       const h = await getHealth()
       setHealth(h.data)
+      // 检查是否是 Hub 模式
+      setIsHubMode(h.data?.mode === 'Hub')
     } catch (_) {}
+    
+    // 尝试从 Hub 获取智能体列表
+    try {
+      const registeredAgents = await getAgents()
+      if (registeredAgents.length > 0) {
+        setAgents(registeredAgents.map(toAgent))
+      }
+    } catch (_) {
+      // 如果不是 Hub 模式，使用本地智能体作为单项
+      if (status?.session_id) {
+        setAgents([{
+          id: 'local',
+          name: '本地智能体',
+          description: '当前运行的智能体',
+          status: status?.is_running ? 'running' : 'idle',
+          taskCount: 0,
+          lastActivity: '刚刚',
+        }])
+      }
+    }
     setRefreshing(false)
   }
 
   useEffect(() => {
     loadStatus()
     // 定期刷新状态
-    const interval = setInterval(loadStatus, 30000)
+    const interval = setInterval(loadStatus, 15000)
     return () => clearInterval(interval)
   }, [])
 
   // SSE 事件处理
   const handleEvent = useCallback((evt: any) => {
     const e: EventRecord = evt
-    const tid = e.task_id || 'global'
+    const agentId = e.agent_id || 'local'
     
     if (e.type === 'task_started') {
-      // 更新智能体状态为运行中
-      setAgents(prev => prev.map((a, i) => 
-        i === 0 ? { ...a, status: 'running' as AgentStatus, currentTask: '处理任务中...', lastActivity: '刚刚' } : a
+      setAgents(prev => prev.map(a => 
+        a.id === agentId ? { ...a, status: 'running' as AgentStatus, currentTask: '处理任务中...', lastActivity: '刚刚' } : a
       ))
     } else if (e.type === 'task_completed') {
-      // 更新智能体状态为已完成
-      setAgents(prev => prev.map((a, i) => 
-        i === 0 ? { ...a, status: 'completed' as AgentStatus, currentTask: undefined, taskCount: (a.taskCount || 0) + 1 } : a
+      setAgents(prev => prev.map(a => 
+        a.id === agentId ? { ...a, status: 'idle' as AgentStatus, currentTask: undefined, taskCount: (a.taskCount || 0) + 1 } : a
+      ))
+    } else if (e.type === 'agent_registered') {
+      // 新智能体注册，刷新列表
+      loadStatus()
+    } else if (e.type === 'agent_offline') {
+      setAgents(prev => prev.map(a =>
+        a.id === agentId ? { ...a, status: 'error' as AgentStatus } : a
       ))
     }
   }, [])
@@ -150,7 +158,10 @@ export default function HomePage() {
               <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
               刷新
             </button>
-            <button className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5">
+            <button 
+              onClick={() => setShowCreateDialog(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5"
+            >
               <Plus className="size-4" />
               新建智能体
             </button>
@@ -177,6 +188,7 @@ export default function HomePage() {
 
           {/* Add New Agent Card */}
           <div
+            onClick={() => setShowCreateDialog(true)}
             className="border-2 border-dashed border-border/50 rounded-xl p-6 flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 cursor-pointer transition-all duration-300 min-h-[160px] hover:shadow-lg hover:shadow-primary/5"
           >
             <Bot className="size-8" />
@@ -192,13 +204,26 @@ export default function HomePage() {
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-2">暂无智能体</h3>
             <p className="text-muted-foreground mb-8 opacity-80">创建你的第一个智能体开始使用</p>
-            <button className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5">
+            <button 
+              onClick={() => setShowCreateDialog(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5"
+            >
               <Plus className="size-4" />
               创建智能体
             </button>
           </div>
         )}
       </main>
+
+      {/* Create Agent Dialog */}
+      <CreateAgentDialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        onCreated={() => {
+          setShowCreateDialog(false)
+          loadStatus()
+        }}
+      />
     </div>
   )
 }

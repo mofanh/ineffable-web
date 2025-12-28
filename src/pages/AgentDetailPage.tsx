@@ -1,60 +1,38 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause } from 'lucide-react'
+import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench } from 'lucide-react'
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import { Separator } from '../components/ui/separator'
 import { cn } from '../utils/cn'
-import { execute } from '../api'
-import { useSSE } from '../hooks/useSSE'
+import { getAgent, executeOnAgentStream, RegisteredAgent, SSEEvent } from '../api'
 import { useTheme } from '../hooks/useTheme'
 import type { Agent, AgentStatus } from '../components/AgentCard'
 
-type EventRecord = {
+type EventRecord = SSEEvent & {
   id?: string
-  type: string
-  task_id?: string
-  content?: string
-  delta?: string
-  [k: string]: any
+  timestamp?: number
 }
 
-// 模拟智能体数据（实际应从 API 获取）
-const mockAgents: Record<string, Agent> = {
-  'agent-1': {
-    id: 'agent-1',
-    name: '通用助手',
-    description: '处理各类通用任务，包括文本处理、数据分析和简单的自动化操作',
-    status: 'idle',
-    taskCount: 12,
-    lastActivity: '2分钟前',
-  },
-  'agent-2': {
-    id: 'agent-2',
-    name: '代码审查',
-    description: '自动代码审查和优化建议，支持多种编程语言',
-    status: 'running',
-    currentTask: '正在分析 src/components 目录...',
-    taskCount: 8,
-    lastActivity: '刚刚',
-  },
-  'agent-3': {
-    id: 'agent-3',
-    name: '文档生成',
-    description: '自动生成 API 文档、README 和代码注释',
-    status: 'completed',
-    taskCount: 5,
-    lastActivity: '10分钟前',
-  },
-  'agent-4': {
-    id: 'agent-4',
-    name: '测试助手',
-    description: '自动化测试生成与执行，支持单元测试和集成测试',
-    status: 'error',
-    currentTask: '测试执行失败',
-    taskCount: 3,
-    lastActivity: '5分钟前',
-  },
+// 将后端 RegisteredAgent 转换为前端 Agent 格式
+function toAgent(ra: RegisteredAgent): Agent {
+  const now = Math.floor(Date.now() / 1000)
+  const diff = now - ra.last_activity
+  let lastActivity = '未知'
+  if (diff < 60) lastActivity = '刚刚'
+  else if (diff < 3600) lastActivity = `${Math.floor(diff / 60)}分钟前`
+  else if (diff < 86400) lastActivity = `${Math.floor(diff / 3600)}小时前`
+  else lastActivity = `${Math.floor(diff / 86400)}天前`
+
+  return {
+    id: ra.id,
+    name: ra.name,
+    description: ra.description,
+    status: ra.status as AgentStatus,
+    currentTask: ra.current_task,
+    taskCount: ra.task_count,
+    lastActivity,
+  }
 }
 
 const statusConfig: Record<AgentStatus, { label: string; color: string; bgColor: string }> = {
@@ -63,6 +41,7 @@ const statusConfig: Record<AgentStatus, { label: string; color: string; bgColor:
   completed: { label: '已完成', color: 'text-primary', bgColor: 'bg-primary/10' },
   error: { label: '错误', color: 'text-destructive', bgColor: 'bg-destructive/10' },
   paused: { label: '已暂停', color: 'text-warning', bgColor: 'bg-warning/10' },
+  offline: { label: '离线', color: 'text-muted-foreground', bgColor: 'bg-muted' },
 }
 
 export default function AgentDetailPage() {
@@ -71,42 +50,116 @@ export default function AgentDetailPage() {
   const { theme, toggleTheme } = useTheme()
   
   const [agent, setAgent] = useState<Agent | null>(null)
+  const [notFound, setNotFound] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'output' | 'events'>('output')
   const [events, setEvents] = useState<EventRecord[]>([])
-  const [buffers, setBuffers] = useState<Record<string, string>>({})
+  const [output, setOutput] = useState('')
+  const [toolCalls, setToolCalls] = useState<Map<string, { tool: string; status: 'running' | 'done'; output?: string }>>(new Map())
+  const cancelRef = useRef<(() => void) | null>(null)
 
   // 加载智能体数据
   useEffect(() => {
-    if (agentId && mockAgents[agentId]) {
-      setAgent(mockAgents[agentId])
+    async function loadAgent() {
+      if (!agentId) {
+        setNotFound(true)
+        return
+      }
+      
+      // 对于 local 智能体，直接创建一个本地代理对象
+      if (agentId === 'local') {
+        setAgent({
+          id: 'local',
+          name: '本地智能体',
+          description: '当前运行的智能体（非 Hub 模式）',
+          status: 'idle',
+          taskCount: 0,
+          lastActivity: '刚刚',
+        })
+        return
+      }
+      
+      // 从 API 获取智能体信息
+      const data = await getAgent(agentId)
+      if (data) {
+        setAgent(toAgent(data))
+      } else {
+        setNotFound(true)
+      }
     }
+    
+    loadAgent()
   }, [agentId])
 
   // SSE 事件处理
-  const handleEvent = useCallback((evt: any) => {
-    const e: EventRecord = evt
+  const handleEvent = useCallback((evt: SSEEvent) => {
+    const e: EventRecord = { ...evt, timestamp: Date.now() }
     setEvents((s) => [...s.slice(-500), e])
-    const tid = e.task_id || 'global'
     
-    if (e.type === 'assistant_message_delta') {
-      setBuffers((b) => ({ ...b, [tid]: (b[tid] || '') + (e.delta || '') }))
-    } else if (e.type === 'assistant_message_completed') {
-      setBuffers((b) => ({ ...b, [tid]: e.content || b[tid] || '' }))
-    } else if (e.type === 'task_started') {
-      setAgent(prev => prev ? { ...prev, status: 'running' as AgentStatus, currentTask: '处理任务中...', lastActivity: '刚刚' } : null)
-    } else if (e.type === 'task_completed') {
-      setAgent(prev => prev ? { ...prev, status: 'completed' as AgentStatus, currentTask: undefined, taskCount: (prev.taskCount || 0) + 1 } : null)
+    switch (e.type) {
+      case 'delta':
+        // 流式文本输出
+        if (e.content) {
+          setOutput((prev) => prev + e.content)
+        }
+        break
+      case 'task_started':
+        setAgent(prev => prev ? { ...prev, status: 'running' as AgentStatus, currentTask: '处理任务中...', lastActivity: '刚刚' } : null)
+        setOutput('') // 清空上次输出
+        setToolCalls(new Map())
+        break
+      case 'task_completed':
+        setAgent(prev => prev ? { ...prev, status: 'completed' as AgentStatus, currentTask: undefined, taskCount: (prev.taskCount || 0) + 1 } : null)
+        break
+      case 'task_aborted':
+        setAgent(prev => prev ? { ...prev, status: 'error' as AgentStatus, currentTask: undefined } : null)
+        if (e.reason) {
+          setOutput((prev) => prev + `\n\n[错误] ${e.reason}`)
+        }
+        break
+      case 'tool_start':
+        if (e.call_id && e.tool) {
+          setToolCalls((prev) => new Map(prev).set(e.call_id!, { tool: e.tool!, status: 'running' }))
+        }
+        break
+      case 'tool_complete':
+        if (e.call_id) {
+          setToolCalls((prev) => {
+            const next = new Map(prev)
+            const existing = next.get(e.call_id!)
+            if (existing) {
+              next.set(e.call_id!, { ...existing, status: 'done', output: e.output })
+            }
+            return next
+          })
+        }
+        break
+      // 兼容旧事件格式
+      case 'assistant_message_delta':
+        if (e.delta) {
+          setOutput((prev) => prev + e.delta)
+        }
+        break
+      case 'assistant_message_completed':
+        if (e.content) {
+          setOutput(e.content)
+        }
+        break
     }
   }, [])
 
-  const { connected } = useSSE(handleEvent)
+  // 清理取消函数
+  useEffect(() => {
+    return () => {
+      if (cancelRef.current) {
+        cancelRef.current()
+      }
+    }
+  }, [])
 
-  // 获取输出
-  const output = useMemo(() => buffers['global'] || '', [buffers])
-
-  if (!agent) {
+  // 智能体不存在
+  if (notFound) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 flex items-center justify-center">
         <div className="text-center">
@@ -125,20 +178,49 @@ export default function AgentDetailPage() {
     )
   }
 
+  // 加载中
+  if (!agent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="size-12 mx-auto text-muted-foreground/50 mb-4 animate-spin" />
+          <p className="text-muted-foreground">加载中...</p>
+        </div>
+      </div>
+    )
+  }
+
   const config = statusConfig[agent.status]
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
     if (!prompt.trim() || loading) return
-    setLoading(true)
-    try {
-      await execute(prompt)
-      setPrompt('')
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
+    
+    // 取消之前的请求
+    if (cancelRef.current) {
+      cancelRef.current()
     }
+    
+    setLoading(true)
+    const currentPrompt = prompt
+    setPrompt('')
+    
+    // 使用流式执行
+    cancelRef.current = executeOnAgentStream(
+      agent.id,
+      currentPrompt,
+      handleEvent,
+      (error) => {
+        console.error('Stream error:', error)
+        setAgent(prev => prev ? { ...prev, status: 'error' as AgentStatus } : null)
+        setLoading(false)
+      },
+      () => {
+        // 完成
+        setLoading(false)
+        cancelRef.current = null
+      }
+    )
   }
 
   return (
@@ -219,9 +301,9 @@ export default function AgentDetailPage() {
                   <span className="font-medium">{agent.lastActivity || '—'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">SSE 连接</span>
-                  <span className={cn('font-medium', connected ? 'text-success' : 'text-destructive')}>
-                    {connected ? '已连接' : '断开'}
+                  <span className="text-muted-foreground">流式状态</span>
+                  <span className={cn('font-medium', loading ? 'text-success' : 'text-muted-foreground')}>
+                    {loading ? '接收中...' : '空闲'}
                   </span>
                 </div>
                 {agent.currentTask && (
@@ -308,8 +390,38 @@ export default function AgentDetailPage() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-3 border-b border-border/30 bg-muted/20">
                     <FileText className="size-3" />
                     <span>输出终端</span>
+                    {toolCalls.size > 0 && (
+                      <Badge variant="secondary" className="ml-auto text-[10px]">
+                        <Wrench className="size-3 mr-1" />
+                        {Array.from(toolCalls.values()).filter(t => t.status === 'running').length} 工具运行中
+                      </Badge>
+                    )}
                   </div>
                   <div className="p-4 bg-foreground/95 dark:bg-background/95 min-h-[450px]">
+                    {/* 工具调用状态 */}
+                    {toolCalls.size > 0 && (
+                      <div className="mb-4 space-y-2">
+                        {Array.from(toolCalls.entries()).map(([callId, info]) => (
+                          <div key={callId} className={cn(
+                            'flex items-center gap-2 px-3 py-2 rounded-lg text-xs',
+                            info.status === 'running' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'
+                          )}>
+                            {info.status === 'running' ? (
+                              <RefreshCw className="size-3 animate-spin" />
+                            ) : (
+                              <Wrench className="size-3" />
+                            )}
+                            <span className="font-medium">{info.tool}</span>
+                            {info.status === 'done' && info.output && (
+                              <span className="text-muted-foreground truncate max-w-xs">
+                                → {info.output.slice(0, 50)}{info.output.length > 50 ? '...' : ''}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* 文本输出 */}
                     <pre className="text-sm text-success font-mono whitespace-pre-wrap">
                       {output || <span className="text-muted-foreground/50 italic">等待输出...</span>}
                     </pre>

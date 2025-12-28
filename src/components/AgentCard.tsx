@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Badge } from './ui/badge'
 import { cn } from '../utils/cn'
 
-export type AgentStatus = 'idle' | 'running' | 'completed' | 'error' | 'paused'
+export type AgentStatus = 'idle' | 'running' | 'completed' | 'error' | 'paused' | 'offline'
 
 export interface Agent {
   id: string
@@ -51,6 +51,12 @@ const statusConfig: Record<AgentStatus, { label: string; variant: 'default' | 's
     variant: 'secondary',
     icon: <Pause className="size-3" />,
     className: 'bg-warning/10 text-warning',
+  },
+  offline: {
+    label: '离线',
+    variant: 'secondary',
+    icon: <Clock className="size-3" />,
+    className: 'bg-muted text-muted-foreground/50',
   },
 }
 

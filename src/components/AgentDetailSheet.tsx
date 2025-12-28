@@ -11,7 +11,7 @@ import { Badge } from './ui/badge'
 import { Input } from './ui/input'
 import { Separator } from './ui/separator'
 import { cn } from '../utils/cn'
-import { execute } from '../api'
+import { executeOnAgent } from '../api'
 import type { Agent, AgentStatus } from './AgentCard'
 
 interface AgentDetailSheetProps {
@@ -49,10 +49,10 @@ export default function AgentDetailSheet({
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!prompt.trim() || loading) return
+    if (!prompt.trim() || loading || !agent) return
     setLoading(true)
     try {
-      const data = await execute(prompt)
+      const data = await executeOnAgent(agent.id, prompt)
       onTaskStarted?.(data.task_id, prompt)
       setPrompt('')
     } catch (err) {
