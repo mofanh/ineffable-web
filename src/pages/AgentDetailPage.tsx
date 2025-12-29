@@ -308,30 +308,21 @@ export default function AgentDetailPage() {
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
       {/* Header */}
-      <header className="flex-none h-16 border-b border-border/50 bg-card/50 backdrop-blur-sm px-4 flex items-center justify-between z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/')} className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <ArrowLeft className="size-5 text-muted-foreground" />
+      <header className="flex-none h-14 border-b border-border/40 bg-background/80 backdrop-blur-md px-4 flex items-center justify-between z-10 sticky top-0">
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/')} className="p-2 hover:bg-muted/50 rounded-full transition-colors -ml-2">
+            <ArrowLeft className="size-5 text-foreground/70" />
           </button>
-          <div className="flex items-center gap-3">
-            <div className={cn('p-2 rounded-lg', config.bgColor)}>
-              <Bot className={cn('size-5', config.color)} />
-            </div>
-            <div>
-              <h1 className="font-semibold text-sm">{agent.name}</h1>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className={cn('size-1.5 rounded-full', config.color.replace('text-', 'bg-'))} />
-                {config.label}
-              </div>
-            </div>
+          <div className="flex flex-col">
+            <h1 className="font-medium text-base text-foreground">{agent.name}</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleDelete} disabled={agent.id === 'local'} className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors">
+        <div className="flex items-center gap-1">
+          <button onClick={handleDelete} disabled={agent.id === 'local'} className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-full transition-colors">
             <Trash2 className="size-5" />
           </button>
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <Settings className="size-5 text-muted-foreground" />
+          <button className="p-2 hover:bg-muted/50 rounded-full transition-colors">
+            <Settings className="size-5 text-foreground/70" />
           </button>
         </div>
       </header>
@@ -339,28 +330,24 @@ export default function AgentDetailPage() {
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
-            <Bot className="size-12 mb-4" />
-            <p>开始与 {agent.name} 对话...</p>
+          <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
+            <div className="bg-muted/30 p-4 rounded-full mb-4">
+              <Bot className="size-8" />
+            </div>
+            <p className="text-sm">开始与 {agent.name} 对话</p>
           </div>
         ) : (
           messages.map((msg) => (
             <div key={msg.id} className={cn("flex gap-4 max-w-3xl mx-auto", msg.role === 'user' ? "justify-end" : "justify-start")}>
-              {msg.role === 'assistant' && (
-                <div className="flex-none size-8 rounded-full bg-primary/10 flex items-center justify-center mt-1">
-                  <Bot className="size-5 text-primary" />
-                </div>
-              )}
-              
               <div className={cn(
-                "flex-1 max-w-[80%]",
+                "flex-1 max-w-[85%]",
                 msg.role === 'user' ? "flex justify-end" : ""
               )}>
                 <div className={cn(
-                  "rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm",
+                  "px-0 py-2 text-sm leading-relaxed",
                   msg.role === 'user' 
-                    ? "bg-primary text-primary-foreground rounded-tr-sm" 
-                    : "bg-card border border-border/50 rounded-tl-sm"
+                    ? "bg-primary/10 text-foreground px-4 py-3 rounded-2xl rounded-tr-sm" 
+                    : "text-foreground"
                 )}>
                   {/* Tool Calls */}
                   {msg.toolCalls && msg.toolCalls.size > 0 && (
@@ -387,12 +374,6 @@ export default function AgentDetailPage() {
                   </div>
                 </div>
               </div>
-
-              {msg.role === 'user' && (
-                <div className="flex-none size-8 rounded-full bg-muted flex items-center justify-center mt-1">
-                  <User className="size-5 text-muted-foreground" />
-                </div>
-              )}
             </div>
           ))
         )}
@@ -400,9 +381,9 @@ export default function AgentDetailPage() {
       </main>
 
       {/* Input Area */}
-      <footer className="flex-none p-4 bg-background/80 backdrop-blur-sm border-t border-border/50">
+      <footer className="flex-none p-4 bg-background">
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative bg-muted/30 rounded-2xl border border-border/50 focus-within:border-primary/60 focus-within:bg-background focus-within:shadow-sm transition-all duration-200">
+          <form onSubmit={handleSubmit} className="relative bg-muted/30 rounded-[24px] border border-transparent focus-within:border-primary/20 focus-within:bg-background focus-within:shadow-sm transition-all duration-200">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -412,17 +393,17 @@ export default function AgentDetailPage() {
                   handleSubmit()
                 }
               }}
-              placeholder="输入消息..."
-              className="w-full min-h-[60px] max-h-[200px] bg-transparent border-none px-4 py-3 text-sm resize-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50"
+              placeholder="给“豆包”发送消息"
+              className="w-full min-h-[52px] max-h-[200px] bg-transparent border-none px-5 py-4 text-sm resize-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground/40"
               rows={1}
             />
-            <div className="flex items-center justify-between px-2 pb-2">
+            <div className="flex items-center justify-between px-3 pb-3">
               <div className="flex items-center gap-1">
-                <button type="button" className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-                  <Paperclip className="size-4" />
+                <button type="button" className="p-2 text-muted-foreground/60 hover:text-foreground hover:bg-muted rounded-full transition-colors">
+                  <Paperclip className="size-5" />
                 </button>
-                <button type="button" className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
-                  <Mic className="size-4" />
+                <button type="button" className="p-2 text-muted-foreground/60 hover:text-foreground hover:bg-muted rounded-full transition-colors">
+                  <Mic className="size-5" />
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -430,30 +411,30 @@ export default function AgentDetailPage() {
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    className="p-2 text-destructive hover:bg-destructive/10 rounded-full transition-colors"
                     title="取消"
                   >
-                    <StopCircle className="size-4" />
+                    <StopCircle className="size-5" />
                   </button>
                 )}
                 <button
                   type="submit"
                   disabled={!input.trim() || loading}
                   className={cn(
-                    "p-2 rounded-lg transition-all duration-200",
+                    "p-2 rounded-full transition-all duration-200",
                     input.trim() && !loading
-                      ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:bg-primary/90"
-                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                      ? "bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:bg-primary/90"
+                      : "bg-transparent text-muted-foreground/30 cursor-not-allowed"
                   )}
                 >
-                  <Send className="size-4" />
+                  <Send className="size-5" />
                 </button>
               </div>
             </div>
           </form>
-          <div className="text-center mt-2">
-            <p className="text-[10px] text-muted-foreground/50">
-              AI 生成的内容可能不准确，请核实重要信息。
+          <div className="text-center mt-3">
+            <p className="text-[11px] text-muted-foreground/40">
+              内容由 AI 生成，请仔细甄别
             </p>
           </div>
         </div>
