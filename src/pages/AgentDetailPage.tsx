@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench, StopCircle } from 'lucide-react'
+import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench, StopCircle, User, Paperclip, Mic, ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import { Separator } from '../components/ui/separator'
@@ -12,6 +12,22 @@ import type { Agent, AgentStatus } from '../components/AgentCard'
 type EventRecord = SSEEvent & {
   id?: string
   timestamp?: number
+}
+
+interface ToolCall {
+  id: string
+  name: string
+  status: 'running' | 'done'
+  output?: string
+}
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+  status?: 'streaming' | 'completed' | 'error'
+  toolCalls?: Map<string, ToolCall>
 }
 
 // 将后端 RegisteredAgent 转换为前端 Agent 格式
@@ -51,23 +67,31 @@ export default function AgentDetailPage() {
   
   const [agent, setAgent] = useState<Agent | null>(null)
   const [notFound, setNotFound] = useState(false)
-  const [prompt, setPrompt] = useState('')
+  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'output' | 'events'>('output')
-  const [events, setEvents] = useState<EventRecord[]>([])
-  const [output, setOutput] = useState('')
-  const [toolCalls, setToolCalls] = useState<Map<string, { tool: string; status: 'running' | 'done'; output?: string }>>(new Map())
+  const [messages, setMessages] = useState<Message[]>([])
   const cancelRef = useRef<(() => void) | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 加载智能体数据
   useEffect(() => {
+    // 切换智能体时重置状态
+    setMessages([])
+    setAgent(null)
+    setNotFound(false)
+    setInput('')
+    setLoading(false)
+    if (cancelRef.current) {
+      cancelRef.current()
+      cancelRef.current = null
+    }
+
     async function loadAgent() {
       if (!agentId) {
         setNotFound(true)
         return
       }
       
-      // 对于 local 智能体，直接创建一个本地代理对象
       if (agentId === 'local') {
         setAgent({
           id: 'local',
@@ -80,7 +104,6 @@ export default function AgentDetailPage() {
         return
       }
       
-      // 从 API 获取智能体信息
       const data = await getAgent(agentId)
       if (data) {
         setAgent(toAgent(data))
@@ -92,61 +115,69 @@ export default function AgentDetailPage() {
     loadAgent()
   }, [agentId])
 
+  // 自动滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
   // SSE 事件处理
   const handleEvent = useCallback((evt: SSEEvent) => {
-    const e: EventRecord = { ...evt, timestamp: Date.now() }
-    setEvents((s) => [...s.slice(-500), e])
-    
-    switch (e.type) {
-      case 'delta':
-        // 流式文本输出
-        if (e.content) {
-          setOutput((prev) => prev + e.content)
-        }
-        break
-      case 'task_started':
-        setAgent(prev => prev ? { ...prev, status: 'running' as AgentStatus, currentTask: '处理任务中...', lastActivity: '刚刚' } : null)
-        setOutput('') // 清空上次输出
-        setToolCalls(new Map())
-        break
-      case 'task_completed':
-        setAgent(prev => prev ? { ...prev, status: 'completed' as AgentStatus, currentTask: undefined, taskCount: (prev.taskCount || 0) + 1 } : null)
-        break
-      case 'task_aborted':
-        setAgent(prev => prev ? { ...prev, status: 'error' as AgentStatus, currentTask: undefined } : null)
-        if (e.reason) {
-          setOutput((prev) => prev + `\n\n[错误] ${e.reason}`)
-        }
-        break
-      case 'tool_start':
-        if (e.call_id && e.tool) {
-          setToolCalls((prev) => new Map(prev).set(e.call_id!, { tool: e.tool!, status: 'running' }))
-        }
-        break
-      case 'tool_complete':
-        if (e.call_id) {
-          setToolCalls((prev) => {
-            const next = new Map(prev)
-            const existing = next.get(e.call_id!)
-            if (existing) {
-              next.set(e.call_id!, { ...existing, status: 'done', output: e.output })
+    setMessages(prev => {
+      const newMessages = [...prev]
+      const lastMsg = newMessages[newMessages.length - 1]
+      
+      if (!lastMsg || lastMsg.role !== 'assistant') return prev
+
+      const updatedMsg = { ...lastMsg }
+      
+      switch (evt.type) {
+        case 'delta':
+          if (evt.content) {
+            updatedMsg.content += evt.content
+          }
+          break
+        case 'task_started':
+          // 可以在这里更新状态，但主要逻辑在 handleSubmit
+          break
+        case 'task_completed':
+          updatedMsg.status = 'completed'
+          setAgent(prev => prev ? { ...prev, status: 'idle', taskCount: (prev.taskCount || 0) + 1 } : null)
+          break
+        case 'task_aborted':
+          updatedMsg.status = 'error'
+          updatedMsg.content += '\n\n[任务已取消]'
+          setAgent(prev => prev ? { ...prev, status: 'idle' } : null)
+          break
+        case 'tool_start':
+          if (evt.call_id && evt.tool) {
+            const tools = new Map(updatedMsg.toolCalls || [])
+            tools.set(evt.call_id, { id: evt.call_id, name: evt.tool, status: 'running' })
+            updatedMsg.toolCalls = tools
+          }
+          break
+        case 'tool_complete':
+          if (evt.call_id) {
+            const tools = new Map(updatedMsg.toolCalls || [])
+            const tool = tools.get(evt.call_id)
+            if (tool) {
+              tools.set(evt.call_id, { ...tool, status: 'done', output: evt.output })
+              updatedMsg.toolCalls = tools
             }
-            return next
-          })
-        }
-        break
-      // 兼容旧事件格式
-      case 'assistant_message_delta':
-        if (e.delta) {
-          setOutput((prev) => prev + e.delta)
-        }
-        break
-      case 'assistant_message_completed':
-        if (e.content) {
-          setOutput(e.content)
-        }
-        break
-    }
+          }
+          break
+        // 兼容旧事件
+        case 'assistant_message_delta':
+          if (evt.delta) updatedMsg.content += evt.delta
+          break
+        case 'assistant_message_completed':
+          if (evt.content) updatedMsg.content = evt.content
+          updatedMsg.status = 'completed'
+          break
+      }
+      
+      newMessages[newMessages.length - 1] = updatedMsg
+      return newMessages
+    })
   }, [])
 
   // 清理取消函数
@@ -161,18 +192,11 @@ export default function AgentDetailPage() {
   // 智能体不存在
   if (notFound) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Bot className="size-16 mx-auto text-muted-foreground/50 mb-4" />
           <h2 className="text-xl font-semibold text-foreground mb-2">智能体不存在</h2>
-          <p className="text-muted-foreground mb-6">找不到 ID 为 {agentId} 的智能体</p>
-          <button
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <ArrowLeft className="size-4" />
-            返回首页
-          </button>
+          <button onClick={() => navigate('/')} className="text-primary hover:underline">返回首页</button>
         </div>
       </div>
     )
@@ -181,11 +205,8 @@ export default function AgentDetailPage() {
   // 加载中
   if (!agent) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="size-12 mx-auto text-muted-foreground/50 mb-4 animate-spin" />
-          <p className="text-muted-foreground">加载中...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <RefreshCw className="size-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -194,51 +215,78 @@ export default function AgentDetailPage() {
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!agent || !prompt.trim() || loading) return
+    if (!agent || !input.trim() || loading) return
     
-    // 取消之前的请求
-    if (cancelRef.current) {
-      cancelRef.current()
+    if (cancelRef.current) cancelRef.current()
+    
+    const currentPrompt = input
+    setInput('')
+    setLoading(true)
+    
+    // 添加用户消息
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: currentPrompt,
+      timestamp: Date.now()
     }
     
-    setLoading(true)
-    const currentPrompt = prompt
-    setPrompt('')
+    // 添加助手消息占位
+    const assistantMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      status: 'streaming',
+      toolCalls: new Map()
+    }
     
-    // 使用流式执行
+    setMessages(prev => [...prev, userMsg, assistantMsg])
+    setAgent(prev => prev ? { ...prev, status: 'running' } : null)
+    
     cancelRef.current = executeOnAgentStream(
       agent.id,
       currentPrompt,
       handleEvent,
       (error) => {
         console.error('Stream error:', error)
-        setAgent(prev => prev ? { ...prev, status: 'error' as AgentStatus } : null)
+        setMessages(prev => {
+          const newMessages = [...prev]
+          const last = newMessages[newMessages.length - 1]
+          if (last && last.role === 'assistant') {
+            last.status = 'error'
+            last.content += `\n\n[错误: ${error}]`
+          }
+          return newMessages
+        })
+        setAgent(prev => prev ? { ...prev, status: 'error' } : null)
         setLoading(false)
       },
       () => {
-        // 完成
         setLoading(false)
         cancelRef.current = null
       }
     )
   }
 
-  // 取消当前任务
   async function handleCancel() {
     if (!agent || !loading) return
-    
     try {
-      // 1. 断开 SSE 连接（本地取消）
       if (cancelRef.current) {
         cancelRef.current()
         cancelRef.current = null
       }
-      
-      // 2. 向服务端发送取消请求
       await cancelAgentTask(agent.id)
-      
-      setAgent(prev => prev ? { ...prev, status: 'idle' as AgentStatus, currentTask: undefined } : null)
-      setOutput(prev => prev + '\n\n[已取消]')
+      setAgent(prev => prev ? { ...prev, status: 'idle' } : null)
+      setMessages(prev => {
+        const newMessages = [...prev]
+        const last = newMessages[newMessages.length - 1]
+        if (last && last.role === 'assistant') {
+          last.status = 'error'
+          last.content += '\n\n[已取消]'
+        }
+        return newMessages
+      })
     } catch (error) {
       console.error('Failed to cancel task:', error)
     } finally {
@@ -246,299 +294,170 @@ export default function AgentDetailPage() {
     }
   }
 
-  // 删除智能体
   async function handleDelete() {
     if (!agent || agent.id === 'local') return
-    
-    if (!window.confirm(`确定要删除智能体「${agent.name}」吗？此操作不可撤销。`)) {
-      return
-    }
-    
+    if (!window.confirm(`确定要删除智能体「${agent.name}」吗？`)) return
     try {
       await deleteAgent(agent.id)
       navigate('/')
     } catch (error) {
-      console.error('Failed to delete agent:', error)
-      alert('删除失败：' + (error instanceof Error ? error.message : '未知错误'))
+      alert('删除失败')
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 transition-colors duration-500">
+    <div className="flex flex-col h-full bg-background text-foreground">
       {/* Header */}
-      <header className="bg-card/80 backdrop-blur-sm border-b border-border/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Back & Title */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/')}
-                className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all duration-300"
-              >
-                <ArrowLeft className="size-5" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className={cn('p-2.5 rounded-xl', config.bgColor)}>
-                  <Bot className={cn('size-6', config.color)} />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold text-foreground tracking-tight">{agent.name}</h1>
-                  <p className="text-xs text-muted-foreground">{agent.description}</p>
-                </div>
-              </div>
+      <header className="flex-none h-16 border-b border-border/50 bg-card/50 backdrop-blur-sm px-4 flex items-center justify-between z-10">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/')} className="p-2 hover:bg-muted rounded-lg transition-colors">
+            <ArrowLeft className="size-5 text-muted-foreground" />
+          </button>
+          <div className="flex items-center gap-3">
+            <div className={cn('p-2 rounded-lg', config.bgColor)}>
+              <Bot className={cn('size-5', config.color)} />
             </div>
-
-            {/* Status & Actions */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className={cn('size-2 rounded-full', agent.status === 'running' || loading ? 'bg-success animate-pulse' : 'bg-muted-foreground/40')} />
-                <Badge variant="outline" className={cn('gap-1', config.color)}>
-                  {config.label}
-                </Badge>
-              </div>
-              
-              <div className="flex items-center gap-1">
-                {loading ? (
-                  <button 
-                    onClick={handleCancel}
-                    className="p-2 rounded-xl hover:bg-destructive/10 text-destructive transition-colors" 
-                    title="取消任务"
-                  >
-                    <StopCircle className="size-5" />
-                  </button>
-                ) : agent.status === 'running' ? (
-                  <button className="p-2 rounded-xl hover:bg-muted/50 text-warning transition-colors" title="暂停">
-                    <Pause className="size-5" />
-                  </button>
-                ) : (
-                  <button className="p-2 rounded-xl hover:bg-muted/50 text-success transition-colors" title="启动">
-                    <Play className="size-5" />
-                  </button>
-                )}
-                <button className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="设置">
-                  <Settings className="size-5" />
-                </button>
-                <button 
-                  onClick={handleDelete}
-                  disabled={agent.id === 'local'}
-                  className={cn(
-                    "p-2 rounded-xl transition-colors",
-                    agent.id === 'local' 
-                      ? "text-muted-foreground/30 cursor-not-allowed" 
-                      : "hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                  )} 
-                  title={agent.id === 'local' ? '本地智能体不能删除' : '删除'}
-                >
-                  <Trash2 className="size-5" />
-                </button>
+            <div>
+              <h1 className="font-semibold text-sm">{agent.name}</h1>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className={cn('size-1.5 rounded-full', config.color.replace('text-', 'bg-'))} />
+                {config.label}
               </div>
             </div>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleDelete} disabled={agent.id === 'local'} className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors">
+            <Trash2 className="size-5" />
+          </button>
+          <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+            <Settings className="size-5 text-muted-foreground" />
+          </button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Status & Input */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Status Card */}
-            <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">状态信息</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">状态</span>
-                  <span className={cn('font-medium', config.color)}>{config.label}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">任务数</span>
-                  <span className="font-medium">{agent.taskCount ?? 0}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">最后活动</span>
-                  <span className="font-medium">{agent.lastActivity || '—'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">流式状态</span>
-                  <span className={cn('font-medium', loading ? 'text-success' : 'text-muted-foreground')}>
-                    {loading ? '接收中...' : '空闲'}
-                  </span>
-                </div>
-                {agent.currentTask && (
-                  <>
-                    <Separator className="my-2 opacity-30" />
-                    <div>
-                      <div className="text-muted-foreground text-xs mb-1">当前任务</div>
-                      <div className="text-sm font-medium bg-muted/30 rounded-lg px-3 py-2">{agent.currentTask}</div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Task Input */}
-            <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Send className="size-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">提交新任务</span>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="输入任务描述..."
-                  className="w-full min-h-[100px] rounded-xl bg-muted/30 border border-border/50 focus:border-primary/50 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring/20 transition-all"
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={loading || !prompt.trim()}
-                    className={cn(
-                      'flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300',
-                      'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20',
-                      'disabled:opacity-50 disabled:pointer-events-none',
-                      'flex items-center justify-center gap-2'
-                    )}
-                  >
-                    {loading ? (
-                      <RefreshCw className="size-4 animate-spin" />
-                    ) : (
-                      <Send className="size-4" />
-                    )}
-                    {loading ? '执行中...' : '发送任务'}
-                  </button>
-                  {loading && (
-                    <button
-                      type="button"
-                      onClick={handleCancel}
-                      className={cn(
-                        'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300',
-                        'bg-destructive/10 text-destructive hover:bg-destructive/20',
-                        'flex items-center justify-center gap-2'
-                      )}
-                    >
-                      <StopCircle className="size-4" />
-                      取消
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
+      {/* Chat Area */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
+            <Bot className="size-12 mb-4" />
+            <p>开始与 {agent.name} 对话...</p>
           </div>
-
-          {/* Right: Output & Events */}
-          <div className="lg:col-span-2">
-            {/* Tabs */}
-            <div className="flex gap-1 mb-4">
-              <button
-                onClick={() => setActiveTab('output')}
-                className={cn(
-                  'flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
-                  activeTab === 'output' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/50'
-                )}
-              >
-                <Terminal className="size-4" />
-                实时输出
-              </button>
-              <button
-                onClick={() => setActiveTab('events')}
-                className={cn(
-                  'flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
-                  activeTab === 'events' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/50'
-                )}
-              >
-                <Activity className="size-4" />
-                事件日志
-                {events.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">
-                    {events.length}
-                  </Badge>
-                )}
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 overflow-hidden" style={{ minHeight: '500px' }}>
-              {activeTab === 'output' ? (
-                <div className="h-full">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-3 border-b border-border/30 bg-muted/20">
-                    <FileText className="size-3" />
-                    <span>输出终端</span>
-                    {toolCalls.size > 0 && (
-                      <Badge variant="secondary" className="ml-auto text-[10px]">
-                        <Wrench className="size-3 mr-1" />
-                        {Array.from(toolCalls.values()).filter(t => t.status === 'running').length} 工具运行中
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="p-4 bg-foreground/95 dark:bg-background/95 min-h-[450px]">
-                    {/* 工具调用状态 */}
-                    {toolCalls.size > 0 && (
-                      <div className="mb-4 space-y-2">
-                        {Array.from(toolCalls.entries()).map(([callId, info]) => (
-                          <div key={callId} className={cn(
-                            'flex items-center gap-2 px-3 py-2 rounded-lg text-xs',
-                            info.status === 'running' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'
-                          )}>
-                            {info.status === 'running' ? (
-                              <RefreshCw className="size-3 animate-spin" />
-                            ) : (
-                              <Wrench className="size-3" />
-                            )}
-                            <span className="font-medium">{info.tool}</span>
-                            {info.status === 'done' && info.output && (
-                              <span className="text-muted-foreground truncate max-w-xs">
-                                → {info.output.slice(0, 50)}{info.output.length > 50 ? '...' : ''}
-                              </span>
-                            )}
+        ) : (
+          messages.map((msg) => (
+            <div key={msg.id} className={cn("flex gap-4 max-w-3xl mx-auto", msg.role === 'user' ? "justify-end" : "justify-start")}>
+              {msg.role === 'assistant' && (
+                <div className="flex-none size-8 rounded-full bg-primary/10 flex items-center justify-center mt-1">
+                  <Bot className="size-5 text-primary" />
+                </div>
+              )}
+              
+              <div className={cn(
+                "flex-1 max-w-[80%]",
+                msg.role === 'user' ? "flex justify-end" : ""
+              )}>
+                <div className={cn(
+                  "rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-sm",
+                  msg.role === 'user' 
+                    ? "bg-primary text-primary-foreground rounded-tr-sm" 
+                    : "bg-card border border-border/50 rounded-tl-sm"
+                )}>
+                  {/* Tool Calls */}
+                  {msg.toolCalls && msg.toolCalls.size > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {Array.from(msg.toolCalls.values()).map((tool) => (
+                        <div key={tool.id} className="bg-muted/50 rounded-lg border border-border/50 overflow-hidden">
+                          <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30">
+                            {tool.status === 'running' ? <RefreshCw className="size-3 animate-spin" /> : <Wrench className="size-3" />}
+                            <span>调用工具: {tool.name}</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* 文本输出 */}
-                    <pre className="text-sm text-success font-mono whitespace-pre-wrap">
-                      {output || <span className="text-muted-foreground/50 italic">等待输出...</span>}
-                    </pre>
+                          {tool.output && (
+                            <div className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                              {tool.output}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Content */}
+                  <div className="whitespace-pre-wrap break-words">
+                    {msg.content || (msg.status === 'streaming' && <span className="animate-pulse">...</span>)}
                   </div>
                 </div>
-              ) : (
-                <div className="h-full">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-3 border-b border-border/30 bg-muted/20">
-                    <Activity className="size-3" />
-                    <span>事件日志</span>
-                  </div>
-                  <div className="p-4 space-y-2 max-h-[450px] overflow-auto">
-                    {events.length === 0 ? (
-                      <div className="text-sm text-muted-foreground text-center py-16">
-                        暂无事件
-                      </div>
-                    ) : (
-                      events.slice(-50).reverse().map((ev, i) => (
-                        <div key={i} className="p-3 bg-muted/20 rounded-lg border border-border/30 text-xs transition-colors hover:bg-muted/30">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <Badge variant="outline" className="text-[10px]">
-                              {ev.type}
-                            </Badge>
-                            {ev.task_id && (
-                              <span className="text-muted-foreground">
-                                Task: {ev.task_id.slice(0, 8)}...
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-muted-foreground break-all opacity-80">
-                            {JSON.stringify(ev).slice(0, 200)}
-                            {JSON.stringify(ev).length > 200 && '...'}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+              </div>
+
+              {msg.role === 'user' && (
+                <div className="flex-none size-8 rounded-full bg-muted flex items-center justify-center mt-1">
+                  <User className="size-5 text-muted-foreground" />
                 </div>
               )}
             </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </main>
+
+      {/* Input Area */}
+      <footer className="flex-none p-4 bg-background/80 backdrop-blur-sm border-t border-border/50">
+        <div className="max-w-3xl mx-auto">
+          <form onSubmit={handleSubmit} className="relative bg-muted/30 rounded-2xl border border-border/50 focus-within:border-primary/60 focus-within:bg-background focus-within:shadow-sm transition-all duration-200">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit()
+                }
+              }}
+              placeholder="输入消息..."
+              className="w-full min-h-[60px] max-h-[200px] bg-transparent border-none px-4 py-3 text-sm resize-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50"
+              rows={1}
+            />
+            <div className="flex items-center justify-between px-2 pb-2">
+              <div className="flex items-center gap-1">
+                <button type="button" className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+                  <Paperclip className="size-4" />
+                </button>
+                <button type="button" className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+                  <Mic className="size-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                {loading && (
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    title="取消"
+                  >
+                    <StopCircle className="size-4" />
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={!input.trim() || loading}
+                  className={cn(
+                    "p-2 rounded-lg transition-all duration-200",
+                    input.trim() && !loading
+                      ? "bg-primary text-primary-foreground shadow-md hover:shadow-lg hover:bg-primary/90"
+                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                  )}
+                >
+                  <Send className="size-4" />
+                </button>
+              </div>
+            </div>
+          </form>
+          <div className="text-center mt-2">
+            <p className="text-[10px] text-muted-foreground/50">
+              AI 生成的内容可能不准确，请核实重要信息。
+            </p>
           </div>
         </div>
-      </main>
+      </footer>
     </div>
   )
 }
