@@ -271,3 +271,56 @@ export async function deleteAgent(agentId: string): Promise<void> {
     throw new Error(json.error || 'Failed to delete agent')
   }
 }
+
+/**
+ * 更新智能体请求（PATCH 语义，所有字段可选）
+ */
+export interface UpdateAgentRequest {
+  /** 智能体名称 */
+  name?: string
+  /** 智能体描述 */
+  description?: string
+  /** 能力标签 */
+  capabilities?: string[]
+  /** 智能体服务地址 */
+  endpoint?: string
+}
+
+/**
+ * 更新智能体信息
+ */
+export async function updateAgent(agentId: string, req: UpdateAgentRequest): Promise<RegisteredAgent> {
+  const res = await fetch(`/api/agents/${agentId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  const json = (await res.json()) as ApiResponse<RegisteredAgent>
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || 'Failed to update agent')
+  }
+  return json.data!
+}
+
+/**
+ * 取消任务响应
+ */
+export interface CancelTaskResponse {
+  success: boolean
+  message: string
+  task_id?: string
+}
+
+/**
+ * 取消智能体当前任务
+ */
+export async function cancelAgentTask(agentId: string): Promise<CancelTaskResponse> {
+  const res = await fetch(`/api/agents/${agentId}/cancel`, {
+    method: 'POST',
+  })
+  const json = (await res.json()) as ApiResponse<CancelTaskResponse>
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || 'Failed to cancel task')
+  }
+  return json.data!
+}

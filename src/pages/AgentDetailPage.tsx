@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench } from 'lucide-react'
+import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench, StopCircle } from 'lucide-react'
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import { Separator } from '../components/ui/separator'
 import { cn } from '../utils/cn'
-import { getAgent, executeOnAgentStream, RegisteredAgent, SSEEvent } from '../api'
+import { getAgent, executeOnAgentStream, cancelAgentTask, deleteAgent, RegisteredAgent, SSEEvent } from '../api'
 import { useTheme } from '../hooks/useTheme'
 import type { Agent, AgentStatus } from '../components/AgentCard'
 
@@ -194,7 +194,7 @@ export default function AgentDetailPage() {
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
-    if (!prompt.trim() || loading) return
+    if (!agent || !prompt.trim() || loading) return
     
     // 取消之前的请求
     if (cancelRef.current) {
@@ -221,6 +221,46 @@ export default function AgentDetailPage() {
         cancelRef.current = null
       }
     )
+  }
+
+  // 取消当前任务
+  async function handleCancel() {
+    if (!agent || !loading) return
+    
+    try {
+      // 1. 断开 SSE 连接（本地取消）
+      if (cancelRef.current) {
+        cancelRef.current()
+        cancelRef.current = null
+      }
+      
+      // 2. 向服务端发送取消请求
+      await cancelAgentTask(agent.id)
+      
+      setAgent(prev => prev ? { ...prev, status: 'idle' as AgentStatus, currentTask: undefined } : null)
+      setOutput(prev => prev + '\n\n[已取消]')
+    } catch (error) {
+      console.error('Failed to cancel task:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 删除智能体
+  async function handleDelete() {
+    if (!agent || agent.id === 'local') return
+    
+    if (!window.confirm(`确定要删除智能体「${agent.name}」吗？此操作不可撤销。`)) {
+      return
+    }
+    
+    try {
+      await deleteAgent(agent.id)
+      navigate('/')
+    } catch (error) {
+      console.error('Failed to delete agent:', error)
+      alert('删除失败：' + (error instanceof Error ? error.message : '未知错误'))
+    }
   }
 
   return (
@@ -251,14 +291,22 @@ export default function AgentDetailPage() {
             {/* Status & Actions */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className={cn('size-2 rounded-full', agent.status === 'running' ? 'bg-success animate-pulse' : 'bg-muted-foreground/40')} />
+                <span className={cn('size-2 rounded-full', agent.status === 'running' || loading ? 'bg-success animate-pulse' : 'bg-muted-foreground/40')} />
                 <Badge variant="outline" className={cn('gap-1', config.color)}>
                   {config.label}
                 </Badge>
               </div>
               
               <div className="flex items-center gap-1">
-                {agent.status === 'running' ? (
+                {loading ? (
+                  <button 
+                    onClick={handleCancel}
+                    className="p-2 rounded-xl hover:bg-destructive/10 text-destructive transition-colors" 
+                    title="取消任务"
+                  >
+                    <StopCircle className="size-5" />
+                  </button>
+                ) : agent.status === 'running' ? (
                   <button className="p-2 rounded-xl hover:bg-muted/50 text-warning transition-colors" title="暂停">
                     <Pause className="size-5" />
                   </button>
@@ -270,7 +318,17 @@ export default function AgentDetailPage() {
                 <button className="p-2 rounded-xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors" title="设置">
                   <Settings className="size-5" />
                 </button>
-                <button className="p-2 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="删除">
+                <button 
+                  onClick={handleDelete}
+                  disabled={agent.id === 'local'}
+                  className={cn(
+                    "p-2 rounded-xl transition-colors",
+                    agent.id === 'local' 
+                      ? "text-muted-foreground/30 cursor-not-allowed" 
+                      : "hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  )} 
+                  title={agent.id === 'local' ? '本地智能体不能删除' : '删除'}
+                >
                   <Trash2 className="size-5" />
                 </button>
               </div>
@@ -331,23 +389,39 @@ export default function AgentDetailPage() {
                   placeholder="输入任务描述..."
                   className="w-full min-h-[100px] rounded-xl bg-muted/30 border border-border/50 focus:border-primary/50 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring/20 transition-all"
                 />
-                <button
-                  type="submit"
-                  disabled={loading || !prompt.trim()}
-                  className={cn(
-                    'w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300',
-                    'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20',
-                    'disabled:opacity-50 disabled:pointer-events-none',
-                    'flex items-center justify-center gap-2'
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={loading || !prompt.trim()}
+                    className={cn(
+                      'flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300',
+                      'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:shadow-lg hover:shadow-primary/20',
+                      'disabled:opacity-50 disabled:pointer-events-none',
+                      'flex items-center justify-center gap-2'
+                    )}
+                  >
+                    {loading ? (
+                      <RefreshCw className="size-4 animate-spin" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                    {loading ? '执行中...' : '发送任务'}
+                  </button>
+                  {loading && (
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className={cn(
+                        'px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-300',
+                        'bg-destructive/10 text-destructive hover:bg-destructive/20',
+                        'flex items-center justify-center gap-2'
+                      )}
+                    >
+                      <StopCircle className="size-4" />
+                      取消
+                    </button>
                   )}
-                >
-                  {loading ? (
-                    <RefreshCw className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                  发送任务
-                </button>
+                </div>
               </form>
             </div>
           </div>

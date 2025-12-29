@@ -29,6 +29,7 @@ const statusConfig: Record<AgentStatus, { label: string; color: string }> = {
   completed: { label: '已完成', color: 'text-primary' },
   error: { label: '错误', color: 'text-destructive' },
   paused: { label: '已暂停', color: 'text-warning' },
+  offline: { label: '离线', color: 'text-muted-foreground' },
 }
 
 export default function AgentDetailSheet({
