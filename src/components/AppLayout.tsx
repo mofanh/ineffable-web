@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
-import { Plus, MessageSquare, Home, Settings, User, PanelLeft, Bot, MoreHorizontal, History } from 'lucide-react'
+import { Plus, MessageSquare, Home, Settings, User, PanelLeft, Bot, MoreHorizontal, History, Sun, Moon, LogOut } from 'lucide-react'
 import { cn } from '../utils/cn'
 import { getAgents, RegisteredAgent, getStatus } from '../api'
 import CreateAgentDialog from './CreateAgentDialog'
@@ -173,7 +173,27 @@ export default function AppLayout() {
         </div>
 
         {/* User Profile */}
-        <div className="p-3 border-t border-border/40 bg-muted/10">
+        <div className="p-3 border-t border-border/40 bg-muted/10 relative group">
+          {/* Hover Menu */}
+          <div className="absolute bottom-full left-3 right-3 mb-2 p-1.5 bg-popover/95 backdrop-blur-sm border border-border/50 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
+            <button 
+              onClick={toggleTheme}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/80 transition-colors text-sm text-foreground/80 hover:text-foreground"
+            >
+              {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              <span>{theme === 'dark' ? '浅色模式' : '深色模式'}</span>
+            </button>
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/80 transition-colors text-sm text-foreground/80 hover:text-foreground">
+              <Settings className="size-4" />
+              <span>设置</span>
+            </button>
+            <div className="h-px bg-border/50 my-1" />
+            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors text-sm text-foreground/80">
+              <LogOut className="size-4" />
+              <span>退出登录</span>
+            </button>
+          </div>
+
           <button className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-background hover:shadow-sm transition-all text-left border border-transparent hover:border-border/40">
             <div className="size-9 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center text-primary ring-2 ring-background">
               <User className="size-4" />
