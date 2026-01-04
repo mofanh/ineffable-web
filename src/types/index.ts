@@ -26,6 +26,7 @@ export interface Service {
 /** Session - 代表一个对话会话 */
 export interface Session {
   id: string
+  name?: string  // 会话标题
   messageCount: number
   isActive: boolean
   workingDir?: string

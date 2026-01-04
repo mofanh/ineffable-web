@@ -260,6 +260,7 @@ export async function listSessions(serviceUrl: string): Promise<{ currentSession
     currentSessionId: data.current_session_id,
     sessions: data.sessions.map((item: any) => ({
       id: item.id,
+      name: item.name,
       messageCount: item.message_count,
       isActive: item.is_active,
     })),
@@ -290,13 +291,13 @@ export async function getSessionDetail(serviceUrl: string, sessionId: string): P
 }
 
 /**
- * 创建 Session (注意: CLI serve 模式可能不支持此功能)
+ * 创建 Session (CLI serve 模式)
  */
-export async function createSession(serviceUrl: string, data: CreateSessionRequest): Promise<Session> {
+export async function createSession(serviceUrl: string, _data?: CreateSessionRequest): Promise<Session> {
   const res = await fetch(`${serviceUrl}/api/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify({}),
   })
   
   if (!res.ok) {
@@ -307,11 +308,9 @@ export async function createSession(serviceUrl: string, data: CreateSessionReque
   
   return {
     id: item.id,
+    name: item.name,
     messageCount: item.message_count || 0,
     isActive: item.is_active ?? true,
-    workingDir: item.working_dir,
-    createdAt: item.created_at,
-    lastActivity: item.last_activity,
   }
 }
 

@@ -204,13 +204,11 @@ export default function ChatPage() {
   }, [])
 
   async function handleCreateSession() {
-    if (!serviceUrlRef.current || !service) return
+    if (!serviceUrlRef.current) return
 
     try {
-      const newSession = await createSession(serviceUrlRef.current, {
-        working_dir: service.workingDir,
-      })
-      setSessions([...sessions, newSession])
+      const newSession = await createSession(serviceUrlRef.current)
+      setSessions(prev => [newSession, ...prev])
       setSession(newSession)
       setMessages([])
       setShowSessionSelector(false)
@@ -351,18 +349,40 @@ export default function ChatPage() {
                     sessions.map(s => (
                       <button
                         key={s.id}
-                        onClick={() => {
+                        onClick={async () => {
                           setSession(s)
-                          setMessages([])
                           setShowSessionSelector(false)
+                          // 加载会话的历史消息
+                          if (serviceUrlRef.current) {
+                            try {
+                              const detail = await getSessionDetail(serviceUrlRef.current, s.id)
+                              const historicalMessages: Message[] = detail.messages.map((msg, idx) => ({
+                                id: `hist-${idx}`,
+                                role: msg.role as 'user' | 'assistant' | 'system',
+                                content: msg.content,
+                                timestamp: msg.timestamp || Date.now(),
+                                status: 'completed',
+                              }))
+                              setMessages(historicalMessages)
+                            } catch (e) {
+                              console.warn('Failed to load session messages:', e)
+                              setMessages([])
+                            }
+                          } else {
+                            setMessages([])
+                          }
                         }}
                         className={cn(
                           "w-full text-left px-3 py-2 rounded-md hover:bg-muted transition-colors text-sm",
                           session?.id === s.id ? "bg-primary/10" : ""
                         )}
                       >
-                        <div className="font-medium truncate">{s.id.slice(0, 12)}...</div>
-                        <div className="text-xs text-muted-foreground">{s.workingDir}</div>
+                        <div className="font-medium truncate">
+                          {s.name || `会话 ${s.id.slice(0, 8)}`}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {s.messageCount} 条消息 {s.isActive && '(当前)'}
+                        </div>
                       </button>
                     ))
                   )}
