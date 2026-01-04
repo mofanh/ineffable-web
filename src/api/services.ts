@@ -346,7 +346,105 @@ export async function execute(serviceUrl: string, data: ExecuteRequest): Promise
 }
 
 /**
+ * 执行任务（流式返回）
+ * 使用 fetch 读取 SSE 流，比 EventSource 更可靠
+ * 
+ * @param serviceUrl - 服务 URL
+ * @param data - 执行请求参数
+ * @param onEvent - 事件回调
+ * @param signal - AbortController signal 用于取消
+ */
+export async function executeStream(
+  serviceUrl: string,
+  data: ExecuteRequest,
+  onEvent: (event: SSEEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${serviceUrl}/api/execute/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+    signal,
+  })
+  
+  if (!res.ok) {
+    const error = await res.text().catch(() => '')
+    throw new Error(error || `Failed to execute: ${res.status}`)
+  }
+  
+  const reader = res.body?.getReader()
+  if (!reader) {
+    throw new Error('Response body is not readable')
+  }
+  
+  const decoder = new TextDecoder()
+  let buffer = ''
+  
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      
+      // 解析 SSE 事件 (事件以 \n\n 分隔)
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() || ''
+      
+      for (const part of parts) {
+        if (!part.trim()) continue
+        
+        const lines = part.split('\n')
+        let eventType = 'message'
+        let eventData = ''
+        
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            eventData = line.slice(5).trim()
+          }
+        }
+        
+        // 忽略 ping 事件
+        if (eventType === 'ping') continue
+        
+        if (eventData) {
+          try {
+            const data = JSON.parse(eventData)
+            onEvent({ type: eventType, ...data })
+          } catch {
+            // 非 JSON 数据
+            onEvent({ type: eventType, content: eventData })
+          }
+        } else {
+          onEvent({ type: eventType })
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+/**
+ * 取消当前任务
+ */
+export async function cancelTask(serviceUrl: string): Promise<void> {
+  const res = await fetch(`${serviceUrl}/api/cancel`, {
+    method: 'POST',
+  })
+  
+  if (!res.ok) {
+    const error = await res.text().catch(() => '')
+    throw new Error(error || `Failed to cancel: ${res.status}`)
+  }
+}
+
+/**
  * 订阅 SSE 事件流（CLI serve 模式使用 /api/stream 或 /events）
+ * 注意：这个函数保留用于全局事件监听，
+ * 对于任务执行，推荐使用 executeStream
  */
 export function subscribeToStream(
   serviceUrl: string,

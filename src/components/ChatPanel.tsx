@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Plus, Bot, AlertCircle, RefreshCw, StopCircle, Wrench, Paperclip, Mic, MessageSquare } from 'lucide-react'
 import { cn } from '../utils/cn'
 import type { Server, Service, Session, SessionDetail as SessionDetailType, SSEEvent, MessageInfo } from '../types'
-import { getSessionDetail, createSession, execute, subscribeToStream, listSessions } from '../api/services'
+import { getSessionDetail, createSession, executeStream, cancelTask, listSessions } from '../api/services'
 
 interface ToolCall {
   id: string
@@ -36,7 +36,7 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
   const [loading, setLoading] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const unsubscribeRef = useRef<(() => void) | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const currentTaskIdRef = useRef<string | null>(null)
 
   // 当 session 改变时加载历史消息
@@ -69,28 +69,15 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
     loadMessages()
   }, [session?.id, serviceUrl])
 
-  // 订阅 SSE
+  // 取消正在进行的请求（当 session 改变或组件卸载时）
   useEffect(() => {
-    if (!session || !serviceUrl) return
-
-    // 先取消之前的订阅
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current()
-    }
-
-    const unsubscribe = subscribeToStream(
-      serviceUrl,
-      session.id,
-      handleSSEEvent,
-      (err) => console.error('SSE error:', err)
-    )
-    
-    unsubscribeRef.current = unsubscribe
-
     return () => {
-      unsubscribe()
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
     }
-  }, [session?.id, serviceUrl])
+  }, [session?.id])
 
   // 滚动到底部
   useEffect(() => {
@@ -159,6 +146,10 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
             }
           }
           break
+          
+        case 'warning':
+          console.warn('Server warning:', event.message)
+          break
       }
       
       newMessages[newMessages.length - 1] = updatedMsg
@@ -186,6 +177,10 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
     setInput('')
     setSending(true)
 
+    // 创建 AbortController 用于取消
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+
     // 添加用户消息
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -207,13 +202,21 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
     setMessages(prev => [...prev, userMsg, assistantMsg])
 
     try {
-      const result = await execute(serviceUrl, {
-        prompt: currentPrompt,
-      })
-      currentTaskIdRef.current = result.task_id
+      // 使用流式执行
+      await executeStream(
+        serviceUrl,
+        { prompt: currentPrompt },
+        handleSSEEvent,
+        abortController.signal
+      )
     } catch (err) {
+      // 检查是否是用户主动取消
+      if ((err as Error).name === 'AbortError') {
+        console.log('Request cancelled by user')
+        return
+      }
+      
       console.error('Execute error:', err)
-      setSending(false)
       setMessages(prev => {
         const newMessages = [...prev]
         const last = newMessages[newMessages.length - 1]
@@ -223,10 +226,29 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
         }
         return newMessages
       })
+    } finally {
+      setSending(false)
+      abortControllerRef.current = null
+      currentTaskIdRef.current = null
     }
   }
 
   async function handleCancel() {
+    // 取消当前请求
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
+    // 同时调用服务端取消 API
+    if (serviceUrl) {
+      try {
+        await cancelTask(serviceUrl)
+      } catch (e) {
+        console.warn('Failed to cancel task on server:', e)
+      }
+    }
+    
     setSending(false)
     setMessages(prev => {
       const newMessages = [...prev]
