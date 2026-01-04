@@ -141,6 +141,23 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // 刷新会话列表（用于获取自动生成的标题）
+  const refreshSessions = useCallback(async () => {
+    if (!serviceUrlRef.current) return
+    try {
+      const { sessions: sessionList } = await listSessions(serviceUrlRef.current)
+      setSessions(sessionList)
+      // 更新当前会话的标题
+      setSession(prev => {
+        if (!prev) return prev
+        const updated = sessionList.find(s => s.id === prev.id)
+        return updated || prev
+      })
+    } catch (e) {
+      console.warn('Failed to refresh sessions:', e)
+    }
+  }, [])
+
   const handleSSEEvent = useCallback((event: SSEEvent) => {
     console.log('SSE event:', event)
     
@@ -164,6 +181,8 @@ export default function ChatPage() {
           updatedMsg.status = 'completed'
           setSending(false)
           currentTaskIdRef.current = null
+          // 延迟刷新会话列表，等待后端异步生成标题
+          setTimeout(() => refreshSessions(), 1500)
           break
 
         case 'task_failed':
@@ -201,7 +220,7 @@ export default function ChatPage() {
       newMessages[newMessages.length - 1] = updatedMsg
       return newMessages
     })
-  }, [])
+  }, [refreshSessions])
 
   async function handleCreateSession() {
     if (!serviceUrlRef.current) return
