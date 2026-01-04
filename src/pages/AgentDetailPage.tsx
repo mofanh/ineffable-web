@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Bot, Send, RefreshCw, Terminal, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench, StopCircle, User, Paperclip, Mic, ChevronDown, ChevronRight } from 'lucide-react'
+import { Bot, Send, RefreshCw, Terminal as TerminalIcon, Activity, FileText, ArrowLeft, Settings, Trash2, Play, Pause, Wrench, StopCircle, User, Paperclip, Mic, ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '../components/ui/badge'
 import { Input } from '../components/ui/input'
 import { Separator } from '../components/ui/separator'
 import { cn } from '../utils/cn'
 import { getAgent, executeOnAgentStream, cancelAgentTask, deleteAgent, RegisteredAgent, SSEEvent } from '../api'
 import { useTheme } from '../hooks/useTheme'
+import { useSession } from '../hooks/useSession'
+import Terminal from '../components/Terminal'
 import type { Agent, AgentStatus } from '../components/AgentCard'
 
 type EventRecord = SSEEvent & {
@@ -64,12 +66,15 @@ export default function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
+  const { sessionId } = useSession()
   
   const [agent, setAgent] = useState<Agent | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
+  const [showTerminal, setShowTerminal] = useState(false)
+  const [terminalConnected, setTerminalConnected] = useState(false)
   const cancelRef = useRef<(() => void) | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -81,10 +86,12 @@ export default function AgentDetailPage() {
     setNotFound(false)
     setInput('')
     setLoading(false)
+    setShowTerminal(false)
     if (cancelRef.current) {
       cancelRef.current()
       cancelRef.current = null
     }
+
 
     async function loadAgent() {
       if (!agentId) {
@@ -318,6 +325,20 @@ export default function AgentDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {/* 终端切换按钮 */}
+          <button
+            onClick={() => setShowTerminal(!showTerminal)}
+            className={cn(
+              "p-2 rounded-full transition-colors relative",
+              showTerminal ? "bg-primary/10 text-primary" : "hover:bg-muted/50 text-muted-foreground"
+            )}
+            title={showTerminal ? "隐藏终端" : "显示终端"}
+          >
+            <TerminalIcon className="size-5" />
+            {terminalConnected && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full" />
+            )}
+          </button>
           <button onClick={handleDelete} disabled={agent.id === 'local'} className="p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-full transition-colors">
             <Trash2 className="size-5" />
           </button>
@@ -326,6 +347,40 @@ export default function AgentDetailPage() {
           </button>
         </div>
       </header>
+
+      {/* Terminal Panel */}
+      {showTerminal && agentId && agentId !== 'local' && (
+        <div className="flex-none border-b border-border/40 bg-background">
+          <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border/30">
+            <div className="flex items-center gap-2 text-sm">
+              <TerminalIcon className="size-4" />
+              <span>CLI 终端</span>
+              <span className={cn(
+                "w-2 h-2 rounded-full",
+                terminalConnected ? "bg-green-500" : "bg-red-500"
+              )} />
+            </div>
+            <button
+              onClick={() => setShowTerminal(false)}
+              className="text-muted-foreground hover:text-foreground text-sm"
+            >
+              关闭
+            </button>
+          </div>
+          <Terminal
+            agentId={agentId}
+            sessionId={sessionId ?? undefined}
+            height="250px"
+            onConnectionChange={setTerminalConnected}
+            onExit={(code) => {
+              console.log('CLI exited with code:', code)
+              if (code !== 0) {
+                setAgent(prev => prev ? { ...prev, status: 'error' } : null)
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* Chat Area */}
       <main className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
@@ -383,7 +438,7 @@ export default function AgentDetailPage() {
       {/* Input Area */}
       <footer className="flex-none p-4 bg-background">
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative bg-muted/30 rounded-[24px] border border-transparent focus-within:border-primary/20 focus-within:bg-background focus-within:shadow-sm transition-all duration-200">
+          <form onSubmit={handleSubmit} className="relative bg-background rounded-[24px] border border-primary/20 shadow-sm transition-all duration-200">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -393,7 +448,7 @@ export default function AgentDetailPage() {
                   handleSubmit()
                 }
               }}
-              placeholder="给“豆包”发送消息"
+              placeholder="开始吧..."
               className="w-full min-h-[52px] max-h-[200px] bg-transparent border-none px-5 py-4 text-sm resize-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground/40"
               rows={1}
             />
@@ -434,7 +489,7 @@ export default function AgentDetailPage() {
           </form>
           <div className="text-center mt-3">
             <p className="text-[11px] text-muted-foreground/40">
-              内容由 AI 生成，请仔细甄别
+              Ineffable © 2024. Built with lazy by LBJ.
             </p>
           </div>
         </div>

@@ -324,3 +324,64 @@ export async function cancelAgentTask(agentId: string): Promise<CancelTaskRespon
   }
   return json.data!
 }
+
+// ============ Session API ============
+
+/**
+ * Session 响应
+ */
+export interface SessionResponse {
+  session_id: string
+}
+
+/**
+ * 创建 Session
+ * @param persistent 是否持久化（关闭 Web 后保留 Agent）
+ */
+export async function createSession(persistent: boolean = false): Promise<SessionResponse> {
+  const res = await fetch('/api/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persistent }),
+  })
+  const json = (await res.json()) as ApiResponse<SessionResponse>
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || 'Failed to create session')
+  }
+  return json.data!
+}
+
+/**
+ * 关闭 Session（清理关联的 Agent）
+ */
+export async function closeSession(sessionId: string): Promise<void> {
+  await fetch(`/api/session/${sessionId}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * 构建 WebSocket URL
+ */
+export function getTerminalWsUrl(agentId: string, sessionId?: string): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = window.location.host
+  let url = `${protocol}//${host}/api/agents/${agentId}/terminal`
+  if (sessionId) {
+    url += `?session_id=${sessionId}`
+  }
+  return url
+}
+
+/**
+ * 构建全局终端事件 WebSocket URL
+ */
+export function getGlobalTerminalWsUrl(sessionId?: string): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = window.location.host
+  let url = `${protocol}//${host}/api/terminal/events`
+  if (sessionId) {
+    url += `?session_id=${sessionId}`
+  }
+  return url
+}
