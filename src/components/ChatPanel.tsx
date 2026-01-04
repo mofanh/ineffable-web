@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Plus, Bot, AlertCircle, RefreshCw, StopCircle, Wrench, Paperclip, Mic, MessageSquare } from 'lucide-react'
+import { Send, Plus, Bot, AlertCircle, RefreshCw, StopCircle, Wrench, Paperclip, Mic, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '../utils/cn'
 import type { Server, Service, Session, SessionDetail as SessionDetailType, SSEEvent, MessageInfo } from '../types'
 import { getSessionDetail, createSession, executeStream, cancelTask, listSessions } from '../api/services'
+import MarkdownRenderer from './MarkdownRenderer'
+import '../styles/markdown.css'
 
 interface ToolCall {
   id: string
@@ -11,13 +13,21 @@ interface ToolCall {
   output?: string
 }
 
+// 内容片段：可以是文本或工具调用
+interface ContentSegment {
+  type: 'text' | 'tool'
+  content?: string
+  tool?: ToolCall
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: string  // 保留用于兼容
   timestamp: number
   status?: 'streaming' | 'completed' | 'error'
-  toolCalls?: Map<string, ToolCall>
+  segments: ContentSegment[]  // 按顺序的内容片段
+  pendingToolCalls: Map<string, ToolCall>  // 正在等待的工具调用
 }
 
 interface Props {
@@ -27,6 +37,40 @@ interface Props {
   serviceUrl: string
   onSessionChange?: (session: Session) => void
   onSessionsRefresh?: () => void
+}
+
+// 工具调用块组件（可折叠）
+function ToolCallBlock({ tool }: { tool: ToolCall }) {
+  const [expanded, setExpanded] = useState(false)
+  
+  return (
+    <div className="my-2 bg-muted/30 rounded-lg border border-border/50 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
+      >
+        {tool.status === 'running' ? (
+          <RefreshCw className="size-3 animate-spin text-primary" />
+        ) : expanded ? (
+          <ChevronDown className="size-3" />
+        ) : (
+          <ChevronRight className="size-3" />
+        )}
+        <Wrench className="size-3" />
+        <span className="flex-1 text-left">
+          {tool.status === 'running' ? '正在调用' : '已调用'}: <span className="text-foreground">{tool.name}</span>
+        </span>
+        {tool.status === 'done' && (
+          <span className="text-[10px] text-muted-foreground/60">点击展开</span>
+        )}
+      </button>
+      {expanded && tool.output && (
+        <div className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground">
+          {tool.output}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionsRefresh }: Props) {
@@ -56,6 +100,8 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
           content: msg.content,
           timestamp: msg.timestamp || Date.now(),
           status: 'completed',
+          segments: [{ type: 'text', content: msg.content }],
+          pendingToolCalls: new Map(),
         }))
         setMessages(historicalMessages)
       } catch (e) {
@@ -98,13 +144,27 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       
       if (!lastMsg || lastMsg.role !== 'assistant') return prev
 
-      const updatedMsg = { ...lastMsg, toolCalls: new Map(lastMsg.toolCalls || []) }
+      const updatedMsg = { 
+        ...lastMsg, 
+        segments: [...lastMsg.segments],
+        pendingToolCalls: new Map(lastMsg.pendingToolCalls)
+      }
       
       switch (event.type) {
         case 'delta':
-        case 'assistant_message_delta':
-          updatedMsg.content += (event.content || event.delta || '')
+        case 'assistant_message_delta': {
+          const delta = event.content || event.delta || ''
+          updatedMsg.content += delta
+          
+          // 更新最后一个文本片段，或添加新的文本片段
+          const lastSegment = updatedMsg.segments[updatedMsg.segments.length - 1]
+          if (lastSegment && lastSegment.type === 'text') {
+            lastSegment.content = (lastSegment.content || '') + delta
+          } else {
+            updatedMsg.segments.push({ type: 'text', content: delta })
+          }
           break
+        }
 
         case 'task_completed':
         case 'assistant_message_completed':
@@ -119,30 +179,48 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
         case 'task_failed':
         case 'task_aborted':
           updatedMsg.status = 'error'
-          updatedMsg.content += `\n\n[${event.error || '任务失败'}]`
+          updatedMsg.content += `\n\n[${event.error || event.reason || '任务失败'}]`
+          // 添加错误信息到最后一个文本片段
+          const lastSeg = updatedMsg.segments[updatedMsg.segments.length - 1]
+          if (lastSeg && lastSeg.type === 'text') {
+            lastSeg.content = (lastSeg.content || '') + `\n\n[${event.error || event.reason || '任务失败'}]`
+          } else {
+            updatedMsg.segments.push({ type: 'text', content: `\n\n[${event.error || event.reason || '任务失败'}]` })
+          }
           setSending(false)
           currentTaskIdRef.current = null
           break
 
         case 'tool_start':
           if (event.call_id && event.tool) {
-            updatedMsg.toolCalls.set(event.call_id, { 
+            const toolCall: ToolCall = { 
               id: event.call_id, 
               name: event.tool, 
               status: 'running' 
-            })
+            }
+            // 添加工具调用片段到内容中
+            updatedMsg.segments.push({ type: 'tool', tool: toolCall })
+            updatedMsg.pendingToolCalls.set(event.call_id, toolCall)
           }
           break
 
         case 'tool_complete':
           if (event.call_id) {
-            const tool = updatedMsg.toolCalls.get(event.call_id)
+            const tool = updatedMsg.pendingToolCalls.get(event.call_id)
             if (tool) {
-              updatedMsg.toolCalls.set(event.call_id, { 
+              const completedTool = { 
                 ...tool, 
-                status: 'done', 
+                status: 'done' as const, 
                 output: event.output 
-              })
+              }
+              // 更新 segments 中对应的工具调用
+              for (const segment of updatedMsg.segments) {
+                if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
+                  segment.tool = completedTool
+                  break
+                }
+              }
+              updatedMsg.pendingToolCalls.delete(event.call_id)
             }
           }
           break
@@ -187,6 +265,8 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       role: 'user',
       content: currentPrompt,
       timestamp: Date.now(),
+      segments: [{ type: 'text', content: currentPrompt }],
+      pendingToolCalls: new Map(),
     }
 
     // 添加助手消息占位
@@ -196,7 +276,8 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       content: '',
       timestamp: Date.now(),
       status: 'streaming',
-      toolCalls: new Map(),
+      segments: [],
+      pendingToolCalls: new Map(),
     }
 
     setMessages(prev => [...prev, userMsg, assistantMsg])
@@ -336,29 +417,30 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
                     ? "bg-destructive/10 text-destructive px-4 py-3 rounded-2xl"
                     : "text-foreground"
                 )}>
-                  {/* Tool Calls */}
-                  {msg.toolCalls && msg.toolCalls.size > 0 && (
-                    <div className="mb-3 space-y-2">
-                      {Array.from(msg.toolCalls.values()).map((tool) => (
-                        <div key={tool.id} className="bg-muted/50 rounded-lg border border-border/50 overflow-hidden">
-                          <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30">
-                            {tool.status === 'running' ? <RefreshCw className="size-3 animate-spin" /> : <Wrench className="size-3" />}
-                            <span>调用工具: {tool.name}</span>
-                          </div>
-                          {tool.output && (
-                            <div className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-32 overflow-y-auto whitespace-pre-wrap">
-                              {tool.output}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                  {/* 按顺序渲染内容片段 */}
+                  {msg.role === 'user' ? (
+                    // 用户消息：简单文本
+                    <div className="whitespace-pre-wrap break-words">
+                      {msg.content}
                     </div>
+                  ) : msg.segments.length === 0 && msg.status === 'streaming' ? (
+                    // 正在等待响应
+                    <span className="animate-pulse text-muted-foreground">思考中...</span>
+                  ) : (
+                    // 助手消息：按片段渲染
+                    msg.segments.map((segment, idx) => (
+                      segment.type === 'text' ? (
+                        // 文本片段：使用 Markdown 渲染
+                        <MarkdownRenderer 
+                          key={`text-${idx}`} 
+                          content={segment.content || ''} 
+                        />
+                      ) : segment.type === 'tool' && segment.tool ? (
+                        // 工具调用片段
+                        <ToolCallBlock key={`tool-${segment.tool.id}`} tool={segment.tool} />
+                      ) : null
+                    ))
                   )}
-                  
-                  {/* Content */}
-                  <div className="whitespace-pre-wrap break-words">
-                    {msg.content || (msg.status === 'streaming' && <span className="animate-pulse">...</span>)}
-                  </div>
                 </div>
               </div>
             </div>
