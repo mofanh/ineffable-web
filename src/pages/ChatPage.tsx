@@ -11,6 +11,9 @@ interface ToolCall {
   name: string
   status: 'running' | 'done'
   output?: string
+  logs?: string[]  // 实时输出日志
+  progress?: number
+  total?: number
 }
 
 interface Message {
@@ -212,6 +215,23 @@ export default function ChatPage() {
                 status: 'done', 
                 output: event.output 
               })
+            }
+          }
+          break
+        case 'tool_call_progress':
+          if (event.call_id) {
+            const tool = updatedMsg.toolCalls.get(event.call_id)
+            if (tool) {
+              const updatedTool = { ...tool }
+              if (event.progress_type === 'log' || event.progress_type === 'output') {
+                if (event.message) {
+                  updatedTool.logs = [...(tool.logs || []), event.message]
+                }
+              } else if (event.progress_type === 'progress') {
+                updatedTool.progress = event.progress
+                updatedTool.total = event.total
+              }
+              updatedMsg.toolCalls.set(event.call_id, updatedTool)
             }
           }
           break

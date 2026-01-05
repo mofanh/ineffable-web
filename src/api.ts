@@ -325,6 +325,30 @@ export async function cancelAgentTask(agentId: string): Promise<CancelTaskRespon
   return json.data!
 }
 
+/**
+ * 强制重置响应
+ */
+export interface ResetTaskResponse {
+  success: boolean
+  message: string
+  previous_task?: string
+}
+
+/**
+ * 强制重置智能体任务状态
+ * 用于当任务卡住时强制解除 "Agent is busy" 状态
+ */
+export async function resetAgentTask(agentId: string): Promise<ResetTaskResponse> {
+  const res = await fetch(`/api/agents/${agentId}/reset`, {
+    method: 'POST',
+  })
+  const json = (await res.json()) as ApiResponse<ResetTaskResponse>
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || 'Failed to reset task')
+  }
+  return json.data!
+}
+
 // ============ Session API ============
 
 /**

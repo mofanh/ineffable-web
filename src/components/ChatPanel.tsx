@@ -11,6 +11,9 @@ interface ToolCall {
   name: string
   status: 'running' | 'done'
   output?: string
+  logs?: string[]  // 实时输出日志
+  progress?: number
+  total?: number
 }
 
 // 内容片段：可以是文本或工具调用
@@ -39,9 +42,27 @@ interface Props {
   onSessionsRefresh?: () => void
 }
 
-// 工具调用块组件（可折叠）
+// 工具调用块组件（可折叠，支持实时日志）
 function ToolCallBlock({ tool }: { tool: ToolCall }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(tool.status === 'running')
+  const logsEndRef = useRef<HTMLDivElement>(null)
+  
+  // 当有新日志时自动滚动到底部
+  useEffect(() => {
+    if (expanded && tool.status === 'running' && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [tool.logs, expanded, tool.status])
+  
+  // 当运行时自动展开
+  useEffect(() => {
+    if (tool.status === 'running' && tool.logs && tool.logs.length > 0) {
+      setExpanded(true)
+    }
+  }, [tool.status, tool.logs])
+  
+  const hasContent = (tool.logs && tool.logs.length > 0) || tool.output
+  const showProgress = tool.status === 'running' && tool.progress !== undefined && tool.total !== undefined
   
   return (
     <div className="my-2 bg-muted/30 rounded-lg border border-border/50 overflow-hidden">
@@ -60,13 +81,44 @@ function ToolCallBlock({ tool }: { tool: ToolCall }) {
         <span className="flex-1 text-left">
           {tool.status === 'running' ? '正在调用' : '已调用'}: <span className="text-foreground">{tool.name}</span>
         </span>
-        {tool.status === 'done' && (
-          <span className="text-[10px] text-muted-foreground/60">点击展开</span>
+        {showProgress && (
+          <span className="text-[10px] text-primary">
+            {Math.round((tool.progress! / tool.total!) * 100)}%
+          </span>
+        )}
+        {tool.status === 'done' && hasContent && (
+          <span className="text-[10px] text-muted-foreground/60">点击{expanded ? '折叠' : '展开'}</span>
         )}
       </button>
-      {expanded && tool.output && (
+      
+      {/* 进度条 */}
+      {showProgress && (
+        <div className="px-3 pb-2">
+          <div className="h-1 bg-muted rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${(tool.progress! / tool.total!) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* 实时日志和最终输出 */}
+      {expanded && hasContent && (
         <div className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground">
-          {tool.output}
+          {/* 实时日志 */}
+          {tool.logs && tool.logs.length > 0 && (
+            <div className={tool.output ? 'mb-2 pb-2 border-b border-border/30' : ''}>
+              {tool.logs.map((log, idx) => (
+                <div key={idx} className="text-green-400/80">{log}</div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          )}
+          {/* 最终输出 */}
+          {tool.output && (
+            <div>{tool.output}</div>
+          )}
         </div>
       )}
     </div>
@@ -221,6 +273,38 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
                 }
               }
               updatedMsg.pendingToolCalls.delete(event.call_id)
+            }
+          }
+          break
+
+        case 'tool_call_progress':
+          // 处理工具调用的实时进度/日志
+          if (event.call_id) {
+            const tool = updatedMsg.pendingToolCalls.get(event.call_id)
+            if (tool) {
+              const updatedTool = { ...tool }
+              
+              if (event.progress_type === 'log' || event.progress_type === 'output') {
+                // 添加日志
+                if (event.message) {
+                  updatedTool.logs = [...(tool.logs || []), event.message]
+                }
+              } else if (event.progress_type === 'progress') {
+                // 更新进度
+                updatedTool.progress = event.progress
+                updatedTool.total = event.total
+              }
+              
+              // 更新 pendingToolCalls
+              updatedMsg.pendingToolCalls.set(event.call_id, updatedTool)
+              
+              // 更新 segments 中对应的工具调用
+              for (const segment of updatedMsg.segments) {
+                if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
+                  segment.tool = updatedTool
+                  break
+                }
+              }
             }
           }
           break

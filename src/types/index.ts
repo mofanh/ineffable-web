@@ -69,6 +69,12 @@ export interface SSEEvent {
   turns?: number
   reason?: string
   error?: string
+  // tool_call_progress 事件字段
+  tool_name?: string
+  progress_type?: 'log' | 'progress' | 'output'
+  message?: string
+  progress?: number
+  total?: number
   [key: string]: unknown
 }
 

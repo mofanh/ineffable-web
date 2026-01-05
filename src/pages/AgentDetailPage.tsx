@@ -21,6 +21,9 @@ interface ToolCall {
   name: string
   status: 'running' | 'done'
   output?: string
+  logs?: string[]  // 实时输出日志
+  progress?: number
+  total?: number
 }
 
 interface Message {
@@ -168,6 +171,25 @@ export default function AgentDetailPage() {
             const tool = tools.get(evt.call_id)
             if (tool) {
               tools.set(evt.call_id, { ...tool, status: 'done', output: evt.output })
+              updatedMsg.toolCalls = tools
+            }
+          }
+          break
+        case 'tool_call_progress':
+          if (evt.call_id) {
+            const tools = new Map(updatedMsg.toolCalls || [])
+            const tool = tools.get(evt.call_id)
+            if (tool) {
+              const updatedTool = { ...tool }
+              if (evt.progress_type === 'log' || evt.progress_type === 'output') {
+                if (evt.message) {
+                  updatedTool.logs = [...(tool.logs || []), evt.message]
+                }
+              } else if (evt.progress_type === 'progress') {
+                updatedTool.progress = evt.progress
+                updatedTool.total = evt.total
+              }
+              tools.set(evt.call_id, updatedTool)
               updatedMsg.toolCalls = tools
             }
           }
