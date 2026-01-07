@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Send, Plus, Bot, User, AlertCircle, Settings, RefreshCw, StopCircle, Wrench, Paperclip, Mic } from 'lucide-react'
+import { ArrowLeft, Send, Plus, Bot, User, AlertCircle, Settings, RefreshCw, StopCircle, Wrench, Paperclip, Mic, Terminal } from 'lucide-react'
 import { cn } from '../utils/cn'
 import type { Server, Service, Session, SessionDetail, SSEEvent, MessageInfo } from '../types'
 import { getServers } from '../api/servers'
 import { getService, buildServiceUrl, listSessions, getSessionDetail, createSession, execute, subscribeToStream } from '../api/services'
+import { TerminalPanel } from '../components/TerminalPanel'
 
 interface ToolCall {
   id: string
@@ -39,6 +40,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSessionSelector, setShowSessionSelector] = useState(false)
+  const [showTerminalPanel, setShowTerminalPanel] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
@@ -360,6 +362,18 @@ export default function ChatPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {/* 终端面板按钮 */}
+          <button
+            onClick={() => setShowTerminalPanel(!showTerminalPanel)}
+            className={cn(
+              "p-2 hover:bg-muted/50 rounded-full transition-colors",
+              showTerminalPanel && "bg-primary/10 text-primary"
+            )}
+            title="终端面板"
+          >
+            <Terminal className="size-5" />
+          </button>
+          
           {/* Session 选择器 */}
           <div className="relative">
             <button
@@ -562,6 +576,17 @@ export default function ChatPage() {
             </div>
           </div>
         </footer>
+      )}
+
+      {/* Terminal Panel - 底部可展开面板 */}
+      {showTerminalPanel && serviceUrlRef.current && (
+        <div className="flex-none border-t border-border bg-card">
+          <TerminalPanel 
+            serviceUrl={serviceUrlRef.current}
+            className="h-64"
+            onClose={() => setShowTerminalPanel(false)}
+          />
+        </div>
       )}
     </div>
   )

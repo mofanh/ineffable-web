@@ -14,6 +14,7 @@ interface ToolCall {
   logs?: string[]  // 实时输出日志
   progress?: number
   total?: number
+  arguments?: Record<string, unknown>  // 工具参数
 }
 
 // 内容片段：可以是文本或工具调用
@@ -42,7 +43,114 @@ interface Props {
   onSessionsRefresh?: () => void
 }
 
-// 工具调用块组件（可折叠，支持实时日志）
+function parseToolCallPayload(payload: string): { name?: string; arguments?: Record<string, unknown> } {
+  const trimmed = payload.trim()
+
+  // JSON 格式：{"name":"bash","arguments":{...}}
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const json = JSON.parse(trimmed) as { name?: string; arguments?: Record<string, unknown> }
+      return { name: json.name, arguments: json.arguments }
+    } catch {
+      return {}
+    }
+  }
+
+  // XML 格式：<name>bash</name><arguments>...</arguments>
+  const nameMatch = trimmed.match(/<name>\s*([^<]+?)\s*<\/name>/i)
+  const argsMatch = trimmed.match(/<arguments>([\s\S]*?)<\/arguments>/i)
+  const name = nameMatch?.[1]?.trim()
+  if (!argsMatch) {
+    return { name }
+  }
+
+  // 不做复杂 XML->Object 解析，保留原始 XML 片段，避免误解析造成“乱”
+  const argsXml = argsMatch[1].trim()
+  return { name, arguments: argsXml ? ({ _xml: argsXml } as Record<string, unknown>) : undefined }
+}
+
+// 解析消息内容（历史消息）：仅识别明确的 MCP 标签 <tool_call>/<tool_result>
+function parseMessageContent(content: string): ContentSegment[] {
+  const segments: ContentSegment[] = []
+  const pendingByName = new Map<string, ToolCall[]>()
+
+  const tagRegex = /<tool_call>[\s\S]*?<\/tool_call>|<tool_result\s+name="[^"]+"\s*>[\s\S]*?<\/tool_result>/g
+  let lastIndex = 0
+
+  const pushText = (text: string) => {
+    if (!text) return
+    if (text.trim().length === 0) return
+    segments.push({ type: 'text', content: text })
+  }
+
+  const attachResult = (name: string, output: string): boolean => {
+    const queue = pendingByName.get(name)
+    if (!queue || queue.length === 0) return false
+    const idx = queue.findIndex(t => t.output == null)
+    if (idx < 0) return false
+    queue[idx].output = output
+    return true
+  }
+
+  for (const match of content.matchAll(tagRegex)) {
+    const full = match[0]
+    const start = match.index ?? 0
+    const end = start + full.length
+
+    if (start > lastIndex) {
+      pushText(content.slice(lastIndex, start))
+    }
+
+    if (full.startsWith('<tool_call>')) {
+      const inner = full.replace(/^<tool_call>/, '').replace(/<\/tool_call>$/, '')
+      const parsed = parseToolCallPayload(inner)
+      const tool: ToolCall = {
+        id: `hist-tool-${segments.length}`,
+        name: parsed.name || 'tool',
+        status: 'done',
+        arguments: parsed.arguments,
+      }
+
+      const key = tool.name
+      pendingByName.set(key, [...(pendingByName.get(key) ?? []), tool])
+      segments.push({ type: 'tool', tool })
+    } else {
+      const nameMatch = full.match(/<tool_result\s+name="([^"]+)"/)
+      const name = nameMatch?.[1] || 'tool'
+      const output = full
+        .replace(/^<tool_result\s+name="[^"]+"\s*>/, '')
+        .replace(/<\/tool_result>$/, '')
+        .replace(/^\n+|\n+$/g, '')
+
+      const attached = attachResult(name, output)
+      if (!attached) {
+        segments.push({
+          type: 'tool',
+          tool: {
+            id: `hist-tool-${segments.length}`,
+            name,
+            status: 'done',
+            output,
+          },
+        })
+      }
+    }
+
+    lastIndex = end
+  }
+
+  if (lastIndex < content.length) {
+    pushText(content.slice(lastIndex))
+  }
+
+  if (segments.length === 0) {
+    return [{ type: 'text', content }]
+  }
+
+  return segments
+}
+
+// MCP 工具调用块组件（可折叠，支持实时日志 / 最终输出）
 function ToolCallBlock({ tool }: { tool: ToolCall }) {
   const [expanded, setExpanded] = useState(tool.status === 'running')
   const logsEndRef = useRef<HTMLDivElement>(null)
@@ -61,7 +169,8 @@ function ToolCallBlock({ tool }: { tool: ToolCall }) {
     }
   }, [tool.status, tool.logs])
   
-  const hasContent = (tool.logs && tool.logs.length > 0) || tool.output
+  const hasArgs = Boolean(tool.arguments && Object.keys(tool.arguments).length > 0)
+  const hasContent = (tool.logs && tool.logs.length > 0) || tool.output || hasArgs
   const showProgress = tool.status === 'running' && tool.progress !== undefined && tool.total !== undefined
   
   return (
@@ -103,9 +212,18 @@ function ToolCallBlock({ tool }: { tool: ToolCall }) {
         </div>
       )}
       
-      {/* 实时日志和最终输出 */}
+      {/* 实时日志 / 参数 / 最终输出 */}
       {expanded && hasContent && (
         <div className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground">
+          {/* arguments */}
+          {hasArgs && (
+            <div className={(tool.logs && tool.logs.length > 0) || tool.output ? 'mb-2 pb-2 border-b border-border/30' : ''}>
+              <div className="text-muted-foreground/70 mb-1">arguments:</div>
+              <pre className="whitespace-pre-wrap wrap-break-word text-muted-foreground">
+                            {JSON.stringify(tool.arguments, null, 2)}
+              </pre>
+            </div>
+          )}
           {/* 实时日志 */}
           {tool.logs && tool.logs.length > 0 && (
             <div className={tool.output ? 'mb-2 pb-2 border-b border-border/30' : ''}>
@@ -146,15 +264,22 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       setLoading(true)
       try {
         const detail = await getSessionDetail(serviceUrl, session!.id)
-        const historicalMessages: Message[] = detail.messages.map((msg, idx) => ({
-          id: `hist-${idx}`,
-          role: msg.role as 'user' | 'assistant' | 'system',
-          content: msg.content,
-          timestamp: msg.timestamp || Date.now(),
-          status: 'completed',
-          segments: [{ type: 'text', content: msg.content }],
-          pendingToolCalls: new Map(),
-        }))
+        const historicalMessages: Message[] = detail.messages.map((msg, idx) => {
+          // 对 assistant 消息解析工具调用
+          const segments = msg.role === 'assistant' 
+            ? parseMessageContent(msg.content)
+            : [{ type: 'text' as const, content: msg.content }]
+          
+          return {
+            id: `hist-${idx}`,
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content,
+            timestamp: msg.timestamp || Date.now(),
+            status: 'completed' as const,
+            segments,
+            pendingToolCalls: new Map(),
+          }
+        })
         setMessages(historicalMessages)
       } catch (e) {
         console.warn('Failed to load session messages:', e)
@@ -245,10 +370,13 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
 
         case 'tool_start':
           if (event.call_id && event.tool) {
+            const args = event.arguments as Record<string, unknown> | undefined
+            
             const toolCall: ToolCall = { 
               id: event.call_id, 
               name: event.tool, 
-              status: 'running' 
+              status: 'running',
+              arguments: args,
             }
             // 添加工具调用片段到内容中
             updatedMsg.segments.push({ type: 'tool', tool: toolCall })
@@ -504,7 +632,7 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
                   {/* 按顺序渲染内容片段 */}
                   {msg.role === 'user' ? (
                     // 用户消息：简单文本
-                    <div className="whitespace-pre-wrap break-words">
+                    <div className="whitespace-pre-wrap wrap-break-word">
                       {msg.content}
                     </div>
                   ) : msg.segments.length === 0 && msg.status === 'streaming' ? (

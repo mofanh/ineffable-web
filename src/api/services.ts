@@ -487,3 +487,123 @@ export function subscribeToStream(
     eventSource.close()
   }
 }
+
+// ============ PTY 终端管理 ============
+
+import type { PtySession, CreatePtyRequest, ResizePtyRequest } from '../types'
+
+/**
+ * 列出所有 PTY 终端
+ */
+export async function listPtySessions(serviceUrl: string): Promise<PtySession[]> {
+  const res = await fetch(`${serviceUrl}/api/pty`)
+  
+  if (!res.ok) {
+    throw new Error(`Failed to fetch PTY sessions: ${res.status}`)
+  }
+  
+  return res.json()
+}
+
+/**
+ * 获取 PTY 终端详情
+ */
+export async function getPtySession(serviceUrl: string, ptyId: string): Promise<PtySession> {
+  const res = await fetch(`${serviceUrl}/api/pty/${ptyId}`)
+  
+  if (!res.ok) {
+    throw new Error(`Failed to fetch PTY session: ${res.status}`)
+  }
+  
+  return res.json()
+}
+
+/**
+ * 创建新的 PTY 终端
+ */
+export async function createPtySession(serviceUrl: string, data: CreatePtyRequest): Promise<PtySession> {
+  const res = await fetch(`${serviceUrl}/api/pty`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  
+  if (!res.ok) {
+    const error = await res.text().catch(() => '')
+    throw new Error(error || `Failed to create PTY session: ${res.status}`)
+  }
+  
+  return res.json()
+}
+
+/**
+ * 删除 PTY 终端
+ */
+export async function deletePtySession(serviceUrl: string, ptyId: string): Promise<void> {
+  const res = await fetch(`${serviceUrl}/api/pty/${ptyId}`, {
+    method: 'DELETE',
+  })
+  
+  if (!res.ok) {
+    throw new Error(`Failed to delete PTY session: ${res.status}`)
+  }
+}
+
+/**
+ * 调整 PTY 终端大小
+ */
+export async function resizePtySession(serviceUrl: string, ptyId: string, size: ResizePtyRequest): Promise<void> {
+  const res = await fetch(`${serviceUrl}/api/pty/${ptyId}/resize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(size),
+  })
+  
+  if (!res.ok) {
+    throw new Error(`Failed to resize PTY session: ${res.status}`)
+  }
+}
+
+/**
+ * 创建 PTY WebSocket 连接
+ * 
+ * @param serviceUrl - 服务 URL (http://...)
+ * @param ptyId - PTY 会话 ID
+ * @param onData - 接收数据回调
+ * @param onClose - 连接关闭回调
+ * @returns WebSocket 对象
+ */
+export function connectPtyWebSocket(
+  serviceUrl: string,
+  ptyId: string,
+  onData: (data: string) => void,
+  onClose?: () => void,
+  onError?: (error: Error) => void,
+): WebSocket {
+  // 将 http:// 转换为 ws://
+  const wsUrl = serviceUrl.replace(/^http/, 'ws') + `/api/pty/${ptyId}/connect`
+  
+  const ws = new WebSocket(wsUrl)
+  
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'data' && msg.data) {
+        onData(msg.data)
+      }
+    } catch {
+      // 如果不是 JSON，直接作为文本处理
+      onData(event.data)
+    }
+  }
+  
+  ws.onclose = () => {
+    onClose?.()
+  }
+  
+  ws.onerror = () => {
+    onError?.(new Error('WebSocket connection error'))
+  }
+  
+  return ws
+}

@@ -114,3 +114,27 @@ export interface ExecuteResponse {
   content?: string
   error?: string
 }
+
+/** PTY 终端会话 */
+export interface PtySession {
+  id: string
+  pid: number | null
+  command: string
+  status: string
+  created_at: number
+}
+
+/** 创建 PTY 请求 */
+export interface CreatePtyRequest {
+  command: string
+  args?: string[]
+  working_dir?: string
+  env?: Record<string, string>
+  size?: { cols: number; rows: number }
+}
+
+/** 调整 PTY 大小请求 */
+export interface ResizePtyRequest {
+  cols: number
+  rows: number
+}

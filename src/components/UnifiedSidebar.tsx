@@ -15,6 +15,10 @@ interface Props {
   onCollapse: (collapsed: boolean) => void
   onSessionSelect: (server: Server, service: Service, session: Session, serviceUrl: string) => void
   selectedSessionId?: string
+  // URL 参数，用于初始化选择
+  initialServerId?: string
+  initialServiceId?: string
+  initialSessionId?: string
 }
 
 interface ServiceWithSessions extends Service {
@@ -23,7 +27,15 @@ interface ServiceWithSessions extends Service {
   loadingSessions: boolean
 }
 
-export default function UnifiedSidebar({ isCollapsed, onCollapse, onSessionSelect, selectedSessionId }: Props) {
+export default function UnifiedSidebar({ 
+  isCollapsed, 
+  onCollapse, 
+  onSessionSelect, 
+  selectedSessionId,
+  initialServerId,
+  initialServiceId,
+  initialSessionId
+}: Props) {
   const { theme, toggleTheme } = useTheme()
   
   // 服务器状态
@@ -44,6 +56,9 @@ export default function UnifiedSidebar({ isCollapsed, onCollapse, onSessionSelec
   const [newServiceName, setNewServiceName] = useState('')
   const [newServicePort, setNewServicePort] = useState('8080')
   const [newServiceDir, setNewServiceDir] = useState('/tmp')
+  
+  // 标记是否已处理过 URL 初始化
+  const [urlInitialized, setUrlInitialized] = useState(false)
 
   // 加载服务器列表
   useEffect(() => {
@@ -64,6 +79,16 @@ export default function UnifiedSidebar({ isCollapsed, onCollapse, onSessionSelec
     try {
       const updated = await refreshServerStatuses()
       setServers(updated)
+      
+      // 如果有 URL 参数，优先使用 URL 中的服务器
+      if (initialServerId && !urlInitialized) {
+        const fromUrl = updated.find(s => s.id === initialServerId)
+        if (fromUrl) {
+          setSelectedServer(fromUrl)
+          return
+        }
+      }
+      
       // 自动选择第一个在线的服务器
       const online = updated.find(s => s.status === 'online')
       if (online && !selectedServer) {
@@ -80,6 +105,41 @@ export default function UnifiedSidebar({ isCollapsed, onCollapse, onSessionSelec
       setLoadingServers(false)
     }
   }
+
+  // 当服务列表加载完成后，处理 URL 初始化
+  useEffect(() => {
+    if (!initialServiceId || !initialServerId || urlInitialized || services.length === 0 || !selectedServer) return
+    
+    const targetService = services.find(s => s.id === initialServiceId)
+    if (!targetService || targetService.status !== 'running') return
+    
+    // 自动加载目标服务的会话
+    loadSessionsForService(targetService.id)
+  }, [services, initialServiceId, urlInitialized, selectedServer])
+  
+  // 当会话加载完成后，处理 URL 初始化选择
+  useEffect(() => {
+    if (!initialServiceId || !initialServerId || urlInitialized || !selectedServer) return
+    
+    const targetService = services.find(s => s.id === initialServiceId)
+    if (!targetService || !targetService.sessions || targetService.sessions.length === 0) return
+    
+    // 查找目标会话
+    let targetSession: Session | undefined
+    if (initialSessionId) {
+      targetSession = targetService.sessions.find(s => s.id === initialSessionId)
+    }
+    // 如果没找到指定的会话，使用第一个会话
+    if (!targetSession) {
+      targetSession = targetService.sessions[0]
+    }
+    
+    if (targetSession) {
+      const serviceUrl = buildServiceUrl(selectedServer.url, targetService.port)
+      onSessionSelect(selectedServer, targetService, targetSession, serviceUrl)
+      setUrlInitialized(true)
+    }
+  }, [services, initialServiceId, initialSessionId, urlInitialized, selectedServer, onSessionSelect])
 
   async function loadServices() {
     if (!selectedServer) return
@@ -221,7 +281,14 @@ export default function UnifiedSidebar({ isCollapsed, onCollapse, onSessionSelec
   }
 
   async function handleCreateService() {
-    if (!selectedServer || !newServiceName.trim()) return
+    if (!selectedServer) {
+      alert('请先选择一个服务器')
+      return
+    }
+    if (!newServiceName.trim()) {
+      alert('请输入服务名称')
+      return
+    }
     try {
       const service = await createService(selectedServer.url, {
         name: newServiceName.trim(),
@@ -350,7 +417,17 @@ export default function UnifiedSidebar({ isCollapsed, onCollapse, onSessionSelec
         </div>
 
         {/* Services List */}
-        {selectedServer?.status !== 'online' ? (
+        {!selectedServer ? (
+          <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+            <p>请先选择服务器</p>
+            <button
+              onClick={() => setShowAddServer(true)}
+              className="mt-1 text-primary text-xs hover:underline"
+            >
+              + 添加服务器
+            </button>
+          </div>
+        ) : selectedServer.status !== 'online' ? (
           <div className="px-3 py-4 text-center text-muted-foreground text-sm">
             服务器离线
           </div>
