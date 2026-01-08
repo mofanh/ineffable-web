@@ -321,9 +321,14 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       
       if (!lastMsg || lastMsg.role !== 'assistant') return prev
 
+      // 深拷贝 segments，避免直接修改原始状态
       const updatedMsg = { 
         ...lastMsg, 
-        segments: [...lastMsg.segments],
+        segments: lastMsg.segments.map((seg): ContentSegment => ({
+          type: seg.type,
+          content: seg.content,
+          tool: seg.tool ? { ...seg.tool } : undefined
+        })),
         pendingToolCalls: new Map(lastMsg.pendingToolCalls)
       }
       
@@ -334,9 +339,14 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
           updatedMsg.content += delta
           
           // 更新最后一个文本片段，或添加新的文本片段
-          const lastSegment = updatedMsg.segments[updatedMsg.segments.length - 1]
+          const lastIndex = updatedMsg.segments.length - 1
+          const lastSegment = lastIndex >= 0 ? updatedMsg.segments[lastIndex] : null
           if (lastSegment && lastSegment.type === 'text') {
-            lastSegment.content = (lastSegment.content || '') + delta
+            // 创建新对象而不是修改原对象
+            updatedMsg.segments[lastIndex] = {
+              ...lastSegment,
+              content: (lastSegment.content || '') + delta
+            }
           } else {
             updatedMsg.segments.push({ type: 'text', content: delta })
           }
@@ -354,19 +364,25 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
           break
 
         case 'task_failed':
-        case 'task_aborted':
+        case 'task_aborted': {
           updatedMsg.status = 'error'
           updatedMsg.content += `\n\n[${event.error || event.reason || '任务失败'}]`
           // 添加错误信息到最后一个文本片段
-          const lastSeg = updatedMsg.segments[updatedMsg.segments.length - 1]
+          const lastIdx = updatedMsg.segments.length - 1
+          const lastSeg = lastIdx >= 0 ? updatedMsg.segments[lastIdx] : null
           if (lastSeg && lastSeg.type === 'text') {
-            lastSeg.content = (lastSeg.content || '') + `\n\n[${event.error || event.reason || '任务失败'}]`
+            // 创建新对象而不是修改原对象
+            updatedMsg.segments[lastIdx] = {
+              ...lastSeg,
+              content: (lastSeg.content || '') + `\n\n[${event.error || event.reason || '任务失败'}]`
+            }
           } else {
             updatedMsg.segments.push({ type: 'text', content: `\n\n[${event.error || event.reason || '任务失败'}]` })
           }
           setSending(false)
           currentTaskIdRef.current = null
           break
+        }
 
         case 'tool_start':
           if (event.call_id && event.tool) {
@@ -393,13 +409,13 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
                 status: 'done' as const, 
                 output: event.output 
               }
-              // 更新 segments 中对应的工具调用
-              for (const segment of updatedMsg.segments) {
+              // 更新 segments 中对应的工具调用（使用 map 创建新数组）
+              updatedMsg.segments = updatedMsg.segments.map(segment => {
                 if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
-                  segment.tool = completedTool
-                  break
+                  return { ...segment, tool: completedTool }
                 }
-              }
+                return segment
+              })
               updatedMsg.pendingToolCalls.delete(event.call_id)
             }
           }
@@ -426,13 +442,13 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
               // 更新 pendingToolCalls
               updatedMsg.pendingToolCalls.set(event.call_id, updatedTool)
               
-              // 更新 segments 中对应的工具调用
-              for (const segment of updatedMsg.segments) {
+              // 更新 segments 中对应的工具调用（使用 map 创建新数组）
+              updatedMsg.segments = updatedMsg.segments.map(segment => {
                 if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
-                  segment.tool = updatedTool
-                  break
+                  return { ...segment, tool: updatedTool }
                 }
-              }
+                return segment
+              })
             }
           }
           break
