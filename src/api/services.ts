@@ -588,8 +588,17 @@ export function connectPtyWebSocket(
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data)
-      if (msg.type === 'data' && msg.data) {
+      if (msg.type === 'output' && msg.data) {
         onData(msg.data)
+        return
+      }
+      if (msg.type === 'exit' && typeof msg.code === 'number') {
+        onData(`\r\n[process exited with code ${msg.code}]\r\n`)
+        return
+      }
+      if (msg.type === 'error' && msg.message) {
+        onData(`\r\n[error] ${msg.message}\r\n`)
+        return
       }
     } catch {
       // 如果不是 JSON，直接作为文本处理

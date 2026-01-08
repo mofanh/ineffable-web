@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PanelLeft, ChevronLeft } from 'lucide-react'
+import { PanelLeft } from 'lucide-react'
 import type { Server, Service, Session } from '../types'
 import UnifiedSidebar from '../components/UnifiedSidebar'
-import { TerminalPanel } from '../components/TerminalPanel'
 import ChatPanel from '../components/ChatPanel'
 
 export default function MainPage() {
@@ -15,7 +14,6 @@ export default function MainPage() {
   const navigate = useNavigate()
   
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false)
   
   // 当前选中状态
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
@@ -89,19 +87,6 @@ export default function MainPage() {
           </div>
         )}
 
-        {/* Expand terminal button when collapsed */}
-        {serviceUrl && isTerminalCollapsed && (
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={() => setIsTerminalCollapsed(false)}
-              className="p-2 bg-card border border-border rounded-lg shadow-sm hover:bg-muted transition-colors"
-              title="展开终端"
-            >
-              <ChevronLeft className="size-4 text-muted-foreground" />
-            </button>
-          </div>
-        )}
-
         {/* 中间：对话区 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <ChatPanel
@@ -113,17 +98,6 @@ export default function MainPage() {
             onSessionsRefresh={handleSessionsRefresh}
           />
         </div>
-
-        {/* 右侧：终端侧边栏（类似 VS Code 终端） */}
-        {serviceUrl && !isTerminalCollapsed ? (
-          <div className="w-96 border-l border-border bg-card overflow-hidden">
-            <TerminalPanel
-              serviceUrl={serviceUrl}
-              className="h-full"
-              onClose={() => setIsTerminalCollapsed(true)}
-            />
-          </div>
-        ) : null}
       </div>
     </div>
   )

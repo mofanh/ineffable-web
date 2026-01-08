@@ -11,8 +11,11 @@
 import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Terminal, X, RefreshCw, Square, ChevronDown, ChevronRight, Send } from 'lucide-react'
 import { cn } from '../utils/cn'
-import { listPtySessions, deletePtySession, connectPtyWebSocket } from '../api/services'
+import { listPtySessions, deletePtySession, connectPtyWebSocket, resizePtySession } from '../api/services'
 import type { PtySession } from '../types'
+import { Terminal as XTerm } from 'xterm'
+import { FitAddon } from 'xterm-addon-fit'
+import 'xterm/css/xterm.css'
 
 interface TerminalPanelProps {
   serviceUrl: string
@@ -27,8 +30,9 @@ export interface TerminalPanelHandle {
 
 interface TerminalOutput {
   id: string
-  lines: string[]
   ws?: WebSocket
+  term?: XTerm
+  fit?: FitAddon
 }
 
 export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>(
@@ -38,7 +42,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
   const [expandedTerminal, setExpandedTerminal] = useState<string | null>(null)
   const [outputs, setOutputs] = useState<Record<string, TerminalOutput>>({})
   const [inputValue, setInputValue] = useState('')
-  const outputRef = useRef<HTMLDivElement>(null)
+  const terminalsRef = useRef<Record<string, HTMLDivElement | null>>({})
 
   // 加载终端列表
   const loadSessions = useCallback(async () => {
@@ -85,26 +89,31 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
     // 如果已经有连接，不重复创建
     if (outputs[expandedTerminal]?.ws) return
 
+    const container = terminalsRef.current[expandedTerminal]
+    if (!container) return
+
+    const term = new XTerm({
+      convertEol: true,
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontSize: 12,
+      cursorBlink: true,
+      scrollback: 2000,
+    })
+    const fit = new FitAddon()
+    term.loadAddon(fit)
+    term.open(container)
+    fit.fit()
+
+    // 初次 fit 后同步后端 resize
+    const initialCols = term.cols
+    const initialRows = term.rows
+    resizePtySession(serviceUrl, expandedTerminal, { cols: initialCols, rows: initialRows }).catch(() => {})
+
     const ws = connectPtyWebSocket(
       serviceUrl,
       expandedTerminal,
       (data) => {
-        setOutputs(prev => {
-          const current = prev[expandedTerminal] || { id: expandedTerminal, lines: [] }
-          return {
-            ...prev,
-            [expandedTerminal]: {
-              ...current,
-              lines: [...current.lines, data],
-            }
-          }
-        })
-        // 滚动到底部
-        setTimeout(() => {
-          if (outputRef.current) {
-            outputRef.current.scrollTop = outputRef.current.scrollHeight
-          }
-        }, 10)
+        term.write(data)
       },
       () => {
         setOutputs(prev => {
@@ -117,20 +126,43 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
           }
           return prev
         })
+        try {
+          term.writeln('\r\n[disconnected]')
+        } catch {}
       }
     )
+
+    // 将 xterm 键盘输入直接转发到后端
+    const dataDisposable = term.onData((chunk) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'input', data: chunk }))
+      }
+    })
+
+    // Resize 观察：容器尺寸变化时自动 fit + 通知后端
+    const ro = new ResizeObserver(() => {
+      try {
+        fit.fit()
+        resizePtySession(serviceUrl, expandedTerminal, { cols: term.cols, rows: term.rows }).catch(() => {})
+      } catch {}
+    })
+    ro.observe(container)
 
     setOutputs(prev => ({
       ...prev,
       [expandedTerminal]: {
         id: expandedTerminal,
-        lines: prev[expandedTerminal]?.lines || [],
         ws,
+        term,
+        fit,
       }
     }))
 
     return () => {
+      ro.disconnect()
+      dataDisposable.dispose()
       ws.close()
+      term.dispose()
     }
   }, [expandedTerminal, serviceUrl])
 
@@ -141,6 +173,7 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
       await deletePtySession(serviceUrl, ptyId)
       // 关闭 WebSocket
       outputs[ptyId]?.ws?.close()
+      outputs[ptyId]?.term?.dispose()
       setOutputs(prev => {
         const { [ptyId]: _, ...rest } = prev
         return rest
@@ -252,13 +285,13 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                 {expandedTerminal === session.id && (
                   <div className="border-t border-border bg-black/90">
                     {/* Output */}
-                    <div
-                      ref={outputRef}
-                      className="h-64 overflow-y-auto p-3 font-mono text-xs text-green-400 whitespace-pre-wrap"
-                    >
-                      {outputs[session.id]?.lines.map((line, i) => (
-                        <div key={i}>{line}</div>
-                      ))}
+                    <div className="h-64 overflow-hidden p-2">
+                      <div
+                        ref={(el) => {
+                          terminalsRef.current[session.id] = el
+                        }}
+                        className="h-full w-full"
+                      />
                     </div>
 
                     {/* Input */}
