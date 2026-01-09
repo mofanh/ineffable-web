@@ -25,6 +25,11 @@ export default function ChatComposer({
             onKeyDown={(e) => {
               // 流式输出时允许继续输入，但不能触发发送
               if (sending) return
+              // 中文等输入法组合态：回车用于选词/上屏，不应触发发送
+              // React KeyboardEvent: e.nativeEvent.isComposing
+              // 部分浏览器会用 keyCode 229 表示 IME 处理中
+              const native = e.nativeEvent as unknown as { isComposing?: boolean; keyCode?: number }
+              if (e.isComposing || native?.isComposing || native?.keyCode === 229) return
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 onSubmit()
