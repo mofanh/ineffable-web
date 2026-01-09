@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, RefreshCw, Wrench } from 'lucide-react'
 import type { ToolCall } from './types'
 
@@ -6,6 +6,12 @@ import type { ToolCall } from './types'
 export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
   const [expanded, setExpanded] = useState(tool.status === 'running')
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  // 懒加载：默认只渲染一部分 tool.output，滚动到底部再追加
+  const OUTPUT_CHUNK_SIZE = 4000
+  const OUTPUT_MAX_INITIAL = 4000
+  const [outputLimit, setOutputLimit] = useState(OUTPUT_MAX_INITIAL)
 
   // 当有新日志时自动滚动到底部
   useEffect(() => {
@@ -20,6 +26,37 @@ export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
       setExpanded(true)
     }
   }, [tool.status, tool.logs])
+
+  // tool 切换/输出变化时重置懒加载窗口
+  useEffect(() => {
+    setOutputLimit(OUTPUT_MAX_INITIAL)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool.id])
+
+  const fullOutput = tool.output || ''
+  const isOutputTruncated = fullOutput.length > outputLimit
+  const renderedOutput = useMemo(() => {
+    if (!fullOutput) return ''
+    return fullOutput.slice(0, Math.min(outputLimit, fullOutput.length))
+  }, [fullOutput, outputLimit])
+
+  const maybeLoadMore = useCallback(() => {
+    if (!isOutputTruncated) return
+    const el = scrollAreaRef.current
+    if (!el) return
+
+    // 当接近底部时加载更多（阈值 24px）
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24
+    if (!nearBottom) return
+
+    setOutputLimit(prev => prev + OUTPUT_CHUNK_SIZE)
+  }, [isOutputTruncated])
+
+  const onScrollArea = useCallback(() => {
+    // 仅在展开并且有截断时检查
+    if (!expanded) return
+    maybeLoadMore()
+  }, [expanded, maybeLoadMore])
 
   const hasArgs = Boolean(tool.arguments && Object.keys(tool.arguments).length > 0)
   const hasContent = (tool.logs && tool.logs.length > 0) || tool.output || hasArgs
@@ -64,7 +101,11 @@ export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
 
       {/* 实时日志 / 参数 / 最终输出 */}
       {expanded && hasContent && (
-        <div className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground">
+        <div
+          ref={scrollAreaRef}
+          onScroll={onScrollArea}
+          className="px-3 py-2 text-xs font-mono bg-background/50 border-t border-border/30 max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground"
+        >
           {/* arguments */}
           {hasArgs && (
             <div className={(tool.logs && tool.logs.length > 0) || tool.output ? 'mb-2 pb-2 border-b border-border/30' : ''}>
@@ -84,7 +125,16 @@ export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
             </div>
           )}
           {/* 最终输出 */}
-          {tool.output && <div>{tool.output}</div>}
+          {tool.output && (
+            <div>
+              <pre className="whitespace-pre-wrap wrap-break-word text-muted-foreground">{renderedOutput}</pre>
+              {isOutputTruncated && (
+                <div className="mt-2 text-[10px] text-muted-foreground/70">
+                  输出较长，继续下滑加载更多…
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
