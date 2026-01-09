@@ -1,12 +1,17 @@
 // ============ 类型定义 ============
 
-/** Server - 代表一个 Service Manager 实例 */
+/** 连接类型 */
+export type ConnectionType = 'hub' | 'direct'
+
+/** Server - 代表一个 Service Manager 实例或直连的 CLI 服务 */
 export interface Server {
   id: string
   name: string
-  url: string  // Service Manager URL, e.g., "http://192.168.1.100:7000"
+  url: string  // Service Manager URL 或直连 CLI URL, e.g., "http://192.168.1.100:7000"
   status: 'online' | 'offline' | 'unknown'
   serviceCount?: number
+  /** 连接类型: hub=通过 Service Manager, direct=直连 CLI */
+  connectionType?: ConnectionType
 }
 
 /** Service - 代表一个 AI Agent 服务 */

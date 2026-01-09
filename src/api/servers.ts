@@ -1,9 +1,9 @@
 /**
- * Server API - 管理 Service Manager 连接
+ * Server API - 管理 Service Manager 连接和直连 CLI
  * Server 信息存储在 localStorage 中
  */
 
-import type { Server } from '../types'
+import type { Server, ConnectionType } from '../types'
 
 const SERVERS_KEY = 'ineffable_servers'
 
@@ -28,8 +28,9 @@ function saveServers(servers: Server[]): void {
 
 /**
  * 添加 Server
+ * @param connectionType - 连接类型: 'hub' 为 Service Manager, 'direct' 为直连 CLI
  */
-export function addServer(name: string, url: string): Server {
+export function addServer(name: string, url: string, connectionType: ConnectionType = 'hub'): Server {
   const servers = getServers()
   
   // 移除末尾斜杠
@@ -40,6 +41,7 @@ export function addServer(name: string, url: string): Server {
     name,
     url: normalizedUrl,
     status: 'unknown',
+    connectionType,
   }
   
   servers.push(newServer)
@@ -89,8 +91,9 @@ export function getServer(id: string): Server | undefined {
 
 /**
  * 检查 Server 健康状态
+ * @param connectionType - 连接类型，直连模式使用不同的健康检查端点
  */
-export async function checkServerHealth(serverUrl: string): Promise<{ online: boolean; serviceCount?: number }> {
+export async function checkServerHealth(serverUrl: string, connectionType?: ConnectionType): Promise<{ online: boolean; serviceCount?: number }> {
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
@@ -107,6 +110,12 @@ export async function checkServerHealth(serverUrl: string): Promise<{ online: bo
     }
     
     const data = await res.json()
+    
+    // 直连模式不返回 service_count
+    if (connectionType === 'direct') {
+      return { online: true }
+    }
+    
     return {
       online: true,
       serviceCount: data.service_count,
@@ -124,7 +133,7 @@ export async function refreshServerStatuses(): Promise<Server[]> {
   
   const updated = await Promise.all(
     servers.map(async (server) => {
-      const health = await checkServerHealth(server.url)
+      const health = await checkServerHealth(server.url, server.connectionType)
       return {
         ...server,
         status: health.online ? 'online' : 'offline',
@@ -146,7 +155,7 @@ export async function refreshServerStatus(id: string): Promise<Server | null> {
   
   if (index === -1) return null
   
-  const health = await checkServerHealth(servers[index].url)
+  const health = await checkServerHealth(servers[index].url, servers[index].connectionType)
   servers[index] = {
     ...servers[index],
     status: health.online ? 'online' : 'offline',

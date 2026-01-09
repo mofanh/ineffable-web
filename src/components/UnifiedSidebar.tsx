@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { 
   Bot, Server as ServerIcon, Plus, RefreshCw, ChevronDown, ChevronRight, 
   MessageSquare, Settings, Wifi, WifiOff, Play, Square, Trash2, PanelLeft, FolderOpen,
-  User, Sun, Moon, LogOut, X
+  User, Sun, Moon, LogOut, X, Link2
 } from 'lucide-react'
 import { cn } from '../utils/cn'
 import { useTheme } from '../hooks/useTheme'
-import type { Server, Service, Session } from '../types'
+import type { Server, Service, Session, ConnectionType } from '../types'
 import { getServers, addServer, removeServer, refreshServerStatuses } from '../api/servers'
 import { listServices, startService, stopService, createService, listSessions, createSession, deleteSession, buildServiceUrl } from '../api/services'
 
@@ -57,6 +57,13 @@ export default function UnifiedSidebar({
   const [newServicePort, setNewServicePort] = useState('8080')
   const [newServiceDir, setNewServiceDir] = useState('/tmp')
   
+  // 添加服务器对话框的连接类型
+  const [newServerConnectionType, setNewServerConnectionType] = useState<ConnectionType>('hub')
+  
+  // 直连模式的会话列表
+  const [directSessions, setDirectSessions] = useState<Session[]>()
+  const [loadingDirectSessions, setLoadingDirectSessions] = useState(false)
+  
   // 标记是否已处理过 URL 初始化
   const [urlInitialized, setUrlInitialized] = useState(false)
 
@@ -65,14 +72,22 @@ export default function UnifiedSidebar({
     loadServers()
   }, [])
 
-  // 当选择服务器后加载服务
+  // 当选择服务器后加载服务或会话
   useEffect(() => {
     if (selectedServer?.status === 'online') {
-      loadServices()
+      if (selectedServer.connectionType === 'direct') {
+        // 直连模式：加载会话
+        loadDirectSessions()
+      } else {
+        // Hub 模式：加载服务
+        loadServices()
+        setDirectSessions(undefined)
+      }
     } else {
       setServices([])
+      setDirectSessions(undefined)
     }
-  }, [selectedServer?.id, selectedServer?.status])
+  }, [selectedServer?.id, selectedServer?.status, selectedServer?.connectionType])
 
   async function loadServers() {
     setLoadingServers(true)
@@ -141,6 +156,29 @@ export default function UnifiedSidebar({
     }
   }, [services, initialServiceId, initialSessionId, urlInitialized, selectedServer, onSessionSelect])
 
+  // 直连模式：当直连会话加载完成后，处理 URL 初始化选择
+  useEffect(() => {
+    if (!initialServerId || !initialServiceId || urlInitialized || !selectedServer) return
+    if (selectedServer.id !== initialServerId) return
+    if (selectedServer.connectionType !== 'direct') return
+    if (initialServiceId !== 'direct') return
+    if (!directSessions || directSessions.length === 0) return
+
+    let targetSession: Session | undefined
+    if (initialSessionId) {
+      targetSession = directSessions.find(s => s.id === initialSessionId)
+    }
+    if (!targetSession) {
+      targetSession = directSessions[0]
+    }
+
+    if (targetSession) {
+      // 复用直连点击逻辑（会构造 virtualService 并回调 onSessionSelect）
+      handleDirectSessionClick(targetSession)
+      setUrlInitialized(true)
+    }
+  }, [directSessions, initialServerId, initialServiceId, initialSessionId, urlInitialized, selectedServer])
+
   async function loadServices() {
     if (!selectedServer) return
     setLoadingServices(true)
@@ -159,6 +197,21 @@ export default function UnifiedSidebar({
       setServices([])
     } finally {
       setLoadingServices(false)
+    }
+  }
+
+  // 加载直连模式的会话
+  async function loadDirectSessions() {
+    if (!selectedServer || selectedServer.connectionType !== 'direct') return
+    setLoadingDirectSessions(true)
+    try {
+      const { sessions: sessionList } = await listSessions(selectedServer.url)
+      setDirectSessions(sessionList)
+    } catch (err) {
+      console.error('Failed to load direct sessions:', err)
+      setDirectSessions([])
+    } finally {
+      setLoadingDirectSessions(false)
     }
   }
 
@@ -270,12 +323,61 @@ export default function UnifiedSidebar({
     onSessionSelect(selectedServer, service, session, serviceUrl)
   }
 
+  // 直连模式下的会话点击
+  function handleDirectSessionClick(session: Session) {
+    if (!selectedServer) return
+    // 创建一个虚拟的 Service 对象用于直连模式
+    const virtualService: Service = {
+      id: 'direct',
+      name: selectedServer.name,
+      port: 0, // 直连模式不需要端口，URL 已经完整
+      workingDir: '',
+      status: 'running',
+      autoStart: false,
+      createdAt: '',
+    }
+    onSessionSelect(selectedServer, virtualService, session, selectedServer.url)
+  }
+
+  // 直连模式下创建会话
+  async function handleCreateDirectSession() {
+    if (!selectedServer) return
+    try {
+      const newSession = await createSession(selectedServer.url)
+      setDirectSessions(prev => [newSession, ...(prev || [])])
+      handleDirectSessionClick(newSession)
+    } catch (err) {
+      alert(`创建会话失败: ${(err as Error).message}`)
+    }
+  }
+
+  // 直连模式下删除会话
+  async function handleDeleteDirectSession(session: Session, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!selectedServer) return
+    
+    if (session.isActive) {
+      alert('无法删除当前活跃会话')
+      return
+    }
+    
+    if (!confirm(`确定要删除会话 "${session.name || session.id.slice(0, 8)}" 吗？`)) return
+    
+    try {
+      await deleteSession(selectedServer.url, session.id)
+      setDirectSessions(prev => prev?.filter(s => s.id !== session.id))
+    } catch (err) {
+      alert(`删除会话失败: ${(err as Error).message}`)
+    }
+  }
+
   async function handleAddServer() {
     if (!newServerName.trim() || !newServerUrl.trim()) return
-    const server = addServer(newServerName.trim(), newServerUrl.trim())
+    const server = addServer(newServerName.trim(), newServerUrl.trim(), newServerConnectionType)
     setServers([...servers, server])
     setNewServerName('')
     setNewServerUrl('')
+    setNewServerConnectionType('hub')
     setShowAddServer(false)
     loadServers()
   }
@@ -372,11 +474,18 @@ export default function UnifiedSidebar({
                     selectedServer?.id === server.id && "bg-muted"
                   )}
                 >
-                  <span className="text-sm truncate">{server.name}</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {server.connectionType === 'direct' ? (
+                      <Link2 className="size-3 text-primary shrink-0" />
+                    ) : (
+                      <ServerIcon className="size-3 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="text-sm truncate">{server.name}</span>
+                  </div>
                   {server.status === 'online' ? (
-                    <Wifi className="size-3 text-success" />
+                    <Wifi className="size-3 text-success shrink-0" />
                   ) : (
-                    <WifiOff className="size-3 text-muted-foreground" />
+                    <WifiOff className="size-3 text-muted-foreground shrink-0" />
                   )}
                 </button>
               ))}
@@ -396,62 +505,143 @@ export default function UnifiedSidebar({
 
       {/* Services & Sessions */}
       <div className="flex-1 overflow-y-auto">
-        {/* Service Header */}
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">服务</span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={loadServices}
-              className="p-1 rounded hover:bg-muted transition-colors"
-              disabled={loadingServices}
-            >
-              <RefreshCw className={cn("size-3.5", loadingServices && "animate-spin")} />
-            </button>
-            <button
-              onClick={() => setShowCreateService(true)}
-              className="p-1 rounded hover:bg-muted transition-colors text-primary"
-            >
-              <Plus className="size-3.5" />
-            </button>
-          </div>
-        </div>
+        {/* 直连模式: 显示会话列表 */}
+        {selectedServer?.connectionType === 'direct' ? (
+          <>
+            {/* Direct Mode Header */}
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">会话</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={loadDirectSessions}
+                  className="p-1 rounded hover:bg-muted transition-colors"
+                  disabled={loadingDirectSessions}
+                >
+                  <RefreshCw className={cn("size-3.5", loadingDirectSessions && "animate-spin")} />
+                </button>
+                <button
+                  onClick={handleCreateDirectSession}
+                  className="p-1 rounded hover:bg-muted transition-colors text-primary"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+            </div>
 
-        {/* Services List */}
-        {!selectedServer ? (
-          <div className="px-3 py-4 text-center text-muted-foreground text-sm">
-            <p>请先选择服务器</p>
-            <button
-              onClick={() => setShowAddServer(true)}
-              className="mt-1 text-primary text-xs hover:underline"
-            >
-              + 添加服务器
-            </button>
-          </div>
-        ) : selectedServer.status !== 'online' ? (
-          <div className="px-3 py-4 text-center text-muted-foreground text-sm">
-            服务器离线
-          </div>
-        ) : loadingServices ? (
-          <div className="px-3 py-4 text-center text-muted-foreground text-sm">
-            加载中...
-          </div>
-        ) : services.length === 0 ? (
-          <div className="px-3 py-4 text-center text-muted-foreground text-sm">
-            <p>暂无服务</p>
-            <button
-              onClick={() => setShowCreateService(true)}
-              className="mt-1 text-primary text-xs hover:underline"
-            >
-              + 创建服务
-            </button>
-          </div>
+            {/* Direct Sessions List */}
+            {selectedServer.status !== 'online' ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                服务离线
+              </div>
+            ) : loadingDirectSessions ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                加载中...
+              </div>
+            ) : !directSessions || directSessions.length === 0 ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                <p>暂无会话</p>
+                <button
+                  onClick={handleCreateDirectSession}
+                  className="mt-1 text-primary text-xs hover:underline"
+                >
+                  + 新建会话
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-0.5 px-2">
+                {directSessions.map(session => (
+                  <div
+                    key={session.id}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
+                      selectedSessionId === session.id 
+                        ? "bg-primary/10 text-primary" 
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <button
+                      onClick={() => handleDirectSessionClick(session)}
+                      className="flex items-center gap-2 flex-1 min-w-0"
+                    >
+                      <MessageSquare className="size-3.5 shrink-0" />
+                      <span className="text-sm truncate flex-1">
+                        {session.name || `会话 ${session.id.slice(0, 8)}`}
+                      </span>
+                    </button>
+                    {session.isActive ? (
+                      <span className="text-[10px] text-primary shrink-0">当前</span>
+                    ) : (
+                      <button
+                        onClick={(e) => handleDeleteDirectSession(session, e)}
+                        className="p-0.5 rounded opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all"
+                        title="删除会话"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="space-y-0.5 px-2">
-            {services.map(service => (
-              <div key={service.id}>
-                {/* Service Item */}
-                <div
-                  onClick={() => service.status === 'running' && toggleServiceExpand(service.id)}
+          <>
+            {/* Hub Mode: Service Header */}
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">服务</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={loadServices}
+                  className="p-1 rounded hover:bg-muted transition-colors"
+                  disabled={loadingServices}
+                >
+                  <RefreshCw className={cn("size-3.5", loadingServices && "animate-spin")} />
+                </button>
+                <button
+                  onClick={() => setShowCreateService(true)}
+                  className="p-1 rounded hover:bg-muted transition-colors text-primary"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Services List */}
+            {!selectedServer ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                <p>请先选择服务器</p>
+                <button
+                  onClick={() => setShowAddServer(true)}
+                  className="mt-1 text-primary text-xs hover:underline"
+                >
+                  + 添加服务器
+                </button>
+              </div>
+            ) : selectedServer.status !== 'online' ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                服务器离线
+              </div>
+            ) : loadingServices ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                加载中...
+              </div>
+            ) : services.length === 0 ? (
+              <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+                <p>暂无服务</p>
+                <button
+                  onClick={() => setShowCreateService(true)}
+                  className="mt-1 text-primary text-xs hover:underline"
+                >
+                  + 创建服务
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-0.5 px-2">
+                {services.map(service => (
+                  <div key={service.id}>
+                    {/* Service Item */}
+                    <div
+                      onClick={() => service.status === 'running' && toggleServiceExpand(service.id)}
                   className={cn(
                     "flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group",
                     service.status === 'running' ? "cursor-pointer hover:bg-muted" : "opacity-60"
@@ -557,6 +747,8 @@ export default function UnifiedSidebar({
             ))}
           </div>
         )}
+          </>
+        )}
       </div>
 
       {/* User Profile */}
@@ -600,12 +792,47 @@ export default function UnifiedSidebar({
             <h3 className="font-semibold mb-3">添加服务器</h3>
             <div className="space-y-3">
               <div>
+                <label className="text-xs text-muted-foreground">连接类型</label>
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => setNewServerConnectionType('hub')}
+                    className={cn(
+                      "flex-1 px-3 py-2 rounded-lg text-sm transition-colors",
+                      newServerConnectionType === 'hub' 
+                        ? "bg-primary text-primary-foreground" 
+                        : "bg-muted hover:bg-muted/80"
+                    )}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <ServerIcon className="size-3.5" />
+                      <span>Hub</span>
+                    </div>
+                    <div className="text-[10px] opacity-70 mt-0.5">通过 Service Manager</div>
+                  </button>
+                  <button
+                    onClick={() => setNewServerConnectionType('direct')}
+                    className={cn(
+                      "flex-1 px-3 py-2 rounded-lg text-sm transition-colors",
+                      newServerConnectionType === 'direct' 
+                        ? "bg-primary text-primary-foreground" 
+                        : "bg-muted hover:bg-muted/80"
+                    )}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Link2 className="size-3.5" />
+                      <span>直连</span>
+                    </div>
+                    <div className="text-[10px] opacity-70 mt-0.5">直接连接 CLI</div>
+                  </button>
+                </div>
+              </div>
+              <div>
                 <label className="text-xs text-muted-foreground">名称</label>
                 <input
                   type="text"
                   value={newServerName}
                   onChange={e => setNewServerName(e.target.value)}
-                  placeholder="My Server"
+                  placeholder={newServerConnectionType === 'direct' ? "My CLI" : "My Server"}
                   className="w-full mt-1 px-3 py-2 bg-muted rounded-lg text-sm border-none focus:ring-1 focus:ring-primary"
                 />
               </div>
@@ -615,12 +842,17 @@ export default function UnifiedSidebar({
                   type="text"
                   value={newServerUrl}
                   onChange={e => setNewServerUrl(e.target.value)}
-                  placeholder="http://localhost:7001"
+                  placeholder={newServerConnectionType === 'direct' ? "http://localhost:8000" : "http://localhost:7001"}
                   className="w-full mt-1 px-3 py-2 bg-muted rounded-lg text-sm border-none focus:ring-1 focus:ring-primary"
                 />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {newServerConnectionType === 'direct' 
+                    ? "CLI serve 模式的地址" 
+                    : "Service Manager 的地址"}
+                </p>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setShowAddServer(false)} className="px-3 py-1.5 text-sm rounded-lg hover:bg-muted">
+                <button onClick={() => { setShowAddServer(false); setNewServerConnectionType('hub') }} className="px-3 py-1.5 text-sm rounded-lg hover:bg-muted">
                   取消
                 </button>
                 <button onClick={handleAddServer} className="px-3 py-1.5 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90">

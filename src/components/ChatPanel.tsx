@@ -69,6 +69,18 @@ function parseToolCallPayload(payload: string): { name?: string; arguments?: Rec
   return { name, arguments: argsXml ? ({ _xml: argsXml } as Record<string, unknown>) : undefined }
 }
 
+// 过滤掉 <tool_call> 标签的原始文本（因为工具调用已通过 tool_start 事件单独渲染）
+function filterToolCallTags(content: string): string {
+  if (!content) return ''
+  // 移除完整的 <tool_call>...</tool_call> 标签
+  let filtered = content.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '')
+  // 移除未闭合的 <tool_call> 标签（流式渲染中可能出现）
+  filtered = filtered.replace(/<tool_call>[\s\S]*$/g, '')
+  // 清理多余的空行
+  filtered = filtered.replace(/\n{3,}/g, '\n\n')
+  return filtered.trim()
+}
+
 // 解析消息内容（历史消息）：仅识别明确的 MCP 标签 <tool_call>/<tool_result>
 function parseMessageContent(content: string): ContentSegment[] {
   const segments: ContentSegment[] = []
@@ -658,10 +670,10 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
                     // 助手消息：按片段渲染
                     msg.segments.map((segment, idx) => (
                       segment.type === 'text' ? (
-                        // 文本片段：使用 Markdown 渲染
+                        // 文本片段：使用 Markdown 渲染（过滤掉 tool_call 标签）
                         <MarkdownRenderer 
                           key={`text-${idx}`} 
-                          content={segment.content || ''} 
+                          content={filterToolCallTags(segment.content || '')} 
                         />
                       ) : segment.type === 'tool' && segment.tool ? (
                         // 工具调用片段
