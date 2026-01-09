@@ -43,40 +43,49 @@ function parseToolMemoryMessage(content: string): { name: string; output: string
   return { name: 'tool', output: trimmed }
 }
 
-function attachToolOutputToHistory(messages: Message[], toolName: string, output: string): boolean {
+function attachToolOutputToAssistantMsg(msg: Message, toolName: string, output: string): boolean {
   // 从后往前找最近的“未填 output 的 tool 段”，优先 name 匹配
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i]
-    if (msg.role !== 'assistant') continue
-
-    for (let j = msg.segments.length - 1; j >= 0; j--) {
-      const seg = msg.segments[j]
-      if (seg.type !== 'tool' || !seg.tool) continue
-      if (seg.tool.output != null) continue
-      if (toolName && seg.tool.name !== toolName) continue
-
-      seg.tool.output = output
-      seg.tool.status = 'done'
-      return true
-    }
+  for (let j = msg.segments.length - 1; j >= 0; j--) {
+    const seg = msg.segments[j]
+    if (seg.type !== 'tool' || !seg.tool) continue
+    if (seg.tool.output != null) continue
+    if (toolName && seg.tool.name !== toolName) continue
+    seg.tool.output = output
+    seg.tool.status = 'done'
+    return true
   }
 
   // name 不匹配时，退化为“填最近一个未完成 tool 段”
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i]
-    if (msg.role !== 'assistant') continue
-
-    for (let j = msg.segments.length - 1; j >= 0; j--) {
-      const seg = msg.segments[j]
-      if (seg.type !== 'tool' || !seg.tool) continue
-      if (seg.tool.output != null) continue
-      seg.tool.output = output
-      seg.tool.status = 'done'
-      return true
-    }
+  for (let j = msg.segments.length - 1; j >= 0; j--) {
+    const seg = msg.segments[j]
+    if (seg.type !== 'tool' || !seg.tool) continue
+    if (seg.tool.output != null) continue
+    seg.tool.output = output
+    seg.tool.status = 'done'
+    return true
   }
 
   return false
+}
+
+function appendToolResultAsSegment(msg: Message, toolName: string, output: string, idSeed: string) {
+  msg.segments.push({
+    type: 'tool',
+    tool: {
+      id: `hist-tool-${idSeed}-${msg.segments.length}`,
+      name: toolName || 'tool',
+      status: 'done',
+      output,
+    },
+  })
+}
+
+function normalizeRole(role: string | undefined): 'user' | 'assistant' | 'system' | 'tool' {
+  const r = (role || '').toLowerCase()
+  if (r === 'user') return 'user'
+  if (r === 'system') return 'system'
+  if (r === 'tool') return 'tool'
+  return 'assistant'
 }
 
 interface Props {
@@ -324,56 +333,97 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
 
         const historicalMessages: Message[] = []
         const baseNow = Date.now()
-        let idx = 0
+        let outIdx = 0
 
-        for (const msg of detail.messages) {
-          const rawRole = (msg.role || '').toLowerCase()
+        // 关键：把连续的 assistant/tool/assistant... 合并成一个 assistant 气泡。
+        // 目标：两条 user 消息之间，UI 只出现一条 assistant（内部用 segments 展示 tool 块）。
+        for (let i = 0; i < detail.messages.length; i++) {
+          const m = detail.messages[i]
+          const role = normalizeRole(m.role)
 
-          // 后端会把工具结果作为 role=tool 的 message 存进 TextMemory："[name]: output"
-          // 刷新加载历史时，把它回填到上一条 assistant 的 tool 段里，保证与 SSE 实时渲染一致。
-          if (rawRole === 'tool') {
-            const { name, output } = parseToolMemoryMessage(msg.content)
-            const attached = attachToolOutputToHistory(historicalMessages, name, output)
-            if (!attached) {
-              historicalMessages.push({
-                id: `hist-${idx}`,
-                role: 'assistant',
-                content: '',
-                timestamp: msg.timestamp || baseNow + idx,
-                status: 'completed' as const,
-                segments: [
-                  {
-                    type: 'tool',
-                    tool: {
-                      id: `hist-tool-${idx}-0`,
-                      name,
-                      status: 'done',
-                      output,
-                    },
-                  },
-                ],
-                pendingToolCalls: new Map(),
-              })
-              idx++
-            }
+          if (role === 'user' || role === 'system') {
+            historicalMessages.push({
+              id: `hist-${outIdx}`,
+              role,
+              content: m.content,
+              timestamp: m.timestamp || baseNow + outIdx,
+              status: 'completed' as const,
+              segments: [{ type: 'text', content: m.content }],
+              pendingToolCalls: new Map(),
+            })
+            outIdx++
             continue
           }
 
-          const role: Message['role'] = rawRole === 'user' ? 'user' : rawRole === 'system' ? 'system' : 'assistant'
-          const segments = role === 'assistant'
-            ? parseMessageContent(msg.content)
-            : [{ type: 'text' as const, content: msg.content }]
+          // 极端：tool 出现在任何 assistant 前，兜底为一条 assistant。
+          if (role === 'tool') {
+            const { name, output } = parseToolMemoryMessage(m.content)
+            historicalMessages.push({
+              id: `hist-${outIdx}`,
+              role: 'assistant',
+              content: '',
+              timestamp: m.timestamp || baseNow + outIdx,
+              status: 'completed' as const,
+              segments: [
+                {
+                  type: 'tool',
+                  tool: {
+                    id: `hist-tool-${outIdx}-0`,
+                    name,
+                    status: 'done',
+                    output,
+                  },
+                },
+              ],
+              pendingToolCalls: new Map(),
+            })
+            outIdx++
+            continue
+          }
 
-          historicalMessages.push({
-            id: `hist-${idx}`,
-            role,
-            content: msg.content,
-            timestamp: msg.timestamp || baseNow + idx,
+          // assistant：创建一个气泡，并把后续连续的 tool/assistant 都合并进来
+          const merged: Message = {
+            id: `hist-${outIdx}`,
+            role: 'assistant',
+            content: m.content,
+            timestamp: m.timestamp || baseNow + outIdx,
             status: 'completed' as const,
-            segments,
+            segments: parseMessageContent(m.content),
             pendingToolCalls: new Map(),
-          })
-          idx++
+          }
+
+          // 向后合并，直到遇到 user/system（下一轮对话）
+          while (i + 1 < detail.messages.length) {
+            const next = detail.messages[i + 1]
+            const nextRole = normalizeRole(next.role)
+            if (nextRole === 'user' || nextRole === 'system') break
+
+            i++
+            if (nextRole === 'tool') {
+              const { name, output } = parseToolMemoryMessage(next.content)
+              const attached = attachToolOutputToAssistantMsg(merged, name, output)
+              if (!attached) {
+                // 没有解析到对应 tool_call（比如 tool_call 标签缺失/异常），也不要拆成新气泡：直接作为一个 tool 段插入
+                appendToolResultAsSegment(merged, name, output, merged.id)
+              }
+            } else {
+              // assistant：把它的文本/工具段继续追加到同一个气泡
+              merged.content += `\n\n${next.content}`
+              const segs = parseMessageContent(next.content)
+              // 避免 parseMessageContent 返回单个“原样文本”时仍然重复多余空白
+              for (const s of segs) {
+                if (s.type === 'text') {
+                  if (!s.content || s.content.trim().length === 0) continue
+                  merged.segments.push({ type: 'text', content: s.content })
+                } else {
+                  merged.segments.push(s)
+                }
+              }
+            }
+          }
+
+          historicalMessages.push(merged)
+          outIdx++
         }
 
         setMessages(historicalMessages)
@@ -730,8 +780,8 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
           messages.map((msg) => (
             <div key={msg.id} className={cn("flex gap-4 max-w-3xl mx-auto", msg.role === 'user' ? "justify-end" : "justify-start")}>
               <div className={cn(
-                "flex-1 max-w-[85%]",
-                msg.role === 'user' ? "flex justify-end" : ""
+                "flex-1",
+                msg.role === 'user' ? "max-w-[85%] flex justify-end" : "max-w-full"
               )}>
                 <div className={cn(
                   "px-0 py-2 text-sm leading-relaxed",
