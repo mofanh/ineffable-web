@@ -309,15 +309,62 @@ function ToolCallBlock({ tool }: { tool: ToolCall }) {
   )
 }
 
+function TypingDots() {
+  return (
+    <span className="typing-dots text-muted-foreground" aria-label="模型输出中">
+      <span className="typing-dot" aria-hidden="true">·</span>
+      <span className="typing-dot" aria-hidden="true">·</span>
+      <span className="typing-dot" aria-hidden="true">·</span>
+    </span>
+  )
+}
+
 export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionsRefresh }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const isAtBottomRef = useRef(true)
+  const scrollRafRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentTaskIdRef = useRef<string | null>(null)
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
+  }, [])
+
+  const updateIsAtBottom = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const thresholdPx = 80
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    const nextAtBottom = distance <= thresholdPx
+    if (nextAtBottom !== isAtBottomRef.current) {
+      isAtBottomRef.current = nextAtBottom
+      setIsAtBottom(nextAtBottom)
+    }
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    if (scrollRafRef.current != null) {
+      cancelAnimationFrame(scrollRafRef.current)
+    }
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null
+      updateIsAtBottom()
+    })
+  }, [updateIsAtBottom])
+
+  // 主动初始化一次（例如加载历史后 / 首次渲染）
+  useEffect(() => {
+    updateIsAtBottom()
+  }, [session?.id, loading, updateIsAtBottom])
 
   // 当 session 改变时加载历史消息
   useEffect(() => {
@@ -448,10 +495,11 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
     }
   }, [session?.id])
 
-  // 滚动到底部
+  // 只有当用户当前就在底部时，才自动跟随滚动
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (!isAtBottomRef.current) return
+    scrollToBottom('auto')
+  }, [messages, scrollToBottom])
 
   // 刷新会话列表（用于获取自动生成的标题）
   const refreshSessions = useCallback(async () => {
@@ -754,7 +802,12 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       </header>
 
       {/* Chat Area */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+      <div className="relative flex-1 min-h-0">
+        <main
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="h-full min-h-0 overflow-y-auto p-4 space-y-6"
+        >
         {!session ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
             <div className="bg-muted/30 p-4 rounded-full mb-4">
@@ -799,29 +852,54 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
                     </div>
                   ) : msg.segments.length === 0 && msg.status === 'streaming' ? (
                     // 正在等待响应
-                    <span className="animate-pulse text-muted-foreground">思考中...</span>
+                    <TypingDots />
                   ) : (
                     // 助手消息：按片段渲染
-                    msg.segments.map((segment, idx) => (
-                      segment.type === 'text' ? (
-                        // 文本片段：使用 Markdown 渲染（过滤掉 tool_call 标签）
-                        <MarkdownRenderer 
-                          key={`text-${idx}`} 
-                          content={filterToolCallTags(segment.content || '')} 
-                        />
-                      ) : segment.type === 'tool' && segment.tool ? (
-                        // 工具调用片段
-                        <ToolCallBlock key={`tool-${segment.tool.id}`} tool={segment.tool} />
-                      ) : null
-                    ))
+                    <>
+                      {msg.segments.map((segment, idx) => (
+                        segment.type === 'text' ? (
+                          // 文本片段：使用 Markdown 渲染（过滤掉 tool_call 标签）
+                          <MarkdownRenderer 
+                            key={`text-${idx}`} 
+                            content={filterToolCallTags(segment.content || '')} 
+                          />
+                        ) : segment.type === 'tool' && segment.tool ? (
+                          // 工具调用片段
+                          <ToolCallBlock key={`tool-${segment.tool.id}`} tool={segment.tool} />
+                        ) : null
+                      ))}
+                      {msg.role === 'assistant' && msg.status === 'streaming' && (
+                        <div className="mt-1">
+                          <TypingDots />
+                        </div>
+                      )}
+                    </>
                   )}
+
                 </div>
               </div>
             </div>
           ))
         )}
         <div ref={messagesEndRef} />
-      </main>
+        </main>
+
+        {/* 未在底部时：悬浮“回到底部”按钮 */}
+        {!isAtBottom && session && (
+          <button
+            type="button"
+            onClick={() => {
+              isAtBottomRef.current = true
+              setIsAtBottom(true)
+              scrollToBottom('smooth')
+            }}
+            className="absolute bottom-4 right-4 size-9 rounded-full border border-border/60 bg-background shadow-sm hover:bg-muted transition-colors flex items-center justify-center"
+            title="回到底部"
+          >
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </button>
+        )}
+      </div>
 
       {/* Input Area */}
       {session && (
@@ -879,7 +957,7 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
             </form>
             <div className="text-center mt-3">
               <p className="text-[11px] text-muted-foreground/40">
-                Ineffable © 2024. Built with lazy by LBJ.
+                Ineffable © 2026. Built with lazy by LBJ.
               </p>
             </div>
           </div>
