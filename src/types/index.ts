@@ -47,7 +47,8 @@ export interface SessionsResponse {
 
 /** 消息信息 */
 export interface MessageInfo {
-  role: 'user' | 'assistant' | 'system'
+  // 后端 memory 的 role 是 string（例如会有 "tool"）
+  role: string
   content: string
   timestamp?: number
 }

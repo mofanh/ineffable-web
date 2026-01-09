@@ -1,16 +1,21 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { PanelLeft } from 'lucide-react'
 import type { Server, Service, Session } from '../types'
 import UnifiedSidebar from '../components/UnifiedSidebar'
 import ChatPanel from '../components/ChatPanel'
 
-export default function MainPage() {
-  const { serverId, serviceId, sessionId } = useParams<{ 
-    serverId?: string
-    serviceId?: string
-    sessionId?: string
-  }>()
+type MainPageProps = {
+  initialServerId?: string
+  initialServiceId?: string
+  initialSessionId?: string
+}
+
+export default function MainPage({
+  initialServerId,
+  initialServiceId,
+  initialSessionId,
+}: MainPageProps) {
   const navigate = useNavigate()
   
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -67,9 +72,9 @@ export default function MainPage() {
         onCollapse={setIsCollapsed}
         onSessionSelect={handleSessionSelect}
         selectedSessionId={selectedSession?.id}
-        initialServerId={serverId}
-        initialServiceId={serviceId}
-        initialSessionId={sessionId}
+        initialServerId={initialServerId}
+        initialServiceId={initialServiceId}
+        initialSessionId={initialSessionId}
       />
 
       {/* Chat Panel */}

@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import MainPage from './pages/MainPage'
+import ChatRoutePage from './pages/ChatRoutePage'
 
 export default function App() {
   return (
@@ -12,8 +13,8 @@ export default function App() {
             /chat/:serverId/:serviceId/:sessionId - 完整的会话 URL
         */}
         <Route path="/" element={<MainPage />} />
-        <Route path="/chat/:serverId/:serviceId" element={<MainPage />} />
-        <Route path="/chat/:serverId/:serviceId/:sessionId" element={<MainPage />} />
+        <Route path="/chat/:serverId/:serviceId" element={<ChatRoutePage />} />
+        <Route path="/chat/:serverId/:serviceId/:sessionId" element={<ChatRoutePage />} />
       </Routes>
     </BrowserRouter>
   )

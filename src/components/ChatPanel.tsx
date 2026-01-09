@@ -34,6 +34,51 @@ interface Message {
   pendingToolCalls: Map<string, ToolCall>  // 正在等待的工具调用
 }
 
+function parseToolMemoryMessage(content: string): { name: string; output: string } {
+  const trimmed = (content ?? '').trim()
+  const m = trimmed.match(/^\[([^\]]+?)\]:\s*([\s\S]*)$/)
+  if (m) {
+    return { name: m[1].trim() || 'tool', output: (m[2] ?? '').trim() }
+  }
+  return { name: 'tool', output: trimmed }
+}
+
+function attachToolOutputToHistory(messages: Message[], toolName: string, output: string): boolean {
+  // 从后往前找最近的“未填 output 的 tool 段”，优先 name 匹配
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role !== 'assistant') continue
+
+    for (let j = msg.segments.length - 1; j >= 0; j--) {
+      const seg = msg.segments[j]
+      if (seg.type !== 'tool' || !seg.tool) continue
+      if (seg.tool.output != null) continue
+      if (toolName && seg.tool.name !== toolName) continue
+
+      seg.tool.output = output
+      seg.tool.status = 'done'
+      return true
+    }
+  }
+
+  // name 不匹配时，退化为“填最近一个未完成 tool 段”
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role !== 'assistant') continue
+
+    for (let j = msg.segments.length - 1; j >= 0; j--) {
+      const seg = msg.segments[j]
+      if (seg.type !== 'tool' || !seg.tool) continue
+      if (seg.tool.output != null) continue
+      seg.tool.output = output
+      seg.tool.status = 'done'
+      return true
+    }
+  }
+
+  return false
+}
+
 interface Props {
   server: Server | null
   service: Service | null
@@ -276,22 +321,61 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       setLoading(true)
       try {
         const detail = await getSessionDetail(serviceUrl, session!.id)
-        const historicalMessages: Message[] = detail.messages.map((msg, idx) => {
-          // 对 assistant 消息解析工具调用
-          const segments = msg.role === 'assistant' 
+
+        const historicalMessages: Message[] = []
+        const baseNow = Date.now()
+        let idx = 0
+
+        for (const msg of detail.messages) {
+          const rawRole = (msg.role || '').toLowerCase()
+
+          // 后端会把工具结果作为 role=tool 的 message 存进 TextMemory："[name]: output"
+          // 刷新加载历史时，把它回填到上一条 assistant 的 tool 段里，保证与 SSE 实时渲染一致。
+          if (rawRole === 'tool') {
+            const { name, output } = parseToolMemoryMessage(msg.content)
+            const attached = attachToolOutputToHistory(historicalMessages, name, output)
+            if (!attached) {
+              historicalMessages.push({
+                id: `hist-${idx}`,
+                role: 'assistant',
+                content: '',
+                timestamp: msg.timestamp || baseNow + idx,
+                status: 'completed' as const,
+                segments: [
+                  {
+                    type: 'tool',
+                    tool: {
+                      id: `hist-tool-${idx}-0`,
+                      name,
+                      status: 'done',
+                      output,
+                    },
+                  },
+                ],
+                pendingToolCalls: new Map(),
+              })
+              idx++
+            }
+            continue
+          }
+
+          const role: Message['role'] = rawRole === 'user' ? 'user' : rawRole === 'system' ? 'system' : 'assistant'
+          const segments = role === 'assistant'
             ? parseMessageContent(msg.content)
             : [{ type: 'text' as const, content: msg.content }]
-          
-          return {
+
+          historicalMessages.push({
             id: `hist-${idx}`,
-            role: msg.role as 'user' | 'assistant' | 'system',
+            role,
             content: msg.content,
-            timestamp: msg.timestamp || Date.now(),
+            timestamp: msg.timestamp || baseNow + idx,
             status: 'completed' as const,
             segments,
             pendingToolCalls: new Map(),
-          }
-        })
+          })
+          idx++
+        }
+
         setMessages(historicalMessages)
       } catch (e) {
         console.warn('Failed to load session messages:', e)
