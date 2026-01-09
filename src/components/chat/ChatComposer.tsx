@@ -23,6 +23,8 @@ export default function ChatComposer({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
+              // 流式输出时允许继续输入，但不能触发发送
+              if (sending) return
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 onSubmit()
@@ -31,7 +33,7 @@ export default function ChatComposer({
             placeholder="开始吧..."
             className="w-full min-h-13 max-h-50 bg-transparent border-none px-5 py-4 text-sm resize-none focus:ring-0 focus:outline-none placeholder:text-muted-foreground/40"
             rows={1}
-            disabled={sending}
+            disabled={false}
           />
           <div className="flex items-center justify-between px-3 pb-3">
             <div className="flex items-center gap-1">

@@ -55,6 +55,7 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
+    if (sending) return
     if (!input.trim()) return
     const currentPrompt = input
     setInput('')
