@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PanelLeft } from 'lucide-react'
 import type { Server, Service, Session } from '../types'
-import UnifiedSidebar from '../components/UnifiedSidebar'
+import UnifiedSidebar, { type UnifiedSidebarHandle } from '../components/UnifiedSidebar'
 import ChatPanel from '../components/ChatPanel'
 
 type MainPageProps = {
@@ -26,8 +26,7 @@ export default function MainPage({
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [serviceUrl, setServiceUrl] = useState<string>('')
 
-  // 用于刷新会话列表的回调
-  const [refreshKey, setRefreshKey] = useState(0)
+  const sidebarRef = useRef<UnifiedSidebarHandle | null>(null)
 
   // 当会话选择变化时，更新 URL
   const handleSessionSelect = useCallback((
@@ -59,15 +58,22 @@ export default function MainPage({
     }
   }, [navigate, selectedServer, selectedService])
 
-  const handleSessionsRefresh = useCallback(() => {
-    setRefreshKey(k => k + 1)
-  }, [])
+  const handleSessionTitleRefresh = useCallback(async (sessionId: string) => {
+    const url = serviceUrl
+    if (!url) return
+    const patch = await sidebarRef.current?.refreshSessionTitle(url, sessionId)
+    if (!patch) return
+    setSelectedSession(prev => {
+      if (!prev || prev.id !== sessionId) return prev
+      return { ...prev, name: patch.name ?? prev.name, createdAt: patch.createdAt ?? prev.createdAt }
+    })
+  }, [serviceUrl])
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       {/* Unified Sidebar */}
       <UnifiedSidebar
-        key={refreshKey}
+        ref={sidebarRef}
         isCollapsed={isCollapsed}
         onCollapse={setIsCollapsed}
         onSessionSelect={handleSessionSelect}
@@ -100,7 +106,7 @@ export default function MainPage({
             session={selectedSession}
             serviceUrl={serviceUrl}
             onSessionChange={handleSessionChange}
-            onSessionsRefresh={handleSessionsRefresh}
+            onSessionTitleRefresh={handleSessionTitleRefresh}
           />
         </div>
       </div>

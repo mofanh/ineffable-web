@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { 
   Bot, Server as ServerIcon, Plus, RefreshCw, ChevronDown, ChevronRight, 
   MessageSquare, Settings, Wifi, WifiOff, Play, Square, Trash2, PanelLeft, FolderOpen,
@@ -21,13 +21,37 @@ interface Props {
   initialSessionId?: string
 }
 
+export interface UnifiedSidebarHandle {
+  refreshSessionTitle: (
+    serviceUrl: string,
+    sessionId: string
+  ) => Promise<Pick<Session, 'id' | 'name' | 'createdAt'> | null>
+}
+
 interface ServiceWithSessions extends Service {
   sessions: Session[]
   expanded: boolean
   loadingSessions: boolean
 }
 
-export default function UnifiedSidebar({ 
+function parseCreatedAtMs(session: Session): number | null {
+  if (!session.createdAt) return null
+  const t = Date.parse(session.createdAt)
+  return Number.isFinite(t) ? t : null
+}
+
+function sortSessionsStable(sessions: Session[]): Session[] {
+  return [...sessions].sort((a, b) => {
+    const ta = parseCreatedAtMs(a)
+    const tb = parseCreatedAtMs(b)
+    if (ta != null && tb != null) return tb - ta
+    if (ta != null) return -1
+    if (tb != null) return 1
+    return a.id.localeCompare(b.id)
+  })
+}
+
+const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedSidebar({ 
   isCollapsed, 
   onCollapse, 
   onSessionSelect, 
@@ -35,7 +59,7 @@ export default function UnifiedSidebar({
   initialServerId,
   initialServiceId,
   initialSessionId
-}: Props) {
+}: Props, ref) {
   const { theme, toggleTheme } = useTheme()
   
   // 服务器状态
@@ -88,6 +112,58 @@ export default function UnifiedSidebar({
       setDirectSessions(undefined)
     }
   }, [selectedServer?.id, selectedServer?.status, selectedServer?.connectionType])
+
+  const refreshSessionTitle = useCallback(async (serviceUrl: string, sessionId: string) => {
+    if (!selectedServer) return null
+    try {
+      const { sessions } = await listSessions(serviceUrl)
+      const target = sessions.find(s => s.id === sessionId)
+      if (!target) return null
+
+      // 直连模式：更新直连会话列表
+      if (selectedServer.connectionType === 'direct') {
+        setDirectSessions(prev => {
+          if (!prev || prev.length === 0) return prev
+          let changed = false
+          const next = prev.map(s => {
+            if (s.id !== sessionId) return s
+            const merged: Session = { ...s, name: target.name, createdAt: target.createdAt }
+            changed = true
+            return merged
+          })
+          return changed ? sortSessionsStable(next) : prev
+        })
+        return { id: target.id, name: target.name, createdAt: target.createdAt }
+      }
+
+      // Hub 模式：找到对应 service，更新它的 sessions
+      setServices(prev => {
+        const serviceId = prev.find(s => buildServiceUrl(selectedServer.url, s.port) === serviceUrl)?.id
+        if (!serviceId) return prev
+
+        return prev.map(s => {
+          if (s.id !== serviceId) return s
+          if (!s.sessions || s.sessions.length === 0) return s
+          let changed = false
+          const updatedSessions = s.sessions.map(sess => {
+            if (sess.id !== sessionId) return sess
+            changed = true
+            return { ...sess, name: target.name, createdAt: target.createdAt }
+          })
+          return changed ? { ...s, sessions: sortSessionsStable(updatedSessions) } : s
+        })
+      })
+
+      return { id: target.id, name: target.name, createdAt: target.createdAt }
+    } catch (err) {
+      console.error('Failed to refresh session title:', err)
+      return null
+    }
+  }, [selectedServer])
+
+  useImperativeHandle(ref, () => ({
+    refreshSessionTitle,
+  }), [refreshSessionTitle])
 
   async function loadServers() {
     setLoadingServers(true)
@@ -206,7 +282,7 @@ export default function UnifiedSidebar({
     setLoadingDirectSessions(true)
     try {
       const { sessions: sessionList } = await listSessions(selectedServer.url)
-      setDirectSessions(sessionList)
+      setDirectSessions(sortSessionsStable(sessionList))
     } catch (err) {
       console.error('Failed to load direct sessions:', err)
       setDirectSessions([])
@@ -229,7 +305,7 @@ export default function UnifiedSidebar({
       const serviceUrl = buildServiceUrl(selectedServer.url, service.port)
       const { sessions: sessionList } = await listSessions(serviceUrl)
       setServices(prev => prev.map(s => 
-        s.id === serviceId ? { ...s, sessions: sessionList, loadingSessions: false, expanded: true } : s
+        s.id === serviceId ? { ...s, sessions: sortSessionsStable(sessionList), loadingSessions: false, expanded: true } : s
       ))
     } catch (err) {
       console.error('Failed to load sessions:', err)
@@ -284,7 +360,7 @@ export default function UnifiedSidebar({
       const newSession = await createSession(serviceUrl)
       // 更新会话列表
       setServices(prev => prev.map(s => 
-        s.id === service.id ? { ...s, sessions: [newSession, ...s.sessions] } : s
+        s.id === service.id ? { ...s, sessions: sortSessionsStable([...(s.sessions || []), newSession]) } : s
       ))
       // 选中新会话
       onSessionSelect(selectedServer, service, newSession, serviceUrl)
@@ -344,7 +420,7 @@ export default function UnifiedSidebar({
     if (!selectedServer) return
     try {
       const newSession = await createSession(selectedServer.url)
-      setDirectSessions(prev => [newSession, ...(prev || [])])
+      setDirectSessions(prev => sortSessionsStable([...(prev || []), newSession]))
       handleDirectSessionClick(newSession)
     } catch (err) {
       alert(`创建会话失败: ${(err as Error).message}`)
@@ -418,7 +494,7 @@ export default function UnifiedSidebar({
   }
 
   return (
-    <aside className="w-[280px] flex flex-col border-r border-border bg-muted/20">
+    <aside className="w-70 flex flex-col border-r border-border bg-muted/20">
       {/* Header */}
       <div className="p-3 border-b border-border/50">
         <div className="flex items-center justify-between">
@@ -448,7 +524,7 @@ export default function UnifiedSidebar({
               <ServerIcon className="size-4 text-muted-foreground" />
               {selectedServer ? (
                 <>
-                  <span className="text-sm font-medium truncate max-w-[140px]">{selectedServer.name}</span>
+                  <span className="text-sm font-medium truncate max-w-35">{selectedServer.name}</span>
                   {selectedServer.status === 'online' ? (
                     <Wifi className="size-3 text-success" />
                   ) : (
@@ -662,7 +738,7 @@ export default function UnifiedSidebar({
 
                   {/* Status Dot */}
                   <div className={cn(
-                    "size-2 rounded-full flex-shrink-0",
+                    "size-2 rounded-full shrink-0",
                     service.status === 'running' ? "bg-success" : "bg-muted-foreground"
                   )} />
 
@@ -912,4 +988,6 @@ export default function UnifiedSidebar({
       )}
     </aside>
   )
-}
+})
+
+export default UnifiedSidebar

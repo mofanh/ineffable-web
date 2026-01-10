@@ -261,6 +261,7 @@ export async function listSessions(serviceUrl: string): Promise<{ currentSession
     sessions: data.sessions.map((item: any) => ({
       id: item.id,
       name: item.name,
+      createdAt: typeof item.created_at_unix === 'number' ? new Date(item.created_at_unix * 1000).toISOString() : undefined,
       messageCount: item.message_count,
       isActive: item.is_active,
     })),
@@ -309,6 +310,7 @@ export async function createSession(serviceUrl: string, _data?: CreateSessionReq
   return {
     id: item.id,
     name: item.name,
+    createdAt: typeof item.created_at_unix === 'number' ? new Date(item.created_at_unix * 1000).toISOString() : undefined,
     messageCount: item.message_count || 0,
     isActive: item.is_active ?? true,
   }

@@ -15,11 +15,11 @@ import {
 export function useChatMessages({
   serviceUrl,
   session,
-  onSessionsRefresh,
+  onSessionTitleRefresh,
 }: {
   serviceUrl: string
   session: Session | null
-  onSessionsRefresh?: () => void
+  onSessionTitleRefresh?: (sessionId: string) => void
 }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
@@ -28,9 +28,11 @@ export function useChatMessages({
   const abortControllerRef = useRef<AbortController | null>(null)
   const currentTaskIdRef = useRef<string | null>(null)
 
-  const refreshSessions = useCallback(async () => {
-    onSessionsRefresh?.()
-  }, [onSessionsRefresh])
+  const refreshSessionTitle = useCallback(() => {
+    const sessionId = session?.id
+    if (!sessionId) return
+    onSessionTitleRefresh?.(sessionId)
+  }, [onSessionTitleRefresh, session?.id])
 
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
@@ -80,7 +82,7 @@ export function useChatMessages({
             setSending(false)
             currentTaskIdRef.current = null
             // 延迟刷新会话列表，等待后端异步生成标题
-            setTimeout(() => refreshSessions(), 1500)
+            setTimeout(() => refreshSessionTitle(), 1500)
             break
 
           case 'task_failed':
@@ -178,7 +180,7 @@ export function useChatMessages({
         return newMessages
       })
     },
-    [refreshSessions]
+    [refreshSessionTitle]
   )
 
   // session 切换时加载历史消息（含“合并 assistant/tool/assistant...”）

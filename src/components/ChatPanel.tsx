@@ -20,17 +20,17 @@ interface Props {
   session: Session | null
   serviceUrl: string
   onSessionChange?: (session: Session) => void
-  onSessionsRefresh?: () => void
+  onSessionTitleRefresh?: (sessionId: string) => void
 }
 
 
-export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionsRefresh }: Props) {
+export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionTitleRefresh }: Props) {
   const [input, setInput] = useState('')
 
   const { messages, setMessages, loading, sending, sendMessage, cancel } = useChatMessages({
     serviceUrl,
     session,
-    onSessionsRefresh,
+    onSessionTitleRefresh,
   })
   
   const { scrollContainerRef, isAtBottom, handleScroll, markAtBottomAndScroll } = useChatScrollFollow({
