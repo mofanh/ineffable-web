@@ -21,10 +21,11 @@ interface Props {
   serviceUrl: string
   onSessionChange?: (session: Session) => void
   onSessionTitleRefresh?: (sessionId: string) => void
+  onRunningSessionChange?: (sessionId: string | null) => void
 }
 
 
-export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionTitleRefresh }: Props) {
+export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionTitleRefresh, onRunningSessionChange }: Props) {
   const [input, setInput] = useState('')
 
   const { messages, setMessages, loading, sending, sendMessage, cancel } = useChatMessages({
@@ -38,6 +39,10 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
     followDeps: [messages],
     thresholdPx: 80,
   })
+
+  useEffect(() => {
+    onRunningSessionChange?.(sending ? (session?.id ?? null) : null)
+  }, [onRunningSessionChange, sending, session?.id])
 
   // 刷新会话列表（用于获取自动生成的标题）
 

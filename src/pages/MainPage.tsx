@@ -26,6 +26,9 @@ export default function MainPage({
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [serviceUrl, setServiceUrl] = useState<string>('')
 
+  // 仅当当前会话有 SSE 流（sending）时才算“运行中”
+  const [runningSessionId, setRunningSessionId] = useState<string | null>(null)
+
   const sidebarRef = useRef<UnifiedSidebarHandle | null>(null)
 
   // 当会话选择变化时，更新 URL
@@ -78,6 +81,7 @@ export default function MainPage({
         onCollapse={setIsCollapsed}
         onSessionSelect={handleSessionSelect}
         selectedSessionId={selectedSession?.id}
+        runningSessionId={runningSessionId || undefined}
         initialServerId={initialServerId}
         initialServiceId={initialServiceId}
         initialSessionId={initialSessionId}
@@ -107,6 +111,7 @@ export default function MainPage({
             serviceUrl={serviceUrl}
             onSessionChange={handleSessionChange}
             onSessionTitleRefresh={handleSessionTitleRefresh}
+            onRunningSessionChange={setRunningSessionId}
           />
         </div>
       </div>

@@ -15,6 +15,8 @@ interface Props {
   onCollapse: (collapsed: boolean) => void
   onSessionSelect: (server: Server, service: Service, session: Session, serviceUrl: string) => void
   selectedSessionId?: string
+  // 仅当该会话存在 SSE 流（sending）时，才算“运行中”
+  runningSessionId?: string
   // URL 参数，用于初始化选择
   initialServerId?: string
   initialServiceId?: string
@@ -56,6 +58,7 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
   onCollapse, 
   onSessionSelect, 
   selectedSessionId,
+  runningSessionId,
   initialServerId,
   initialServiceId,
   initialSessionId
@@ -373,9 +376,9 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
     e.stopPropagation()
     if (!selectedServer) return
     
-    // 不允许删除当前活跃会话
-    if (session.isActive) {
-      alert('无法删除当前活跃会话')
+    // 不允许删除运行中的会话（以 SSE 流为准）
+    if (runningSessionId === session.id) {
+      alert('无法删除运行中的会话')
       return
     }
     
@@ -432,8 +435,9 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
     e.stopPropagation()
     if (!selectedServer) return
     
-    if (session.isActive) {
-      alert('无法删除当前活跃会话')
+    // 不允许删除运行中的会话（以 SSE 流为准）
+    if (runningSessionId === session.id) {
+      alert('无法删除运行中的会话')
       return
     }
     
@@ -625,38 +629,49 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
               </div>
             ) : (
               <div className="space-y-0.5 px-2">
-                {directSessions.map(session => (
-                  <div
-                    key={session.id}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
-                      selectedSessionId === session.id 
-                        ? "bg-primary/10 text-primary" 
-                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <button
-                      onClick={() => handleDirectSessionClick(session)}
-                      className="flex items-center gap-2 flex-1 min-w-0"
+                {directSessions.map(session => {
+                  const isRunning = runningSessionId === session.id
+                  return (
+                    <div
+                      key={session.id}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
+                        selectedSessionId === session.id
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      )}
                     >
-                      <MessageSquare className="size-3.5 shrink-0" />
-                      <span className="text-sm truncate flex-1">
-                        {session.name || `会话 ${session.id.slice(0, 8)}`}
-                      </span>
-                    </button>
-                    {session.isActive ? (
-                      <span className="text-[10px] text-primary shrink-0">当前</span>
-                    ) : (
                       <button
-                        onClick={(e) => handleDeleteDirectSession(session, e)}
-                        className="p-0.5 rounded opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all"
-                        title="删除会话"
+                        onClick={() => handleDirectSessionClick(session)}
+                        className="flex items-center gap-2 flex-1 min-w-0"
+                      >
+                        <MessageSquare className="size-3.5 shrink-0" />
+                        <span className={cn(
+                          "text-sm truncate flex-1",
+                          isRunning && "text-primary animate-pulse"
+                        )}>
+                          {session.name || `会话 ${session.id.slice(0, 8)}`}
+                        </span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          if (isRunning) return
+                          handleDeleteDirectSession(session, e)
+                        }}
+                        disabled={isRunning}
+                        className={cn(
+                          "p-0.5 rounded transition-all",
+                          isRunning
+                            ? "opacity-40 cursor-not-allowed"
+                            : "opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive"
+                        )}
+                        title={isRunning ? "运行中不可删除" : "删除会话"}
                       >
                         <X className="size-3" />
                       </button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </>
@@ -784,38 +799,49 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
                         暂无会话
                       </div>
                     ) : (
-                      service.sessions.map(session => (
-                        <div
-                          key={session.id}
-                          className={cn(
-                            "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
-                            selectedSessionId === session.id 
-                              ? "bg-primary/10 text-primary" 
-                              : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          <button
-                            onClick={() => handleSessionClick(service, session)}
-                            className="flex items-center gap-2 flex-1 min-w-0"
+                      service.sessions.map(session => {
+                        const isRunning = runningSessionId === session.id
+                        return (
+                          <div
+                            key={session.id}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
+                              selectedSessionId === session.id
+                                ? "bg-primary/10 text-primary"
+                                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                            )}
                           >
-                            <MessageSquare className="size-3 shrink-0" />
-                            <span className="text-xs truncate flex-1">
-                              {session.name || `会话 ${session.id.slice(0, 8)}`}
-                            </span>
-                          </button>
-                          {session.isActive ? (
-                            <span className="text-[10px] text-primary shrink-0">当前</span>
-                          ) : (
                             <button
-                              onClick={(e) => handleDeleteSession(service, session, e)}
-                              className="p-0.5 rounded opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all"
-                              title="删除会话"
+                              onClick={() => handleSessionClick(service, session)}
+                              className="flex items-center gap-2 flex-1 min-w-0"
+                            >
+                              <MessageSquare className="size-3 shrink-0" />
+                              <span className={cn(
+                                "text-xs truncate flex-1",
+                                isRunning && "text-primary animate-pulse"
+                              )}>
+                                {session.name || `会话 ${session.id.slice(0, 8)}`}
+                              </span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                if (isRunning) return
+                                handleDeleteSession(service, session, e)
+                              }}
+                              disabled={isRunning}
+                              className={cn(
+                                "p-0.5 rounded transition-all",
+                                isRunning
+                                  ? "opacity-40 cursor-not-allowed"
+                                  : "opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive"
+                              )}
+                              title={isRunning ? "运行中不可删除" : "删除会话"}
                             >
                               <X className="size-3" />
                             </button>
-                          )}
-                        </div>
-                      ))
+                          </div>
+                        )
+                      })
                     )}
                   </div>
                 )}
