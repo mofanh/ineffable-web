@@ -120,6 +120,7 @@ export interface CreateSessionRequest {
 /** 执行任务请求 */
 export interface ExecuteRequest {
   task_id?: string
+  session_id?: string
   prompt: string  // CLI serve 模式使用 prompt
   stream?: boolean
 }

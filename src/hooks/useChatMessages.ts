@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { Session, SSEEvent } from '../types'
-import { activateSession, cancelTask, executeStream, getSessionDetail } from '../api/services'
+import { cancelTask, executeStream, getSessionDetail } from '../api/services'
 
 import type { Message, ToolCall, ContentSegment } from '../components/chat/types'
 import {
@@ -192,12 +192,6 @@ export function useChatMessages({
 
     const sessionId = session.id
 
-    // 关键：切换到历史会话时，先让后端激活该 session，保证后续执行带上历史上下文。
-    // Best-effort：旧版本后端可能没有该接口，不要因此阻断 UI。
-    activateSession(serviceUrl, sessionId).catch(err => {
-      console.warn('Failed to activate session on server:', err)
-    })
-
     async function loadMessages() {
       setLoading(true)
       try {
@@ -345,7 +339,12 @@ export function useChatMessages({
       setMessages(prev => [...prev, userMsg, assistantMsg])
 
       try {
-        await executeStream(serviceUrl, { prompt }, handleSSEEvent, abortController.signal)
+        await executeStream(
+          serviceUrl,
+          { prompt, session_id: session.id },
+          handleSSEEvent,
+          abortController.signal,
+        )
       } catch (err) {
         if ((err as Error).name === 'AbortError') {
           return

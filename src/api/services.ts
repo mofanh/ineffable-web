@@ -291,20 +291,6 @@ export async function listSessions(serviceUrl: string): Promise<{ currentSession
 }
 
 /**
- * 激活/切换当前 Session（serve 模式下用于让后续执行使用该会话上下文）
- */
-export async function activateSession(serviceUrl: string, sessionId: string): Promise<void> {
-  const res = await fetch(`${serviceUrl}/api/sessions/${sessionId}/activate`, {
-    method: 'POST',
-  })
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}))
-    throw new Error(error.error || `Failed to activate session: ${res.status}`)
-  }
-}
-
-/**
  * 获取 Session 详情（包含消息）
  */
 export async function getSessionDetail(serviceUrl: string, sessionId: string): Promise<SessionDetail> {
