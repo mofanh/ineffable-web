@@ -22,12 +22,15 @@ export async function listServices(serverUrl: string): Promise<Service[]> {
   return data.map((item: any) => ({
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }))
 }
 
@@ -46,12 +49,15 @@ export async function getService(serverUrl: string, serviceId: string): Promise<
   return {
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }
 }
 
@@ -75,12 +81,15 @@ export async function createService(serverUrl: string, data: CreateServiceReques
   return {
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }
 }
 
@@ -93,6 +102,7 @@ export async function updateService(serverUrl: string, serviceId: string, data: 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: data.name,
+      host: data.host,
       port: data.port,
       working_dir: data.working_dir,
       auto_start: data.auto_start,
@@ -109,12 +119,15 @@ export async function updateService(serverUrl: string, serviceId: string, data: 
   return {
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }
 }
 
@@ -150,12 +163,15 @@ export async function startService(serverUrl: string, serviceId: string): Promis
   return {
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }
 }
 
@@ -177,12 +193,15 @@ export async function stopService(serverUrl: string, serviceId: string): Promise
   return {
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }
 }
 
@@ -204,12 +223,15 @@ export async function restartService(serverUrl: string, serviceId: string): Prom
   return {
     id: item.id,
     name: item.name,
+    host: item.host,
     port: item.port,
     workingDir: item.working_dir,
     status: item.status,
     pid: item.pid,
     autoStart: item.auto_start,
     createdAt: item.created_at,
+    configFile: item.config_file,
+    directUrl: item.direct_url,
   }
 }
 
@@ -265,6 +287,20 @@ export async function listSessions(serviceUrl: string): Promise<{ currentSession
       messageCount: item.message_count,
       isActive: item.is_active,
     })),
+  }
+}
+
+/**
+ * 激活/切换当前 Session（serve 模式下用于让后续执行使用该会话上下文）
+ */
+export async function activateSession(serviceUrl: string, sessionId: string): Promise<void> {
+  const res = await fetch(`${serviceUrl}/api/sessions/${sessionId}/activate`, {
+    method: 'POST',
+  })
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}))
+    throw new Error(error.error || `Failed to activate session: ${res.status}`)
   }
 }
 

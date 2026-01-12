@@ -26,6 +26,12 @@ export interface Service {
   createdAt: string
   serverId?: string  // 所属 Server ID
   serverUrl?: string // 所属 Server URL
+  /** Hub 返回的绑定地址（可选，兼容旧 Hub） */
+  host?: string
+  /** Hub 托管的配置文件路径（可选） */
+  configFile?: string
+  /** Hub 计算出的直连 CLI URL（可选） */
+  directUrl?: string
 }
 
 /** Session - 代表一个对话会话 */
@@ -87,15 +93,20 @@ export interface SSEEvent {
 /** 创建 Service 请求 */
 export interface CreateServiceRequest {
   name: string
+  /** CLI serve 的 bind host（可选） */
+  host?: string
   port: number
   working_dir: string
   auto_start?: boolean
   config_file?: string
+  /** 由 Hub 写入托管 config 的 JSON 内容（可选） */
+  config_json?: unknown
 }
 
 /** 更新 Service 请求 */
 export interface UpdateServiceRequest {
   name?: string
+  host?: string
   port?: number
   working_dir?: string
   auto_start?: boolean

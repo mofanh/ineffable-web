@@ -482,6 +482,20 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
       setNewServiceName('')
       setNewServicePort('8080')
       setNewServiceDir('/tmp')
+
+      // 创建后优先直连 CLI：如果 Hub 返回 directUrl，则自动新增/切换到 direct server
+      const directUrl = service.directUrl?.replace(/\/+$/, '')
+      if (directUrl) {
+        const existingDirect = servers.find(s => s.connectionType === 'direct' && s.url.replace(/\/+$/, '') === directUrl)
+        const directServer = existingDirect || addServer(service.name, directUrl, 'direct')
+        if (!existingDirect) {
+          setServers(prev => [...prev, directServer])
+        }
+        setSelectedServer(directServer)
+        await loadServers()
+        return
+      }
+
       await loadServices()
     } catch (err) {
       alert(`创建失败: ${(err as Error).message}`)
