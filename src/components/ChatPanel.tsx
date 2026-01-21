@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Plus, Bot, RefreshCw, MessageSquare } from 'lucide-react'
 import { cn } from '../utils/cn'
-import type { Server, Service, Session, SSEEvent } from '../types'
+import type { Server, Service, Session, SSEEvent, SkillInfo } from '../types'
 import { createSession } from '../api/services'
 import '../styles/markdown.css'
 
@@ -22,10 +22,13 @@ interface Props {
   onSessionChange?: (session: Session) => void
   onSessionTitleRefresh?: (sessionId: string) => void
   onRunningSessionChange?: (sessionId: string | null) => void
+  /** Skills 侧边栏展开状态 */
+  skillsSidebarOpen?: boolean
+  /** 切换 Skills 侧边栏 */
+  onToggleSkills?: () => void
 }
 
-
-export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionTitleRefresh, onRunningSessionChange }: Props) {
+export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionTitleRefresh, onRunningSessionChange, skillsSidebarOpen = false, onToggleSkills }: Props) {
   const [input, setInput] = useState('')
 
   const { messages, setMessages, loading, sending, sendMessage, cancel } = useChatMessages({
@@ -140,7 +143,15 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
 
       {/* Input Area */}
       {session && (
-        <ChatComposer input={input} setInput={setInput} sending={sending} onSubmit={handleSubmit} onCancel={cancel} />
+        <ChatComposer
+          input={input}
+          setInput={setInput}
+          sending={sending}
+          onSubmit={handleSubmit}
+          onCancel={cancel}
+          onToggleSkills={onToggleSkills}
+          skillsSidebarOpen={skillsSidebarOpen}
+        />
       )}
     </div>
   )

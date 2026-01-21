@@ -156,3 +156,41 @@ export interface ResizePtyRequest {
   cols: number
   rows: number
 }
+
+// ============ Skills Types ============
+
+/** Skill 信息 */
+export interface SkillInfo {
+  name: string
+  description: string
+  short_description?: string
+  path: string
+  scope: string
+}
+
+/** Skill 错误信息 */
+export interface SkillErrorInfo {
+  path: string
+  message: string
+}
+
+/** Skills 列表条目（按 cwd 分组） */
+export interface SkillsListEntry {
+  cwd: string
+  skills: SkillInfo[]
+  errors: SkillErrorInfo[]
+  match_reasons?: Record<string, string[]>
+}
+
+/** Skills 列表响应 */
+export interface SkillsListResponse {
+  data: SkillsListEntry[]
+}
+
+/** Skills 列表请求 */
+export interface SkillsListRequest {
+  cwds?: string[]
+  force_reload?: boolean
+  include_match_reasons?: boolean
+  input?: string
+}

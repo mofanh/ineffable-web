@@ -113,8 +113,12 @@ export function useSession(options: UseSessionOptions = {}) {
       })
       console.log('Reusing existing session:', existingSessionId)
     } else {
-      // 创建新 Session
-      createSession()
+      // 不自动创建新 Session，等待用户主动创建
+      setState({
+        sessionId: null,
+        initialized: true,
+        error: null,
+      })
     }
 
     // 页面关闭时清理

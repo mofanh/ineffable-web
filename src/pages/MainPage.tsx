@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PanelLeft, PanelLeftOpen } from 'lucide-react'
-import type { Server, Service, Session } from '../types'
+import type { Server, Service, Session, SkillInfo } from '../types'
 import UnifiedSidebar, { type UnifiedSidebarHandle } from '../components/UnifiedSidebar'
 import ChatPanel from '../components/ChatPanel'
+import SkillsSidebar from '../components/skills/SkillsSidebar'
 import { useMobileSidebar } from '../hooks/useResponsive'
 import { cn } from '../utils/cn'
 
@@ -34,6 +35,9 @@ export default function MainPage({
 
   // 仅当当前会话有 SSE 流（sending）时才算"运行中"
   const [runningSessionId, setRunningSessionId] = useState<string | null>(null)
+
+  // Skills 侧边栏状态
+  const [skillsSidebarOpen, setSkillsSidebarOpen] = useState(false)
 
   const sidebarRef = useRef<UnifiedSidebarHandle | null>(null)
 
@@ -154,8 +158,20 @@ export default function MainPage({
             onSessionChange={handleSessionChange}
             onSessionTitleRefresh={handleSessionTitleRefresh}
             onRunningSessionChange={setRunningSessionId}
+            skillsSidebarOpen={skillsSidebarOpen}
+            onToggleSkills={() => setSkillsSidebarOpen(!skillsSidebarOpen)}
           />
         </div>
+
+        {/* Skills 侧边栏 - 右侧 */}
+        <SkillsSidebar
+          isOpen={skillsSidebarOpen}
+          onClose={() => setSkillsSidebarOpen(false)}
+          serviceUrl={serviceUrl || null}
+          onUseSkill={(skill: SkillInfo) => {
+            // SkillsSidebar 会自己处理，不需要在这里做额外操作
+          }}
+        />
       </div>
     </div>
   )

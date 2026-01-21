@@ -1,6 +1,18 @@
 import React from 'react'
-import { Mic, Paperclip, Send, StopCircle } from 'lucide-react'
+import { Mic, Paperclip, Send, StopCircle, Wand } from 'lucide-react'
 import { cn } from '../../utils/cn'
+
+interface ChatComposerProps {
+  input: string
+  setInput: (value: string) => void
+  sending: boolean
+  onSubmit: (e?: React.FormEvent) => void
+  onCancel: () => void
+  /** 展开/收起 Skills 侧边栏 */
+  onToggleSkills?: () => void
+  /** Skills 侧边栏是否展开 */
+  skillsSidebarOpen?: boolean
+}
 
 export default function ChatComposer({
   input,
@@ -8,13 +20,9 @@ export default function ChatComposer({
   sending,
   onSubmit,
   onCancel,
-}: {
-  input: string
-  setInput: (value: string) => void
-  sending: boolean
-  onSubmit: (e?: React.FormEvent) => void
-  onCancel: () => void
-}) {
+  onToggleSkills,
+  skillsSidebarOpen,
+}: ChatComposerProps) {
   return (
     <footer className="flex-none p-4 bg-background">
       <div className="max-w-3xl mx-auto">
@@ -48,6 +56,21 @@ export default function ChatComposer({
               <button type="button" className="p-2 text-muted-foreground/60 hover:text-foreground hover:bg-muted rounded-full transition-colors">
                 <Mic className="size-5" />
               </button>
+              {onToggleSkills && (
+                <button
+                  type="button"
+                  onClick={onToggleSkills}
+                  className={cn(
+                    'p-2 rounded-full transition-colors',
+                    skillsSidebarOpen
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted'
+                  )}
+                  title="技能"
+                >
+                  <Wand className="size-5" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {sending && (

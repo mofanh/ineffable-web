@@ -96,7 +96,8 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
       // 直连模式
       if (!directSessions || directSessions.length === 0) return
       
-      const targetSession = directSessions.find(s => s.id === initialSessionId) || directSessions[0]
+      // 只选择 URL 中指定的会话，不自动选择第一个
+      const targetSession = directSessions.find(s => s.id === initialSessionId)
       if (targetSession) {
         const virtualService: Service = {
           id: 'direct',
