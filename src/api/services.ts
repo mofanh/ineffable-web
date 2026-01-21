@@ -352,6 +352,32 @@ export async function deleteSession(serviceUrl: string, sessionId: string): Prom
 }
 
 /**
+ * 更新 Session (重命名)
+ */
+export async function updateSession(serviceUrl: string, sessionId: string, data: { name?: string }): Promise<Session> {
+  const res = await fetch(`${serviceUrl}/api/sessions/${sessionId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}))
+    throw new Error(error.error || `Failed to update session: ${res.status}`)
+  }
+  
+  const item = await res.json()
+  
+  return {
+    id: item.id,
+    name: item.name,
+    createdAt: typeof item.created_at_unix === 'number' ? new Date(item.created_at_unix * 1000).toISOString() : undefined,
+    messageCount: item.message_count || 0,
+    isActive: item.is_active ?? true,
+  }
+}
+
+/**
  * 执行任务
  */
 export async function execute(serviceUrl: string, data: ExecuteRequest): Promise<ExecuteResponse> {

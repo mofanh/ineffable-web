@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandl
 import { 
   Bot, Server as ServerIcon, Plus, RefreshCw, ChevronDown, ChevronRight, 
   MessageSquare, Settings, Wifi, WifiOff, Play, Square, Trash2, PanelLeft, FolderOpen,
-  User, Sun, Moon, LogOut, X, Link2
+  User, Sun, Moon, LogOut, X, Link2, MoreHorizontal, Pencil, Trash
 } from 'lucide-react'
 import { cn } from '../utils/cn'
 import { useTheme } from '../hooks/useTheme'
 import type { Server, Service, Session, ConnectionType } from '../types'
 import { getServers, addServer, removeServer, refreshServerStatuses } from '../api/servers'
-import { listServices, startService, stopService, createService, listSessions, createSession, deleteSession, buildServiceUrl } from '../api/services'
+import { listServices, startService, stopService, createService, listSessions, createSession, deleteSession, updateSession, buildServiceUrl } from '../api/services'
 
 interface Props {
   isCollapsed: boolean
@@ -96,6 +96,9 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
   
   // 用户菜单显示状态
   const [showUserMenu, setShowUserMenu] = useState(false)
+  
+  // 会话操作菜单显示状态 (存储 sessionId)
+  const [showSessionMenu, setShowSessionMenu] = useState<string | null>(null)
 
   // 点击外部关闭用户菜单
   useEffect(() => {
@@ -109,6 +112,19 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [showUserMenu])
+
+  // 点击外部关闭会话菜单
+  useEffect(() => {
+    if (!showSessionMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.session-menu-container') && !target.closest('.session-menu-button')) {
+        setShowSessionMenu(null)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showSessionMenu])
 
   // 加载服务器列表
   useEffect(() => {
@@ -412,6 +428,28 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
     }
   }
 
+  // 重命名会话（Hub 模式）
+  async function handleRenameSession(service: ServiceWithSessions, session: Session, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!selectedServer) return
+    
+    const newName = prompt('请输入新的会话名称:', session.name || '')
+    if (newName === null || newName.trim() === session.name?.trim()) return
+    
+    try {
+      const serviceUrl = buildServiceUrl(selectedServer.url, service.port)
+      const updated = await updateSession(serviceUrl, session.id, { name: newName.trim() })
+      // 更新列表中的会话
+      setServices(prev => prev.map(s => 
+        s.id === service.id 
+          ? { ...s, sessions: s.sessions.map(sess => sess.id === session.id ? { ...sess, name: updated.name } : sess) }
+          : s
+      ))
+    } catch (err) {
+      alert(`重命名会话失败: ${(err as Error).message}`)
+    }
+  }
+
   function handleSessionClick(service: ServiceWithSessions, session: Session) {
     if (!selectedServer) return
     const serviceUrl = buildServiceUrl(selectedServer.url, service.port)
@@ -464,6 +502,22 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
       setDirectSessions(prev => prev?.filter(s => s.id !== session.id))
     } catch (err) {
       alert(`删除会话失败: ${(err as Error).message}`)
+    }
+  }
+
+  // 直连模式下重命名会话
+  async function handleRenameDirectSession(session: Session, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!selectedServer) return
+    
+    const newName = prompt('请输入新的会话名称:', session.name || '')
+    if (newName === null || newName.trim() === session.name?.trim()) return
+    
+    try {
+      const updated = await updateSession(selectedServer.url, session.id, { name: newName.trim() })
+      setDirectSessions(prev => prev?.map(s => s.id === session.id ? { ...s, name: updated.name } : s))
+    } catch (err) {
+      alert(`重命名会话失败: ${(err as Error).message}`)
     }
   }
 
@@ -671,11 +725,12 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
               <div className="space-y-0.5 px-2">
                 {directSessions.map(session => {
                   const isRunning = runningSessionId === session.id
+                  const isMenuOpen = showSessionMenu === session.id
                   return (
                     <div
                       key={session.id}
                       className={cn(
-                        "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
+                        "w-full flex items-center gap-1 px-2 py-1.5 rounded-lg text-left transition-colors group/session relative",
                         selectedSessionId === session.id
                           ? "bg-primary/10 text-primary"
                           : "hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -693,22 +748,57 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
                           {session.name || `会话 ${session.id.slice(0, 8)}`}
                         </span>
                       </button>
+                      
+                      {/* 三个点菜单按钮 */}
                       <button
                         onClick={(e) => {
-                          if (isRunning) return
-                          handleDeleteDirectSession(session, e)
+                          e.stopPropagation()
+                          setShowSessionMenu(isMenuOpen ? null : session.id)
                         }}
                         disabled={isRunning}
                         className={cn(
-                          "p-0.5 rounded transition-all",
+                          "p-0.5 rounded transition-all session-menu-button",
                           isRunning
                             ? "opacity-40 cursor-not-allowed"
-                            : "opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive"
+                            : "opacity-0 group-hover/session:opacity-100 hover:bg-muted"
                         )}
-                        title={isRunning ? "运行中不可删除" : "删除会话"}
+                        title="更多操作"
                       >
-                        <X className="size-3" />
+                        <MoreHorizontal className="size-3.5" />
                       </button>
+                      
+                      {/* 下拉菜单 */}
+                      {isMenuOpen && (
+                        <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 py-1 min-w-24 session-menu-container">
+                          <button
+                            onClick={(e) => {
+                              setShowSessionMenu(null)
+                              handleRenameDirectSession(session, e)
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                          >
+                            <Pencil className="size-3" />
+                            重命名
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              setShowSessionMenu(null)
+                              if (isRunning) return
+                              handleDeleteDirectSession(session, e)
+                            }}
+                            disabled={isRunning}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors",
+                              isRunning
+                                ? "opacity-50 cursor-not-allowed"
+                                : "hover:bg-destructive/10 hover:text-destructive"
+                            )}
+                          >
+                            <Trash className="size-3" />
+                            删除
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -841,11 +931,12 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
                     ) : (
                       service.sessions.map(session => {
                         const isRunning = runningSessionId === session.id
+                        const isMenuOpen = showSessionMenu === session.id
                         return (
                           <div
                             key={session.id}
                             className={cn(
-                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors group/session",
+                              "w-full flex items-center gap-1 px-2 py-1.5 rounded-lg text-left transition-colors group/session relative",
                               selectedSessionId === session.id
                                 ? "bg-primary/10 text-primary"
                                 : "hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -863,22 +954,57 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
                                 {session.name || `会话 ${session.id.slice(0, 8)}`}
                               </span>
                             </button>
+                            
+                            {/* 三个点菜单按钮 */}
                             <button
                               onClick={(e) => {
-                                if (isRunning) return
-                                handleDeleteSession(service, session, e)
+                                e.stopPropagation()
+                                setShowSessionMenu(isMenuOpen ? null : session.id)
                               }}
                               disabled={isRunning}
                               className={cn(
-                                "p-0.5 rounded transition-all",
+                                "p-0.5 rounded transition-all session-menu-button",
                                 isRunning
                                   ? "opacity-40 cursor-not-allowed"
-                                  : "opacity-0 group-hover/session:opacity-100 hover:bg-destructive/20 hover:text-destructive"
+                                  : "opacity-0 group-hover/session:opacity-100 hover:bg-muted"
                               )}
-                              title={isRunning ? "运行中不可删除" : "删除会话"}
+                              title="更多操作"
                             >
-                              <X className="size-3" />
+                              <MoreHorizontal className="size-3.5" />
                             </button>
+                            
+                            {/* 下拉菜单 */}
+                            {isMenuOpen && (
+                              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 py-1 min-w-24 session-menu-container">
+                                <button
+                                  onClick={(e) => {
+                                    setShowSessionMenu(null)
+                                    handleRenameSession(service, session, e)
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                                >
+                                  <Pencil className="size-3" />
+                                  重命名
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    setShowSessionMenu(null)
+                                    if (isRunning) return
+                                    handleDeleteSession(service, session, e)
+                                  }}
+                                  disabled={isRunning}
+                                  className={cn(
+                                    "w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors",
+                                    isRunning
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : "hover:bg-destructive/10 hover:text-destructive"
+                                  )}
+                                >
+                                  <Trash className="size-3" />
+                                  删除
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )
                       })
