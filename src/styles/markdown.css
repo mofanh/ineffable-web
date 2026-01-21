@@ -1,19 +1,38 @@
-/* Markdown 渲染样式 */
+/* 
+ * Markdown 渲染样式
+ * 遵循 OpenCode 的 Markdown 优先设计理念
+ */
 .markdown-body {
-  line-height: 1.6;
-  word-wrap: break-word;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  color: var(--text-base, hsl(var(--foreground)));
+  font-family: var(--font-family-sans, system-ui);
+  font-size: var(--font-size-base, 14px);
+  line-height: var(--line-height-x-large, 1.6);
 }
 
+/* 首尾元素无间距 */
+.markdown-body > *:first-child {
+  margin-top: 0;
+}
+.markdown-body > *:last-child {
+  margin-bottom: 0;
+}
+
+/* 标题 */
 .markdown-body h1,
 .markdown-body h2,
 .markdown-body h3,
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  margin-top: 1em;
-  margin-bottom: 0.5em;
-  font-weight: 600;
-  line-height: 1.25;
+  font-size: var(--font-size-base, 14px);
+  color: var(--text-strong, hsl(var(--foreground)));
+  font-weight: var(--font-weight-medium, 500);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  line-height: var(--line-height-large, 1.25);
 }
 
 .markdown-body h1 { font-size: 1.5em; }
@@ -45,40 +64,58 @@
   margin-bottom: 0;
 }
 
-.markdown-body code {
+/* 行内代码 */
+.markdown-body :not(pre) > code {
   padding: 0.2em 0.4em;
   font-size: 85%;
   background-color: hsl(var(--muted) / 0.5);
   border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--syntax-string, hsl(var(--primary)));
 }
 
+/* 代码块 */
 .markdown-body pre {
-  margin: 0.75em 0;
+  margin: 1em 0;
   padding: 0;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: 6px;
+  background: var(--surface-base, hsl(222.2, 47.4%, 11.2%));
+  border: 1px solid var(--border-weak-base, hsl(var(--border) / 0.3));
+  position: relative;
 }
 
 .markdown-body pre code {
-  padding: 0;
+  display: block;
+  padding: 1rem;
   background: transparent;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.6;
+  white-space: pre;
 }
 
-.markdown-body pre.hljs {
-  padding: 1em;
-  background: hsl(222.2, 47.4%, 11.2%);
-  border: 1px solid hsl(var(--border) / 0.3);
+/* 代码块语言标签 */
+.markdown-body pre::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 11px;
+  padding: 4px 8px;
+  color: var(--text-weak, hsl(var(--muted-foreground)));
+  background: var(--surface-weak, hsl(var(--muted) / 0.3));
+  border-radius: 0 0 0 4px;
+  text-transform: uppercase;
 }
 
+/* 引用块 */
 .markdown-body blockquote {
-  margin: 0.75em 0;
+  margin: 1em 0;
   padding: 0.5em 1em;
-  border-left: 3px solid hsl(var(--primary));
-  background: hsl(var(--muted) / 0.3);
+  border-left: 3px solid var(--markdown-block-quote, hsl(var(--primary)));
+  background: var(--surface-weak, hsl(var(--muted) / 0.3));
   border-radius: 0 4px 4px 0;
+  color: var(--markdown-text, var(--text-muted));
 }
 
 .markdown-body blockquote p:last-child {
@@ -91,42 +128,138 @@
   border-top: 1px solid hsl(var(--border));
 }
 
+/* 链接 */
 .markdown-body a {
-  color: hsl(var(--primary));
+  color: var(--markdown-link, hsl(var(--primary)));
   text-decoration: none;
+  font-weight: inherit;
 }
 
 .markdown-body a:hover {
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
+/* 图片 */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 1.5rem 0;
+  display: block;
+}
+
+/* 表格 */
 .markdown-body table {
   width: 100%;
-  margin: 0.75em 0;
+  margin: 1.5rem 0;
   border-collapse: collapse;
   font-size: 0.9em;
 }
 
 .markdown-body th,
 .markdown-body td {
-  padding: 0.5em 0.75em;
-  border: 1px solid hsl(var(--border));
+  padding: 0.75rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-weaker-base);
 }
 
 .markdown-body th {
-  background: hsl(var(--muted) / 0.5);
   font-weight: 600;
+  color: var(--text-strong);
 }
 
-.markdown-body img {
-  max-width: 100%;
-  border-radius: 4px;
+/* 列表项标记颜色 */
+.markdown-body li::marker {
+  color: var(--text-weak, hsl(var(--muted-foreground)));
 }
 
+/* 强调 */
 .markdown-body strong {
-  font-weight: 600;
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--text-strong);
 }
 
 .markdown-body em {
   font-style: italic;
+}
+
+/* ========== 深色模式 ========== */
+.dark .markdown-body,
+.markdown-body[data-theme="dark"] {
+  color: #eeeeee;
+}
+
+/* 真武深色主题使用纯白文本 */
+:root.zhenwu-dark .markdown-body,
+.zhenwu-dark .markdown-body,
+.markdown-body[data-theme="zhenwu-dark"] {
+  color: #ffffff !important;
+}
+
+.dark .markdown-body h1,
+.dark .markdown-body h2,
+.dark .markdown-body h3,
+.dark .markdown-body h4,
+.dark .markdown-body h5,
+.dark .markdown-body h6,
+.markdown-body[data-theme="dark"] h1,
+.markdown-body[data-theme="dark"] h2,
+.markdown-body[data-theme="dark"] h3,
+.markdown-body[data-theme="dark"] h4,
+.markdown-body[data-theme="dark"] h5,
+.markdown-body[data-theme="dark"] h6 {
+  color: #f5a742;
+}
+
+/* 真武深色标题颜色覆盖 */
+:root.zhenwu-dark .markdown-body h1,
+:root.zhenwu-dark .markdown-body h2,
+:root.zhenwu-dark .markdown-body h3,
+:root.zhenwu-dark .markdown-body h4,
+:root.zhenwu-dark .markdown-body h5,
+:root.zhenwu-dark .markdown-body h6,
+.zhenwu-dark .markdown-body h1,
+.zhenwu-dark .markdown-body h2,
+.zhenwu-dark .markdown-body h3,
+.zhenwu-dark .markdown-body h4,
+.zhenwu-dark .markdown-body h5,
+.zhenwu-dark .markdown-body h6 {
+  color: #f5c874 !important;
+}
+
+.dark .markdown-body :not(pre) > code,
+.markdown-body[data-theme="dark"] :not(pre) > code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #7fd88f;
+}
+
+.dark .markdown-body pre,
+.markdown-body[data-theme="dark"] pre {
+  background: #0d0d1a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .markdown-body blockquote,
+.markdown-body[data-theme="dark"] blockquote {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #e5c07b;
+}
+
+.dark .markdown-body a,
+.markdown-body[data-theme="dark"] a {
+  color: #fab283;
+}
+
+.dark .markdown-body th,
+.dark .markdown-body td,
+.markdown-body[data-theme="dark"] th,
+.markdown-body[data-theme="dark"] td {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .markdown-body li::marker,
+.markdown-body[data-theme="dark"] li::marker {
+  color: #808080;
 }

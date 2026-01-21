@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js/lib/core'
 // 只引入常用语言
@@ -45,34 +45,72 @@ const md = new MarkdownIt({
   highlight: function (str, lang) {
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return `<pre class="hljs"><code class="language-${lang}">${
-          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
-        }</code></pre>`
+        const highlighted = hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
+        return `<pre class="hljs" data-lang="${lang}"><code class="language-${lang}">${highlighted}</code></pre>`
       } catch (__) {}
     }
     // 自动检测语言
     try {
       const result = hljs.highlightAuto(str)
-      return `<pre class="hljs"><code>${result.value}</code></pre>`
+      const detectedLang = result.language || 'text'
+      return `<pre class="hljs" data-lang="${detectedLang}"><code>${result.value}</code></pre>`
     } catch (__) {}
-    return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`
+    return `<pre class="hljs" data-lang="text"><code>${md.utils.escapeHtml(str)}</code></pre>`
   }
 })
 
 interface Props {
   content: string
   className?: string
+  expand?: boolean
 }
 
-export default function MarkdownRenderer({ content, className = '' }: Props) {
+export default function MarkdownRenderer({ content, className = '', expand = false }: Props) {
+  const [isDark, setIsDark] = useState(false)
+  const [expanded, setExpanded] = useState(expand)
+  const [overflow, setOverflow] = useState(false)
+
+  // 检测主题
+  useEffect(() => {
+    const checkTheme = () => {
+      const darkMode = document.documentElement.classList.contains('dark')
+      setIsDark(darkMode)
+    }
+    
+    checkTheme()
+    const observer = new MutationObserver(checkTheme)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    
+    return () => observer.disconnect()
+  }, [])
+
+  // 检测代码块是否溢出
+  useEffect(() => {
+    const checkOverflow = () => {
+      const preElements = document.querySelectorAll('.markdown-body pre')
+      preElements.forEach(pre => {
+        if (pre.scrollHeight > pre.clientHeight) {
+          setOverflow(true)
+        }
+      })
+    }
+    
+    checkOverflow()
+    window.addEventListener('resize', checkOverflow)
+    return () => window.removeEventListener('resize', checkOverflow)
+  }, [content])
+
   const html = useMemo(() => {
     if (!content) return ''
     return md.render(content)
   }, [content])
 
+  const themeClass = isDark ? 'dark' : ''
+
   return (
     <div 
-      className={`markdown-body ${className}`}
+      className={`markdown-body ${themeClass} ${className}`}
+      data-expanded={expanded || undefined}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
