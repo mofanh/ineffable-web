@@ -128,7 +128,7 @@ export function parseMessageContent(content: string): ContentSegment[] {
       const inner = full.replace(/^<tool_call>/, '').replace(/<\/tool_call>$/, '')
       const parsed = parseToolCallPayload(inner)
       const tool: ToolCall = {
-        id: `hist-tool-${segments.length}`,
+        id: `hist-tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: parsed.name || 'tool',
         status: 'done',
         arguments: parsed.arguments,
