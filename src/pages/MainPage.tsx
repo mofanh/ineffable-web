@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PanelLeft } from 'lucide-react'
+import { PanelLeft, PanelLeftOpen } from 'lucide-react'
 import type { Server, Service, Session } from '../types'
 import UnifiedSidebar, { type UnifiedSidebarHandle } from '../components/UnifiedSidebar'
 import ChatPanel from '../components/ChatPanel'
+import { useMobileSidebar } from '../hooks/useResponsive'
+import { cn } from '../utils/cn'
 
 type MainPageProps = {
   initialServerId?: string
@@ -18,7 +20,11 @@ export default function MainPage({
 }: MainPageProps) {
   const navigate = useNavigate()
   
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  // 使用移动端侧边栏 hook 管理状态
+  const { isOpen, isMobile, toggle } = useMobileSidebar(true)
+  
+  // Desktop 侧边栏展开状态
+  const [isDesktopOpen, setIsDesktopOpen] = useState(true)
   
   // 当前选中状态
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
@@ -26,10 +32,25 @@ export default function MainPage({
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [serviceUrl, setServiceUrl] = useState<string>('')
 
-  // 仅当当前会话有 SSE 流（sending）时才算“运行中”
+  // 仅当当前会话有 SSE 流（sending）时才算"运行中"
   const [runningSessionId, setRunningSessionId] = useState<string | null>(null)
 
   const sidebarRef = useRef<UnifiedSidebarHandle | null>(null)
+
+  // 统一的侧边栏状态
+  const isSidebarOpen = isMobile ? isOpen : isDesktopOpen
+  
+  // 统一的切换函数
+  const handleSidebarToggle = isMobile ? toggle : () => setIsDesktopOpen(prev => !prev)
+  
+  // 侧边栏折叠回调（统一处理移动端和桌面端）
+  const handleSidebarCollapse = () => {
+    if (isMobile) {
+      toggle()
+    } else {
+      setIsDesktopOpen(false)
+    }
+  }
 
   // 当会话选择变化时，更新 URL
   const handleSessionSelect = useCallback((
@@ -72,34 +93,55 @@ export default function MainPage({
     })
   }, [serviceUrl])
 
+  // 移动端侧边栏容器样式
+  const sidebarContainerClass = isMobile
+    ? cn(
+        "fixed inset-y-0 left-0 z-50 w-72 h-full bg-background transform transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )
+    : cn(
+        "flex-none transition-all duration-300 ease-in-out overflow-hidden",
+        isDesktopOpen ? "w-[280px] opacity-100" : "w-0 opacity-0"
+      )
+
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
       {/* Unified Sidebar */}
-      <UnifiedSidebar
-        ref={sidebarRef}
-        isCollapsed={isCollapsed}
-        onCollapse={setIsCollapsed}
-        onSessionSelect={handleSessionSelect}
-        selectedSessionId={selectedSession?.id}
-        runningSessionId={runningSessionId || undefined}
-        initialServerId={initialServerId}
-        initialServiceId={initialServiceId}
-        initialSessionId={initialSessionId}
-      />
+      <div className={sidebarContainerClass}>
+        {!isMobile && !isDesktopOpen ? null : (
+          <UnifiedSidebar
+            ref={sidebarRef}
+            isCollapsed={!isSidebarOpen}
+            onCollapse={handleSidebarCollapse}
+            onSessionSelect={handleSessionSelect}
+            selectedSessionId={selectedSession?.id}
+            runningSessionId={runningSessionId || undefined}
+            initialServerId={initialServerId}
+            initialServiceId={initialServiceId}
+            initialSessionId={initialSessionId}
+          />
+        )}
+      </div>
 
       {/* Chat Panel */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Expand sidebar button when collapsed */}
-        {isCollapsed && (
-          <div className="absolute top-4 left-4 z-50">
-            <button 
-              onClick={() => setIsCollapsed(false)}
-              className="p-2 bg-card border border-border rounded-lg shadow-sm hover:bg-muted transition-colors"
-              title="展开侧边栏"
-            >
-              <PanelLeft className="size-4 text-muted-foreground" />
-            </button>
-          </div>
+        {/* 打开侧边栏按钮 - 固定在左上角 */}
+        {!isSidebarOpen && (
+          <button
+            onClick={handleSidebarToggle}
+            className="fixed top-4 left-4 z-40 p-2 rounded-lg shadow-sm bg-card border border-border hover:bg-muted transition-all duration-200"
+            title="展开侧边栏"
+          >
+            <PanelLeftOpen className="size-4 text-muted-foreground" />
+          </button>
+        )}
+
+        {/* 移动端点击遮罩层关闭侧边栏 */}
+        {isMobile && isOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={toggle}
+          />
         )}
 
         {/* 中间：对话区 */}

@@ -93,6 +93,22 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
   
   // 标记是否已处理过 URL 初始化
   const [urlInitialized, setUrlInitialized] = useState(false)
+  
+  // 用户菜单显示状态
+  const [showUserMenu, setShowUserMenu] = useState(false)
+
+  // 点击外部关闭用户菜单
+  useEffect(() => {
+    if (!showUserMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.user-menu-container')) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showUserMenu])
 
   // 加载服务器列表
   useEffect(() => {
@@ -512,7 +528,7 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
   }
 
   return (
-    <aside className="w-70 flex flex-col border-r border-border bg-muted/20">
+    <aside className="w-70 flex flex-col border-r border-border bg-muted/20 overflow-hidden h-full">
       {/* Header */}
       <div className="p-3 border-b border-border/50">
         <div className="flex items-center justify-between">
@@ -522,12 +538,22 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
             </div>
             <span className="font-semibold text-lg">Ineffable</span>
           </div>
-          <button
-            onClick={() => onCollapse(true)}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-          >
-            <PanelLeft className="size-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              title={theme === 'dark' ? '浅色模式' : '深色模式'}
+            >
+              {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </button>
+            <button
+              onClick={onCollapse}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              title="收起侧边栏"
+            >
+              <PanelLeft className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -868,9 +894,12 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
       </div>
 
       {/* User Profile */}
-      <div className="p-3 border-t border-border/40 bg-muted/10 relative group">
-        {/* Hover Menu */}
-        <div className="absolute bottom-full left-3 right-3 mb-2 p-1.5 bg-popover/95 backdrop-blur-sm border border-border/50 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50">
+      <div className="p-3 border-t border-border/40 bg-muted/10 relative group user-menu-container">
+        {/* Hover/Click Menu */}
+        <div className={cn(
+          "absolute bottom-full left-3 right-3 mb-2 p-1.5 bg-popover/95 backdrop-blur-sm border border-border/50 rounded-xl shadow-xl transition-all duration-200 transform z-50",
+          showUserMenu ? "opacity-100 visible translate-y-0" : "opacity-0 invisible translate-y-2"
+        )}>
           <button 
             onClick={toggleTheme}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/80 transition-colors text-sm text-foreground/80 hover:text-foreground"
@@ -889,7 +918,10 @@ const UnifiedSidebar = forwardRef<UnifiedSidebarHandle, Props>(function UnifiedS
           </button>
         </div>
 
-        <button className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-background hover:shadow-sm transition-all text-left border border-transparent hover:border-border/40">
+        <button 
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-background hover:shadow-sm transition-all text-left border border-transparent hover:border-border/40"
+        >
           <div className="size-9 rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center text-primary ring-2 ring-background">
             <User className="size-4" />
           </div>

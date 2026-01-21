@@ -27,8 +27,8 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside 
         className={cn(
-          "flex-none bg-muted/20 border-r border-border/40 flex flex-col transition-all duration-300 ease-in-out",
-          isCollapsed ? "w-0 opacity-0 overflow-hidden" : "w-[260px] opacity-100"
+          "flex-none bg-muted/20 border-r border-border/40 flex flex-col transition-all duration-300 ease-in-out overflow-hidden",
+          isCollapsed ? "w-0 opacity-0" : "w-[260px] opacity-100"
         )}
       >
         {/* Sidebar Header - Logo */}
