@@ -1,7 +1,20 @@
 /* 
  * Markdown 渲染样式
  * 遵循 OpenCode 的 Markdown 优先设计理念
+ * 支持 shiki 代码高亮
  */
+
+/* shiki 主题变量 */
+:root {
+  --shiki-bg: #ffffff;
+  --shiki-color: #24292e;
+}
+
+.dark {
+  --shiki-bg: #0d1117;
+  --shiki-color: #c9d1d9;
+}
+
 .markdown-body {
   min-width: 0;
   max-width: 100%;
@@ -74,28 +87,64 @@
   color: var(--syntax-string, hsl(var(--primary)));
 }
 
-/* 代码块 */
+/* 代码块容器 */
 .markdown-body pre {
   margin: 1em 0;
   padding: 0;
   overflow: auto;
   border-radius: 6px;
-  background: var(--surface-base, hsl(222.2, 47.4%, 11.2%));
+  background: var(--shiki-bg, #ffffff);
   border: 1px solid var(--border-weak-base, hsl(var(--border) / 0.3));
   position: relative;
 }
 
-.markdown-body pre code {
-  display: block;
+.dark .markdown-body pre {
+  background: var(--shiki-bg, #0d1117);
+}
+
+/* shiki 代码块样式 */
+.markdown-body pre.shiki {
+  margin: 1em 0;
   padding: 1rem;
-  background: transparent;
+  overflow-x: auto;
+  background-color: #ffffff !important;
+  color: #24292e !important;
+}
+
+.dark .markdown-body pre.shiki,
+.markdown-body[data-theme="dark"] pre.shiki {
+  background-color: #0d1117 !important;
+  color: #c9d1d9 !important;
+}
+
+.markdown-body pre.shiki code {
+  display: block;
   font-size: 13px;
   line-height: 1.6;
   white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* shiki 行号 */
+.markdown-body pre.shiki code .line {
+  display: block;
+  min-height: 1.6em;
+}
+
+.markdown-body pre.shiki code .line::before {
+  display: inline-block;
+  width: 1.5em;
+  margin-right: 1em;
+  color: var(--text-weak, hsl(var(--muted-foreground)));
+  content: attr(data-line);
+  text-align: right;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* 代码块语言标签 */
-.markdown-body pre::before {
+.markdown-body pre::before,
+.markdown-body pre.shiki[data-lang]::before {
   content: attr(data-lang);
   position: absolute;
   top: 0;
@@ -106,6 +155,41 @@
   background: var(--surface-weak, hsl(var(--muted) / 0.3));
   border-radius: 0 0 0 4px;
   text-transform: uppercase;
+  z-index: 1;
+}
+
+.markdown-body pre.shiki[data-lang]::before {
+  content: attr(data-lang);
+}
+
+/* 代码块语言标签 - 深色模式 */
+.dark .markdown-body pre::before,
+.dark .markdown-body pre.shiki[data-lang]::before,
+.markdown-body[data-theme="dark"] pre::before,
+.markdown-body[data-theme="dark"] pre.shiki[data-lang]::before {
+  color: var(--text-weak, #808080);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 占位符样式 */
+.markdown-body pre.shiki-placeholder {
+  padding: 1rem;
+  background-color: #ffffff !important;
+  color: #24292e !important;
+}
+
+.dark .markdown-body pre.shiki-placeholder {
+  background-color: #0d1117 !important;
+  color: #c9d1d9 !important;
+}
+
+.markdown-body pre.shiki-placeholder code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
 }
 
 /* 引用块 */
@@ -236,7 +320,9 @@
 }
 
 .dark .markdown-body pre,
-.markdown-body[data-theme="dark"] pre {
+.dark .markdown-body pre.shiki,
+.markdown-body[data-theme="dark"] pre,
+.markdown-body[data-theme="dark"] pre.shiki {
   background: #0d0d1a;
   border-color: rgba(255, 255, 255, 0.1);
 }
@@ -262,4 +348,63 @@
 .dark .markdown-body li::marker,
 .markdown-body[data-theme="dark"] li::marker {
   color: #808080;
+}
+
+/* ========== Diff 差异渲染样式 ========== */
+.markdown-body .diff {
+  margin: 1em 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.markdown-body .diff-file {
+  border: 1px solid var(--border-weak-base);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.markdown-body .diff-header {
+  padding: 8px 12px;
+  background: var(--surface-weak);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-weak);
+}
+
+.markdown-body .diff-hunk {
+  padding: 8px 12px;
+  background: var(--surface-base);
+  font-size: 12px;
+  color: var(--text-weak);
+  border-bottom: 1px solid var(--border-weak);
+}
+
+.markdown-body .diff-line {
+  padding: 2px 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.markdown-body .diff-line-addition {
+  background: rgba(46, 160, 67, 0.15);
+  color: #2ea043;
+}
+
+.markdown-body .diff-line-deletion {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+.markdown-body .diff-line-neutral {
+  color: var(--text-weak);
+}
+
+.dark .markdown-body .diff-line-addition {
+  background: rgba(46, 160, 67, 0.25);
+}
+
+.dark .markdown-body .diff-line-deletion {
+  background: rgba(248, 81, 73, 0.25);
 }

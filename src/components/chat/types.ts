@@ -9,11 +9,36 @@ export interface ToolCall {
   arguments?: Record<string, unknown> // 工具参数
 }
 
-// 内容片段：可以是文本或工具调用
+// 内容片段：可以是文本、工具调用、推理或差异
 export interface ContentSegment {
-  type: 'text' | 'tool'
-  content?: string
-  tool?: ToolCall
+  id?: string // 片段唯一标识
+  type: 'text' | 'tool' | 'reasoning' | 'thinking' | 'diff'
+  content?: string // 文本、推理或思考内容
+  tool?: ToolCall // 工具调用
+  diff?: string | DiffFile[] // 差异内容（统一格式或结构化对象）
+}
+
+// 差异文件结构
+export interface DiffFile {
+  oldPath: string
+  newPath: string
+  hunks: DiffHunk[]
+  mode?: 'modify' | 'add' | 'delete' | 'rename'
+}
+
+// 差异块结构
+export interface DiffHunk {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  lines: DiffLine[]
+}
+
+// 差异行
+export interface DiffLine {
+  type: 'addition' | 'deletion' | 'neutral'
+  content: string
 }
 
 export interface Message {

@@ -92,38 +92,76 @@ export function filterToolCallTags(content: string): string {
   return filtered.trim()
 }
 
-// 解析消息内容（历史消息）：仅识别明确的 MCP 标签 <tool_call>/<tool_result>
+// 解析消息内容（历史消息）：识别 MCP 标签和 <thinking> 标签
 export function parseMessageContent(content: string): ContentSegment[] {
   const segments: ContentSegment[] = []
   const pendingByName = new Map<string, ToolCall[]>()
 
+  // 支持 <thinking>...</thinking> 标签
+  const thinkingRegex = /<thinking>[\s\S]*?<\/thinking>/gi
+  // 工具调用标签
   const tagRegex = /<tool_call>[\s\S]*?<\/tool_call>|<tool_result\s+name="[^"]+"\s*>[\s\S]*?<\/tool_result>/g
+  
+  // 先解析 thinking 标签
   let lastIndex = 0
-
-  const pushText = (text: string) => {
-    if (!text) return
-    if (text.trim().length === 0) return
-    segments.push({ type: 'text', content: text })
+  for (const match of content.matchAll(thinkingRegex)) {
+    const full = match[0]
+    const start = match.index ?? 0
+    
+    // 标签前的文本
+    if (start > lastIndex) {
+      const textBefore = content.slice(lastIndex, start)
+      const tagMatch = textBefore.match(tagRegex)
+      if (tagMatch && (tagMatch.index ?? 0) >= 0) {
+        // 文本中有工具标签，先处理工具标签
+        processToolTags(textBefore, segments, pendingByName)
+      } else {
+        // 没有工具标签，作为纯文本添加
+        pushTextSegment(textBefore, segments)
+      }
+    }
+    
+    // 提取 thinking 内容
+    const thinkingContent = full
+      .replace(/<\/?thinking>/gi, '')
+      .trim()
+    
+    if (thinkingContent) {
+      segments.push({ type: 'thinking', content: thinkingContent })
+    }
+    
+    lastIndex = start + full.length
   }
-
-  const attachResult = (name: string, output: string): boolean => {
-    const queue = pendingByName.get(name)
-    if (!queue || queue.length === 0) return false
-    const idx = queue.findIndex(t => t.output == null)
-    if (idx < 0) return false
-    queue[idx].output = output
-    return true
+  
+  // 处理剩余内容
+  if (lastIndex < content.length) {
+    const remaining = content.slice(lastIndex)
+    processToolTags(remaining, segments, pendingByName)
   }
+  
+  // 如果没有解析出任何 segment，返回纯文本
+  if (segments.length === 0) {
+    return [{ type: 'text', content }]
+  }
+  
+  return segments
+}
 
+// 处理工具标签
+function processToolTags(content: string, segments: ContentSegment[], pendingByName: Map<string, ToolCall[]>) {
+  const tagRegex = /<tool_call>[\s\S]*?<\/tool_call>|<tool_result\s+name="[^"]+"\s*>[\s\S]*?<\/tool_result>/g
+  let lastIdx = 0
+  
   for (const match of content.matchAll(tagRegex)) {
     const full = match[0]
     const start = match.index ?? 0
     const end = start + full.length
-
-    if (start > lastIndex) {
-      pushText(content.slice(lastIndex, start))
+    
+    // 标签前的文本
+    if (start > lastIdx) {
+      pushTextSegment(content.slice(lastIdx, start), segments)
     }
-
+    
     if (full.startsWith('<tool_call>')) {
       const inner = full.replace(/^<tool_call>/, '').replace(/<\/tool_call>$/, '')
       const parsed = parseToolCallPayload(inner)
@@ -133,7 +171,7 @@ export function parseMessageContent(content: string): ContentSegment[] {
         status: 'done',
         arguments: parsed.arguments,
       }
-
+      
       const key = tool.name
       pendingByName.set(key, [...(pendingByName.get(key) ?? []), tool])
       segments.push({ type: 'tool', tool })
@@ -144,8 +182,8 @@ export function parseMessageContent(content: string): ContentSegment[] {
         .replace(/^<tool_result\s+name="[^"]+"\s*>/, '')
         .replace(/<\/tool_result>$/, '')
         .replace(/^\n+|\n+$/g, '')
-
-      const attached = attachResult(name, output)
+      
+      const attached = attachResult(name, output, pendingByName)
       if (!attached) {
         segments.push({
           type: 'tool',
@@ -158,17 +196,34 @@ export function parseMessageContent(content: string): ContentSegment[] {
         })
       }
     }
-
-    lastIndex = end
+    
+    lastIdx = end
   }
-
-  if (lastIndex < content.length) {
-    pushText(content.slice(lastIndex))
+  
+  // 剩余文本
+  if (lastIdx < content.length) {
+    pushTextSegment(content.slice(lastIdx), segments)
   }
+}
 
-  if (segments.length === 0) {
-    return [{ type: 'text', content }]
+// 添加文本片段
+function pushTextSegment(text: string, segments: ContentSegment[]) {
+  if (!text) return
+  if (text.trim().length === 0) return
+  
+  // 清理多余空行
+  const cleaned = text.replace(/\n{3,}/g, '\n\n').trim()
+  if (cleaned) {
+    segments.push({ type: 'text', content: cleaned })
   }
+}
 
-  return segments
+// 查找并附加工具结果
+function attachResult(name: string, output: string, pendingByName: Map<string, ToolCall[]>): boolean {
+  const queue = pendingByName.get(name)
+  if (!queue || queue.length === 0) return false
+  const idx = queue.findIndex(t => t.output == null)
+  if (idx < 0) return false
+  queue[idx].output = output
+  return true
 }
