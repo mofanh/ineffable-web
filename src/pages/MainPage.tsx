@@ -148,30 +148,38 @@ export default function MainPage({
           />
         )}
 
-        {/* 中间：对话区 */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <ChatPanel
-            server={selectedServer}
-            service={selectedService}
-            session={selectedSession}
-            serviceUrl={serviceUrl}
-            onSessionChange={handleSessionChange}
-            onSessionTitleRefresh={handleSessionTitleRefresh}
-            onRunningSessionChange={setRunningSessionId}
-            skillsSidebarOpen={skillsSidebarOpen}
-            onToggleSkills={() => setSkillsSidebarOpen(!skillsSidebarOpen)}
-          />
-        </div>
+        {/* 中间：对话区 + Skills 侧边栏 */}
+        <div className="flex-1 flex overflow-hidden transition-all duration-300 ease-in-out">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <ChatPanel
+              server={selectedServer}
+              service={selectedService}
+              session={selectedSession}
+              serviceUrl={serviceUrl}
+              onSessionChange={handleSessionChange}
+              onSessionTitleRefresh={handleSessionTitleRefresh}
+              onRunningSessionChange={setRunningSessionId}
+              skillsSidebarOpen={skillsSidebarOpen}
+              onToggleSkills={() => setSkillsSidebarOpen(!skillsSidebarOpen)}
+            />
+          </div>
 
-        {/* Skills 侧边栏 - 右侧 */}
-        <SkillsSidebar
-          isOpen={skillsSidebarOpen}
-          onClose={() => setSkillsSidebarOpen(false)}
-          serviceUrl={serviceUrl || null}
-          onUseSkill={(skill: SkillInfo) => {
-            // SkillsSidebar 会自己处理，不需要在这里做额外操作
-          }}
-        />
+          {/* Skills 侧边栏 - 右侧推挤效果 */}
+          <div
+            className={cn(
+              "h-full overflow-hidden transition-all duration-300 ease-in-out",
+              skillsSidebarOpen ? "w-80 opacity-100" : "w-0 opacity-0"
+            )}
+          >
+            <SkillsSidebar
+              onClose={() => setSkillsSidebarOpen(false)}
+              serviceUrl={serviceUrl || null}
+              onUseSkill={(skill: SkillInfo) => {
+                // SkillsSidebar 会自己处理，不需要在这里做额外操作
+              }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
