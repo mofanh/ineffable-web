@@ -11,7 +11,7 @@ async function getHighlighter() {
     highlighter = await createHighlighter({
       themes: ['github-light', 'github-dark'],
       langs: [
-        'javascript', 'typescript', 'python', 'rust', 'bash', 'json', 
+        'javascript', 'typescript', 'jsx', 'tsx', 'python', 'rust', 'bash', 'json', 
         'yaml', 'xml', 'html', 'css', 'sql', 'markdown', 'go', 'java', 'c', 'cpp'
       ],
     })
@@ -46,8 +46,8 @@ md.renderer.rules.fence = function (tokens, idx, options, env, self) {
   const code = token.content
   const lang = token.info ? /^\S*/.exec(token.info)?.[0] || 'text' : 'text'
   
-  // 返回一个占位符，实际高亮在后续处理
-  return `<pre class="shiki-placeholder" data-lang="${lang}"><code class="language-${lang}">${md.utils.escapeHtml(code)}</code></pre>`
+  // 返回一个占位符，保存原始代码
+  return `<pre class="shiki-placeholder" data-lang="${lang}" data-code="${encodeURIComponent(code)}"><code class="language-${lang}">${md.utils.escapeHtml(code)}</code></pre>`
 }
 
 interface Props {
@@ -76,12 +76,22 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
     return () => observer.disconnect()
   }, [])
 
-  // 使用 shiki 对代码块进行高亮（支持双主题）
+  // 使用 shiki 对代码块进行高亮（支持主题切换）
   useEffect(() => {
     if (!content || !containerRef.current) return
 
     const processCodeBlocks = async () => {
-      const preElements = containerRef.current?.querySelectorAll('pre.shiki-placeholder')
+      const container = containerRef.current
+      if (!container) return
+
+      // 获取所有需要处理的代码块：占位符或需要更新的已高亮块
+      const selectors = ['pre.shiki-placeholder']
+      if (highlighted) {
+        // 如果已经高亮过，主题变化时需要重新高亮
+        selectors.push('pre.shiki[data-code]')
+      }
+      
+      const preElements = container.querySelectorAll(selectors.join(', '))
       if (!preElements || preElements.length === 0) {
         setHighlighted(true)
         return
@@ -91,28 +101,38 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
         const hl = await getHighlighter()
 
         for (const pre of Array.from(preElements)) {
-          const codeEl = pre.querySelector('code')
-          if (!codeEl) continue
+          // 获取原始代码
+          const code = pre.getAttribute('data-code') 
+            ? decodeURIComponent(pre.getAttribute('data-code')!)
+            : pre.querySelector('code')?.textContent || ''
+          
+          if (!code) continue
 
-          const code = codeEl.textContent || ''
           const lang = pre.getAttribute('data-lang') || 'text'
           const isInline = pre.parentElement?.tagName === 'P'
 
           if (isInline) {
             // 行内代码使用简单样式
-            pre.outerHTML = `<code class="inline-code">${md.utils.escapeHtml(code)}</code>`
+            const span = document.createElement('span')
+            span.className = 'inline-code'
+            span.textContent = code
+            pre.replaceWith(span)
           } else {
-            // 代码块使用 shiki 高亮（单主题）
+            // 代码块使用 shiki 高亮，根据当前主题选择
             const theme = isDark ? 'github-dark' : 'github-light'
             const highlightedHtml = hl.codeToHtml(code, {
               lang,
               theme,
             })
-            pre.outerHTML = highlightedHtml
-            
-            // 确保代码块应用正确的主题类
-            if (isDark) {
-              pre.classList.add('shiki-dark')
+            // 创建临时容器进行替换
+            const temp = document.createElement('div')
+            temp.innerHTML = highlightedHtml
+            const newPre = temp.firstElementChild
+            if (newPre) {
+              // 保存原始代码用于主题切换时重新高亮
+              newPre.setAttribute('data-code', encodeURIComponent(code))
+              newPre.setAttribute('data-lang', lang)
+              pre.replaceWith(newPre)
             }
           }
         }
@@ -120,7 +140,7 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
       } catch (error) {
         console.error('Shiki highlight error:', error)
         // 回退到普通渲染
-        for (const pre of Array.from(preElements)) {
+        for (const pre of Array.from(container.querySelectorAll('pre.shiki-placeholder, pre.shiki'))) {
           pre.classList.remove('shiki-placeholder')
         }
         setHighlighted(true)

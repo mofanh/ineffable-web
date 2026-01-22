@@ -107,20 +107,18 @@
   margin: 1em 0;
   padding: 1rem;
   overflow-x: auto;
-  background-color: #ffffff !important;
-  color: #24292e !important;
+  font-size: 13px;
+  line-height: 1.6;
+  border-radius: 6px;
+  border: 1px solid var(--border-weak-base);
 }
 
-.dark .markdown-body pre.shiki,
-.markdown-body[data-theme="dark"] pre.shiki {
-  background-color: #0d1117 !important;
-  color: #c9d1d9 !important;
+.dark .markdown-body pre.shiki {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .markdown-body pre.shiki code {
   display: block;
-  font-size: 13px;
-  line-height: 1.6;
   white-space: pre;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -129,6 +127,19 @@
 .markdown-body pre.shiki code .line {
   display: block;
   min-height: 1.6em;
+}
+
+/* shiki 双主题支持 - 使用 CSS 变量 */
+.markdown-body pre.shiki span {
+  color: var(--shiki-light-color, inherit);
+  background-color: var(--shiki-light-bg, transparent);
+}
+
+/* 深色模式切换 - 必须放在 .markdown-body 外面才能生效 */
+.dark pre.shiki span,
+pre.shiki.dark span {
+  color: var(--shiki-dark-color) !important;
+  background-color: var(--shiki-dark-bg) !important;
 }
 
 .markdown-body pre.shiki code .line::before {
