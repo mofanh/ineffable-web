@@ -57,7 +57,10 @@ interface Props {
 }
 
 export default function MarkdownRenderer({ content, className = '', expand = false }: Props) {
-  const [isDark, setIsDark] = useState(false)
+  // 初始化时同步检测主题，避免闪烁
+  const [isDark, setIsDark] = useState(() => {
+    return document.documentElement.classList.contains('dark')
+  })
   const [expanded, setExpanded] = useState(expand)
   const containerRef = useRef<HTMLDivElement>(null)
   const [highlighted, setHighlighted] = useState(false)
