@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Bot, RefreshCw, MessageSquare } from 'lucide-react'
+import { Plus, Bot, RefreshCw, MessageSquare, GripVertical } from 'lucide-react'
 import { cn } from '../utils/cn'
 import type { Server, Service, Session, SSEEvent, SkillInfo } from '../types'
 import { createSession } from '../api/services'
@@ -10,6 +10,7 @@ import ChatHeader from './chat/ChatHeader'
 import ChatMessageBubble from './chat/ChatMessageBubble'
 import ChatComposer from './chat/ChatComposer'
 import BackToBottomButton from './chat/BackToBottomButton'
+import SkillsSidebar from './skills/SkillsSidebar'
 import { useChatMessages } from '../hooks/useChatMessages'
 import { useChatScrollFollow } from '../hooks/useChatScrollFollow'
 
@@ -30,6 +31,8 @@ interface Props {
 
 export default function ChatPanel({ server, service, session, serviceUrl, onSessionChange, onSessionTitleRefresh, onRunningSessionChange, skillsSidebarOpen = false, onToggleSkills }: Props) {
   const [input, setInput] = useState('')
+  const [skillsWidth, setSkillsWidth] = useState(320)
+  const resizeRef = useRef<HTMLDivElement>(null)
 
   const { messages, setMessages, loading, sending, sendMessage, cancel } = useChatMessages({
     serviceUrl,
@@ -46,6 +49,27 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
   useEffect(() => {
     onRunningSessionChange?.(sending ? (session?.id ?? null) : null)
   }, [onRunningSessionChange, sending, session?.id])
+
+  // 拖拽调整 Skills 侧边栏宽度
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = skillsWidth
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const diff = startX - e.clientX
+      const newWidth = Math.max(200, Math.min(600, startWidth + diff))
+      setSkillsWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [skillsWidth])
 
   // 刷新会话列表（用于获取自动生成的标题）
 
@@ -98,61 +122,88 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
       {/* Header */}
       <ChatHeader server={server} service={service} session={session} />
 
-      {/* Chat Area */}
-      <div className="relative flex-1 min-h-0">
-        <main
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="h-full min-h-0 overflow-y-auto p-4 space-y-6"
+      {/* Chat Area + Skills Sidebar Container */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Chat Area + Input Area (垂直排列) */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <main
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 min-h-0 overflow-y-auto p-4 space-y-6 custom-scrollbar"
+          >
+          {!session ? (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
+              <div className="bg-muted/30 p-4 rounded-full mb-4">
+                <Bot className="size-8" />
+              </div>
+              <p className="text-sm mb-4">请先创建一个会话</p>
+              <button
+                onClick={handleCreateSession}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="size-4" />
+                创建会话
+              </button>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
+              <div className="bg-muted/30 p-4 rounded-full mb-4">
+                <Bot className="size-8" />
+              </div>
+              <p className="text-sm">开始与 {service.name} 对话</p>
+            </div>
+          ) : (
+            messages.map((msg) => <ChatMessageBubble key={msg.id} msg={msg} />)
+          )}
+          </main>
+
+          {/* 未在底部时：悬浮"回到底部"按钮 */}
+          {!isAtBottom && session && (
+            <BackToBottomButton
+              onClick={() => {
+                markAtBottomAndScroll('smooth')
+              }}
+            />
+          )}
+
+          {/* Input Area */}
+          {session && (
+            <ChatComposer
+              input={input}
+              setInput={setInput}
+              sending={sending}
+              onSubmit={handleSubmit}
+              onCancel={cancel}
+              onToggleSkills={onToggleSkills}
+              skillsSidebarOpen={skillsSidebarOpen}
+            />
+          )}
+        </div>
+
+        {/* Skills Sidebar */}
+        <div
+          className={cn(
+            "h-full overflow-hidden transition-all duration-300 ease-in-out relative",
+            skillsSidebarOpen ? "opacity-100" : "opacity-0"
+          )}
+          style={{ width: skillsSidebarOpen ? skillsWidth : 0 }}
         >
-        {!session ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
-            <div className="bg-muted/30 p-4 rounded-full mb-4">
-              <Bot className="size-8" />
-            </div>
-            <p className="text-sm mb-4">请先创建一个会话</p>
-            <button
-              onClick={handleCreateSession}
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="size-4" />
-              创建会话
-            </button>
+          {/* 拖拽手柄 */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize flex items-center justify-center group z-10"
+            onMouseDown={handleResizeStart}
+          >
+            <div className="w-1 h-8 bg-border rounded-full group-hover:bg-primary transition-colors" />
           </div>
-        ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground/40">
-            <div className="bg-muted/30 p-4 rounded-full mb-4">
-              <Bot className="size-8" />
-            </div>
-            <p className="text-sm">开始与 {service.name} 对话</p>
+          <div className="pl-4 h-full">
+            <SkillsSidebar
+              onClose={onToggleSkills ?? (() => {})}
+              serviceUrl={serviceUrl || null}
+              onUseSkill={(skill: SkillInfo) => {}}
+            />
           </div>
-        ) : (
-          messages.map((msg) => <ChatMessageBubble key={msg.id} msg={msg} />)
-        )}
-        </main>
-
-        {/* 未在底部时：悬浮“回到底部”按钮 */}
-        {!isAtBottom && session && (
-          <BackToBottomButton
-            onClick={() => {
-              markAtBottomAndScroll('smooth')
-            }}
-          />
-        )}
+        </div>
       </div>
-
-      {/* Input Area */}
-      {session && (
-        <ChatComposer
-          input={input}
-          setInput={setInput}
-          sending={sending}
-          onSubmit={handleSubmit}
-          onCancel={cancel}
-          onToggleSkills={onToggleSkills}
-          skillsSidebarOpen={skillsSidebarOpen}
-        />
-      )}
     </div>
   )
 }

@@ -18,7 +18,7 @@ export const themeNames: Record<Theme, string> = {
 }
 
 // 主题循环顺序
-const themeOrder: Theme[] = ['light', 'dark', 'zhenwu', 'zhenwu-dark']
+const themeOrder: Theme[] = ['light', 'dark']
 
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
