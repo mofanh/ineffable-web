@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import { User, Settings, LogOut, Sun, Moon } from 'lucide-react'
 import { cn } from '../../../utils/cn'
-import { useTheme } from '../../hooks/useTheme'
 import type { UserMenuProps } from './types'
 
 export function UserMenu({ 
   theme, 
   onToggleTheme,
+  onOpenSettings,
   userName = 'User',
   userPlan = 'Pro Plan'
 }: UserMenuProps) {
@@ -41,7 +41,13 @@ export function UserMenu({
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           <span>{theme === 'dark' ? '浅色模式' : '深色模式'}</span>
         </button>
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/80 transition-colors text-sm text-foreground/80 hover:text-foreground">
+        <button
+          onClick={() => {
+            setShowMenu(false)
+            onOpenSettings?.()
+          }}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/80 transition-colors text-sm text-foreground/80 hover:text-foreground"
+        >
           <Settings className="size-4" />
           <span>设置</span>
         </button>

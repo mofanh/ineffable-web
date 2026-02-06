@@ -3,8 +3,16 @@ import { ChevronDown, ChevronRight, RefreshCw, Wrench } from 'lucide-react'
 import type { ToolCall } from './types'
 
 // MCP 工具调用块组件（可折叠，支持实时日志 / 最终输出）
-export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
-  const [expanded, setExpanded] = useState(tool.status === 'running')
+export default function ToolCallBlock({
+  tool,
+  onApprove,
+  onDeny,
+}: {
+  tool: ToolCall
+  onApprove?: (callId: string, remember?: 'session' | 'always' | null) => void
+  onDeny?: (callId: string) => void
+}) {
+  const [expanded, setExpanded] = useState(tool.status === 'running' || tool.status === 'awaiting')
   const logsEndRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -22,7 +30,7 @@ export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
 
   // 当运行时自动展开
   useEffect(() => {
-    if (tool.status === 'running' && tool.logs && tool.logs.length > 0) {
+    if ((tool.status === 'running' || tool.status === 'awaiting') && tool.logs && tool.logs.length > 0) {
       setExpanded(true)
     }
   }, [tool.status, tool.logs])
@@ -61,6 +69,22 @@ export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
   const hasArgs = Boolean(tool.arguments && Object.keys(tool.arguments).length > 0)
   const hasContent = (tool.logs && tool.logs.length > 0) || tool.output || hasArgs
   const showProgress = tool.status === 'running' && tool.progress !== undefined && tool.total !== undefined
+  const isCompleted = tool.status === 'completed' || tool.status === 'done'
+  const isDenied = tool.status === 'denied'
+  const isFailed = tool.status === 'failed'
+
+  const statusText =
+    tool.status === 'awaiting'
+      ? '等待审批'
+      : tool.status === 'pending'
+        ? '等待执行'
+        : tool.status === 'running'
+          ? '正在调用'
+          : isDenied
+            ? '已拒绝'
+            : isFailed
+              ? '执行失败'
+              : '已调用'
 
   return (
     <div className="my-2 bg-muted/30 rounded-lg border border-border/50 overflow-hidden">
@@ -77,15 +101,65 @@ export default function ToolCallBlock({ tool }: { tool: ToolCall }) {
         )}
         <Wrench className="size-3" />
         <span className="flex-1 text-left">
-          {tool.status === 'running' ? '正在调用' : '已调用'}: <span className="text-foreground">{tool.name}</span>
+          {statusText}: <span className="text-foreground">{tool.displayName || tool.name}</span>
         </span>
         {showProgress && (
           <span className="text-[10px] text-primary">{Math.round((tool.progress! / tool.total!) * 100)}%</span>
         )}
-        {tool.status === 'done' && hasContent && (
+        {isCompleted && hasContent && (
           <span className="text-[10px] text-muted-foreground/60">点击{expanded ? '折叠' : '展开'}</span>
         )}
       </button>
+
+      {tool.status === 'awaiting' && (
+        <div className="px-3 pb-3 text-xs text-muted-foreground">
+          <div className="mt-2 rounded-md border border-border/50 bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-foreground">需要审批</span>
+              {tool.riskLevel && (
+                <span
+                  className={
+                    tool.riskLevel === 'high'
+                      ? 'text-destructive'
+                      : tool.riskLevel === 'medium'
+                        ? 'text-yellow-500'
+                        : 'text-green-600'
+                  }
+                >
+                  {tool.riskLevel.toUpperCase()}
+                </span>
+              )}
+            </div>
+            {tool.description && <div className="mt-1 text-muted-foreground/80">{tool.description}</div>}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                className="px-2 py-1 rounded-md bg-primary text-primary-foreground text-[11px]"
+                onClick={() => onApprove?.(tool.id)}
+              >
+                允许一次
+              </button>
+              <button
+                className="px-2 py-1 rounded-md bg-primary/10 text-primary text-[11px]"
+                onClick={() => onApprove?.(tool.id, 'session')}
+              >
+                本会话允许
+              </button>
+              <button
+                className="px-2 py-1 rounded-md bg-primary/10 text-primary text-[11px]"
+                onClick={() => onApprove?.(tool.id, 'always')}
+              >
+                总是允许
+              </button>
+              <button
+                className="px-2 py-1 rounded-md bg-destructive/10 text-destructive text-[11px]"
+                onClick={() => onDeny?.(tool.id)}
+              >
+                拒绝
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 进度条 */}
       {showProgress && (

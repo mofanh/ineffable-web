@@ -3,6 +3,7 @@
 export interface UserMenuProps {
   theme: 'light' | 'dark'
   onToggleTheme: () => void
+  onOpenSettings?: () => void
   userName?: string
   userPlan?: string
 }

@@ -1,11 +1,27 @@
+export type ToolCallStatus =
+  | 'pending'
+  | 'awaiting'
+  | 'running'
+  | 'completed'
+  | 'denied'
+  | 'failed'
+  | 'done'
+
 export interface ToolCall {
   id: string
   name: string
-  status: 'running' | 'done'
+  displayName?: string
+  icon?: string
+  status: ToolCallStatus
+  requiresApproval?: boolean
+  riskLevel?: 'low' | 'medium' | 'high'
+  description?: string
   output?: string
+  error?: string
   logs?: string[] // 实时输出日志
   progress?: number
   total?: number
+  durationMs?: number
   arguments?: Record<string, unknown> // 工具参数
 }
 

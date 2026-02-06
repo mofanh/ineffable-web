@@ -67,6 +67,8 @@ export default function MainPage({
     setSelectedSession(session)
     setServiceUrl(url)
     
+    if (!service?.id || !session?.id) return
+
     // 更新 URL，不重新加载页面
     const newPath = `/chat/${server.id}/${service.id}/${session.id}`
     if (window.location.pathname !== newPath) {
@@ -77,7 +79,7 @@ export default function MainPage({
   const handleSessionChange = useCallback((session: Session) => {
     setSelectedSession(session)
     // 更新 URL 中的 sessionId
-    if (selectedServer && selectedService) {
+    if (selectedServer && selectedService?.id) {
       const newPath = `/chat/${selectedServer.id}/${selectedService.id}/${session.id}`
       if (window.location.pathname !== newPath) {
         navigate(newPath, { replace: true })
@@ -119,6 +121,7 @@ export default function MainPage({
             onSessionSelect={handleSessionSelect}
             selectedSessionId={selectedSession?.id}
             runningSessionId={runningSessionId || undefined}
+            currentServiceUrl={serviceUrl}
             initialServerId={initialServerId}
             initialServiceId={initialServiceId}
             initialSessionId={initialSessionId}

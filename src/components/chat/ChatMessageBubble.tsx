@@ -118,18 +118,21 @@ const PART_MAPPING: Record<string, React.FC<{ segment: ContentSegment; isLastStr
     )
   },
   
-  'tool': function ToolPart({ segment }) {
-    if (!segment.tool) return null
-    return <ToolCallBlock key={`tool-${segment.tool.id}`} tool={segment.tool} />
-  },
-  
   'diff': function DiffPart({ segment }) {
     if (!segment.diff) return null
     return <DiffRenderer key={getSegmentKey(segment, 0)} diff={segment.diff} className="my-2" />
   },
 }
 
-export default function ChatMessageBubble({ msg }: { msg: Message }) {
+export default function ChatMessageBubble({
+  msg,
+  onToolApprove,
+  onToolDeny,
+}: {
+  msg: Message
+  onToolApprove?: (callId: string, remember?: 'session' | 'always' | null) => void
+  onToolDeny?: (callId: string) => void
+}) {
   const isStreaming = msg.status === 'streaming'
   
   return (
@@ -187,9 +190,11 @@ export default function ChatMessageBubble({ msg }: { msg: Message }) {
                 
                 if (segment.type === 'tool' && segment.tool) {
                   return (
-                    <ToolCallBlock 
-                      key={`tool-${segment.tool.id}`} 
-                      tool={segment.tool} 
+                    <ToolCallBlock
+                      key={`tool-${segment.tool.id}`}
+                      tool={segment.tool}
+                      onApprove={onToolApprove}
+                      onDeny={onToolDeny}
                     />
                   )
                 }

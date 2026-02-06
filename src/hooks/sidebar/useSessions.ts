@@ -42,6 +42,10 @@ interface ServiceWithSessions extends Service {
 function sortSessionsStable(sessions: Session[]): Session[] {
   return [...sessions].sort((a, b) => {
     const parseCreatedAtMs = (s: Session): number | null => {
+      // 兼容新旧 API：优先使用 created_at (UNIX timestamp)，回退到 createdAt (ISO string)
+      if (s.created_at) {
+        return s.created_at * 1000
+      }
       if (!s.createdAt) return null
       const t = Date.parse(s.createdAt)
       return Number.isFinite(t) ? t : null
@@ -61,6 +65,7 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
   const [services, setServices] = useState<ServiceWithSessions[]>([])
   const [directSessions, setDirectSessions] = useState<Session[]>()
   const [loadingDirectSessions, setLoadingDirectSessions] = useState(false)
+  const [directSessionsVirtual, setDirectSessionsVirtual] = useState(false)
   const [showSessionMenuId, setShowSessionMenuId] = useState<string | null>(null)
   const [urlInitialized, setUrlInitialized] = useState(false)
 
@@ -69,11 +74,25 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
     if (!selectedServer || selectedServer.connectionType !== 'direct') return
     setLoadingDirectSessions(true)
     try {
-      const { sessions: sessionList } = await listSessions(selectedServer.url)
+      const { items: sessionList } = await listSessions(selectedServer.url)
+      setDirectSessionsVirtual(false)
       setDirectSessions(sortSessionsStable(sessionList))
     } catch (err) {
-      console.error('Failed to load direct sessions:', err)
-      setDirectSessions([])
+      const message = (err as Error).message || ''
+      if (message.includes('404')) {
+        setDirectSessionsVirtual(true)
+        setDirectSessions([
+          {
+            id: 'default',
+            name: '默认会话',
+            messageCount: 0,
+            isActive: true,
+          },
+        ])
+      } else {
+        console.error('Failed to load direct sessions:', err)
+        setDirectSessions([])
+      }
     } finally {
       setLoadingDirectSessions(false)
     }
@@ -150,10 +169,10 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
     if (!selectedServer) return
     try {
       const serviceUrl = buildServiceUrl(selectedServer.url, service.port)
-      const updated = await updateSession(serviceUrl, session.id, { name: newName })
+      const updated = await updateSession(serviceUrl, session.id, { title: newName })
       setServices(prev => prev.map(s => 
         s.id === service.id 
-          ? { ...s, sessions: s.sessions.map(sess => sess.id === session.id ? { ...sess, name: updated.name } : sess) }
+          ? { ...s, sessions: s.sessions.map(sess => sess.id === session.id ? { ...sess, title: updated.title } : sess) }
           : s
       ))
     } catch (err) {
@@ -164,6 +183,30 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
   // 创建会话（直连模式）
   const handleCreateDirectSession = useCallback(async () => {
     if (!selectedServer) return
+    if (directSessionsVirtual) {
+      const virtual = {
+        id: 'default',
+        title: '默认会话',
+        created_at: 0,
+        updated_at: 0,
+        archived: 0,
+        archived_at: null,
+        messageCount: 0,
+        isActive: true,
+      }
+      setDirectSessions(prev => prev?.length ? prev : [virtual])
+      const virtualService: Service = {
+        id: 'direct',
+        name: selectedServer.name,
+        port: 0,
+        workingDir: '',
+        status: 'running',
+        autoStart: false,
+        createdAt: '',
+      }
+      onSessionSelect?.(selectedServer, virtualService, virtual, selectedServer.url)
+      return
+    }
     try {
       const newSession = await createSession(selectedServer.url)
       setDirectSessions(prev => sortSessionsStable([...(prev || []), newSession]))
@@ -187,24 +230,29 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
   const handleDeleteDirectSession = useCallback(async (session: Session, e: React.MouseEvent) => {
     e.stopPropagation()
     if (!selectedServer) return
+    if (directSessionsVirtual) return
     try {
       await deleteSession(selectedServer.url, session.id)
       setDirectSessions(prev => prev?.filter(s => s.id !== session.id))
     } catch (err) {
       throw err
     }
-  }, [selectedServer])
+  }, [selectedServer, directSessionsVirtual])
 
   // 重命名会话（直连模式）
   const handleRenameDirectSession = useCallback(async (session: Session, newName: string) => {
     if (!selectedServer) return
+    if (directSessionsVirtual) {
+      setDirectSessions(prev => prev?.map(s => s.id === session.id ? { ...s, title: newName } : s))
+      return
+    }
     try {
-      const updated = await updateSession(selectedServer.url, session.id, { name: newName })
-      setDirectSessions(prev => prev?.map(s => s.id === session.id ? { ...s, name: updated.name } : s))
+      const updated = await updateSession(selectedServer.url, session.id, { title: newName })
+      setDirectSessions(prev => prev?.map(s => s.id === session.id ? { ...s, title: updated.title } : s))
     } catch (err) {
       throw err
     }
-  }, [selectedServer])
+  }, [selectedServer, directSessionsVirtual])
 
   return {
     services,

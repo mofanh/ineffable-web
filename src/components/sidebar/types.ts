@@ -9,6 +9,7 @@ export interface SidebarProps {
   onSessionSelect: (server: Server, service: Service, session: Session, serviceUrl: string) => void
   selectedSessionId?: string
   runningSessionId?: string
+  currentServiceUrl?: string
   initialServerId?: string
   initialServiceId?: string
   initialSessionId?: string

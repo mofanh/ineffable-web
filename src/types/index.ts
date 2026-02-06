@@ -37,33 +37,44 @@ export interface Service {
 /** Session - 代表一个对话会话 */
 export interface Session {
   id: string
-  name?: string  // 会话标题
-  messageCount: number
-  isActive: boolean
+  title: string
+  created_at: number
+  updated_at: number
+  archived: number
+  archived_at: number | null
+  // 前端计算字段
+  messageCount?: number
+  isActive?: boolean
   workingDir?: string
-  createdAt?: string
-  lastActivity?: string
 }
 
-/** Sessions 列表响应 */
+/** 分页会话列表响应 */
 export interface SessionsResponse {
-  currentSessionId: string
-  sessions: Session[]
+  items: Session[]
+  total: number
 }
 
-/** 消息信息 */
-export interface MessageInfo {
-  // 后端 memory 的 role 是 string（例如会有 "tool"）
+/** 归档会话列表响应 */
+export type ArchivedSessionsResponse = Session[]
+
+/** Session 消息 */
+export interface SessionMessage {
+  id: string
+  session_id: string
   role: string
   content: string
-  timestamp?: number
+  created_at: number
 }
 
 /** Session 详情（包含消息） */
 export interface SessionDetail {
   id: string
-  messages: MessageInfo[]
-  isActive: boolean
+  title: string
+  created_at: number
+  updated_at: number
+  archived: number
+  archived_at: number | null
+  messages: SessionMessage[]
 }
 
 /** SSE 事件类型 */
@@ -88,6 +99,39 @@ export interface SSEEvent {
   progress?: number
   total?: number
   [key: string]: unknown
+}
+
+/** /api/config 响应 */
+export interface ConfigResponse {
+  project: {
+    name: string
+    version: string
+    description: string
+  }
+  llm: {
+    provider: string
+    model: string
+    stream: boolean
+  }
+  mcp_enabled: boolean
+}
+
+/** 工具审批请求（WebSocket） */
+export interface ToolApprovalRequest {
+  type: 'tool_approval_request'
+  call_id: string
+  name: string
+  args: Record<string, unknown>
+  risk_level: 'low' | 'medium' | 'high'
+  description?: string
+}
+
+/** 工具审批响应（WebSocket） */
+export interface ToolApprovalResponse {
+  type: 'tool_approval_response'
+  call_id: string
+  approved: boolean
+  remember?: 'session' | 'always' | null
 }
 
 /** 创建 Service 请求 */

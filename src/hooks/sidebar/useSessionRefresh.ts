@@ -25,8 +25,8 @@ export function useSessionRefresh(options: UseSessionRefreshOptions) {
   const refreshSessionTitle = useCallback(async (serviceUrl: string, sessionId: string) => {
     if (!selectedServer) return null
     try {
-      const { sessions } = await listSessions(serviceUrl)
-      const target = sessions.find(s => s.id === sessionId)
+      const { items } = await listSessions(serviceUrl)
+      const target = items.find(s => s.id === sessionId)
       if (!target) return null
 
       // 直连模式：更新直连会话列表
@@ -36,13 +36,13 @@ export function useSessionRefresh(options: UseSessionRefreshOptions) {
           let changed = false
           const next = prev.map(s => {
             if (s.id !== sessionId) return s
-            const merged: Session = { ...s, name: target.name, createdAt: target.createdAt }
+            const merged: Session = { ...s, title: target.title, created_at: target.created_at }
             changed = true
             return merged
           })
           return changed ? sortSessionsStable(next) : prev
         })
-        return { id: target.id, name: target.name, createdAt: target.createdAt }
+        return { id: target.id, title: target.title, created_at: target.created_at }
       }
 
       // Hub 模式：找到对应 service，更新它的 sessions
@@ -58,13 +58,13 @@ export function useSessionRefresh(options: UseSessionRefreshOptions) {
           const updatedSessions = s.sessions.map(sess => {
             if (sess.id !== sessionId) return sess
             changed = true
-            return { ...sess, name: target.name, createdAt: target.createdAt }
+            return { ...sess, title: target.title, created_at: target.created_at }
           })
           return changed ? { ...s, sessions: sortSessionsStable(updatedSessions) } : s
         })
       })
 
-      return { id: target.id, name: target.name, createdAt: target.createdAt }
+      return { id: target.id, title: target.title, created_at: target.created_at }
     } catch (err) {
       console.error('Failed to refresh session title:', err)
       return null
@@ -77,6 +77,9 @@ export function useSessionRefresh(options: UseSessionRefreshOptions) {
 function sortSessionsStable(sessions: Session[]): Session[] {
   return [...sessions].sort((a, b) => {
     const parseCreatedAtMs = (s: Session): number | null => {
+      if (s.created_at) {
+        return s.created_at * 1000
+      }
       if (!s.createdAt) return null
       const t = Date.parse(s.createdAt)
       return Number.isFinite(t) ? t : null

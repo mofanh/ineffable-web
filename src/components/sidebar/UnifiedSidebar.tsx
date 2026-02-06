@@ -13,6 +13,7 @@ import { ServiceList } from './ServiceList'
 import { SessionList } from './SessionList'
 import { UserMenu } from './UserMenu'
 import { useTheme } from '../../hooks/useTheme'
+import ConfigPanel from '../config/ConfigPanel'
 
 const UnifiedSidebar = forwardRef<SidebarHandle, SidebarProps>(function UnifiedSidebar({ 
   isCollapsed, 
@@ -20,6 +21,7 @@ const UnifiedSidebar = forwardRef<SidebarHandle, SidebarProps>(function UnifiedS
   onSessionSelect, 
   selectedSessionId,
   runningSessionId,
+  currentServiceUrl,
   initialServerId,
   initialServiceId,
   initialSessionId
@@ -27,6 +29,7 @@ const UnifiedSidebar = forwardRef<SidebarHandle, SidebarProps>(function UnifiedS
   const { theme, toggleTheme } = useTheme()
   const [showAddServer, setShowAddServer] = useState(false)
   const [showCreateService, setShowCreateService] = useState(false)
+  const [showConfigPanel, setShowConfigPanel] = useState(false)
   
   // 服务器管理
   const {
@@ -284,6 +287,13 @@ const UnifiedSidebar = forwardRef<SidebarHandle, SidebarProps>(function UnifiedS
       <UserMenu
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenSettings={() => setShowConfigPanel(true)}
+      />
+
+      <ConfigPanel
+        open={showConfigPanel}
+        onOpenChange={setShowConfigPanel}
+        serviceUrl={currentServiceUrl}
       />
 
       {/* 对话框 */}

@@ -7,6 +7,17 @@ import type { Server, ConnectionType } from '../types'
 
 const SERVERS_KEY = 'ineffable_servers'
 
+function normalizeServerUrl(rawUrl: string): string {
+  let normalized = rawUrl.trim()
+  if (!/^https?:\/\//i.test(normalized)) {
+    normalized = `http://${normalized}`
+  }
+  // 校验 URL 格式
+  new URL(normalized)
+  return normalized.replace(/\/+$/, '')
+}
+
+
 /**
  * 获取所有 Server
  */
@@ -32,9 +43,8 @@ function saveServers(servers: Server[]): void {
  */
 export function addServer(name: string, url: string, connectionType: ConnectionType = 'hub'): Server {
   const servers = getServers()
-  
-  // 移除末尾斜杠
-  const normalizedUrl = url.replace(/\/+$/, '')
+
+  const normalizedUrl = normalizeServerUrl(url)
   
   const newServer: Server = {
     id: crypto.randomUUID(),
@@ -60,7 +70,7 @@ export function updateServer(id: string, updates: Partial<Pick<Server, 'name' | 
   if (index === -1) return null
   
   if (updates.url) {
-    updates.url = updates.url.replace(/\/+$/, '')
+    updates.url = normalizeServerUrl(updates.url)
   }
   
   servers[index] = { ...servers[index], ...updates }
@@ -95,6 +105,7 @@ export function getServer(id: string): Server | undefined {
  */
 export async function checkServerHealth(serverUrl: string, connectionType?: ConnectionType): Promise<{ online: boolean; serviceCount?: number }> {
   try {
+    new URL(serverUrl)
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
     

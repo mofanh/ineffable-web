@@ -82,6 +82,8 @@ export function useServers(options: UseServersOptions = {}): UseServersReturn {
   // 添加服务器
   const addServer = useCallback(async (name: string, url: string, connectionType: ConnectionType) => {
     const server = addServerApi(name, url, connectionType)
+    setSelectedServer(server)
+    setShowServerDropdown(false)
     setServers(prev => [...prev, server])
     await loadServers()
   }, [loadServers])

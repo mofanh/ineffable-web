@@ -12,6 +12,15 @@
 - GET  /api/status   — 查询 Agent 状态
 - GET  /api/health   — 健康检查
 - GET  /api/stream   — SSE 实时事件流（Server-Sent Events）
+- GET  /api/sessions — 列出非归档会话（分页）
+- POST /api/sessions — 创建新会话
+- GET  /api/sessions/{id} — 获取会话详情
+- PUT  /api/sessions/{id} — 更新会话标题
+- DELETE /api/sessions/{id} — 归档会话（软删除）
+- GET  /api/sessions/archived — 列出归档会话
+- POST /api/sessions/{id}/restore — 恢复归档会话
+- GET  /api/sessions/{id}/messages — 获取会话消息
+- DELETE /api/sessions/{id}/permanent — 永久删除会话
 
 ---
 
@@ -145,6 +154,165 @@
 ```
 
 注意：实际 `type` 字段与服务中 `Event` 类型对应；客户端可按 `type` 分派处理逻辑。
+
+---
+
+**GET /api/sessions**
+- 描述：列出所有非归档会话（分页）。
+- 成功响应（HTTP 200）示例：
+
+```json
+{
+  "items": [
+    {
+      "id": "6cc01d9b-c9fb-49d1-8867-7cbc6b627e54",
+      "title": "My Session",
+      "created_at": 1770308851,
+      "updated_at": 1770308858,
+      "archived": 0,
+      "archived_at": null
+    }
+  ],
+  "total": 1
+}
+```
+
+字段说明：
+- `id`：会话 UUID
+- `title`：会话标题
+- `created_at`：创建时间（UNIX 时间戳）
+- `updated_at`：更新时间（UNIX 时间戳）
+- `archived`：是否归档（0=否，1=是）
+- `archived_at`：归档时间（未归档为 null）
+- `total`：会话总数
+
+---
+
+**POST /api/sessions**
+- 描述：创建新会话。
+- 请求体（可选）：
+
+```json
+{
+  "title": "新会话标题"
+}
+```
+
+- 成功响应（HTTP 200）示例：
+
+```json
+{
+  "id": "6cc01d9b-c9fb-49d1-8867-7cbc6b627e54",
+  "title": "新会话标题",
+  "created_at": 1770308851,
+  "updated_at": 1770308851,
+  "archived": 0,
+  "archived_at": null
+}
+```
+
+---
+
+**GET /api/sessions/{id}**
+- 描述：获取会话详情（包含消息）。
+- 成功响应（HTTP 200）示例：
+
+```json
+{
+  "id": "6cc01d9b-c9fb-49d1-8867-7cbc6b627e54",
+  "title": "My Session",
+  "created_at": 1770308851,
+  "updated_at": 1770308858,
+  "archived": 0,
+  "archived_at": null,
+  "messages": [
+    {
+      "id": "msg-1",
+      "session_id": "6cc01d9b-c9fb-49d1-8867-7cbc6b627e54",
+      "role": "user",
+      "content": "Hello",
+      "created_at": 1770308852
+    }
+  ]
+}
+```
+
+---
+
+**PUT /api/sessions/{id}**
+- 描述：更新会话标题。
+- 请求体：
+
+```json
+{
+  "title": "新的标题"
+}
+```
+
+- 成功响应（HTTP 200）：返回更新后的会话对象。
+
+---
+
+**DELETE /api/sessions/{id}**
+- 描述：归档会话（软删除）。会话不会被删除，只是标记为 archived=1。
+- 成功响应（HTTP 200）示例：
+
+```json
+true
+```
+
+---
+
+**GET /api/sessions/archived**
+- 描述：列出所有归档会话。
+- 成功响应（HTTP 200）示例：
+
+```json
+[
+  {
+    "id": "6cc01d9b-c9fb-49d1-8867-7cbc6b627e54",
+    "title": "Old Session",
+    "created_at": 1770308851,
+    "updated_at": 1770308858,
+    "archived": 1,
+    "archived_at": 1770308860
+  }
+]
+```
+
+---
+
+**POST /api/sessions/{id}/restore**
+- 描述：恢复归档的会话。
+- 成功响应（HTTP 200）：返回恢复后的会话对象。
+
+---
+
+**GET /api/sessions/{id}/messages**
+- 描述：获取会话的所有消息。
+- 成功响应（HTTP 200）示例：
+
+```json
+[
+  {
+    "id": "msg-1",
+    "session_id": "6cc01d9b-c9fb-49d1-8867-7cbc6b627e54",
+    "role": "user",
+    "content": "Hello",
+    "created_at": 1770308852
+  }
+]
+```
+
+---
+
+**DELETE /api/sessions/{id}/permanent**
+- 描述：永久删除会话（不可恢复）。建议先使用普通 DELETE 进行软删除。
+- 成功响应（HTTP 200）示例：
+
+```json
+true
+```
 
 ---
 

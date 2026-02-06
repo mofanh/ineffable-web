@@ -17,7 +17,7 @@ export function attachToolOutputToAssistantMsg(msg: Message, toolName: string, o
     if (seg.tool.output != null) continue
     if (toolName && seg.tool.name !== toolName) continue
     seg.tool.output = output
-    seg.tool.status = 'done'
+    seg.tool.status = 'completed'
     return true
   }
 
@@ -27,7 +27,7 @@ export function attachToolOutputToAssistantMsg(msg: Message, toolName: string, o
     if (seg.type !== 'tool' || !seg.tool) continue
     if (seg.tool.output != null) continue
     seg.tool.output = output
-    seg.tool.status = 'done'
+    seg.tool.status = 'completed'
     return true
   }
 
@@ -40,7 +40,7 @@ export function appendToolResultAsSegment(msg: Message, toolName: string, output
     tool: {
       id: `hist-tool-${idSeed}-${msg.segments.length}`,
       name: toolName || 'tool',
-      status: 'done',
+      status: 'completed',
       output,
     },
   })
@@ -168,7 +168,7 @@ function processToolTags(content: string, segments: ContentSegment[], pendingByN
       const tool: ToolCall = {
         id: `hist-tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: parsed.name || 'tool',
-        status: 'done',
+        status: 'completed',
         arguments: parsed.arguments,
       }
       
@@ -190,7 +190,7 @@ function processToolTags(content: string, segments: ContentSegment[], pendingByN
           tool: {
             id: `hist-tool-${segments.length}`,
             name,
-            status: 'done',
+            status: 'completed',
             output,
           },
         })

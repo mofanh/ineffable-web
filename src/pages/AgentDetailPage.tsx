@@ -19,7 +19,7 @@ type EventRecord = SSEEvent & {
 interface ToolCall {
   id: string
   name: string
-  status: 'running' | 'done'
+  status: 'running' | 'completed' | 'done'
   output?: string
   logs?: string[]  // 实时输出日志
   progress?: number
@@ -170,7 +170,7 @@ export default function AgentDetailPage() {
             const tools = new Map(updatedMsg.toolCalls || [])
             const tool = tools.get(evt.call_id)
             if (tool) {
-              tools.set(evt.call_id, { ...tool, status: 'done', output: evt.output })
+              tools.set(evt.call_id, { ...tool, status: 'completed', output: evt.output })
               updatedMsg.toolCalls = tools
             }
           }

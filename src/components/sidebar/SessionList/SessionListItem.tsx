@@ -52,7 +52,7 @@ export function SessionListItem({
           mode === 'direct' ? "text-sm" : "text-xs",
           isRunning && "text-primary animate-pulse"
         )}>
-          {session.name || `会话 ${session.id.slice(0, 8)}`}
+          {session.title || session.name || `会话 ${session.id.slice(0, 8)}`}
         </span>
       </button>
       

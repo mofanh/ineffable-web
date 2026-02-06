@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Server as ServerIcon, Link2, X } from 'lucide-react'
 import { cn } from '../../../utils/cn'
 import type { AddServerDialogProps, AddServerFormData } from './types'
+import type { ConnectionType } from '../../../types'
 
 export function AddServerDialog({ 
   isOpen, 
@@ -15,13 +16,14 @@ export function AddServerDialog({
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !url.trim()) return
-    
+    setError(null)
     setIsSubmitting(true)
     try {
       await onAddServer({ name, url, connectionType })
@@ -31,6 +33,7 @@ export function AddServerDialog({
       onClose()
     } catch (err) {
       console.error('Failed to add server:', err)
+      setError((err as Error).message || '无法添加服务器，请检查地址是否正确')
     } finally {
       setIsSubmitting(false)
     }
@@ -116,6 +119,9 @@ export function AddServerDialog({
                 ? "CLI serve 模式的地址" 
                 : "Service Manager 的地址"}
             </p>
+            {error && (
+              <p className="text-[11px] text-destructive mt-1">{error}</p>
+            )}
           </div>
           
           <div className="flex justify-end gap-2 pt-2">

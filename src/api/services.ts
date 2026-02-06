@@ -2,7 +2,11 @@
  * Service API - 与 Service Manager 交互
  */
 
-import type { Service, CreateServiceRequest, UpdateServiceRequest, Session, SessionDetail, CreateSessionRequest, ExecuteRequest, ExecuteResponse, SSEEvent } from '../types'
+import type { Service, CreateServiceRequest, UpdateServiceRequest, Session, SessionDetail, CreateSessionRequest, ExecuteRequest, ExecuteResponse, SSEEvent, ConfigResponse } from '../types'
+
+function buildApiUrl(serviceUrl: string, path: string): string {
+  return `${serviceUrl}${path}`
+}
 
 // ============ Service 管理 (通过 Service Manager) ============
 
@@ -254,7 +258,7 @@ export async function checkServiceHealth(serviceUrl: string): Promise<boolean> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 3000)
     
-    const res = await fetch(`${serviceUrl}/api/health`, {
+    const res = await fetch(buildApiUrl(serviceUrl, '/api/health'), {
       signal: controller.signal,
     })
     
@@ -268,8 +272,8 @@ export async function checkServiceHealth(serviceUrl: string): Promise<boolean> {
 /**
  * 列出 Sessions (CLI serve 模式)
  */
-export async function listSessions(serviceUrl: string): Promise<{ currentSessionId: string; sessions: Session[] }> {
-  const res = await fetch(`${serviceUrl}/api/sessions`)
+export async function listSessions(serviceUrl: string): Promise<SessionsResponse> {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/sessions'))
   
   if (!res.ok) {
     throw new Error(`Failed to fetch sessions: ${res.status}`)
@@ -277,24 +281,49 @@ export async function listSessions(serviceUrl: string): Promise<{ currentSession
   
   const data = await res.json()
   
-  // CLI serve 模式返回 { current_session_id, sessions: [...] }
+  // 新 API 返回 { items: [...], total: n }
   return {
-    currentSessionId: data.current_session_id,
-    sessions: data.sessions.map((item: any) => ({
+    items: data.items.map((item: any) => ({
       id: item.id,
-      name: item.name,
-      createdAt: typeof item.created_at_unix === 'number' ? new Date(item.created_at_unix * 1000).toISOString() : undefined,
-      messageCount: item.message_count,
-      isActive: item.is_active,
+      title: item.title,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      archived: item.archived,
+      archived_at: item.archived_at,
+      isActive: item.archived === 0,
     })),
+    total: data.total,
   }
+}
+
+/**
+ * 列出归档的 Sessions
+ */
+export async function listArchivedSessions(serviceUrl: string): Promise<Session[]> {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/sessions/archived'))
+  
+  if (!res.ok) {
+    throw new Error(`Failed to fetch archived sessions: ${res.status}`)
+  }
+  
+  const data = await res.json()
+  
+  return data.map((item: any) => ({
+    id: item.id,
+    title: item.title,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    archived: item.archived,
+    archived_at: item.archived_at,
+    isActive: false,
+  }))
 }
 
 /**
  * 获取 Session 详情（包含消息）
  */
 export async function getSessionDetail(serviceUrl: string, sessionId: string): Promise<SessionDetail> {
-  const res = await fetch(`${serviceUrl}/api/sessions/${sessionId}`)
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/sessions/${sessionId}`))
   
   if (!res.ok) {
     throw new Error(`Failed to fetch session detail: ${res.status}`)
@@ -304,23 +333,50 @@ export async function getSessionDetail(serviceUrl: string, sessionId: string): P
   
   return {
     id: data.id,
+    title: data.title,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    archived: data.archived,
+    archived_at: data.archived_at,
     messages: data.messages.map((msg: any) => ({
+      id: msg.id,
+      session_id: msg.session_id,
       role: msg.role,
       content: msg.content,
-      timestamp: msg.timestamp,
+      created_at: msg.created_at,
     })),
-    isActive: data.is_active,
   }
+}
+
+/**
+ * 获取 Session 消息
+ */
+export async function getSessionMessages(serviceUrl: string, sessionId: string): Promise<SessionMessage[]> {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/sessions/${sessionId}/messages`))
+  
+  if (!res.ok) {
+    throw new Error(`Failed to fetch session messages: ${res.status}`)
+  }
+  
+  const data = await res.json()
+  
+  return data.map((msg: any) => ({
+    id: msg.id,
+    session_id: msg.session_id,
+    role: msg.role,
+    content: msg.content,
+    created_at: msg.created_at,
+  }))
 }
 
 /**
  * 创建 Session (CLI serve 模式)
  */
-export async function createSession(serviceUrl: string, _data?: CreateSessionRequest): Promise<Session> {
-  const res = await fetch(`${serviceUrl}/api/sessions`, {
+export async function createSession(serviceUrl: string, data?: { title?: string }): Promise<Session> {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/sessions'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify(data || {}),
   })
   
   if (!res.ok) {
@@ -331,31 +387,77 @@ export async function createSession(serviceUrl: string, _data?: CreateSessionReq
   
   return {
     id: item.id,
-    name: item.name,
-    createdAt: typeof item.created_at_unix === 'number' ? new Date(item.created_at_unix * 1000).toISOString() : undefined,
-    messageCount: item.message_count || 0,
-    isActive: item.is_active ?? true,
+    title: item.title,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    archived: item.archived,
+    archived_at: item.archived_at,
+    isActive: true,
   }
 }
 
 /**
- * 删除 Session
+ * 删除 Session (软删除/归档)
  */
-export async function deleteSession(serviceUrl: string, sessionId: string): Promise<void> {
-  const res = await fetch(`${serviceUrl}/api/sessions/${sessionId}`, {
+export async function deleteSession(serviceUrl: string, sessionId: string): Promise<boolean> {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/sessions/${sessionId}`), {
     method: 'DELETE',
   })
   
   if (!res.ok) {
     throw new Error(`Failed to delete session: ${res.status}`)
   }
+  
+  const data = await res.json()
+  return data === true || data.success === true
+}
+
+/**
+ * 恢复归档的 Session
+ */
+export async function restoreSession(serviceUrl: string, sessionId: string): Promise<Session> {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/sessions/${sessionId}/restore`), {
+    method: 'POST',
+  })
+  
+  if (!res.ok) {
+    throw new Error(`Failed to restore session: ${res.status}`)
+  }
+  
+  const item = await res.json()
+  
+  return {
+    id: item.id,
+    title: item.title,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    archived: item.archived,
+    archived_at: item.archived_at,
+    isActive: true,
+  }
+}
+
+/**
+ * 永久删除 Session
+ */
+export async function permanentDeleteSession(serviceUrl: string, sessionId: string): Promise<boolean> {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/sessions/${sessionId}/permanent`), {
+    method: 'DELETE',
+  })
+  
+  if (!res.ok) {
+    throw new Error(`Failed to permanently delete session: ${res.status}`)
+  }
+  
+  const data = await res.json()
+  return data === true || data.success === true
 }
 
 /**
  * 更新 Session (重命名)
  */
-export async function updateSession(serviceUrl: string, sessionId: string, data: { name?: string }): Promise<Session> {
-  const res = await fetch(`${serviceUrl}/api/sessions/${sessionId}`, {
+export async function updateSession(serviceUrl: string, sessionId: string, data: { title?: string }): Promise<Session> {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/sessions/${sessionId}`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -370,10 +472,12 @@ export async function updateSession(serviceUrl: string, sessionId: string, data:
   
   return {
     id: item.id,
-    name: item.name,
-    createdAt: typeof item.created_at_unix === 'number' ? new Date(item.created_at_unix * 1000).toISOString() : undefined,
-    messageCount: item.message_count || 0,
-    isActive: item.is_active ?? true,
+    title: item.title,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    archived: item.archived,
+    archived_at: item.archived_at,
+    isActive: item.archived === 0,
   }
 }
 
@@ -381,7 +485,7 @@ export async function updateSession(serviceUrl: string, sessionId: string, data:
  * 执行任务
  */
 export async function execute(serviceUrl: string, data: ExecuteRequest): Promise<ExecuteResponse> {
-  const res = await fetch(`${serviceUrl}/api/execute`, {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/execute'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -410,7 +514,7 @@ export async function executeStream(
   onEvent: (event: SSEEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${serviceUrl}/api/execute/stream`, {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/execute/stream'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -478,10 +582,24 @@ export async function executeStream(
 }
 
 /**
+ * 获取服务端配置
+ */
+export async function getConfig(serviceUrl: string): Promise<ConfigResponse> {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/config'))
+
+  if (!res.ok) {
+    const error = await res.text().catch(() => '')
+    throw new Error(error || `Failed to fetch config: ${res.status}`)
+  }
+
+  return res.json()
+}
+
+/**
  * 取消当前任务
  */
 export async function cancelTask(serviceUrl: string): Promise<void> {
-  const res = await fetch(`${serviceUrl}/api/cancel`, {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/cancel'), {
     method: 'POST',
   })
   
@@ -503,7 +621,7 @@ export function subscribeToStream(
   onError?: (error: Error) => void,
 ): () => void {
   // CLI serve 模式使用 /api/stream 或 /events
-  const eventSource = new EventSource(`${serviceUrl}/api/stream`)
+  const eventSource = new EventSource(buildApiUrl(serviceUrl, '/api/stream'))
   
   eventSource.onmessage = (e) => {
     try {
@@ -546,7 +664,7 @@ import type { PtySession, CreatePtyRequest, ResizePtyRequest } from '../types'
  * 列出所有 PTY 终端
  */
 export async function listPtySessions(serviceUrl: string): Promise<PtySession[]> {
-  const res = await fetch(`${serviceUrl}/api/pty`)
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/pty'))
   
   if (!res.ok) {
     throw new Error(`Failed to fetch PTY sessions: ${res.status}`)
@@ -559,7 +677,7 @@ export async function listPtySessions(serviceUrl: string): Promise<PtySession[]>
  * 获取 PTY 终端详情
  */
 export async function getPtySession(serviceUrl: string, ptyId: string): Promise<PtySession> {
-  const res = await fetch(`${serviceUrl}/api/pty/${ptyId}`)
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/pty/${ptyId}`))
   
   if (!res.ok) {
     throw new Error(`Failed to fetch PTY session: ${res.status}`)
@@ -572,7 +690,7 @@ export async function getPtySession(serviceUrl: string, ptyId: string): Promise<
  * 创建新的 PTY 终端
  */
 export async function createPtySession(serviceUrl: string, data: CreatePtyRequest): Promise<PtySession> {
-  const res = await fetch(`${serviceUrl}/api/pty`, {
+  const res = await fetch(buildApiUrl(serviceUrl, '/api/pty'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -590,7 +708,7 @@ export async function createPtySession(serviceUrl: string, data: CreatePtyReques
  * 删除 PTY 终端
  */
 export async function deletePtySession(serviceUrl: string, ptyId: string): Promise<void> {
-  const res = await fetch(`${serviceUrl}/api/pty/${ptyId}`, {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/pty/${ptyId}`), {
     method: 'DELETE',
   })
   
@@ -603,7 +721,7 @@ export async function deletePtySession(serviceUrl: string, ptyId: string): Promi
  * 调整 PTY 终端大小
  */
 export async function resizePtySession(serviceUrl: string, ptyId: string, size: ResizePtyRequest): Promise<void> {
-  const res = await fetch(`${serviceUrl}/api/pty/${ptyId}/resize`, {
+  const res = await fetch(buildApiUrl(serviceUrl, `/api/pty/${ptyId}/resize`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(size),

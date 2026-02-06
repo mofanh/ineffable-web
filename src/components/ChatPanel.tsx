@@ -13,6 +13,7 @@ import BackToBottomButton from './chat/BackToBottomButton'
 import SkillsSidebar from './skills/SkillsSidebar'
 import { useChatMessages } from '../hooks/useChatMessages'
 import { useChatScrollFollow } from '../hooks/useChatScrollFollow'
+import { useToolApprovalSocket } from '../hooks/useToolApprovalSocket'
 
 
 interface Props {
@@ -34,11 +35,41 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
   const [skillsWidth, setSkillsWidth] = useState(320)
   const resizeRef = useRef<HTMLDivElement>(null)
 
-  const { messages, setMessages, loading, sending, sendMessage, cancel } = useChatMessages({
+  const {
+    messages,
+    setMessages,
+    loading,
+    sending,
+    sendMessage,
+    cancel,
+    handleToolApprovalRequest,
+    handleToolApprovalDecision,
+  } = useChatMessages({
     serviceUrl,
     session,
     onSessionTitleRefresh,
   })
+
+  const { sendApproval } = useToolApprovalSocket({
+    serviceUrl,
+    onRequest: handleToolApprovalRequest,
+  })
+
+  const handleToolApprove = useCallback(
+    (callId: string, remember?: 'session' | 'always' | null) => {
+      handleToolApprovalDecision(callId, true)
+      sendApproval(callId, true, remember)
+    },
+    [handleToolApprovalDecision, sendApproval]
+  )
+
+  const handleToolDeny = useCallback(
+    (callId: string) => {
+      handleToolApprovalDecision(callId, false)
+      sendApproval(callId, false)
+    },
+    [handleToolApprovalDecision, sendApproval]
+  )
   
   const { scrollContainerRef, isAtBottom, handleScroll, markAtBottomAndScroll } = useChatScrollFollow({
     resetDeps: [session?.id, loading],
@@ -153,7 +184,14 @@ export default function ChatPanel({ server, service, session, serviceUrl, onSess
               <p className="text-sm">开始与 {service.name} 对话</p>
             </div>
           ) : (
-            messages.map((msg) => <ChatMessageBubble key={msg.id} msg={msg} />)
+            messages.map((msg) => (
+              <ChatMessageBubble
+                key={msg.id}
+                msg={msg}
+                onToolApprove={handleToolApprove}
+                onToolDeny={handleToolDeny}
+              />
+            ))
           )}
           </main>
 

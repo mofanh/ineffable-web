@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { Session, SSEEvent } from '../types'
-import { cancelTask, executeStream, getSessionDetail } from '../api/services'
+import type { Session, SSEEvent, ToolApprovalRequest } from '../types'
+import { cancelTask, executeStream, getSessionMessages } from '../api/services'
 
 import type { Message, ToolCall, ContentSegment } from '../components/chat/types'
 import {
@@ -112,13 +112,26 @@ export function useChatMessages({
             if (event.call_id && event.tool) {
               const args = event.arguments as Record<string, unknown> | undefined
 
-              const toolCall: ToolCall = {
-                id: event.call_id,
-                name: event.tool,
-                status: 'running',
-                arguments: args,
+              const existingTool = updatedMsg.pendingToolCalls.get(event.call_id)
+              const toolCall: ToolCall = existingTool
+                ? { ...existingTool, status: 'running', arguments: args ?? existingTool.arguments }
+                : {
+                    id: event.call_id,
+                    name: event.tool,
+                    status: 'running',
+                    arguments: args,
+                  }
+
+              if (!existingTool) {
+                updatedMsg.segments.push({ type: 'tool', tool: toolCall })
+              } else {
+                updatedMsg.segments = updatedMsg.segments.map(segment => {
+                  if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
+                    return { ...segment, tool: toolCall }
+                  }
+                  return segment
+                })
               }
-              updatedMsg.segments.push({ type: 'tool', tool: toolCall })
               updatedMsg.pendingToolCalls.set(event.call_id, toolCall)
             }
             break
@@ -129,7 +142,7 @@ export function useChatMessages({
               if (tool) {
                 const completedTool = {
                   ...tool,
-                  status: 'done' as const,
+                  status: 'completed' as const,
                   output: event.output,
                 }
                 updatedMsg.segments = updatedMsg.segments.map(segment => {
@@ -195,22 +208,24 @@ export function useChatMessages({
     async function loadMessages() {
       setLoading(true)
       try {
-        const detail = await getSessionDetail(serviceUrl, sessionId)
+        const messages = await getSessionMessages(serviceUrl, sessionId)
 
         const historicalMessages: Message[] = []
         const baseNow = Date.now()
         let outIdx = 0
 
-        for (let i = 0; i < detail.messages.length; i++) {
-          const m = detail.messages[i]
+        for (let i = 0; i < messages.length; i++) {
+          const m = messages[i]
           const role = normalizeRole(m.role)
+          // 兼容新旧 API：优先使用 created_at，回退到 timestamp
+          const msgTimestamp = m.created_at || m.timestamp
 
           if (role === 'user' || role === 'system') {
             historicalMessages.push({
               id: `hist-${outIdx}`,
               role,
               content: m.content,
-              timestamp: m.timestamp || baseNow + outIdx,
+              timestamp: msgTimestamp || baseNow + outIdx,
               status: 'completed' as const,
               segments: [{ type: 'text', content: m.content }],
               pendingToolCalls: new Map(),
@@ -226,7 +241,7 @@ export function useChatMessages({
               id: `hist-${outIdx}`,
               role: 'assistant',
               content: '',
-              timestamp: m.timestamp || baseNow + outIdx,
+              timestamp: msgTimestamp || baseNow + outIdx,
               status: 'completed' as const,
               segments: [
                 {
@@ -234,7 +249,7 @@ export function useChatMessages({
                   tool: {
                     id: `hist-tool-${outIdx}-0`,
                     name,
-                    status: 'done',
+                    status: 'completed',
                     output,
                   },
                 },
@@ -250,14 +265,11 @@ export function useChatMessages({
             id: `hist-${outIdx}`,
             role: 'assistant',
             content: m.content,
-            timestamp: m.timestamp || baseNow + outIdx,
-            status: 'completed' as const,
-            segments: parseMessageContent(m.content),
-            pendingToolCalls: new Map(),
+            timestamp: msgTimestamp || baseNow + outIdx,
           }
 
-          while (i + 1 < detail.messages.length) {
-            const next = detail.messages[i + 1]
+          while (i + 1 < messages.length) {
+            const next = messages[i + 1]
             const nextRole = normalizeRole(next.role)
             if (nextRole === 'user' || nextRole === 'system') break
 
@@ -395,6 +407,93 @@ export function useChatMessages({
     })
   }, [serviceUrl])
 
+  const handleToolApprovalRequest = useCallback((request: ToolApprovalRequest) => {
+    setMessages(prev => {
+      const newMessages = [...prev]
+      let targetIndex = newMessages.length - 1
+      const lastMsg = newMessages[targetIndex]
+
+      if (!lastMsg || lastMsg.role !== 'assistant') {
+        const assistantMsg: Message = {
+          id: `${Date.now()}-approval`,
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          status: 'streaming',
+          segments: [],
+          pendingToolCalls: new Map(),
+        }
+        newMessages.push(assistantMsg)
+        targetIndex = newMessages.length - 1
+      }
+
+      const targetMsg = newMessages[targetIndex]
+      const existing = targetMsg.pendingToolCalls.get(request.call_id)
+
+      const toolCall: ToolCall = existing
+        ? {
+            ...existing,
+            status: 'awaiting',
+            riskLevel: request.risk_level,
+            description: request.description,
+            requiresApproval: true,
+            arguments: request.args,
+          }
+        : {
+            id: request.call_id,
+            name: request.name,
+            status: 'awaiting',
+            riskLevel: request.risk_level,
+            description: request.description,
+            requiresApproval: true,
+            arguments: request.args,
+          }
+
+      if (!existing) {
+        targetMsg.segments.push({ type: 'tool', tool: toolCall })
+      } else {
+        targetMsg.segments = targetMsg.segments.map(segment => {
+          if (segment.type === 'tool' && segment.tool?.id === request.call_id) {
+            return { ...segment, tool: toolCall }
+          }
+          return segment
+        })
+      }
+
+      targetMsg.pendingToolCalls.set(request.call_id, toolCall)
+      newMessages[targetIndex] = targetMsg
+      return newMessages
+    })
+  }, [])
+
+  const handleToolApprovalDecision = useCallback((callId: string, approved: boolean) => {
+    setMessages(prev => {
+      const newMessages = [...prev]
+      for (let i = newMessages.length - 1; i >= 0; i--) {
+        const msg = newMessages[i]
+        if (msg.role !== 'assistant') continue
+        const tool = msg.pendingToolCalls.get(callId)
+        if (!tool) continue
+
+        const updatedTool: ToolCall = {
+          ...tool,
+          status: approved ? 'pending' : 'denied',
+        }
+
+        msg.pendingToolCalls.set(callId, updatedTool)
+        msg.segments = msg.segments.map(segment => {
+          if (segment.type === 'tool' && segment.tool?.id === callId) {
+            return { ...segment, tool: updatedTool }
+          }
+          return segment
+        })
+        newMessages[i] = { ...msg }
+        break
+      }
+      return newMessages
+    })
+  }, [])
+
   return {
     messages,
     setMessages,
@@ -402,5 +501,7 @@ export function useChatMessages({
     sending,
     sendMessage,
     cancel,
+    handleToolApprovalRequest,
+    handleToolApprovalDecision,
   }
 }
