@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import MarkdownRenderer from '../MarkdownRenderer'
 import DiffRenderer from '../DiffRenderer'
 import { cn } from '../../utils/cn'
@@ -8,9 +8,9 @@ import { filterToolCallTags } from './messageParsing'
 import ToolCallBlock from './ToolCallBlock'
 import TypingDots from './TypingDots'
 
-// 生成片段的唯一键
+// 生成片段的唯一键 - 使用 segment.id 保证流式输出时 key 稳定
 function getSegmentKey(segment: ContentSegment, idx: number): string {
-  return segment.id || `${segment.type}-${idx}`
+  return segment.id || `segment-${idx}`
 }
 
 // 推理内容组件
@@ -124,7 +124,7 @@ const PART_MAPPING: Record<string, React.FC<{ segment: ContentSegment; isLastStr
   },
 }
 
-export default function ChatMessageBubble({
+export default React.memo(function ChatMessageBubble({
   msg,
   onToolApprove,
   onToolDeny,
@@ -134,6 +134,7 @@ export default function ChatMessageBubble({
   onToolDeny?: (callId: string) => void
 }) {
   const isStreaming = msg.status === 'streaming'
+  const segments = msg.segments ?? []
   
   return (
     <div
@@ -158,14 +159,14 @@ export default function ChatMessageBubble({
             <div className="whitespace-pre-wrap wrap-break-word">{msg.content}</div>
           ) 
           // 等待响应
-          : msg.segments.length === 0 && isStreaming ? (
+          : segments.length === 0 && isStreaming ? (
             <TypingDots />
           ) 
           // 助手消息：按片段渲染
           : (
             <>
-              {msg.segments.map((segment, idx) => {
-                const isLastStreaming = isStreaming && idx === msg.segments.length - 1
+              {segments.map((segment, idx) => {
+                const isLastStreaming = isStreaming && idx === segments.length - 1
                 const PartComponent = PART_MAPPING[segment.type]
                 
                 if (PartComponent) {
@@ -203,7 +204,7 @@ export default function ChatMessageBubble({
               })}
               
               {/* 流式输出中的光标 */}
-              {msg.role === 'assistant' && isStreaming && msg.segments.length > 0 && (
+              {msg.role === 'assistant' && isStreaming && segments.length > 0 && (
                 <div className="mt-1">
                   <TypingDots />
                 </div>
@@ -214,4 +215,4 @@ export default function ChatMessageBubble({
       </div>
     </div>
   )
-}
+})

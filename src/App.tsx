@@ -13,6 +13,7 @@ export default function App() {
             /chat/:serverId/:serviceId/:sessionId - 完整的会话 URL
         */}
         <Route path="/" element={<MainPage />} />
+        <Route path="/chat/:sessionId" element={<ChatRoutePage />} />
         <Route path="/chat/:serverId/:serviceId" element={<ChatRoutePage />} />
         <Route path="/chat/:serverId/:serviceId/:sessionId" element={<ChatRoutePage />} />
       </Routes>

@@ -446,8 +446,16 @@ export default function AgentDetailPage() {
                   )}
                   
                   {/* Content */}
-                  <div className="whitespace-pre-wrap break-words">
-                    {msg.content || (msg.status === 'streaming' && <span className="animate-pulse">...</span>)}
+                  <div className="whitespace-pre-wrap break-words transition-opacity duration-200">
+                    {msg.content ? (
+                      <span className="animate-fade-in">{msg.content}</span>
+                    ) : (
+                      <span className="typing-indicator">
+                        <span className="typing-dot">·</span>
+                        <span className="typing-dot">·</span>
+                        <span className="typing-dot">·</span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

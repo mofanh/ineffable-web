@@ -44,16 +44,13 @@ export function useChatMessages({
 
         if (!lastMsg || lastMsg.role !== 'assistant') return prev
 
-        // 深拷贝 segments，避免直接修改原始状态
+        // 创建新的消息对象，确保 memo 组件能够感知到变化
         const updatedMsg: Message = {
           ...lastMsg,
-          segments: lastMsg.segments.map((seg): ContentSegment => ({
-            type: seg.type,
-            content: seg.content,
-            tool: seg.tool ? { ...seg.tool } : undefined,
-          })),
           pendingToolCalls: new Map(lastMsg.pendingToolCalls),
+          segments: lastMsg.segments,
         }
+        const updatedSegments = [...updatedMsg.segments]
 
         switch (event.type) {
           case 'delta':
@@ -62,16 +59,20 @@ export function useChatMessages({
             updatedMsg.content += delta
 
             // 更新最后一个文本片段，或添加新的文本片段
-            const lastIndex = updatedMsg.segments.length - 1
-            const lastSegment = lastIndex >= 0 ? updatedMsg.segments[lastIndex] : null
+            const lastIndex = updatedSegments.length - 1
+            const lastSegment = lastIndex >= 0 ? updatedSegments[lastIndex] : null
             if (lastSegment && lastSegment.type === 'text') {
-              updatedMsg.segments[lastIndex] = {
+              // 只更新最后一个 segment 的内容，其他保持不变
+              updatedSegments[lastIndex] = {
                 ...lastSegment,
                 content: (lastSegment.content || '') + delta,
               }
             } else {
-              updatedMsg.segments.push({ type: 'text', content: delta })
+              // 为新文本片段生成稳定 ID
+              const newSegmentId = `text-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+              updatedSegments.push({ type: 'text', id: newSegmentId, content: delta })
             }
+            updatedMsg.segments = updatedSegments
             break
           }
 
@@ -90,19 +91,20 @@ export function useChatMessages({
             updatedMsg.status = 'error'
             updatedMsg.content += `\n\n[${event.error || event.reason || '任务失败'}]`
             // 添加错误信息到最后一个文本片段
-            const lastIdx = updatedMsg.segments.length - 1
-            const lastSeg = lastIdx >= 0 ? updatedMsg.segments[lastIdx] : null
+            const lastIdx = updatedSegments.length - 1
+            const lastSeg = lastIdx >= 0 ? updatedSegments[lastIdx] : null
             if (lastSeg && lastSeg.type === 'text') {
-              updatedMsg.segments[lastIdx] = {
+              updatedSegments[lastIdx] = {
                 ...lastSeg,
                 content: (lastSeg.content || '') + `\n\n[${event.error || event.reason || '任务失败'}]`,
               }
             } else {
-              updatedMsg.segments.push({
+              updatedSegments.push({
                 type: 'text',
                 content: `\n\n[${event.error || event.reason || '任务失败'}]`,
               })
             }
+            updatedMsg.segments = updatedSegments
             setSending(false)
             currentTaskIdRef.current = null
             break
@@ -123,15 +125,17 @@ export function useChatMessages({
                   }
 
               if (!existingTool) {
-                updatedMsg.segments.push({ type: 'tool', tool: toolCall })
+                updatedSegments.push({ type: 'tool', tool: toolCall })
               } else {
-                updatedMsg.segments = updatedMsg.segments.map(segment => {
-                  if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
-                    return { ...segment, tool: toolCall }
-                  }
-                  return segment
-                })
+                // 找到对应的 segment 并更新
+                const segIndex = updatedSegments.findIndex(
+                  seg => seg.type === 'tool' && seg.tool?.id === event.call_id
+                )
+                if (segIndex >= 0) {
+                  updatedSegments[segIndex] = { ...updatedSegments[segIndex], tool: toolCall }
+                }
               }
+              updatedMsg.segments = updatedSegments
               updatedMsg.pendingToolCalls.set(event.call_id, toolCall)
             }
             break
@@ -145,12 +149,14 @@ export function useChatMessages({
                   status: 'completed' as const,
                   output: event.output,
                 }
-                updatedMsg.segments = updatedMsg.segments.map(segment => {
-                  if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
-                    return { ...segment, tool: completedTool }
-                  }
-                  return segment
-                })
+                // 找到对应的 segment 并更新
+                const segIndex = updatedSegments.findIndex(
+                  seg => seg.type === 'tool' && seg.tool?.id === event.call_id
+                )
+                if (segIndex >= 0) {
+                  updatedSegments[segIndex] = { ...updatedSegments[segIndex], tool: completedTool }
+                }
+                updatedMsg.segments = updatedSegments
                 updatedMsg.pendingToolCalls.delete(event.call_id)
               }
             }
@@ -174,12 +180,14 @@ export function useChatMessages({
 
                 updatedMsg.pendingToolCalls.set(event.call_id, updatedTool)
 
-                updatedMsg.segments = updatedMsg.segments.map(segment => {
-                  if (segment.type === 'tool' && segment.tool?.id === event.call_id) {
-                    return { ...segment, tool: updatedTool }
-                  }
-                  return segment
-                })
+                // 找到对应的 segment 并更新
+                const segIndex = updatedSegments.findIndex(
+                  seg => seg.type === 'tool' && seg.tool?.id === event.call_id
+                )
+                if (segIndex >= 0) {
+                  updatedSegments[segIndex] = { ...updatedSegments[segIndex], tool: updatedTool }
+                }
+                updatedMsg.segments = updatedSegments
               }
             }
             break
@@ -266,6 +274,9 @@ export function useChatMessages({
             role: 'assistant',
             content: m.content,
             timestamp: msgTimestamp || baseNow + outIdx,
+            status: 'completed' as const,
+            segments: parseMessageContent(m.content),
+            pendingToolCalls: new Map(),
           }
 
           while (i + 1 < messages.length) {
@@ -344,7 +355,7 @@ export function useChatMessages({
         content: '',
         timestamp: Date.now(),
         status: 'streaming',
-        segments: [],
+        segments: [{ type: 'text', id: `text-${Date.now()}-init`, content: '' }],
         pendingToolCalls: new Map(),
       }
 
@@ -367,8 +378,11 @@ export function useChatMessages({
           const newMessages = [...prev]
           const last = newMessages[newMessages.length - 1]
           if (last && last.role === 'assistant') {
-            last.status = 'error'
-            last.content = `发送失败: ${(err as Error).message}`
+            newMessages[newMessages.length - 1] = {
+              ...last,
+              status: 'error',
+              content: `发送失败: ${(err as Error).message}`,
+            }
           }
           return newMessages
         })
@@ -400,8 +414,11 @@ export function useChatMessages({
       const newMessages = [...prev]
       const last = newMessages[newMessages.length - 1]
       if (last && last.role === 'assistant') {
-        last.status = 'error'
-        last.content += '\n\n[已取消]'
+        newMessages[newMessages.length - 1] = {
+          ...last,
+          status: 'error',
+          content: `${last.content}\n\n[已取消]`,
+        }
       }
       return newMessages
     })

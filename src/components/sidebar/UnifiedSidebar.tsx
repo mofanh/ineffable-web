@@ -162,8 +162,8 @@ const UnifiedSidebar = forwardRef<SidebarHandle, SidebarProps>(function UnifiedS
     if (!confirm(`确定要删除会话 "${session.name || session.id.slice(0, 8)}" 吗？`)) return
     
     try {
-      const { deleteSession } = await import('../../api/services')
-      await deleteSession(selectedServer.url, session.id)
+      const { permanentDeleteSession } = await import('../../api/services')
+      await permanentDeleteSession(selectedServer.url, session.id)
       setDirectSessions(prev => prev?.filter(s => s.id !== session.id))
     } catch (err) {
       alert(`删除会话失败: ${(err as Error).message}`)

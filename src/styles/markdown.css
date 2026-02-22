@@ -98,7 +98,8 @@
   position: relative;
 }
 
-.dark .markdown-body pre {
+.dark .markdown-body pre,
+.markdown-body.dark pre {
   background: var(--shiki-bg, #0d1117);
 }
 
@@ -113,7 +114,8 @@
   border: 1px solid var(--border-weak-base);
 }
 
-.dark .markdown-body pre.shiki {
+.dark .markdown-body pre.shiki,
+.markdown-body.dark pre.shiki {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -135,9 +137,11 @@
   background-color: var(--shiki-light-bg, transparent);
 }
 
-/* 深色模式切换 - 必须放在 .markdown-body 外面才能生效 */
+/* 深色模式切换 */
 .dark pre.shiki span,
-pre.shiki.dark span {
+pre.shiki.dark span,
+.dark .markdown-body pre.shiki span,
+.markdown-body.dark pre.shiki span {
   color: var(--shiki-dark-color) !important;
   background-color: var(--shiki-dark-bg) !important;
 }
@@ -177,7 +181,9 @@ pre.shiki.dark span {
 .dark .markdown-body pre::before,
 .dark .markdown-body pre.shiki[data-lang]::before,
 .markdown-body[data-theme="dark"] pre::before,
-.markdown-body[data-theme="dark"] pre.shiki[data-lang]::before {
+.markdown-body[data-theme="dark"] pre.shiki[data-lang]::before,
+.markdown-body.dark pre::before,
+.markdown-body.dark pre.shiki[data-lang]::before {
   color: var(--text-weak, #808080);
   background: rgba(255, 255, 255, 0.1);
 }
@@ -189,7 +195,8 @@ pre.shiki.dark span {
   color: #24292e !important;
 }
 
-.dark .markdown-body pre.shiki-placeholder {
+.dark .markdown-body pre.shiki-placeholder,
+.markdown-body.dark pre.shiki-placeholder {
   background-color: #0d1117 !important;
   color: #c9d1d9 !important;
 }
@@ -282,7 +289,8 @@ pre.shiki.dark span {
 
 /* ========== 深色模式 ========== */
 .dark .markdown-body,
-.markdown-body[data-theme="dark"] {
+.markdown-body[data-theme="dark"],
+.markdown-body.dark {
   color: #eeeeee;
 }
 
@@ -304,7 +312,13 @@ pre.shiki.dark span {
 .markdown-body[data-theme="dark"] h3,
 .markdown-body[data-theme="dark"] h4,
 .markdown-body[data-theme="dark"] h5,
-.markdown-body[data-theme="dark"] h6 {
+.markdown-body[data-theme="dark"] h6,
+.markdown-body.dark h1,
+.markdown-body.dark h2,
+.markdown-body.dark h3,
+.markdown-body.dark h4,
+.markdown-body.dark h5,
+.markdown-body.dark h6 {
   color: #f5a742;
 }
 
@@ -325,7 +339,8 @@ pre.shiki.dark span {
 }
 
 .dark .markdown-body :not(pre) > code,
-.markdown-body[data-theme="dark"] :not(pre) > code {
+.markdown-body[data-theme="dark"] :not(pre) > code,
+.markdown-body.dark :not(pre) > code {
   background-color: rgba(255, 255, 255, 0.1);
   color: #7fd88f;
 }
@@ -333,31 +348,38 @@ pre.shiki.dark span {
 .dark .markdown-body pre,
 .dark .markdown-body pre.shiki,
 .markdown-body[data-theme="dark"] pre,
-.markdown-body[data-theme="dark"] pre.shiki {
+.markdown-body[data-theme="dark"] pre.shiki,
+.markdown-body.dark pre,
+.markdown-body.dark pre.shiki {
   background: #0d0d1a;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
 .dark .markdown-body blockquote,
-.markdown-body[data-theme="dark"] blockquote {
+.markdown-body[data-theme="dark"] blockquote,
+.markdown-body.dark blockquote {
   background: rgba(255, 255, 255, 0.05);
   border-color: #e5c07b;
 }
 
 .dark .markdown-body a,
-.markdown-body[data-theme="dark"] a {
+.markdown-body[data-theme="dark"] a,
+.markdown-body.dark a {
   color: #fab283;
 }
 
 .dark .markdown-body th,
 .dark .markdown-body td,
 .markdown-body[data-theme="dark"] th,
-.markdown-body[data-theme="dark"] td {
+.markdown-body[data-theme="dark"] td,
+.markdown-body.dark th,
+.markdown-body.dark td {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
 .dark .markdown-body li::marker,
-.markdown-body[data-theme="dark"] li::marker {
+.markdown-body[data-theme="dark"] li::marker,
+.markdown-body.dark li::marker {
   color: #808080;
 }
 

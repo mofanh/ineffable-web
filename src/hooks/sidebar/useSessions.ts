@@ -5,7 +5,7 @@ import type { Server, Service, Session } from '../../types'
 import { 
   listSessions, 
   createSession, 
-  deleteSession, 
+  permanentDeleteSession, 
   updateSession,
   buildServiceUrl 
 } from '../../api/services'
@@ -155,7 +155,7 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
     if (!selectedServer) return
     try {
       const serviceUrl = buildServiceUrl(selectedServer.url, service.port)
-      await deleteSession(serviceUrl, session.id)
+      await permanentDeleteSession(serviceUrl, session.id)
       setServices(prev => prev.map(s => 
         s.id === service.id ? { ...s, sessions: s.sessions.filter(sess => sess.id !== session.id) } : s
       ))
@@ -232,7 +232,7 @@ export function useSessions(options: UseSessionsOptions): UseSessionsReturn {
     if (!selectedServer) return
     if (directSessionsVirtual) return
     try {
-      await deleteSession(selectedServer.url, session.id)
+      await permanentDeleteSession(selectedServer.url, session.id)
       setDirectSessions(prev => prev?.filter(s => s.id !== session.id))
     } catch (err) {
       throw err

@@ -94,7 +94,11 @@ export default function MainPage({
     if (!patch) return
     setSelectedSession(prev => {
       if (!prev || prev.id !== sessionId) return prev
-      return { ...prev, name: patch.name ?? prev.name, createdAt: patch.createdAt ?? prev.createdAt }
+      return {
+        ...prev,
+        title: patch.title ?? prev.title,
+        created_at: patch.created_at ?? prev.created_at,
+      }
     })
   }, [serviceUrl])
 

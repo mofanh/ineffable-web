@@ -56,23 +56,34 @@ interface Props {
   expand?: boolean
 }
 
-export default function MarkdownRenderer({ content, className = '', expand = false }: Props) {
-  // 初始化时同步检测主题，避免闪烁
-  const [isDark, setIsDark] = useState(() => {
-    return document.documentElement.classList.contains('dark')
-  })
-  const [expanded, setExpanded] = useState(expand)
+function MarkdownRenderer({ content, className = '', expand = false }: Props) {
+  // 使用 ref 而非 state 来检测主题，避免重新渲染导致的闪烁
   const containerRef = useRef<HTMLDivElement>(null)
-  const [highlighted, setHighlighted] = useState(false)
+  const isDarkRef = useRef(false)
+  const [expanded, setExpanded] = useState(expand)
+  const highlightedRef = useRef(false)
 
-  // 检测主题
+  // 检测主题变化 - 使用 ref 而非 state 避免重新渲染
   useEffect(() => {
     const checkTheme = () => {
       const darkMode = document.documentElement.classList.contains('dark')
-      setIsDark(darkMode)
+      if (isDarkRef.current !== darkMode) {
+        isDarkRef.current = darkMode
+        // 主题变化时，重新高亮代码块
+        highlightedRef.current = false
+        if (containerRef.current) {
+          const preElements = containerRef.current.querySelectorAll('pre.shiki')
+          for (const pre of Array.from(preElements)) {
+            pre.classList.remove('shiki')
+            pre.classList.add('shiki-placeholder')
+          }
+        }
+      }
     }
     
+    // 立即检查一次
     checkTheme()
+    
     const observer = new MutationObserver(checkTheme)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     
@@ -83,27 +94,26 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
   useEffect(() => {
     if (!content || !containerRef.current) return
 
+    let mounted = true
+
     const processCodeBlocks = async () => {
       const container = containerRef.current
-      if (!container) return
+      if (!container || !mounted) return
 
       // 获取所有需要处理的代码块：占位符或需要更新的已高亮块
-      const selectors = ['pre.shiki-placeholder']
-      if (highlighted) {
-        // 如果已经高亮过，主题变化时需要重新高亮
-        selectors.push('pre.shiki[data-code]')
-      }
+      const needHighlight = container.querySelectorAll('pre.shiki-placeholder, pre.shiki[data-code]')
       
-      const preElements = container.querySelectorAll(selectors.join(', '))
-      if (!preElements || preElements.length === 0) {
-        setHighlighted(true)
+      if (needHighlight.length === 0) {
+        highlightedRef.current = true
         return
       }
 
       try {
         const hl = await getHighlighter()
 
-        for (const pre of Array.from(preElements)) {
+        for (const pre of Array.from(needHighlight)) {
+          if (!mounted) return
+
           // 获取原始代码
           const code = pre.getAttribute('data-code') 
             ? decodeURIComponent(pre.getAttribute('data-code')!)
@@ -122,7 +132,7 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
             pre.replaceWith(span)
           } else {
             // 代码块使用 shiki 高亮，根据当前主题选择
-            const theme = isDark ? 'github-dark' : 'github-light'
+            const theme = isDarkRef.current ? 'github-dark' : 'github-light'
             const highlightedHtml = hl.codeToHtml(code, {
               lang,
               theme,
@@ -139,19 +149,23 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
             }
           }
         }
-        setHighlighted(true)
+        highlightedRef.current = true
       } catch (error) {
         console.error('Shiki highlight error:', error)
         // 回退到普通渲染
         for (const pre of Array.from(container.querySelectorAll('pre.shiki-placeholder, pre.shiki'))) {
           pre.classList.remove('shiki-placeholder')
         }
-        setHighlighted(true)
+        highlightedRef.current = true
       }
     }
 
     processCodeBlocks()
-  }, [content, isDark])
+
+    return () => {
+      mounted = false
+    }
+  }, [content])
 
   // 渲染 markdown
   const html = useMemo(() => {
@@ -169,15 +183,21 @@ export default function MarkdownRenderer({ content, className = '', expand = fal
     })
   }, [html])
 
-  const themeClass = isDark ? 'dark' : ''
+  const themeClass = isDarkRef.current ? 'dark' : ''
 
   return (
     <div 
       ref={containerRef}
       className={`markdown-body ${themeClass} ${className}`}
       data-expanded={expanded || undefined}
-      data-highlighted={highlighted || undefined}
+      data-highlighted={highlightedRef.current || undefined}
       dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
     />
   )
 }
+
+// 使用 memo 避免不必要的重新渲染
+const MemoizedMarkdownRenderer = React.memo(MarkdownRenderer)
+MemoizedMarkdownRenderer.displayName = 'MarkdownRenderer'
+
+export { MemoizedMarkdownRenderer as default }
