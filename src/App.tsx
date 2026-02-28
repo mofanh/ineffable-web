@@ -9,52 +9,16 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { ChatInterface } from "@/components/chat-interface"
+import { defaultPath, getRouteMeta } from "@/routes/navigation"
+import { Fragment } from "react"
+import { Link, Outlet, useLocation } from "react-router-dom"
 
-// Sample messages for demo
-const initialMessages = [
-  {
-    id: "1",
-    role: "user" as const,
-    content: "请拆分任务 #102，按优先级给出执行计划。",
-    senderName: "You",
-    timestamp: "10:21",
-  },
-  {
-    id: "2",
-    role: "agent" as const,
-    content: "已拆分为 4 个子任务，等待你确认优先级。",
-    senderName: "planner-A",
-    timestamp: "10:22",
-    needsHumanInput: true,
-  },
-  {
-    id: "3",
-    role: "agent" as const,
-    content: "API 已连通，是否现在切换 CLI 到纯 HTTP 模式？",
-    senderName: "worker-B",
-    timestamp: "10:24",
-    needsHumanInput: true,
-  },
-]
-
-const agents = [
-  { name: "planner-A", role: "Planner", status: "Online", task: "分解任务 #102", lastHeartbeat: "10 秒前" },
-  { name: "worker-B", role: "Worker", status: "Busy", task: "实现 world HTTP client", lastHeartbeat: "25 秒前" },
-  { name: "worker-C", role: "Worker", status: "Offline", task: "等待任务", lastHeartbeat: "8 分钟前" },
-]
-
-const events = [
-  "10:21 planner-A online",
-  "10:22 task#88 started",
-  "10:24 task#88 failed",
-  "10:25 human replied",
-]
 
 export function App() {
+  const { pathname } = useLocation()
+  const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
+  const breadcrumbs = routeMeta?.breadcrumbs ?? [{ label: "World 控制台" }]
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -68,36 +32,37 @@ export function App() {
             />
             <Breadcrumb>
               <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">World 控制台</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>协作总览</BreadcrumbPage>
-                </BreadcrumbItem>
+                {breadcrumbs.map((crumb, index) => {
+                  const isLast = index === breadcrumbs.length - 1
+
+                  return (
+                    <Fragment key={`${crumb.label}-${index}`}>
+                      <BreadcrumbItem>
+                        {isLast ? (
+                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        ) : crumb.path ? (
+                          <BreadcrumbLink asChild>
+                            <Link to={crumb.path}>{crumb.label}</Link>
+                          </BreadcrumbLink>
+                        ) : (
+                          <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                        )}
+                      </BreadcrumbItem>
+                      {!isLast ? <BreadcrumbSeparator /> : null}
+                    </Fragment>
+                  )
+                })}
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">World: dev-local-01</span>
-            <Badge variant="secondary">Connected</Badge>
-            <Badge variant="outline">未处理提问: 3</Badge>
-            <Button variant="outline">刷新</Button>
-            <Button>发送消息</Button>
-          </div>
         </header>
 
-       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-            <div className="bg-muted/50 aspect-video rounded-xl" />
-          </div>
-          <div className="bg-muted/50 min-h-screen flex-1 rounded-xl md:min-h-min" />
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <Outlet />
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }
 
 export default App
