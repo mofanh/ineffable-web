@@ -17,6 +17,7 @@ type ModuleDashboardPageProps = {
   subtitle: string
   metrics: [Metric, Metric, Metric]
   highlights: string[]
+  children?: React.ReactNode
 }
 
 export function ModuleDashboardPage({
@@ -24,6 +25,7 @@ export function ModuleDashboardPage({
   subtitle,
   metrics,
   highlights,
+  children,
 }: ModuleDashboardPageProps) {
   return (
     <>
@@ -56,6 +58,8 @@ export function ModuleDashboardPage({
           </ul>
         </CardContent>
       </Card>
+
+      {children}
     </>
   )
 }
