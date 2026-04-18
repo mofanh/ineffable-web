@@ -64,7 +64,7 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
 }) {
   const isMobile = useIsMobile()
-  const [openMobile, setOpenMobile] = React.useState(false)
+  const [openMobile, setOpenMobileState] = React.useState(false)
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -84,6 +84,23 @@ function SidebarProvider({
     },
     [setOpenProp, open]
   )
+
+  const setOpenMobile = React.useCallback(
+    (value: boolean | ((value: boolean) => boolean)) => {
+      const openState = typeof value === "function" ? value(openMobile) : value
+      setOpenMobileState(openState)
+      setOpen(openState)
+    },
+    [openMobile, setOpen]
+  )
+
+  React.useEffect(() => {
+    if (!isMobile || openProp === undefined) {
+      return
+    }
+
+    setOpenMobileState(open)
+  }, [isMobile, open, openProp])
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
@@ -150,6 +167,7 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  mobileMode = "drawer",
   className,
   children,
   dir,
@@ -158,6 +176,7 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  mobileMode?: "drawer" | "full"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
@@ -177,6 +196,11 @@ function Sidebar({
   }
 
   if (isMobile) {
+    const mobileDrawerClass =
+      "data-[side=left]:w-[min(var(--sidebar-width),calc(100vw-1.5rem))] data-[side=right]:w-[min(var(--sidebar-width),calc(100vw-1.5rem))] data-[side=left]:max-w-[calc(100vw-1.5rem)] data-[side=right]:max-w-[calc(100vw-1.5rem)] data-[side=left]:rounded-r-2xl data-[side=right]:rounded-l-2xl"
+    const mobileFullClass =
+      "data-[side=left]:w-screen data-[side=right]:w-screen data-[side=left]:max-w-none data-[side=right]:max-w-none rounded-none border-0"
+
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
@@ -184,7 +208,10 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+          className={cn(
+            "bg-sidebar text-sidebar-foreground p-0 [&>button]:hidden",
+            mobileMode === "full" ? mobileFullClass : mobileDrawerClass
+          )}
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -286,7 +313,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
+        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:inset-s-1/2 after:w-0.5 sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",

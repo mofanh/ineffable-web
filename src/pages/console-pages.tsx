@@ -1,343 +1,142 @@
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
-import { useWorldDashboardSummary } from "@/hooks/use-world-dashboard"
-import type { Message } from "@/lib/world-api"
-import { getMessageThread, replyToMessage } from "@/lib/world-api"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
-function formatMetricValue(value: number, suffix = "") {
-  return `${value}${suffix}`
+function createStaticMetrics(context: string) {
+  return [
+    {
+      label: "状态",
+      value: "静态页",
+      detail: `${context} 已移除旧后端依赖`,
+    },
+    {
+      label: "右侧栏",
+      value: "Chat",
+      detail: "默认由 RightSidebar 承载",
+    },
+    {
+      label: "数据源",
+      value: "Gateway",
+      detail: "仅保留 chat 请求",
+    },
+  ] as const
 }
 
-function useWorldCommonHighlights() {
-  const {
-    isLoading,
-    error,
-    streamConnected,
-    summary,
-    pendingHumanMessages,
-  } = useWorldDashboardSummary()
-
-  const statusText = isLoading
-    ? "World API 数据加载中..."
-    : error
-      ? "World API 部分接口异常，请检查服务状态或跨域配置。"
-      : "World API 数据已接入并可用于页面决策。"
-
-  const streamText = streamConnected
-    ? `SSE 已连接，最新事件：${summary.latestStream?.event ?? "暂无"}`
-    : "SSE 未连接，页面当前展示最近一次拉取的数据快照。"
-
-  return {
-    isLoading,
-    error,
-    summary,
-    statusText,
-    streamText,
-    pendingHumanMessages,
-  }
-}
-
-function getMessageKind(message: Message) {
-  return message.message_type ?? message.msg_type ?? "system"
-}
-
-function formatDate(isoDate?: string | null) {
-  if (!isoDate) {
-    return "--"
-  }
-
-  const date = new Date(isoDate)
-
-  if (Number.isNaN(date.getTime())) {
-    return "--"
-  }
-
-  return date.toLocaleString("zh-CN", {
-    hour12: false,
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+function DeprecatedBackendNotice({
+  title,
+  subtitle,
+  context,
+}: {
+  title: string
+  subtitle: string
+  context: string
+}) {
+  return (
+    <ModuleDashboardPage
+      title={title}
+      subtitle={subtitle}
+      metrics={[...createStaticMetrics(context)]}
+      highlights={[
+        "旧的 world / cli / runtime 后端调用已从前端移除。",
+        "当前项目只保留 RightSidebar chat 使用的 gateway 请求。",
+        "如果后续有新的页面数据源，建议按页面功能重新建立 feature API，而不是恢复平铺旧接口。",
+      ]}
+    >
+      <Card className="bg-muted/50">
+        <CardHeader>
+          <CardTitle className="text-base">当前状态</CardTitle>
+          <CardDescription>{context}</CardDescription>
+        </CardHeader>
+        <CardContent className="text-muted-foreground text-sm leading-6">
+          页面保留路由入口和说明文案，避免继续引用已废弃的后端接口。
+        </CardContent>
+      </Card>
+    </ModuleDashboardPage>
+  )
 }
 
 export function ConsoleWorldHomePage() {
-  const { summary, statusText, streamText } = useWorldCommonHighlights()
-
   return (
-    <ModuleDashboardPage
+    <DeprecatedBackendNotice
       title="World 控制台"
-      subtitle="控制台总览页（实时对接 world REST + SSE）。"
-      metrics={[
-        {
-          label: "Agent 总数",
-          value: formatMetricValue(summary.totalAgents),
-          detail: "来自 GET /api/agents",
-        },
-        {
-          label: "运行中 Agent",
-          value: formatMetricValue(summary.runningAgents),
-          detail: "状态为 running",
-        },
-        {
-          label: "待处理消息",
-          value: formatMetricValue(summary.pendingHumanMessages),
-          detail: "来自 GET /api/messages/human/pending",
-        },
-      ]}
-      highlights={[
-        statusText,
-        streamText,
-        `今日事件数：${summary.todayEvents}（GET /api/events）`,
-      ]}
+      subtitle="控制台首页已切到静态说明，右侧栏继续承载常驻 chat。"
+      context="原世界状态总览、事件流和消息列表依赖的接口已经废弃。"
     />
   )
 }
 
 export function CollaborationOverviewPage() {
-  const { summary, statusText, streamText } = useWorldCommonHighlights()
-
   return (
-    <ModuleDashboardPage
+    <DeprecatedBackendNotice
       title="协作总览"
-      subtitle="聚焦协作链路与人机消息处理节奏。"
-      metrics={[
-        {
-          label: "待处理人类消息",
-          value: formatMetricValue(summary.pendingHumanMessages),
-          detail: "协作待办入口",
-        },
-        {
-          label: "Busy Agent",
-          value: formatMetricValue(summary.busyAgents),
-          detail: "状态为 busy",
-        },
-        {
-          label: "Idle Agent",
-          value: formatMetricValue(summary.idleAgents),
-          detail: "状态为 idle",
-        },
-      ]}
-      highlights={[
-        statusText,
-        streamText,
-        `最近事件：${summary.latestEvent?.event_type ?? "暂无"} ${summary.latestEvent?.message ?? ""}`,
-      ]}
+      subtitle="协作页暂时只保留入口说明。"
+      context="原协作总览依赖的 world 数据聚合接口已经下线。"
     />
   )
 }
 
 export function RealtimeTasksPage() {
-  const { summary, statusText, streamText, pendingHumanMessages } = useWorldCommonHighlights()
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null)
-  const [threadMessages, setThreadMessages] = useState<Message[]>([])
-  const [threadLoading, setThreadLoading] = useState(false)
-  const [threadError, setThreadError] = useState<string | null>(null)
-  const [replyText, setReplyText] = useState("")
-  const [sendingReply, setSendingReply] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-
-  const recentMessages = useMemo(
-    () => pendingHumanMessages.slice(0, 6),
-    [pendingHumanMessages]
-  )
-
-  const activeMessageId = selectedMessageId ?? recentMessages[0]?.id ?? null
-
-  const loadThread = useCallback(async (messageId: string) => {
-    setThreadLoading(true)
-    setThreadError(null)
-
-    try {
-      const messages = await getMessageThread(messageId)
-      setThreadMessages(messages)
-    } catch {
-      setThreadError("线程加载失败，请稍后重试。")
-      setThreadMessages([])
-    } finally {
-      setThreadLoading(false)
-    }
-  }, [])
-
-  const handleSendReply = useCallback(async () => {
-    if (!activeMessageId || !replyText.trim() || sendingReply) {
-      return
-    }
-
-    setSendingReply(true)
-    setSendError(null)
-
-    try {
-      const newMessage = await replyToMessage(activeMessageId, replyText.trim())
-      setThreadMessages((prev) => [...prev, newMessage])
-      setReplyText("")
-    } catch {
-      setSendError("回复发送失败，请稍后重试。")
-    } finally {
-      setSendingReply(false)
-    }
-  }, [activeMessageId, replyText, sendingReply])
-
-  useEffect(() => {
-    if (!activeMessageId) {
-      return
-    }
-
-    void loadThread(activeMessageId)
-  }, [activeMessageId, loadThread])
-
   return (
-    <ModuleDashboardPage
+    <DeprecatedBackendNotice
       title="实时任务"
-      subtitle="以消息流与状态变更观察实时任务推进。"
-      metrics={[
-        {
-          label: "NewMessage 事件",
-          value: formatMetricValue(
-            summary.latestStream?.event === "NewMessage" ? 1 : 0
-          ),
-          detail: "最近一条 SSE 是否为新消息",
-        },
-        {
-          label: "Busy Agent",
-          value: formatMetricValue(summary.busyAgents),
-          detail: "可近似视为处理中任务",
-        },
-        {
-          label: "总事件量",
-          value: formatMetricValue(summary.totalEvents),
-          detail: "来自 GET /api/events",
-        },
-      ]}
-      highlights={[
-        statusText,
-        streamText,
-        "已支持点击待处理消息并加载 /api/messages/{id}/thread 线程详情。",
-      ]}
-    >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-muted/50">
-          <CardHeader>
-            <CardTitle className="text-base">待处理消息</CardTitle>
-            <CardDescription>来源：GET /api/messages/human/pending（最多展示 6 条）</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {recentMessages.length === 0 ? (
-              <p className="text-muted-foreground text-sm">当前没有待处理消息。</p>
-            ) : (
-              recentMessages.map((message) => {
-                const isActive = activeMessageId === message.id
-
-                return (
-                  <Button
-                    key={message.id}
-                    variant={isActive ? "secondary" : "outline"}
-                    className="h-auto w-full justify-start px-3 py-2"
-                    onClick={() => setSelectedMessageId(message.id)}
-                  >
-                    <div className="flex w-full flex-col items-start gap-1 text-left">
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {getMessageKind(message)} · {formatDate(message.created_at)}
-                      </span>
-                      <span className="line-clamp-1 w-full text-sm font-medium">{message.subject}</span>
-                    </div>
-                  </Button>
-                )
-              })
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-muted/50">
-          <CardHeader>
-            <CardTitle className="text-base">线程详情</CardTitle>
-            <CardDescription>来源：GET /api/messages/{'{id}'}/thread</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {threadLoading ? (
-              <p className="text-muted-foreground text-sm">正在加载线程...</p>
-            ) : threadError ? (
-              <p className="text-destructive text-sm">{threadError}</p>
-            ) : threadMessages.length === 0 ? (
-              <p className="text-muted-foreground text-sm">请选择一条消息查看线程。</p>
-            ) : (
-              <ul className="space-y-3 max-h-75 overflow-y-auto">
-                {threadMessages.map((message) => (
-                  <li key={message.id} className="rounded-md border p-3">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {getMessageKind(message)} · {message.from_type} → {message.to_type}
-                    </p>
-                    <p className="mt-1 text-sm font-medium">{message.subject}</p>
-                    <p className="text-muted-foreground mt-1 text-sm leading-6">{message.body}</p>
-                    <p className="text-muted-foreground mt-2 text-xs">{formatDate(message.created_at)}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {activeMessageId && (
-              <div className="flex flex-col gap-2 border-t pt-4">
-                <Textarea
-                  placeholder="输入回复内容..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  rows={3}
-                  disabled={sendingReply}
-                />
-                {sendError && <p className="text-destructive text-xs">{sendError}</p>}
-                <Button
-                  size="sm"
-                  onClick={handleSendReply}
-                  disabled={!replyText.trim() || sendingReply}
-                >
-                  {sendingReply ? "发送中..." : "发送回复"}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </ModuleDashboardPage>
+      subtitle="实时任务页已去掉旧线程和回复逻辑。"
+      context="原消息线程、待处理消息与回复接口已经废弃。"
+    />
   )
 }
 
 export function ResourceBoardPage() {
-  const { summary, statusText, streamText } = useWorldCommonHighlights()
+  return (
+    <DeprecatedBackendNotice
+      title="资源看板"
+      subtitle="资源看板页暂时不再请求后端。"
+      context="原 Agent 运行状态与事件统计接口已经废弃。"
+    />
+  )
+}
+
+export function CliDirectPage({ chatOnly = false }: { chatOnly?: boolean }) {
+  const content = (
+    <Card className="bg-muted/50">
+      <CardHeader>
+        <CardTitle className="text-base">CLI Runtime 已移除</CardTitle>
+        <CardDescription>旧的 CLI 直连和 SSE 事件渲染已下线。</CardDescription>
+      </CardHeader>
+      <CardContent className="text-muted-foreground text-sm leading-6">
+        当前保留的对话入口只有右侧栏 chat。后续如果需要新的 CLI 能力，建议基于现存路由重新设计接口和前端状态，而不是恢复旧实现。
+      </CardContent>
+    </Card>
+  )
+
+  if (chatOnly) {
+    return content
+  }
 
   return (
     <ModuleDashboardPage
-      title="资源看板"
-      subtitle="从 Agent 运行模式与稳定性观察资源分配。"
-      metrics={[
-        {
-          label: "Persistent Agent",
-          value: formatMetricValue(summary.persistentAgents),
-          detail: "run_mode = persistent",
-        },
-        {
-          label: "On-demand Agent",
-          value: formatMetricValue(summary.onDemandAgents),
-          detail: "run_mode = on_demand",
-        },
-        {
-          label: "异常 Agent",
-          value: formatMetricValue(summary.errorAgents),
-          detail: "status = error",
-        },
-      ]}
+      title="CLI 直连"
+      subtitle="旧 CLI runtime 调试页已退场。"
+      metrics={[...createStaticMetrics("CLI runtime 相关后端已废弃")]}
       highlights={[
-        statusText,
-        streamText,
-        `Planner / Worker 分布：${summary.plannerAgents} / ${summary.workerAgents}`,
+        "CLI health、runtime input、runtime events 已从前端删除。",
+        "默认对话入口迁回 RightSidebar。",
+        "后续如需恢复 CLI 能力，建议独立成新 feature。",
       ]}
+    >
+      {content}
+    </ModuleDashboardPage>
+  )
+}
+
+export function CliChatPage() {
+  return <CliDirectPage chatOnly />
+}
+
+export function ApiDebugPage() {
+  return (
+    <DeprecatedBackendNotice
+      title="接口调试"
+      subtitle="旧的 world 调试接口已移除。"
+      context="outputs/batch、heartbeat 和 agent 列表接口已经废弃。"
     />
   )
 }

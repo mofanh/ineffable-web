@@ -2,6 +2,9 @@ import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import App from "@/App"
 import {
+  ApiDebugPage,
+  CliChatPage,
+  CliDirectPage,
   CollaborationOverviewPage,
   ConsoleWorldHomePage,
   RealtimeTasksPage,
@@ -41,6 +44,9 @@ const routeElements: Record<string, React.ReactElement> = {
   "/console/world/collaboration": <CollaborationOverviewPage />,
   "/console/world/tasks": <RealtimeTasksPage />,
   "/console/world/resources": <ResourceBoardPage />,
+  "/console/world/cli-direct": <CliDirectPage />,
+  "/console/world/cli-chat": <CliChatPage />,
+  "/console/world/api-debug": <ApiDebugPage />,
   "/models": <ModelCenterPage />,
   "/models/genesis": <GenesisPage />,
   "/models/explorer": <ExplorerPage />,
