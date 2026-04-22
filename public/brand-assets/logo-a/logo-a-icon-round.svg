@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <!-- Logo A: 道·路径 - 圆形 App Icon -->
+  <title>Ineffable Logo A - 道·路径 App Icon</title>
+  <desc>80x80 圆形应用图标</desc>
+  
+  <!-- 外圈 -->
+  <circle cx="40" cy="40" r="36" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+  
+  <!-- 核心符号 -->
+  <circle cx="40" cy="40" r="4" fill="none" stroke="#1a1a1a" stroke-width="1.5"/>
+  <path d="M44 40 Q 52 39, 58 37 T 68 35" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="69" cy="34" r="2" fill="#1a1a1a"/>
+</svg>

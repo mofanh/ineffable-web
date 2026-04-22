@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <!-- Logo C: 道·周行 - 浅色模式 -->
+  <title>Ineffable Logo C - 道·周行</title>
+  <desc>独立而不改，周行而不殆。圆环无缺，智慧自洽。</desc>
+  
+  <g fill="none" stroke="#1a1a1a">
+    <!-- 主环 -->
+    <circle cx="40" cy="40" r="28" stroke-width="2"/>
+    <!-- 缺口（右上角） -->
+    <path d="M64 28 A 20 20 0 0 1 68 38" stroke-width="2" stroke-linecap="round"/>
+    <!-- 中心点 -->
+    <circle cx="40" cy="40" r="3" fill="#1a1a1a" stroke="none"/>
+  </g>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Logo A: 道·路径 - 深色模式 -->
+  <title>Ineffable Logo A - 道·路径 (Dark)</title>
+  <desc>一画开天，从无到有。起点即终点，路径即意义。</desc>
+  
+  <g fill="white" stroke="white">
+    <circle cx="44" cy="62" r="8" fill="none" stroke="white" stroke-width="2.4"/>
+    <path d="M52 62 C 68 62, 80 58, 90 52 S 108 40, 118 34" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="122" cy="32.5" r="3.4" fill="white"/>
+    <path d="M128 31 L 136 27.5" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+  </g>
+</svg>

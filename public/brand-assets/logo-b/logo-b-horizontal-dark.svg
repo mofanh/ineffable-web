@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 30">
+  <!-- Logo B: 道·交汇 - 横向组合 深色模式 -->
+  <title>Ineffable Logo B - 道·交汇 (Dark)</title>
+  <desc>Symbol + Wordmark 横向组合 深色模式</desc>
+  
+  <!-- Symbol -->
+  <g transform="translate(6, 6)">
+    <path d="M0 0 Q 6 6, 10 9" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M20 9 Q 16 6, 10 9" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+    <circle cx="10" cy="9" r="1.5" fill="white"/>
+    <path d="M10 9 Q 12 9, 16 9" fill="none" stroke="white" stroke-width="0.8" stroke-linecap="round" stroke-dasharray="1.5 1.5"/>
+  </g>
+  
+  <!-- Wordmark -->
+  <text x="30" y="21" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8" font-weight="500" fill="white" letter-spacing="1.5">INEFFABLE</text>
+</svg>

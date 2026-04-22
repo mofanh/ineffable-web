@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <!-- Logo C: 道·周行 - 深色模式 -->
+  <title>Ineffable Logo C - 道·周行 (Dark)</title>
+  <desc>独立而不改，周行而不殆。圆环无缺，智慧自洽。</desc>
+  
+  <g fill="none" stroke="white">
+    <circle cx="40" cy="40" r="28" stroke-width="2"/>
+    <path d="M64 28 A 20 20 0 0 1 68 38" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="40" cy="40" r="3" fill="white" stroke="none"/>
+  </g>
+</svg>

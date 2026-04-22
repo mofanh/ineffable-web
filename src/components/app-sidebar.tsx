@@ -16,19 +16,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { TerminalIcon } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
-
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-}
+import { IneffableLogo } from "@/components/ineffable-logo"
+import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation()
+  const logoVariant = useLogoVariant({ mode: "rotate" })
 
   const navMain = navigation.main.map((group) => ({
     title: group.title,
@@ -59,15 +53,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to={defaultPath}>
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <TerminalIcon className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Acme Inc</span>
-                  <span className="truncate text-xs">Enterprise</span>
-                </div>
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              tooltip={`Ineffable · ${getLogoName(logoVariant)}`}
+            >
+              <Link to={defaultPath} className="flex w-full justify-center">
+                <IneffableLogo variant={logoVariant} className="h-8 max-w-[132px] w-auto" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -79,7 +71,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={{
+          name: "shadcn",
+          email: "m@example.com",
+          avatar: "/avatars/shadcn.jpg",
+        }} />
       </SidebarFooter>
     </Sidebar>
   )

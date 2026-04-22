@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Logo A: 道·路径 - 一点生，路径成 -->
+  <title>Ineffable Logo A - 道·路径</title>
+  <desc>一画开天，从无到有。起点即终点，路径即意义。</desc>
+  
+  <!-- 核心符号 -->
+  <g fill="#1a1a1a">
+    <!-- 起点：虚点 -->
+    <circle cx="44" cy="62" r="8" fill="none" stroke="#1a1a1a" stroke-width="2.4"/>
+    <!-- 路径：无限延伸的曲线 -->
+    <path d="M52 62 C 68 62, 80 58, 90 52 S 108 40, 118 34" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+    <!-- 轨迹终点 -->
+    <circle cx="122" cy="32.5" r="3.4" fill="#1a1a1a"/>
+    <path d="M128 31 L 136 27.5" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+  </g>
+</svg>
