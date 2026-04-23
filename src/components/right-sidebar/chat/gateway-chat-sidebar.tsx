@@ -20,24 +20,19 @@ import { ChatComposer } from "@/components/right-sidebar/chat/components/chat-co
 import { ChatMessageList } from "@/components/right-sidebar/chat/components/chat-message-list"
 import { ChatSidebarHeader } from "@/components/right-sidebar/chat/components/chat-sidebar-header"
 import {
-  STORAGE_KEYS,
   createEmptySubagent,
   createMessageId,
-  extractSessionKeyFromEvent,
   getEventFingerprint,
   getFinalFingerprint,
-  getInitialPeerId,
   getSubagentId,
   getSubagentName,
   getToolCallId,
   getToolName,
   hasAssistantEntryContent,
   isReasoningEvent,
-  isSessionKeyEvent,
   isSubScope,
   isTextDeltaEvent,
   isToolEvent,
-  readStoredValue,
 } from "@/components/right-sidebar/chat/gateway-chat-helpers"
 import type {
   AssistantEntry,
@@ -45,13 +40,16 @@ import type {
   StreamStatus,
   SubagentView,
 } from "@/components/right-sidebar/chat/gateway-chat-types"
+import { useAppSession } from "@/contexts/app-session"
 import {
-  normalizePolledEnvelope,
-  pollFrontendChannel,
-  streamGatewayChat,
-  type GatewayChatFinalResult,
-  type GatewayChatStreamEnvelope,
-  type GatewayChatStreamEvent,
+  getConversationMessages,
+  streamConversationSend,
+  type ConversationMessageRecord,
+} from "@/lib/api/gateway-client"
+import type {
+  GatewayChatFinalResult,
+  GatewayChatStreamEnvelope,
+  GatewayChatStreamEvent,
 } from "@/lib/api/chat/gateway-api"
 
 function createAssistantEntry(status: AssistantEntry["status"]): AssistantEntry {
@@ -65,21 +63,72 @@ function createAssistantEntry(status: AssistantEntry["status"]): AssistantEntry 
   }
 }
 
+function buildConversationTitle(content: string) {
+  const normalized = content.trim().replace(/\s+/g, " ")
+  if (!normalized) {
+    return "新对话"
+  }
+
+  return normalized.length > 36 ? `${normalized.slice(0, 36)}...` : normalized
+}
+
+function buildAssistantEntryFromMessage(message: ConversationMessageRecord): AssistantEntry {
+  const pane = finalizePane(applyMessageToPane(createEmptyAgentPane(), message.content))
+  return {
+    id: message.id,
+    role: "assistant",
+    status: "done",
+    pane,
+    subagentOrder: [],
+    subagents: {},
+  }
+}
+
+function mapConversationMessagesToEntries(messages: ConversationMessageRecord[]): ChatEntry[] {
+  return messages
+    .filter((message) => Boolean(message.content.trim()))
+    .map((message) => {
+      if (message.role === "user") {
+        return {
+          id: message.id,
+          role: "user" as const,
+          content: message.content,
+        }
+      }
+
+      if (message.role === "assistant") {
+        return buildAssistantEntryFromMessage(message)
+      }
+
+      return {
+        id: message.id,
+        role: "system" as const,
+        content: message.content,
+      }
+    })
+}
+
 export function GatewayChatSidebar() {
   const { toggleSidebar } = useSidebar()
+  const {
+    accessToken,
+    currentWorkspace,
+    conversations,
+    currentConversationId,
+    createConversation,
+    selectConversation,
+    refreshConversations,
+  } = useAppSession()
 
-  const [peerId] = React.useState(getInitialPeerId)
-  const [sessionKey, setSessionKey] = React.useState(() =>
-    readStoredValue(STORAGE_KEYS.sessionKey)
-  )
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
   const [error, setError] = React.useState<string | null>(null)
+  const [isLoadingMessages, setIsLoadingMessages] = React.useState(false)
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
-  const pollInFlightRef = React.useRef(false)
+  const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const seenEventRef = React.useRef(new Set<string>())
   const seenFinalRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
@@ -87,26 +136,16 @@ export function GatewayChatSidebar() {
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
 
   React.useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.peerId, peerId)
-  }, [peerId])
-
-  React.useEffect(() => {
-    if (sessionKey) {
-      window.localStorage.setItem(STORAGE_KEYS.sessionKey, sessionKey)
-      return
-    }
-
-    window.localStorage.removeItem(STORAGE_KEYS.sessionKey)
-  }, [sessionKey])
-
-  React.useEffect(() => {
     return () => {
       abortRef.current?.abort()
     }
   }, [])
 
-  const bindStatus = sessionKey ? "已连接会话" : "等待首条回复"
+  const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
   const isSending = streamStatus === "streaming"
+  const selectedConversationTitle =
+    conversations.find((conversation) => conversation.id === currentConversationId)?.title ||
+    "梳理前端用户与会话管理接入需求"
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {
@@ -152,6 +191,59 @@ export function GatewayChatSidebar() {
 
     scrollToBottom(streamStatus === "streaming" ? "auto" : "smooth")
   }, [scrollToBottom, streamStatus, visibleEntries])
+
+  const syncConversationMessages = React.useCallback(
+    async (conversationId: string) => {
+      if (!accessToken || !currentWorkspace) {
+        setEntries([])
+        return
+      }
+
+      setIsLoadingMessages(true)
+
+      try {
+        const response = await getConversationMessages(
+          accessToken,
+          currentWorkspace.id,
+          conversationId
+        )
+        setEntries(mapConversationMessagesToEntries(response.messages))
+        setError(null)
+      } finally {
+        setIsLoadingMessages(false)
+      }
+    },
+    [accessToken, currentWorkspace]
+  )
+
+  React.useEffect(() => {
+    if (
+      currentConversationId &&
+      skipNextConversationSyncRef.current === currentConversationId
+    ) {
+      skipNextConversationSyncRef.current = null
+      return
+    }
+
+    abortRef.current?.abort()
+    setStreamStatus("idle")
+    assistantEntryIdRef.current = null
+    seenEventRef.current = new Set()
+    seenFinalRef.current = new Set()
+    setShowScrollToBottom(false)
+    autoStickToBottomRef.current = true
+
+    if (!currentConversationId) {
+      setEntries([])
+      setError(null)
+      return
+    }
+
+    void syncConversationMessages(currentConversationId).catch((loadError) => {
+      setEntries([])
+      setError(loadError instanceof Error ? loadError.message : "加载会话失败。")
+    })
+  }, [currentConversationId, syncConversationMessages])
 
   function handleScrollToBottomClick() {
     autoStickToBottomRef.current = true
@@ -342,7 +434,7 @@ export function GatewayChatSidebar() {
               ...finalizePane(subagent),
               id: subagent.id,
               name: subagent.name,
-              status: "done",
+              status: "done" as const,
             },
           ]
         })
@@ -358,24 +450,12 @@ export function GatewayChatSidebar() {
   }
 
   function applyFinal(result: GatewayChatFinalResult) {
-    if (result.session_key && !sessionKey) {
-      setSessionKey(result.session_key)
-    }
-
     completeAssistantEntry(result.output)
     assistantEntryIdRef.current = null
     setStreamStatus("completed")
   }
 
   function applyEvent(event: GatewayChatStreamEvent) {
-    if (isSessionKeyEvent(event.event)) {
-      const nextSessionKey = extractSessionKeyFromEvent(event)
-      if (nextSessionKey) {
-        setSessionKey((current) => current || nextSessionKey)
-      }
-      return
-    }
-
     if (event.event === "error" || event.event.endsWith("_error")) {
       const errorMessage = (event.content ?? "Gateway stream failed").trim()
       setStreamStatus("error")
@@ -438,75 +518,6 @@ export function GatewayChatSidebar() {
     applyEvent(envelope.event)
   })
 
-  React.useEffect(() => {
-    if (!sessionKey) {
-      return
-    }
-
-    let cancelled = false
-
-    async function runPoll() {
-      if (pollInFlightRef.current) {
-        return
-      }
-
-      pollInFlightRef.current = true
-
-      try {
-        const [mainResponse, subResponse] = await Promise.all([
-          pollFrontendChannel(`${sessionKey}::main`),
-          pollFrontendChannel(`${sessionKey}::sub`),
-        ])
-
-        if (cancelled) {
-          return
-        }
-
-        ;[...mainResponse.messages, ...subResponse.messages].forEach((message) => {
-          const envelope = normalizePolledEnvelope(message)
-          if (envelope) {
-            applyEnvelopeEvent(envelope)
-          }
-        })
-      } catch (pollError) {
-        if (!cancelled) {
-          setError(
-            pollError instanceof Error ? pollError.message : "轮询 frontend channel 失败。"
-          )
-        }
-      } finally {
-        pollInFlightRef.current = false
-      }
-    }
-
-    void runPoll()
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void runPoll()
-      }
-    }
-
-    const handleOnline = () => {
-      void runPoll()
-    }
-
-    const handleFocus = () => {
-      void runPoll()
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-    window.addEventListener("online", handleOnline)
-    window.addEventListener("focus", handleFocus)
-
-    return () => {
-      cancelled = true
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-      window.removeEventListener("online", handleOnline)
-      window.removeEventListener("focus", handleFocus)
-    }
-  }, [sessionKey])
-
   function clearConversation() {
     setEntries([])
     setError(null)
@@ -517,14 +528,14 @@ export function GatewayChatSidebar() {
 
   function startNewChat() {
     abortRef.current?.abort()
-    setSessionKey("")
     setStreamStatus("idle")
+    selectConversation(null)
     clearConversation()
   }
 
   async function handleSend() {
     const content = composer.trim()
-    if (!content || !peerId || isSending) {
+    if (!content || !accessToken || !currentWorkspace || isSending) {
       return
     }
 
@@ -538,6 +549,13 @@ export function GatewayChatSidebar() {
     setStreamStatus("streaming")
     setComposer("")
 
+    let targetConversationId = currentConversationId
+    if (!targetConversationId) {
+      const createdConversation = await createConversation(buildConversationTitle(content))
+      targetConversationId = createdConversation.id
+      skipNextConversationSyncRef.current = targetConversationId
+    }
+
     setEntries((current) => [
       ...current,
       {
@@ -550,14 +568,14 @@ export function GatewayChatSidebar() {
     ensureAssistantEntry()
 
     try {
-      await streamGatewayChat(
+      await streamConversationSend(
+        accessToken,
+        currentWorkspace.id,
         {
-          channel: "web",
-          account_id: "default",
-          peer_id: peerId,
+          conversation_id: targetConversationId,
           content,
           stream: true,
-          auto_reply: false,
+          channel: "web",
         },
         {
           signal: controller.signal,
@@ -571,9 +589,14 @@ export function GatewayChatSidebar() {
         completeAssistantEntry()
         assistantEntryIdRef.current = null
         setStreamStatus("completed")
+        await Promise.all([
+          refreshConversations(),
+          syncConversationMessages(targetConversationId),
+        ])
       }
     } catch (streamError) {
       if (controller.signal.aborted) {
+        setStreamStatus("idle")
         return
       }
 
@@ -607,8 +630,19 @@ export function GatewayChatSidebar() {
   return (
     <>
       <ChatSidebarHeader
-        isBound={Boolean(sessionKey)}
+        isBound={Boolean(currentConversationId)}
         bindStatus={bindStatus}
+        selectedConversationTitle={selectedConversationTitle}
+        selectedConversationId={currentConversationId}
+        conversations={conversations.map((conversation) => ({
+          id: conversation.id,
+          title: conversation.title || "未命名会话",
+          updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
+        }))}
+        onSelectConversation={selectConversation}
+        onRefreshConversations={() => {
+          void refreshConversations()
+        }}
         onStartNewChat={startNewChat}
         onCollapseSidebar={toggleSidebar}
       />
@@ -624,6 +658,9 @@ export function GatewayChatSidebar() {
           onViewportScroll={handleViewportScroll}
           onScrollToBottomClick={handleScrollToBottomClick}
         />
+        {isLoadingMessages ? (
+          <div className="px-4 pb-3 text-xs text-muted-foreground">正在同步历史消息…</div>
+        ) : null}
       </SidebarContent>
 
       <SidebarSeparator />

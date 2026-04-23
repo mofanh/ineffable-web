@@ -156,6 +156,12 @@ routeMetaMap.set("/projects", {
   breadcrumbs: [{ label: "项目" }],
 })
 
+routeMetaMap.set("/account", {
+  path: "/account",
+  title: "账号",
+  breadcrumbs: [{ label: "账号" }],
+})
+
 navigation.secondary.forEach((item) => {
   routeMetaMap.set(item.path, {
     path: item.path,

@@ -18,11 +18,13 @@ import {
 } from "@/components/ui/sidebar"
 import { Link, useLocation } from "react-router-dom"
 import { IneffableLogo } from "@/components/ineffable-logo"
+import { useAppSession } from "@/contexts/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation()
   const logoVariant = useLogoVariant({ mode: "rotate" })
+  const { currentUser, logout } = useAppSession()
 
   const navMain = navigation.main.map((group) => ({
     title: group.title,
@@ -71,11 +73,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={{
-          name: "shadcn",
-          email: "m@example.com",
-          avatar: "/avatars/shadcn.jpg",
-        }} />
+        <NavUser
+          user={{
+            name: currentUser?.display_name || currentUser?.email || "Workspace User",
+            email: currentUser?.email || "未登录",
+            avatar: currentUser?.avatar_url || "",
+          }}
+          onLogout={() => {
+            void logout()
+          }}
+        />
       </SidebarFooter>
     </Sidebar>
   )

@@ -5,6 +5,7 @@ import { RouterProvider } from "react-router-dom"
 import "./index.css"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ThemeProvider } from "@/components/theme-provider"
+import { AppSessionProvider } from "@/contexts/app-session"
 import { router } from "@/routes/router"
 
 createRoot(document.getElementById("root")!).render(
@@ -15,9 +16,11 @@ createRoot(document.getElementById("root")!).render(
       enableSystem
       disableTransitionOnChange
     >
-      <TooltipProvider>
-        <RouterProvider router={router} />
-      </TooltipProvider>
+      <AppSessionProvider>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
+      </AppSessionProvider>
     </ThemeProvider>
   </StrictMode>
 )

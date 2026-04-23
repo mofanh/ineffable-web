@@ -2,6 +2,13 @@ import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import App from "@/App"
 import {
+  RedirectIfAuthenticated,
+  RequireAuth,
+} from "@/contexts/app-session"
+import { AuthLayout } from "@/layouts/auth-layout"
+import { AccountPage } from "@/pages/account-pages"
+import { LoginPage, RegisterPage } from "@/pages/auth-pages"
+import {
   ApiDebugPage,
   CliChatPage,
   CliDirectPage,
@@ -40,6 +47,7 @@ import { FeedbackPage, SupportPage } from "@/pages/support-pages"
 import { defaultPath } from "@/routes/navigation"
 
 const routeElements: Record<string, React.ReactElement> = {
+  "/account": <AccountPage />,
   "/console/world": <ConsoleWorldHomePage />,
   "/console/world/collaboration": <CollaborationOverviewPage />,
   "/console/world/tasks": <RealtimeTasksPage />,
@@ -72,7 +80,29 @@ const routeElements: Record<string, React.ReactElement> = {
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <App />,
+    element: (
+      <RedirectIfAuthenticated>
+        <AuthLayout />
+      </RedirectIfAuthenticated>
+    ),
+    children: [
+      {
+        path: "login",
+        element: <LoginPage />,
+      },
+      {
+        path: "register",
+        element: <RegisterPage />,
+      },
+    ],
+  },
+  {
+    path: "/",
+    element: (
+      <RequireAuth>
+        <App />
+      </RequireAuth>
+    ),
     children: [
       {
         index: true,
