@@ -135,13 +135,66 @@ function buildHistoryEvent(
   })
 }
 
+function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) {
+  const lastAssistantIndexByScope = new Map<string, number>()
+
+  messages.forEach((message, index) => {
+    const isAssistantLike =
+      message.role === "assistant" || message.message_type === "output"
+    if (!isAssistantLike) {
+      return
+    }
+
+    const metadata =
+      message.metadata_json && typeof message.metadata_json === "object"
+        ? message.metadata_json
+        : null
+    const scope =
+      metadata && typeof metadata.scope === "string" && metadata.scope.trim()
+        ? metadata.scope.trim()
+        : "main"
+    const subagentId =
+      metadata && typeof metadata.subagent_id === "string" && metadata.subagent_id.trim()
+        ? metadata.subagent_id.trim()
+        : ""
+    const scopeKey = `${scope}::${subagentId}`
+
+    lastAssistantIndexByScope.set(scopeKey, index)
+  })
+
+  return messages.filter((message, index) => {
+    const isAssistantLike =
+      message.role === "assistant" || message.message_type === "output"
+    if (!isAssistantLike) {
+      return true
+    }
+
+    const metadata =
+      message.metadata_json && typeof message.metadata_json === "object"
+        ? message.metadata_json
+        : null
+    const scope =
+      metadata && typeof metadata.scope === "string" && metadata.scope.trim()
+        ? metadata.scope.trim()
+        : "main"
+    const subagentId =
+      metadata && typeof metadata.subagent_id === "string" && metadata.subagent_id.trim()
+        ? metadata.subagent_id.trim()
+        : ""
+    const scopeKey = `${scope}::${subagentId}`
+
+    return lastAssistantIndexByScope.get(scopeKey) === index
+  })
+}
+
 function buildAssistantEntryFromMessages(messages: ConversationMessageRecord[]): AssistantEntry {
-  const first = messages[0]
+  const compactedMessages = compactAssistantHistoryMessages(messages)
+  const first = compactedMessages[0] ?? messages[0]
   let pane = createEmptyAgentPane()
   const subagents: Record<string, SubagentView> = {}
   const subagentOrder: string[] = []
 
-  messages.forEach((message, index) => {
+  compactedMessages.forEach((message, index) => {
     const event = buildHistoryEvent(message, index + 1)
     if (!event) {
       return
@@ -212,6 +265,7 @@ function buildAssistantEntryFromMessages(messages: ConversationMessageRecord[]):
 function mapConversationMessagesToEntries(messages: ConversationMessageRecord[]): ChatEntry[] {
   const entries: ChatEntry[] = []
   let pendingAssistantMessages: ConversationMessageRecord[] = []
+  let pendingAssistantRunId: string | null = null
 
   const flushAssistantMessages = () => {
     if (!pendingAssistantMessages.length) {
@@ -220,6 +274,7 @@ function mapConversationMessagesToEntries(messages: ConversationMessageRecord[])
 
     entries.push(buildAssistantEntryFromMessages(pendingAssistantMessages))
     pendingAssistantMessages = []
+    pendingAssistantRunId = null
   }
 
   messages
@@ -242,7 +297,18 @@ function mapConversationMessagesToEntries(messages: ConversationMessageRecord[])
         message.message_type === "tool_call" ||
         message.message_type === "tool_result"
       ) {
+        const messageRunId = message.run_id ?? null
+        if (
+          pendingAssistantMessages.length > 0 &&
+          pendingAssistantRunId &&
+          messageRunId &&
+          pendingAssistantRunId !== messageRunId
+        ) {
+          flushAssistantMessages()
+        }
+
         pendingAssistantMessages.push(message)
+        pendingAssistantRunId = messageRunId
         return
       }
 
