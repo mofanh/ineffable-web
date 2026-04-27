@@ -43,6 +43,8 @@ export type ConversationMessageRecord = {
   role: string
   message_type: string
   content: string
+  content_json?: Record<string, unknown> | null
+  metadata_json?: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }

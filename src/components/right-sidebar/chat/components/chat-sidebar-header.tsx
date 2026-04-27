@@ -61,21 +61,6 @@ function HeaderActionButton({
   )
 }
 
-function HeaderAvatar() {
-  return (
-    <button
-      type="button"
-      className="group shrink-0 rounded-full"
-      title="Conversation Avatar"
-      aria-label="Conversation Avatar"
-    >
-      <div className="flex size-7 items-center justify-center rounded-full bg-[#ffa9b9] text-[#111] transition-transform duration-300 ease-out group-hover:scale-110">
-        <span className="text-sm font-black">M</span>
-      </div>
-    </button>
-  )
-}
-
 function getConversationGroupLabel(updatedAt?: string | null) {
   if (!updatedAt) {
     return "Older"

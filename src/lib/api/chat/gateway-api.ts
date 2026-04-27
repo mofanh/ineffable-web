@@ -63,6 +63,91 @@ export type FrontendChannelPollResponse = {
   messages: FrontendChannelMessage[]
 }
 
+function getStringValue(
+  value: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const next = value?.[key]
+  return typeof next === "string" ? next : ""
+}
+
+function parseToolEnvelopeContent(content: string) {
+  const [header, ...rest] = content.split("\n")
+  if (!header.startsWith("tool=")) {
+    return null
+  }
+
+  let toolName = ""
+  let toolCallId = ""
+  for (const part of header.split(/\s+/)) {
+    if (part.startsWith("tool=")) {
+      toolName = part.slice("tool=".length).trim()
+    } else if (part.startsWith("call_id=")) {
+      toolCallId = part.slice("call_id=".length).trim()
+    }
+  }
+
+  if (!toolName && !toolCallId) {
+    return null
+  }
+
+  return {
+    toolName,
+    toolCallId,
+    body: rest.join("\n"),
+  }
+}
+
+export function canonicalizeGatewayEvent(event: GatewayChatStreamEvent): GatewayChatStreamEvent {
+  const metadata =
+    event.metadata && typeof event.metadata === "object"
+      ? ({ ...event.metadata } as Record<string, unknown>)
+      : null
+
+  const inferredRole =
+    (typeof event.role === "string" && event.role.trim()) ||
+    getStringValue(metadata, "gateway_role") ||
+    getStringValue(metadata, "role")
+  const parsedTool = parseToolEnvelopeContent(event.content ?? "")
+
+  if (metadata && parsedTool) {
+    if (parsedTool.toolName && !getStringValue(metadata, "tool_name")) {
+      metadata.tool_name = parsedTool.toolName
+    }
+    if (parsedTool.toolCallId && !getStringValue(metadata, "tool_call_id")) {
+      metadata.tool_call_id = parsedTool.toolCallId
+    }
+  }
+
+  let eventName = event.event
+  let content = event.content ?? null
+
+  if (inferredRole === "tool_call") {
+    eventName = "tool_call_done"
+    if (parsedTool) {
+      const fullArguments =
+        getStringValue(metadata, "full_arguments") || parsedTool.body || content || ""
+      if (metadata && fullArguments) {
+        metadata.full_arguments = fullArguments
+      }
+      content = parsedTool.body || content
+    }
+  } else if (inferredRole === "tool") {
+    eventName = "tool_result"
+    if (parsedTool) {
+      content = parsedTool.body || content
+    }
+  }
+
+  return {
+    ...event,
+    event: eventName,
+    role: inferredRole || event.role || null,
+    content,
+    metadata,
+  }
+}
+
 const API_BASE_URL =
   (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -110,7 +195,7 @@ export function normalizeGatewayEnvelope(
 
     return {
       type: "event",
-      event: event as GatewayChatStreamEvent,
+      event: canonicalizeGatewayEvent(event as GatewayChatStreamEvent),
     }
   }
 
@@ -143,7 +228,7 @@ export function normalizeGatewayEnvelope(
 
     return {
       type: "event",
-      event: candidate as GatewayChatStreamEvent,
+      event: canonicalizeGatewayEvent(candidate as GatewayChatStreamEvent),
     }
   }
 

@@ -51,6 +51,7 @@ import type {
   GatewayChatStreamEnvelope,
   GatewayChatStreamEvent,
 } from "@/lib/api/chat/gateway-api"
+import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-api"
 
 function createAssistantEntry(status: AssistantEntry["status"]): AssistantEntry {
   return {
@@ -72,40 +73,189 @@ function buildConversationTitle(content: string) {
   return normalized.length > 36 ? `${normalized.slice(0, 36)}...` : normalized
 }
 
-function buildAssistantEntryFromMessage(message: ConversationMessageRecord): AssistantEntry {
-  const pane = finalizePane(applyMessageToPane(createEmptyAgentPane(), message.content))
+function applyEventToPaneState(pane: AgentPaneState, event: GatewayChatStreamEvent) {
+  const eventName = event.event
+  const content = event.content ?? ""
+
+  if (isTextDeltaEvent(eventName)) {
+    return applyTextDeltaToPane(pane, content)
+  }
+
+  if (isReasoningEvent(eventName)) {
+    return applyReasoningDeltaToPane(pane, content)
+  }
+
+  if (eventName === "message") {
+    return applyMessageToPane(pane, content)
+  }
+
+  return appendUpdateToPane(pane, content)
+}
+
+function buildHistoryEvent(
+  message: ConversationMessageRecord,
+  seq: number
+): GatewayChatStreamEvent | null {
+  const metadata =
+    message.metadata_json && typeof message.metadata_json === "object"
+      ? { ...message.metadata_json }
+      : null
+
+  let eventName = "message"
+  let role = message.role
+
+  if (message.message_type === "tool_call") {
+    eventName = "tool_call_done"
+    role = "tool_call"
+  } else if (message.message_type === "tool_result") {
+    eventName = "tool_result"
+    role = "tool"
+  } else if (message.message_type === "output") {
+    eventName = "message"
+    role = "assistant"
+  } else if (message.message_type === "system") {
+    eventName = "message"
+    role = "system"
+  } else if (message.message_type !== "input") {
+    eventName = "message"
+  }
+
+  return canonicalizeGatewayEvent({
+    run_id: message.run_id ?? message.conversation_id,
+    seq,
+    ts_ms: Date.parse(message.created_at),
+    stream: "history",
+    event: eventName,
+    phase: "history",
+    scope:
+      metadata && typeof metadata.scope === "string" ? metadata.scope : null,
+    role,
+    content: message.content,
+    metadata,
+  })
+}
+
+function buildAssistantEntryFromMessages(messages: ConversationMessageRecord[]): AssistantEntry {
+  const first = messages[0]
+  let pane = createEmptyAgentPane()
+  const subagents: Record<string, SubagentView> = {}
+  const subagentOrder: string[] = []
+
+  messages.forEach((message, index) => {
+    const event = buildHistoryEvent(message, index + 1)
+    if (!event) {
+      return
+    }
+
+    if (isSubScope(event)) {
+      const subagentId = getSubagentId(event) || `subagent-${message.id}`
+      const subagentName = getSubagentName(event)
+      const existing = subagents[subagentId] ?? createEmptySubagent(subagentId, subagentName)
+      const nextSubagent = isToolEvent(event.event)
+        ? (() => {
+            const { toolId, tool } = buildToolView(existing, event, getToolCallId, getToolName)
+            return upsertToolInPane(existing, toolId, tool) as SubagentView
+          })()
+        : ({
+            ...applyEventToPaneState(existing, event),
+            id: existing.id,
+            name: subagentName,
+            status: existing.status,
+          } as SubagentView)
+
+      subagents[subagentId] = {
+        ...nextSubagent,
+        id: subagentId,
+        name: subagentName,
+        status: "done",
+      }
+      if (!subagentOrder.includes(subagentId)) {
+        subagentOrder.push(subagentId)
+      }
+      return
+    }
+
+    if (isToolEvent(event.event)) {
+      const { toolId, tool } = buildToolView(pane, event, getToolCallId, getToolName)
+      pane = upsertToolInPane(pane, toolId, tool)
+      return
+    }
+
+    pane = applyEventToPaneState(pane, event)
+  })
+
+  const finalizedSubagents = Object.fromEntries(
+    subagentOrder.map((subagentId) => {
+      const subagent = subagents[subagentId] ?? createEmptySubagent(subagentId, subagentId)
+      return [
+        subagentId,
+        {
+          ...finalizePane(subagent),
+          id: subagent.id,
+          name: subagent.name,
+          status: "done" as const,
+        },
+      ]
+    })
+  ) as Record<string, SubagentView>
+
   return {
-    id: message.id,
+    id: first?.id ?? createMessageId("assistant"),
     role: "assistant",
     status: "done",
-    pane,
-    subagentOrder: [],
-    subagents: {},
+    pane: finalizePane(pane),
+    subagentOrder,
+    subagents: finalizedSubagents,
   }
 }
 
 function mapConversationMessagesToEntries(messages: ConversationMessageRecord[]): ChatEntry[] {
-  return messages
+  const entries: ChatEntry[] = []
+  let pendingAssistantMessages: ConversationMessageRecord[] = []
+
+  const flushAssistantMessages = () => {
+    if (!pendingAssistantMessages.length) {
+      return
+    }
+
+    entries.push(buildAssistantEntryFromMessages(pendingAssistantMessages))
+    pendingAssistantMessages = []
+  }
+
+  messages
     .filter((message) => Boolean(message.content.trim()))
-    .map((message) => {
-      if (message.role === "user") {
-        return {
+    .forEach((message) => {
+      if (message.role === "user" || message.message_type === "input") {
+        flushAssistantMessages()
+        entries.push({
           id: message.id,
-          role: "user" as const,
+          role: "user",
           content: message.content,
-        }
+        })
+        return
       }
 
-      if (message.role === "assistant") {
-        return buildAssistantEntryFromMessage(message)
+      if (
+        message.role === "assistant" ||
+        message.role === "tool" ||
+        message.message_type === "output" ||
+        message.message_type === "tool_call" ||
+        message.message_type === "tool_result"
+      ) {
+        pendingAssistantMessages.push(message)
+        return
       }
 
-      return {
+      flushAssistantMessages()
+      entries.push({
         id: message.id,
-        role: "system" as const,
+        role: "system",
         content: message.content,
-      }
+      })
     })
+
+  flushAssistantMessages()
+  return entries
 }
 
 export function GatewayChatSidebar() {
