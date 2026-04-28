@@ -42,6 +42,7 @@ import type {
 } from "@/components/right-sidebar/chat/gateway-chat-types"
 import { useAppSession } from "@/contexts/app-session"
 import {
+  getConversationEvents,
   getConversationMessages,
   streamConversationSend,
   type ConversationMessageRecord,
@@ -344,6 +345,13 @@ export function GatewayChatSidebar() {
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
+  const activeStreamConversationIdRef = React.useRef<string | null>(null)
+  const terminalEventSeenRef = React.useRef(false)
+  const recoveryInFlightRef = React.useRef(false)
+  const recoveryTimerRef = React.useRef<number | null>(null)
+  const conversationSeqRef = React.useRef(new Map<string, number>())
+  const currentConversationIdRef = React.useRef<string | null>(currentConversationId)
+  const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const seenEventRef = React.useRef(new Set<string>())
   const seenFinalRef = React.useRef(new Set<string>())
@@ -354,11 +362,22 @@ export function GatewayChatSidebar() {
   React.useEffect(() => {
     return () => {
       abortRef.current?.abort()
+      if (recoveryTimerRef.current != null) {
+        window.clearTimeout(recoveryTimerRef.current)
+      }
     }
   }, [])
 
+  React.useEffect(() => {
+    currentConversationIdRef.current = currentConversationId
+  }, [currentConversationId])
+
+  React.useEffect(() => {
+    streamStatusRef.current = streamStatus
+  }, [streamStatus])
+
   const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
-  const isSending = streamStatus === "streaming"
+  const isSending = streamStatus === "streaming" || streamStatus === "recovering"
   const selectedConversationTitle =
     conversations.find((conversation) => conversation.id === currentConversationId)?.title ||
     "梳理前端用户与会话管理接入需求"
@@ -405,8 +424,61 @@ export function GatewayChatSidebar() {
       return
     }
 
-    scrollToBottom(streamStatus === "streaming" ? "auto" : "smooth")
+    scrollToBottom(
+      streamStatus === "streaming" || streamStatus === "recovering"
+        ? "auto"
+        : "smooth"
+    )
   }, [scrollToBottom, streamStatus, visibleEntries])
+
+  const clearRecoveryTimer = React.useCallback(() => {
+    if (recoveryTimerRef.current != null) {
+      window.clearTimeout(recoveryTimerRef.current)
+      recoveryTimerRef.current = null
+    }
+  }, [])
+
+  const setConversationLastSeq = React.useCallback(
+    (conversationId: string, seq: number | null | undefined) => {
+      if (!conversationId || typeof seq !== "number" || !Number.isFinite(seq)) {
+        return
+      }
+
+      const normalized = Math.max(0, Math.floor(seq))
+      const current = conversationSeqRef.current.get(conversationId) ?? 0
+      if (normalized > current) {
+        conversationSeqRef.current.set(conversationId, normalized)
+      } else if (!conversationSeqRef.current.has(conversationId)) {
+        conversationSeqRef.current.set(conversationId, current)
+      }
+    },
+    []
+  )
+
+  const primeConversationCursor = React.useCallback(
+    async (conversationId: string) => {
+      if (!accessToken || !currentWorkspace || !conversationId) {
+        return
+      }
+
+      if (conversationSeqRef.current.has(conversationId)) {
+        return
+      }
+
+      const response = await getConversationEvents(
+        accessToken,
+        currentWorkspace.id,
+        conversationId,
+        {
+          afterSeq: Number.MAX_SAFE_INTEGER,
+          max: 1,
+        }
+      )
+
+      setConversationLastSeq(conversationId, response.next_seq ?? 0)
+    },
+    [accessToken, currentWorkspace, setConversationLastSeq]
+  )
 
   const syncConversationMessages = React.useCallback(
     async (conversationId: string) => {
@@ -442,6 +514,10 @@ export function GatewayChatSidebar() {
     }
 
     abortRef.current?.abort()
+    clearRecoveryTimer()
+    activeStreamConversationIdRef.current = null
+    terminalEventSeenRef.current = false
+    recoveryInFlightRef.current = false
     setStreamStatus("idle")
     assistantEntryIdRef.current = null
     seenEventRef.current = new Set()
@@ -459,7 +535,7 @@ export function GatewayChatSidebar() {
       setEntries([])
       setError(loadError instanceof Error ? loadError.message : "加载会话失败。")
     })
-  }, [currentConversationId, syncConversationMessages])
+  }, [clearRecoveryTimer, currentConversationId, syncConversationMessages])
 
   function handleScrollToBottomClick() {
     autoStickToBottomRef.current = true
@@ -474,6 +550,7 @@ export function GatewayChatSidebar() {
 
   function resetTurnState() {
     assistantEntryIdRef.current = null
+    terminalEventSeenRef.current = false
     resetSeenCaches()
   }
 
@@ -665,15 +742,38 @@ export function GatewayChatSidebar() {
     })
   }
 
+  function finalizeConversationTurn(conversationId: string) {
+    terminalEventSeenRef.current = true
+    recoveryInFlightRef.current = false
+    clearRecoveryTimer()
+    activeStreamConversationIdRef.current = null
+    completeAssistantEntry()
+    assistantEntryIdRef.current = null
+    setError(null)
+    setStreamStatus("completed")
+    void Promise.all([
+      refreshConversations(),
+      syncConversationMessages(conversationId),
+    ])
+  }
+
   function applyFinal(result: GatewayChatFinalResult) {
+    terminalEventSeenRef.current = true
+    recoveryInFlightRef.current = false
+    clearRecoveryTimer()
+    activeStreamConversationIdRef.current = null
     completeAssistantEntry(result.output)
     assistantEntryIdRef.current = null
+    setError(null)
     setStreamStatus("completed")
   }
 
   function applyEvent(event: GatewayChatStreamEvent) {
     if (event.event === "error" || event.event.endsWith("_error")) {
       const errorMessage = (event.content ?? "Gateway stream failed").trim()
+      recoveryInFlightRef.current = false
+      clearRecoveryTimer()
+      activeStreamConversationIdRef.current = null
       setStreamStatus("error")
       setError(errorMessage)
       appendSystemMessage(`发送失败：${errorMessage}`)
@@ -689,6 +789,24 @@ export function GatewayChatSidebar() {
       return
     }
 
+    if (event.event === "completed" || event.event === "run_completed") {
+      const conversationId =
+        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      if (conversationId) {
+        finalizeConversationTurn(conversationId)
+      } else {
+        terminalEventSeenRef.current = true
+        recoveryInFlightRef.current = false
+        clearRecoveryTimer()
+        activeStreamConversationIdRef.current = null
+        completeAssistantEntry()
+        assistantEntryIdRef.current = null
+        setError(null)
+        setStreamStatus("completed")
+      }
+      return
+    }
+
     if (isSubScope(event)) {
       applySubagentEvent(event)
       return
@@ -697,8 +815,92 @@ export function GatewayChatSidebar() {
     applyMainEvent(event)
   }
 
+  const recoverConversationEvents = React.useEffectEvent(
+    async (conversationId: string, keepPolling = true) => {
+      if (!accessToken || !currentWorkspace || !conversationId) {
+        return
+      }
+
+      const isTrackedConversation =
+        activeStreamConversationIdRef.current === conversationId ||
+        currentConversationIdRef.current === conversationId
+
+      if (recoveryInFlightRef.current) {
+        return
+      }
+
+      if (!isTrackedConversation) {
+        return
+      }
+
+      if (terminalEventSeenRef.current || streamStatusRef.current === "error") {
+        clearRecoveryTimer()
+        return
+      }
+
+      recoveryInFlightRef.current = true
+      try {
+        const afterSeq = conversationSeqRef.current.get(conversationId)
+        const response = await getConversationEvents(
+          accessToken,
+          currentWorkspace.id,
+          conversationId,
+          {
+            afterSeq,
+            max: 200,
+          }
+        )
+
+        for (const envelope of response.events) {
+          applyEnvelopeEvent(envelope)
+        }
+      } catch (recoveryError) {
+        if (!terminalEventSeenRef.current && isTrackedConversation) {
+          setStreamStatus("recovering")
+          setError(
+            recoveryError instanceof Error
+              ? `连接中断，正在恢复会话：${recoveryError.message}`
+              : "连接中断，正在恢复会话。"
+          )
+        }
+      } finally {
+        recoveryInFlightRef.current = false
+        const shouldContinueRecovery =
+          streamStatusRef.current === "streaming" ||
+          streamStatusRef.current === "recovering"
+
+        if (
+          keepPolling &&
+          (activeStreamConversationIdRef.current === conversationId ||
+            currentConversationIdRef.current === conversationId) &&
+          !terminalEventSeenRef.current &&
+          shouldContinueRecovery
+        ) {
+          clearRecoveryTimer()
+          recoveryTimerRef.current = window.setTimeout(() => {
+            void recoverConversationEvents(conversationId, true)
+          }, 1200)
+        }
+      }
+    }
+  )
+
   const applyEnvelopeEvent = React.useEffectEvent((envelope: GatewayChatStreamEnvelope) => {
+    const conversationId =
+      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+
+    if (
+      conversationId &&
+      envelope.type === "event" &&
+      typeof envelope.event.seq === "number"
+    ) {
+      setConversationLastSeq(conversationId, envelope.event.seq)
+    }
+
     if (envelope.type === "error") {
+      recoveryInFlightRef.current = false
+      clearRecoveryTimer()
+      activeStreamConversationIdRef.current = null
       setStreamStatus("error")
       setError(envelope.error)
       updateAssistantEntry((entry) =>
@@ -734,10 +936,46 @@ export function GatewayChatSidebar() {
     applyEvent(envelope.event)
   })
 
+  React.useEffect(() => {
+    const triggerRecovery = () => {
+      const conversationId =
+        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      if (!conversationId) {
+        return
+      }
+
+      const status = streamStatusRef.current
+      if (status !== "streaming" && status !== "recovering") {
+        return
+      }
+
+      void recoverConversationEvents(conversationId, false)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        triggerRecovery()
+      }
+    }
+
+    window.addEventListener("focus", triggerRecovery)
+    window.addEventListener("online", triggerRecovery)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener("focus", triggerRecovery)
+      window.removeEventListener("online", triggerRecovery)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [recoverConversationEvents])
+
   function clearConversation() {
     setEntries([])
     setError(null)
     resetTurnState()
+    clearRecoveryTimer()
+    activeStreamConversationIdRef.current = null
+    recoveryInFlightRef.current = false
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
   }
@@ -756,6 +994,8 @@ export function GatewayChatSidebar() {
     }
 
     abortRef.current?.abort()
+    clearRecoveryTimer()
+    recoveryInFlightRef.current = false
     resetTurnState()
 
     const controller = new AbortController()
@@ -782,6 +1022,29 @@ export function GatewayChatSidebar() {
     ])
 
     ensureAssistantEntry()
+    activeStreamConversationIdRef.current = targetConversationId
+
+    try {
+      await primeConversationCursor(targetConversationId)
+    } catch (primeError) {
+      activeStreamConversationIdRef.current = null
+      const message =
+        primeError instanceof Error ? primeError.message : "初始化会话恢复游标失败。"
+      setStreamStatus("error")
+      setError(message)
+      appendSystemMessage(`发送失败：${message}`)
+      updateAssistantEntry((entry) =>
+        entry
+          ? {
+              ...entry,
+              status: "error",
+              pane: finalizePane(entry.pane),
+            }
+          : null
+      )
+      abortRef.current = null
+      return
+    }
 
     try {
       await streamConversationSend(
@@ -802,21 +1065,38 @@ export function GatewayChatSidebar() {
       )
 
       if (!controller.signal.aborted) {
-        completeAssistantEntry()
-        assistantEntryIdRef.current = null
-        setStreamStatus("completed")
-        await Promise.all([
-          refreshConversations(),
-          syncConversationMessages(targetConversationId),
-        ])
+        abortRef.current = null
+        if (!terminalEventSeenRef.current) {
+          setStreamStatus("recovering")
+          setError("实时流已断开，正在补偿会话事件…")
+          await recoverConversationEvents(targetConversationId, true)
+        }
       }
     } catch (streamError) {
       if (controller.signal.aborted) {
+        clearRecoveryTimer()
+        activeStreamConversationIdRef.current = null
         setStreamStatus("idle")
         return
       }
 
       const message = streamError instanceof Error ? streamError.message : "发送失败。"
+      const recoverable =
+        typeof streamError === "object" &&
+        streamError !== null &&
+        "recoverable" in streamError
+          ? Boolean((streamError as { recoverable?: unknown }).recoverable)
+          : true
+
+      if (recoverable) {
+        abortRef.current = null
+        setStreamStatus("recovering")
+        setError(`连接中断，正在恢复会话：${message}`)
+        await recoverConversationEvents(targetConversationId, true)
+        return
+      }
+
+      activeStreamConversationIdRef.current = null
       setStreamStatus("error")
       setError(message)
       appendSystemMessage(`发送失败：${message}`)

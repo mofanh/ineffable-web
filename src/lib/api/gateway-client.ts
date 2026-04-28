@@ -49,6 +49,11 @@ export type ConversationMessageRecord = {
   updated_at: string
 }
 
+export type ConversationEventsResponse = {
+  events: GatewayChatStreamEnvelope[]
+  next_seq?: number | null
+}
+
 export type AuthTokenPair = {
   access_token: string
   refresh_token: string
@@ -131,6 +136,10 @@ async function parseError(response: Response) {
   } catch {
     return text || `Request failed: ${response.status}`
   }
+}
+
+function withRecoverableFlag(error: Error, recoverable: boolean) {
+  return Object.assign(error, { recoverable })
 }
 
 async function requestJson<T>(
@@ -383,6 +392,41 @@ export function getConversationMessages(
   )
 }
 
+export async function getConversationEvents(
+  accessToken: string,
+  workspaceId: string,
+  conversationId: string,
+  options?: {
+    afterSeq?: number
+    max?: number
+  }
+) {
+  const params = new URLSearchParams({
+    conversation_id: conversationId,
+  })
+  if (options?.afterSeq != null) {
+    params.set("after_seq", String(options.afterSeq))
+  }
+  if (options?.max != null) {
+    params.set("max", String(options.max))
+  }
+
+  const response = await requestJson<{
+    events: unknown[]
+    next_seq?: number | null
+  }>(`/gateway/v1/conversations/events?${params.toString()}`, {
+    accessToken,
+    workspaceId,
+  })
+
+  return {
+    events: response.events
+      .map((event) => normalizeGatewayEnvelope(event))
+      .filter((event): event is GatewayChatStreamEnvelope => event !== null),
+    next_seq: response.next_seq ?? null,
+  } satisfies ConversationEventsResponse
+}
+
 export async function streamConversationSend(
   accessToken: string,
   workspaceId: string,
@@ -412,17 +456,23 @@ export async function streamConversationSend(
   })
 
   if (!response.ok) {
-    throw new Error(await parseError(response))
+    throw withRecoverableFlag(new Error(await parseError(response)), false)
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
-  if (contentType.includes("text/event-stream")) {
-    await parseSseStream(response, options.onEnvelope)
-    return
-  }
+  try {
+    if (contentType.includes("text/event-stream")) {
+      await parseSseStream(response, options.onEnvelope)
+      return
+    }
 
-  const parsed = normalizeGatewayEnvelope(await response.json())
-  if (parsed) {
-    options.onEnvelope(parsed)
+    const parsed = normalizeGatewayEnvelope(await response.json())
+    if (parsed) {
+      options.onEnvelope(parsed)
+    }
+  } catch (error) {
+    const next =
+      error instanceof Error ? error : new Error("Failed to read gateway stream")
+    throw withRecoverableFlag(next, true)
   }
 }

@@ -1,6 +1,6 @@
 import type { AgentPaneState } from "@/components/right-sidebar/chat/chat-pane-state"
 
-export type StreamStatus = "idle" | "streaming" | "completed" | "error"
+export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "error"
 
 export type UserEntry = {
   id: string
