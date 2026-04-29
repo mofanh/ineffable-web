@@ -1,7 +1,7 @@
 import {
   normalizeGatewayEnvelope,
   type GatewayChatStreamEnvelope,
-} from "@/lib/api/chat/gateway-api"
+} from "@/lib/api/chat/gateway-events"
 
 export type AppUser = {
   id: string
@@ -475,4 +475,24 @@ export async function streamConversationSend(
       error instanceof Error ? error : new Error("Failed to read gateway stream")
     throw withRecoverableFlag(next, true)
   }
+}
+
+export function stopConversationRun(
+  accessToken: string,
+  workspaceId: string,
+  conversationId: string
+) {
+  return requestJson<{
+    ok: boolean
+    cancelled: boolean
+    conversation_id: string
+    run_id?: string | null
+  }>("/gateway/v1/conversations/stop", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: {
+      conversation_id: conversationId,
+    },
+  })
 }

@@ -5,7 +5,7 @@ import {
 import type {
   GatewayChatFinalResult,
   GatewayChatStreamEvent,
-} from "@/lib/api/chat/gateway-api"
+} from "@/lib/api/chat/gateway-events"
 import type { AssistantEntry, SubagentView } from "@/components/right-sidebar/chat/gateway-chat-types"
 
 export const STORAGE_KEYS = {

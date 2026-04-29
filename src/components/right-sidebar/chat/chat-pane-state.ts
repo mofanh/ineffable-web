@@ -1,4 +1,4 @@
-import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-api"
+import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 
 export type ToolCallStatus = "pending" | "running" | "completed"
 

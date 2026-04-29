@@ -44,6 +44,7 @@ import { useAppSession } from "@/contexts/app-session"
 import {
   getConversationEvents,
   getConversationMessages,
+  stopConversationRun,
   streamConversationSend,
   type ConversationMessageRecord,
 } from "@/lib/api/gateway-client"
@@ -51,8 +52,8 @@ import type {
   GatewayChatFinalResult,
   GatewayChatStreamEnvelope,
   GatewayChatStreamEvent,
-} from "@/lib/api/chat/gateway-api"
-import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-api"
+} from "@/lib/api/chat/gateway-events"
+import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 
 function createAssistantEntry(status: AssistantEntry["status"]): AssistantEntry {
   return {
@@ -789,7 +790,12 @@ export function GatewayChatSidebar() {
       return
     }
 
-    if (event.event === "completed" || event.event === "run_completed") {
+    if (
+      event.event === "completed" ||
+      event.event === "run_completed" ||
+      event.event === "cancelled" ||
+      event.event === "run_cancelled"
+    ) {
       const conversationId =
         activeStreamConversationIdRef.current ?? currentConversationIdRef.current
       if (conversationId) {
@@ -987,6 +993,27 @@ export function GatewayChatSidebar() {
     clearConversation()
   }
 
+  async function handleStop() {
+    const conversationId =
+      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+
+    if (!conversationId || !accessToken || !currentWorkspace) {
+      abortRef.current?.abort()
+      return
+    }
+
+    setError(null)
+
+    try {
+      await stopConversationRun(accessToken, currentWorkspace.id, conversationId)
+    } catch (stopError) {
+      const message =
+        stopError instanceof Error ? stopError.message : "停止当前会话运行失败。"
+      setError(message)
+      appendSystemMessage(`停止失败：${message}`)
+    }
+  }
+
   async function handleSend() {
     const content = composer.trim()
     if (!content || !accessToken || !currentWorkspace || isSending) {
@@ -1170,7 +1197,9 @@ export function GatewayChatSidebar() {
         onSend={() => {
           void handleSend()
         }}
-        onStop={() => abortRef.current?.abort()}
+        onStop={() => {
+          void handleStop()
+        }}
       />
     </>
   )
