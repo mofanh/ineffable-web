@@ -427,6 +427,62 @@ export async function getConversationEvents(
   } satisfies ConversationEventsResponse
 }
 
+export async function subscribeConversationEvents(
+  accessToken: string,
+  workspaceId: string,
+  conversationId: string,
+  options: {
+    runId?: string | null
+    afterSeq?: number | null
+    signal?: AbortSignal
+    onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
+  }
+) {
+  const params = new URLSearchParams({
+    conversation_id: conversationId,
+  })
+  if (options.runId) {
+    params.set("run_id", options.runId)
+  }
+  if (options.afterSeq != null) {
+    params.set("after_seq", String(options.afterSeq))
+  }
+
+  const response = await fetch(
+    toUrl(`/gateway/v1/conversations/subscribe?${params.toString()}`),
+    {
+      method: "GET",
+      headers: buildHeaders({
+        accessToken,
+        workspaceId,
+        accept: "text/event-stream, application/json",
+      }),
+      signal: options.signal,
+    }
+  )
+
+  if (!response.ok) {
+    throw withRecoverableFlag(new Error(await parseError(response)), true)
+  }
+
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
+  try {
+    if (contentType.includes("text/event-stream")) {
+      await parseSseStream(response, options.onEnvelope)
+      return
+    }
+
+    const parsed = normalizeGatewayEnvelope(await response.json())
+    if (parsed) {
+      options.onEnvelope(parsed)
+    }
+  } catch (error) {
+    const next =
+      error instanceof Error ? error : new Error("Failed to read gateway stream")
+    throw withRecoverableFlag(next, true)
+  }
+}
+
 export async function streamConversationSend(
   accessToken: string,
   workspaceId: string,
