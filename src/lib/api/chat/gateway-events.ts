@@ -108,9 +108,16 @@ export function canonicalizeGatewayEvent(
 
   let eventName = event.event
   let content = event.content ?? null
+  const hasExplicitToolCallEvent =
+    eventName === "tool_call_start" ||
+    eventName === "tool_call_delta" ||
+    eventName === "tool_call_done"
+  const hasExplicitToolResultEvent = eventName === "tool_result"
 
   if (inferredRole === "tool_call") {
-    eventName = "tool_call_done"
+    if (!hasExplicitToolCallEvent) {
+      eventName = "tool_call_done"
+    }
     if (parsedTool) {
       const fullArguments =
         getStringValue(metadata, "full_arguments") || parsedTool.body || content || ""
@@ -120,7 +127,9 @@ export function canonicalizeGatewayEvent(
       content = parsedTool.body || content
     }
   } else if (inferredRole === "tool") {
-    eventName = "tool_result"
+    if (!hasExplicitToolResultEvent) {
+      eventName = "tool_result"
+    }
     if (parsedTool) {
       content = parsedTool.body || content
     }
