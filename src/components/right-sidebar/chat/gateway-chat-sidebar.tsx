@@ -94,6 +94,39 @@ function applyEventToPaneState(pane: AgentPaneState, event: GatewayChatStreamEve
   return appendUpdateToPane(pane, content)
 }
 
+function getMessageReasoningContent(message: ConversationMessageRecord) {
+  const contentJson =
+    message.content_json && typeof message.content_json === "object"
+      ? message.content_json
+      : null
+  const metadata =
+    message.metadata_json && typeof message.metadata_json === "object"
+      ? message.metadata_json
+      : null
+
+  const contentJsonReasoning = contentJson?.reasoning_content
+  if (typeof contentJsonReasoning === "string" && contentJsonReasoning.trim()) {
+    return contentJsonReasoning
+  }
+
+  const metadataReasoning = metadata?.reasoning_content
+  if (typeof metadataReasoning === "string" && metadataReasoning.trim()) {
+    return metadataReasoning
+  }
+
+  const matches = Array.from(
+    message.content.matchAll(/<think>([\s\S]*?)<\/think>/g)
+  )
+    .map((match) => match[1]?.trim() ?? "")
+    .filter(Boolean)
+
+  return matches.length > 0 ? matches.join("\n\n") : ""
+}
+
+function stripInlineThinkBlocks(content: string) {
+  return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+}
+
 function buildHistoryEvent(
   message: ConversationMessageRecord,
   seq: number
@@ -132,7 +165,10 @@ function buildHistoryEvent(
     scope:
       metadata && typeof metadata.scope === "string" ? metadata.scope : null,
     role,
-    content: message.content,
+    content:
+      message.role === "assistant" || message.message_type === "output"
+        ? stripInlineThinkBlocks(message.content)
+        : message.content,
     metadata,
   })
 }
@@ -197,6 +233,36 @@ function buildAssistantEntryFromMessages(messages: ConversationMessageRecord[]):
   const subagentOrder: string[] = []
 
   compactedMessages.forEach((message, index) => {
+    const reasoningContent = getMessageReasoningContent(message)
+    if (
+      reasoningContent &&
+      (message.role === "assistant" || message.message_type === "output")
+    ) {
+      pane = applyEventToPaneState(
+        pane,
+        canonicalizeGatewayEvent({
+          run_id: message.run_id ?? message.conversation_id,
+          seq: index * 2 + 1,
+          ts_ms: Date.parse(message.created_at),
+          stream: "history",
+          event: "reasoning_delta",
+          phase: "history",
+          scope:
+            message.metadata_json &&
+            typeof message.metadata_json === "object" &&
+            typeof message.metadata_json.scope === "string"
+              ? message.metadata_json.scope
+              : null,
+          role: "assistant",
+          content: reasoningContent,
+          metadata:
+            message.metadata_json && typeof message.metadata_json === "object"
+              ? { ...message.metadata_json }
+              : null,
+        })
+      )
+    }
+
     const event = buildHistoryEvent(message, index + 1)
     if (!event) {
       return

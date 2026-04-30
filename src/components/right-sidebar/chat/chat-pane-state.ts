@@ -39,6 +39,7 @@ export type PaneBlock = TextBlock | ThinkBlock | UpdateBlock | ToolBlock
 
 export type AgentPaneState = {
   activeThinkBlockId: string | null
+  activeThinkMode: "reasoning" | "tagged" | null
   pendingTagBuffer: string
   blockOrder: string[]
   blocks: Record<string, PaneBlock>
@@ -143,11 +144,21 @@ export function appendUpdateToPane(pane: AgentPaneState, content: string) {
   }
 }
 
-function ensureOpenThinkBlock(pane: AgentPaneState) {
+function ensureOpenThinkBlock(
+  pane: AgentPaneState,
+  mode: AgentPaneState["activeThinkMode"]
+) {
   if (pane.activeThinkBlockId) {
     const activeBlock = pane.blocks[pane.activeThinkBlockId]
     if (activeBlock?.type === "think") {
-      return pane
+      if (pane.activeThinkMode === mode) {
+        return pane
+      }
+
+      return {
+        ...pane,
+        activeThinkMode: mode,
+      }
     }
   }
 
@@ -155,6 +166,7 @@ function ensureOpenThinkBlock(pane: AgentPaneState) {
   return {
     ...pane,
     activeThinkBlockId: blockId,
+    activeThinkMode: mode,
     blockOrder: [...pane.blockOrder, blockId],
     blocks: {
       ...pane.blocks,
@@ -168,8 +180,12 @@ function ensureOpenThinkBlock(pane: AgentPaneState) {
   }
 }
 
-function appendThinkBlockContent(pane: AgentPaneState, content: string) {
-  const nextPane = ensureOpenThinkBlock(pane)
+function appendThinkBlockContent(
+  pane: AgentPaneState,
+  content: string,
+  mode: AgentPaneState["activeThinkMode"]
+) {
+  const nextPane = ensureOpenThinkBlock(pane, mode)
   const blockId = nextPane.activeThinkBlockId
   if (!blockId) {
     return nextPane
@@ -204,12 +220,14 @@ function closeActiveThinkBlock(pane: AgentPaneState) {
     return {
       ...pane,
       activeThinkBlockId: null,
+      activeThinkMode: null,
     }
   }
 
   return {
     ...pane,
     activeThinkBlockId: null,
+    activeThinkMode: null,
     blocks: {
       ...pane.blocks,
       [blockId]: {
@@ -238,7 +256,8 @@ function consumeTaggedText(pane: AgentPaneState, chunk: string) {
         const trailingLength = getTrailingPartialTagLength(rest, closeTag)
         nextPane = appendThinkBlockContent(
           nextPane,
-          rest.slice(0, rest.length - trailingLength)
+          rest.slice(0, rest.length - trailingLength),
+          "tagged"
         )
         return {
           ...nextPane,
@@ -246,7 +265,7 @@ function consumeTaggedText(pane: AgentPaneState, chunk: string) {
         }
       }
 
-      nextPane = appendThinkBlockContent(nextPane, rest.slice(0, closeIndex))
+      nextPane = appendThinkBlockContent(nextPane, rest.slice(0, closeIndex), "tagged")
       nextPane = closeActiveThinkBlock(nextPane)
       rest = rest.slice(closeIndex + closeTag.length)
       continue
@@ -263,7 +282,7 @@ function consumeTaggedText(pane: AgentPaneState, chunk: string) {
     }
 
     nextPane = appendTextBlock(nextPane, rest.slice(0, openIndex))
-    nextPane = ensureOpenThinkBlock(nextPane)
+    nextPane = ensureOpenThinkBlock(nextPane, "tagged")
     rest = rest.slice(openIndex + openTag.length)
   }
 
@@ -285,7 +304,7 @@ function consumeReasoningText(pane: AgentPaneState, chunk: string) {
     const closeIndex = rest.indexOf(closeTag)
 
     if (openIndex === 0) {
-      nextPane = ensureOpenThinkBlock(nextPane)
+      nextPane = ensureOpenThinkBlock(nextPane, "tagged")
       rest = rest.slice(openTag.length)
       continue
     }
@@ -315,7 +334,8 @@ function consumeReasoningText(pane: AgentPaneState, chunk: string) {
 
       nextPane = appendThinkBlockContent(
         nextPane,
-        rest.slice(0, rest.length - trailingLength)
+        rest.slice(0, rest.length - trailingLength),
+        "reasoning"
       )
 
       return {
@@ -324,7 +344,7 @@ function consumeReasoningText(pane: AgentPaneState, chunk: string) {
       }
     }
 
-    nextPane = appendThinkBlockContent(nextPane, rest.slice(0, nextTagIndex))
+    nextPane = appendThinkBlockContent(nextPane, rest.slice(0, nextTagIndex), "reasoning")
     rest = rest.slice(nextTagIndex)
   }
 
@@ -334,6 +354,7 @@ function consumeReasoningText(pane: AgentPaneState, chunk: string) {
 export function createEmptyAgentPane(): AgentPaneState {
   return {
     activeThinkBlockId: null,
+    activeThinkMode: null,
     pendingTagBuffer: "",
     blockOrder: [],
     blocks: {},
@@ -351,9 +372,14 @@ export function hasAgentPaneContent(pane: AgentPaneState) {
 }
 
 export function applyTextDeltaToPane(pane: AgentPaneState, chunk: string) {
+  const basePane =
+    pane.activeThinkBlockId && pane.activeThinkMode === "reasoning"
+      ? closeActiveThinkBlock(pane)
+      : pane
+
   return consumeTaggedText(
     {
-      ...pane,
+      ...basePane,
       receivedTextDelta: true,
     },
     chunk
@@ -365,11 +391,18 @@ export function applyMessageToPane(pane: AgentPaneState, content: string) {
     return pane
   }
 
-  return consumeTaggedText(pane, content)
+  const basePane =
+    pane.activeThinkBlockId && pane.activeThinkMode === "reasoning"
+      ? closeActiveThinkBlock(pane)
+      : pane
+
+  return consumeTaggedText(basePane, content)
 }
 
 export function applyReasoningDeltaToPane(pane: AgentPaneState, chunk: string) {
-  return consumeReasoningText(pane, chunk)
+  const nextPane = ensureOpenThinkBlock(pane, "reasoning")
+
+  return consumeReasoningText(nextPane, chunk)
 }
 
 export function finalizePane(pane: AgentPaneState, fallback?: string) {
