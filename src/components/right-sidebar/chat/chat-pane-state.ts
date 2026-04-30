@@ -1,5 +1,12 @@
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 
+// Pane invariants:
+// 1. A think block may only contain contiguous reasoning or tagged-think content.
+// 2. Any structural block boundary such as tool/update must terminate the active
+//    think block before the structural block is appended.
+// 3. Once a think block is terminated, later reasoning must open a fresh think block
+//    instead of mutating the previous one.
+
 export type ToolCallStatus = "pending" | "running" | "completed"
 
 export type ToolCallView = {
@@ -124,17 +131,18 @@ export function appendUpdateToPane(pane: AgentPaneState, content: string) {
     return pane
   }
 
-  const lastBlock = getLastBlock(pane)
+  const basePane = endThinkSegmentBeforeStructuralBlock(pane)
+  const lastBlock = getLastBlock(basePane)
   if (lastBlock?.type === "update" && lastBlock.content === next) {
-    return pane
+    return basePane
   }
 
   const blockId = createBlockId("update")
   return {
-    ...pane,
-    blockOrder: [...pane.blockOrder, blockId],
+    ...basePane,
+    blockOrder: [...basePane.blockOrder, blockId],
     blocks: {
-      ...pane.blocks,
+      ...basePane.blocks,
       [blockId]: {
         id: blockId,
         type: "update",
@@ -235,6 +243,19 @@ function closeActiveThinkBlock(pane: AgentPaneState) {
         open: false,
       },
     },
+  }
+}
+
+function endThinkSegmentBeforeStructuralBlock(pane: AgentPaneState) {
+  const nextPane = pane.activeThinkBlockId ? closeActiveThinkBlock(pane) : pane
+
+  if (!nextPane.pendingTagBuffer) {
+    return nextPane
+  }
+
+  return {
+    ...nextPane,
+    pendingTagBuffer: "",
   }
 }
 
@@ -465,16 +486,17 @@ export function upsertToolInPane(
   toolId: string,
   tool: ToolCallView
 ) {
-  const hasToolBlock = pane.blockOrder.some((blockId) => {
-    const block = pane.blocks[blockId]
+  const basePane = endThinkSegmentBeforeStructuralBlock(pane)
+  const hasToolBlock = basePane.blockOrder.some((blockId) => {
+    const block = basePane.blocks[blockId]
     return block?.type === "tool" && block.toolId === toolId
   })
 
   if (hasToolBlock) {
     return {
-      ...pane,
+      ...basePane,
       tools: {
-        ...pane.tools,
+        ...basePane.tools,
         [toolId]: tool,
       },
     }
@@ -482,10 +504,10 @@ export function upsertToolInPane(
 
   const blockId = createBlockId("tool")
   return {
-    ...pane,
-    blockOrder: [...pane.blockOrder, blockId],
+    ...basePane,
+    blockOrder: [...basePane.blockOrder, blockId],
     blocks: {
-      ...pane.blocks,
+      ...basePane.blocks,
       [blockId]: {
         id: blockId,
         type: "tool",
@@ -493,7 +515,7 @@ export function upsertToolInPane(
       } satisfies ToolBlock,
     },
     tools: {
-      ...pane.tools,
+      ...basePane.tools,
       [toolId]: tool,
     },
   }

@@ -55,6 +55,12 @@ import type {
 } from "@/lib/api/chat/gateway-events"
 import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 
+// History replay invariants:
+// 1. Replay must rebuild the same structural blocks the live SSE path produced.
+// 2. Only assistant output snapshots may be compacted during replay.
+// 3. Structural records such as tool_call/tool_result must be preserved verbatim so
+//    tool blocks and their ordering survive the post-stream resync path.
+
 function createAssistantEntry(status: AssistantEntry["status"]): AssistantEntry {
   return {
     id: createMessageId("assistant"),
@@ -177,9 +183,10 @@ function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) 
   const lastAssistantIndexByScope = new Map<string, number>()
 
   messages.forEach((message, index) => {
-    const isAssistantLike =
-      message.role === "assistant" || message.message_type === "output"
-    if (!isAssistantLike) {
+    const isAssistantOutput =
+      message.message_type === "output" ||
+      (message.role === "assistant" && message.message_type !== "tool_call")
+    if (!isAssistantOutput) {
       return
     }
 
@@ -201,9 +208,10 @@ function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) 
   })
 
   return messages.filter((message, index) => {
-    const isAssistantLike =
-      message.role === "assistant" || message.message_type === "output"
-    if (!isAssistantLike) {
+    const isAssistantOutput =
+      message.message_type === "output" ||
+      (message.role === "assistant" && message.message_type !== "tool_call")
+    if (!isAssistantOutput) {
       return true
     }
 
