@@ -31,8 +31,18 @@ export type Conversation = {
   status: string
   last_message_at?: string | null
   current_run_id?: string | null
+  current_run?: ConversationRunSummary | null
   created_at: string
   updated_at: string
+}
+
+export type ConversationRunSummary = {
+  id: string
+  status: string
+  started_at?: string | null
+  completed_at?: string | null
+  is_streaming: boolean
+  is_live: boolean
 }
 
 export type ConversationMessageRecord = {
@@ -51,6 +61,11 @@ export type ConversationMessageRecord = {
 
 export type ConversationEventsResponse = {
   events: GatewayChatStreamEnvelope[]
+  next_seq?: number | null
+}
+
+export type ConversationMessagesResponse = {
+  messages: ConversationMessageRecord[]
   next_seq?: number | null
 }
 
@@ -383,7 +398,7 @@ export function getConversationMessages(
     conversation_id: conversationId,
   })
 
-  return requestJson<{ messages: ConversationMessageRecord[] }>(
+  return requestJson<ConversationMessagesResponse>(
     `/gateway/v1/conversations/messages?${params.toString()}`,
     {
       accessToken,

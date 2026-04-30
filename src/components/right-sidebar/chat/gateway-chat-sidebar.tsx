@@ -47,6 +47,7 @@ import {
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
+  type Conversation,
   type ConversationMessageRecord,
 } from "@/lib/api/gateway-client"
 import type {
@@ -144,6 +145,16 @@ function clearPendingConversationResumeState() {
   }
 
   window.sessionStorage.removeItem(CONVERSATION_RESUME_STORAGE_KEY)
+}
+
+function getLiveConversationRun(conversation: Conversation | null) {
+  if (!conversation?.current_run) {
+    return null
+  }
+
+  return conversation.current_run.is_streaming && conversation.current_run.is_live
+    ? conversation.current_run
+    : null
 }
 
 function applyEventToPaneState(pane: AgentPaneState, event: GatewayChatStreamEvent) {
@@ -492,6 +503,7 @@ export function GatewayChatSidebar() {
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
   const [error, setError] = React.useState<string | null>(null)
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false)
+  const [hydratedConversationId, setHydratedConversationId] = React.useState<string | null>(null)
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
@@ -536,6 +548,10 @@ export function GatewayChatSidebar() {
     () =>
       conversations.find((conversation) => conversation.id === currentConversationId) ?? null,
     [conversations, currentConversationId]
+  )
+  const selectedLiveRun = React.useMemo(
+    () => getLiveConversationRun(selectedConversation),
+    [selectedConversation]
   )
 
   const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
@@ -699,6 +715,7 @@ export function GatewayChatSidebar() {
     async (conversationId: string) => {
       if (!accessToken || !currentWorkspace) {
         setEntries([])
+        setHydratedConversationId(null)
         return
       }
 
@@ -711,12 +728,17 @@ export function GatewayChatSidebar() {
           conversationId
         )
         setEntries(mapConversationMessagesToEntries(response.messages))
+        setConversationLastSeq(conversationId, response.next_seq ?? 0)
+        setHydratedConversationId(conversationId)
         setError(null)
+      } catch (error) {
+        setHydratedConversationId(null)
+        throw error
       } finally {
         setIsLoadingMessages(false)
       }
     },
-    [accessToken, currentWorkspace]
+    [accessToken, currentWorkspace, setConversationLastSeq]
   )
 
   React.useEffect(() => {
@@ -740,6 +762,7 @@ export function GatewayChatSidebar() {
     seenFinalRef.current = new Set()
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
+    setHydratedConversationId(null)
 
     if (!currentConversationId) {
       setEntries([])
@@ -1301,15 +1324,7 @@ export function GatewayChatSidebar() {
       return
     }
 
-    const pending = readPendingConversationResumeState()
-    if (!pending) {
-      return
-    }
-
-    if (
-      pending.workspaceId !== currentWorkspace.id ||
-      pending.conversationId !== currentConversationId
-    ) {
+    if (hydratedConversationId !== currentConversationId) {
       return
     }
 
@@ -1321,19 +1336,44 @@ export function GatewayChatSidebar() {
       return
     }
 
-    const runId = pending.runId ?? selectedConversation?.current_run_id ?? null
-    setConversationLastSeq(currentConversationId, pending.afterSeq ?? 0)
-    void resumeConversationStream(
-      currentConversationId,
-      runId,
-      pending.afterSeq ?? null
-    )
+    const pending = readPendingConversationResumeState()
+    const pendingMatches =
+      pending &&
+      pending.workspaceId === currentWorkspace.id &&
+      pending.conversationId === currentConversationId
+        ? pending
+        : null
+    const liveRunId = selectedLiveRun?.id ?? null
+
+    if (pendingMatches?.runId && liveRunId && pendingMatches.runId !== liveRunId) {
+      clearPendingConversationResumeState()
+    }
+
+    const shouldUsePending =
+      pendingMatches != null &&
+      (!pendingMatches.runId || !liveRunId || pendingMatches.runId === liveRunId)
+    const runId =
+      (shouldUsePending ? pendingMatches?.runId : null) ??
+      liveRunId ??
+      (shouldUsePending ? selectedConversation?.current_run_id ?? null : null)
+
+    if (!runId) {
+      return
+    }
+
+    const afterSeq =
+      (shouldUsePending ? pendingMatches?.afterSeq : null) ??
+      conversationSeqRef.current.get(currentConversationId) ??
+      null
+
+    void resumeConversationStream(currentConversationId, runId, afterSeq)
   }, [
     accessToken,
     currentConversationId,
     currentWorkspace,
+    hydratedConversationId,
     selectedConversation?.current_run_id,
-    setConversationLastSeq,
+    selectedLiveRun?.id,
   ])
 
   function clearConversation() {
