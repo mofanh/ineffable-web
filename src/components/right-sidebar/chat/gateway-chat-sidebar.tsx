@@ -16,7 +16,10 @@ import {
   type AgentPaneState,
   upsertToolInPane,
 } from "@/components/right-sidebar/chat/chat-pane-state"
-import { ChatComposer } from "@/components/right-sidebar/chat/components/chat-composer"
+import {
+  ChatComposer,
+  type PreInputQueueItem,
+} from "@/components/right-sidebar/chat/components/chat-composer"
 import { ChatMessageList } from "@/components/right-sidebar/chat/components/chat-message-list"
 import { ChatSidebarHeader } from "@/components/right-sidebar/chat/components/chat-sidebar-header"
 import {
@@ -521,6 +524,7 @@ export function GatewayChatSidebar() {
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
+  const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
 
   React.useEffect(() => {
     return () => {
@@ -1217,6 +1221,10 @@ export function GatewayChatSidebar() {
   )
 
   const applyEnvelopeEvent = React.useEffectEvent((envelope: GatewayChatStreamEnvelope) => {
+    if (envelope.type === "queued") {
+      return
+    }
+
     const conversationId =
       activeStreamConversationIdRef.current ?? currentConversationIdRef.current
 
@@ -1417,9 +1425,9 @@ export function GatewayChatSidebar() {
     }
   }
 
-  async function handleSend() {
-    const content = composer.trim()
-    if (!content || !accessToken || !currentWorkspace || isSending) {
+  // Core send flow: shared by handleSend, sendNextFromQueue, and promote-to-guided.
+  async function sendContentToApi(content: string, mode?: "normal" | "guided" | "pre_input") {
+    if (!accessToken || !currentWorkspace || !content.trim()) {
       return
     }
 
@@ -1433,7 +1441,6 @@ export function GatewayChatSidebar() {
 
     setError(null)
     updateStreamStatus("streaming")
-    setComposer("")
 
     let targetConversationId = currentConversationId
     if (!targetConversationId) {
@@ -1442,6 +1449,7 @@ export function GatewayChatSidebar() {
       skipNextConversationSyncRef.current = targetConversationId
     }
 
+    // 统一输入：所有 send 都立即显示 user 气泡（后端负责决定排队或立即处理）
     setEntries((current) => [
       ...current,
       {
@@ -1485,6 +1493,7 @@ export function GatewayChatSidebar() {
     }
 
     try {
+      let queued = false
       await streamConversationSend(
         accessToken,
         currentWorkspace.id,
@@ -1493,14 +1502,29 @@ export function GatewayChatSidebar() {
           content,
           stream: true,
           channel: "web",
+          input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
         },
         {
           signal: controller.signal,
           onEnvelope: (envelope) => {
+            if (envelope.type === "queued") {
+              // Phase 6: 服务端已入队，前端也加入本地队列用于 UI 展示
+              queued = true
+              setPreInputQueue((prev) => [
+                ...prev,
+                { id: createMessageId("preinput"), content },
+              ])
+              return
+            }
             applyEnvelopeEvent(envelope)
           },
         }
       )
+
+      if (queued) {
+        updateStreamStatus("idle")
+        return
+      }
 
       if (!controller.signal.aborted) {
         abortRef.current = null
@@ -1557,6 +1581,64 @@ export function GatewayChatSidebar() {
     }
   }
 
+  // Send the next item from the pre-input queue (called when current SSE completes).
+  const sendNextFromQueueRef = React.useRef<boolean>(false)
+  const sendNextFromQueue = React.useEffectEvent(async () => {
+    if (sendNextFromQueueRef.current) {
+      return
+    }
+
+    setPreInputQueue((queue) => {
+      if (queue.length === 0) {
+        return queue
+      }
+
+      sendNextFromQueueRef.current = true
+      const [head, ...rest] = queue
+      // Fire-and-forget: send the head item
+      void sendContentToApi(head.content).finally(() => {
+        sendNextFromQueueRef.current = false
+      })
+      return rest
+    })
+  })
+
+  // When the current SSE stream finishes, automatically consume the next
+  // item from the pre-input queue (if any).
+  React.useEffect(() => {
+    if (streamStatus === "completed" || streamStatus === "idle" || streamStatus === "error") {
+      void sendNextFromQueue()
+    }
+  }, [streamStatus])
+
+  async function handleSend() {
+    const content = composer.trim()
+    if (!content || !accessToken || !currentWorkspace) {
+      return
+    }
+
+    // 统一输入：不再由前端判断排队/立即处理，后端根据活跃 run 状态自动决定
+    setComposer("")
+    await sendContentToApi(content)
+  }
+
+  function handlePromoteToGuided(id: string) {
+    setPreInputQueue((prev) => {
+      const item = prev.find((q) => q.id === id)
+      if (!item) {
+        return prev
+      }
+
+      // Fire-and-forget: send immediately as guided input.
+      void sendContentToApi(item.content, "guided")
+      return prev.filter((q) => q.id !== id)
+    })
+  }
+
+  function handleDeleteFromQueue(id: string) {
+    setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
+  }
+
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault()
@@ -1606,6 +1688,7 @@ export function GatewayChatSidebar() {
         composer={composer}
         error={error}
         isSending={isSending}
+        preInputQueue={preInputQueue}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
         onSend={() => {
@@ -1614,6 +1697,8 @@ export function GatewayChatSidebar() {
         onStop={() => {
           void handleStop()
         }}
+        onPromoteToGuided={handlePromoteToGuided}
+        onDeleteFromQueue={handleDeleteFromQueue}
       />
     </>
   )

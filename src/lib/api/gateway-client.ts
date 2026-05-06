@@ -506,6 +506,7 @@ export async function streamConversationSend(
     content: string
     stream?: boolean
     channel?: string
+    input_mode?: string
   },
   options: {
     signal?: AbortSignal
