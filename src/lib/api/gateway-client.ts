@@ -568,3 +568,63 @@ export function stopConversationRun(
     },
   })
 }
+
+// ── Pending Inputs API ──
+
+export type PendingInputItem = {
+  id: number
+  conversation_id: string
+  message_id: string
+  session_key: string
+  content: string
+  kind: string
+  seq: number
+  status: string
+  created_at: string
+}
+
+export function getPendingInputs(
+  accessToken: string,
+  workspaceId: string,
+  conversationId: string
+) {
+  return requestJson<{ pending_inputs: PendingInputItem[] }>(
+    `/gateway/v1/conversations/${conversationId}/pending-inputs`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function promotePendingInput(
+  accessToken: string,
+  workspaceId: string,
+  conversationId: string,
+  pendingId: number
+) {
+  return requestJson<{ ok: boolean; pending_input: PendingInputItem }>(
+    `/gateway/v1/conversations/${conversationId}/pending-inputs/${pendingId}/promote`,
+    {
+      method: "PATCH",
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function deletePendingInput(
+  accessToken: string,
+  workspaceId: string,
+  conversationId: string,
+  pendingId: number
+) {
+  return requestJson<{ ok: boolean }>(
+    `/gateway/v1/conversations/${conversationId}/pending-inputs/${pendingId}`,
+    {
+      method: "DELETE",
+      accessToken,
+      workspaceId,
+    }
+  )
+}

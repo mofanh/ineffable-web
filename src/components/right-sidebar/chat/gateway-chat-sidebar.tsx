@@ -45,8 +45,11 @@ import type {
 } from "@/components/right-sidebar/chat/gateway-chat-types"
 import { useAppSession } from "@/contexts/app-session"
 import {
+  deletePendingInput,
   getConversationEvents,
   getConversationMessages,
+  getPendingInputs,
+  promotePendingInput,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
@@ -210,6 +213,40 @@ function getMessageReasoningContent(message: ConversationMessageRecord) {
 
 function stripInlineThinkBlocks(content: string) {
   return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+}
+
+function parsePendingInputContent(event: GatewayChatStreamEvent): string | null {
+  try {
+    const meta =
+      event.metadata && typeof event.metadata === "object"
+        ? event.metadata
+        : event.content
+          ? JSON.parse(event.content)
+          : null
+    if (meta && typeof meta === "object" && "content" in meta) {
+      return String(meta.content).trim() || null
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null
+}
+
+function parsePendingInputId(event: GatewayChatStreamEvent): number | null {
+  try {
+    const meta =
+      event.metadata && typeof event.metadata === "object"
+        ? event.metadata
+        : event.content
+          ? JSON.parse(event.content)
+          : null
+    if (meta && typeof meta === "object" && "id" in meta) {
+      return Number(meta.id) || null
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return null
 }
 
 function hasRenderableConversationMessageContent(
@@ -538,6 +575,35 @@ export function GatewayChatSidebar() {
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
   }, [currentConversationId])
+
+  // 加载 DB 中的 pending 队列并同步到本地状态
+  React.useEffect(() => {
+    if (!currentConversationId || !accessToken || !currentWorkspace) {
+      return
+    }
+
+    let cancelled = false
+    getPendingInputs(accessToken, currentWorkspace.id, currentConversationId)
+      .then((res) => {
+        if (cancelled) return
+        const dbItems = res.pending_inputs.filter(
+          (item) => item.status === "queued"
+        )
+        setPreInputQueue(
+          dbItems.map((item) => ({
+            id: `db-${item.id}`,
+            content: item.content,
+          }))
+        )
+      })
+      .catch(() => {
+        // 静默失败，使用本地队列
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentConversationId, accessToken, currentWorkspace])
 
   React.useEffect(() => {
     streamStatusRef.current = streamStatus
@@ -1022,6 +1088,25 @@ export function GatewayChatSidebar() {
   }
 
   function applyEvent(event: GatewayChatStreamEvent) {
+    // ── Pending Input 事件 ──
+    if (event.event === "pending_input_queued") {
+      const content = parsePendingInputContent(event)
+      if (content) {
+        setPreInputQueue((prev) => [
+          ...prev,
+          { id: createMessageId("preinput"), content },
+        ])
+      }
+      return
+    }
+    if (event.event === "pending_input_cancelled") {
+      const id = parsePendingInputId(event)
+      if (id != null) {
+        setPreInputQueue((prev) => prev.filter((q) => q.id !== `db-${id}`))
+      }
+      return
+    }
+
     if (event.event === "error" || event.event.endsWith("_error")) {
       const errorMessage = (event.content ?? "Gateway stream failed").trim()
       recoveryInFlightRef.current = false
@@ -1629,6 +1714,17 @@ export function GatewayChatSidebar() {
         return prev
       }
 
+      // 调用后端 API 升级为 guided
+      const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
+      if (dbId && accessToken && currentWorkspace && currentConversationId) {
+        void promotePendingInput(
+          accessToken,
+          currentWorkspace.id,
+          currentConversationId,
+          dbId
+        )
+      }
+
       // Fire-and-forget: send immediately as guided input.
       void sendContentToApi(item.content, "guided")
       return prev.filter((q) => q.id !== id)
@@ -1636,6 +1732,16 @@ export function GatewayChatSidebar() {
   }
 
   function handleDeleteFromQueue(id: string) {
+    // 调用后端 API 删除
+    const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
+    if (dbId && accessToken && currentWorkspace && currentConversationId) {
+      void deletePendingInput(
+        accessToken,
+        currentWorkspace.id,
+        currentConversationId,
+        dbId
+      )
+    }
     setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
   }
 
