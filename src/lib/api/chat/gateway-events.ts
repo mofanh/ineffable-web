@@ -39,6 +39,14 @@ export type GatewayChatStreamEnvelope =
       type: "error"
       error: string
     }
+  | {
+      type: "queued"
+      queue_len: number
+      pending_id?: number | null
+      seq?: number | null
+      conversation_id?: string | null
+      message_id?: string | null
+    }
 
 export type FrontendChannelMessage = {
   channel: string
@@ -177,6 +185,17 @@ export function normalizeGatewayEnvelope(
     }
   }
 
+  if (
+    typeof candidate.output === "string" ||
+    Array.isArray(candidate.forward_messages) ||
+    typeof candidate.session_key === "string"
+  ) {
+    return {
+      type: "final",
+      result: candidate as GatewayChatFinalResult,
+    }
+  }
+
   if (type === "error") {
     return {
       type,
@@ -197,6 +216,35 @@ export function normalizeGatewayEnvelope(
     return {
       type: "event",
       event: canonicalizeGatewayEvent(candidate as GatewayChatStreamEvent),
+    }
+  }
+
+  // Phase 6: 服务端预输入队列响应
+  if (candidate.status === "queued" && typeof candidate.queue_len === "number") {
+    const pendingIdRaw = candidate.pending_id
+    const pendingId =
+      typeof pendingIdRaw === "number"
+        ? pendingIdRaw
+        : typeof pendingIdRaw === "string"
+          ? Number(pendingIdRaw)
+          : null
+
+    const seqRaw = candidate.seq
+    const seq =
+      typeof seqRaw === "number"
+        ? seqRaw
+        : typeof seqRaw === "string"
+          ? Number(seqRaw)
+          : null
+
+    return {
+      type: "queued",
+      queue_len: candidate.queue_len as number,
+      pending_id: Number.isFinite(pendingId) ? pendingId : null,
+      seq: Number.isFinite(seq) ? seq : null,
+      conversation_id:
+        typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
+      message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,
     }
   }
 

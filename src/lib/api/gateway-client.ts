@@ -160,7 +160,7 @@ function withRecoverableFlag(error: Error, recoverable: boolean) {
 async function requestJson<T>(
   path: string,
   options?: {
-    method?: "GET" | "POST"
+    method?: "GET" | "POST" | "PATCH" | "DELETE"
     accessToken?: string | null
     workspaceId?: string | null
     body?: unknown

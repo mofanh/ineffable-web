@@ -563,6 +563,29 @@ export function GatewayChatSidebar() {
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
 
+  const refreshPendingInputsForConversation = React.useCallback(
+    async (conversationId: string) => {
+      if (!conversationId || !accessToken || !currentWorkspace) {
+        return
+      }
+
+      const res = await getPendingInputs(
+        accessToken,
+        currentWorkspace.id,
+        conversationId
+      )
+      const dbItems = res.pending_inputs.filter((item) => item.status === "queued")
+      setPreInputQueue(
+        dbItems.map((item) => ({
+          id: `db-${item.id}`,
+          content: item.content,
+          status: "queued" as const,
+        }))
+      )
+    },
+    [accessToken, currentWorkspace]
+  )
+
   React.useEffect(() => {
     return () => {
       abortRef.current?.abort()
@@ -583,18 +606,9 @@ export function GatewayChatSidebar() {
     }
 
     let cancelled = false
-    getPendingInputs(accessToken, currentWorkspace.id, currentConversationId)
-      .then((res) => {
+    refreshPendingInputsForConversation(currentConversationId)
+      .then(() => {
         if (cancelled) return
-        const dbItems = res.pending_inputs.filter(
-          (item) => item.status === "queued"
-        )
-        setPreInputQueue(
-          dbItems.map((item) => ({
-            id: `db-${item.id}`,
-            content: item.content,
-          }))
-        )
       })
       .catch(() => {
         // 静默失败，使用本地队列
@@ -603,7 +617,7 @@ export function GatewayChatSidebar() {
     return () => {
       cancelled = true
     }
-  }, [currentConversationId, accessToken, currentWorkspace])
+  }, [currentConversationId, refreshPendingInputsForConversation])
 
   React.useEffect(() => {
     streamStatusRef.current = streamStatus
@@ -1071,6 +1085,7 @@ export function GatewayChatSidebar() {
     void Promise.all([
       refreshConversations(),
       syncConversationMessages(conversationId),
+      refreshPendingInputsForConversation(conversationId),
     ])
   }
 
@@ -1085,17 +1100,40 @@ export function GatewayChatSidebar() {
     assistantEntryIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
+    const conversationId =
+      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+    if (conversationId) {
+      void refreshPendingInputsForConversation(conversationId)
+    }
   }
 
   function applyEvent(event: GatewayChatStreamEvent) {
     // ── Pending Input 事件 ──
     if (event.event === "pending_input_queued") {
       const content = parsePendingInputContent(event)
-      if (content) {
-        setPreInputQueue((prev) => [
-          ...prev,
-          { id: createMessageId("preinput"), content },
-        ])
+      const id = parsePendingInputId(event)
+      if (!content) {
+        return
+      }
+      setPreInputQueue((prev) => {
+        const queueId = id != null ? `db-${id}` : createMessageId("preinput")
+        const next = prev.filter((item) => item.id !== queueId)
+        next.push({ id: queueId, content, status: "queued" })
+        return next
+      })
+      return
+    }
+    if (event.event === "pending_input_guided") {
+      const id = parsePendingInputId(event)
+      if (id != null) {
+        setPreInputQueue((prev) => prev.filter((q) => q.id !== `db-${id}`))
+      }
+      return
+    }
+    if (event.event === "pending_input_consuming") {
+      const id = parsePendingInputId(event)
+      if (id != null) {
+        setPreInputQueue((prev) => prev.filter((q) => q.id !== `db-${id}`))
       }
       return
     }
@@ -1510,9 +1548,97 @@ export function GatewayChatSidebar() {
     }
   }
 
-  // Core send flow: shared by handleSend, sendNextFromQueue, and promote-to-guided.
-  async function sendContentToApi(content: string, mode?: "normal" | "guided" | "pre_input") {
+  // Core send flow: shared by normal send and guided injection fallback.
+  async function sendContentToApi(content: string, mode?: "guided") {
     if (!accessToken || !currentWorkspace || !content.trim()) {
+      return
+    }
+
+    const isStreamingNow =
+      streamStatusRef.current === "streaming" ||
+      streamStatusRef.current === "recovering" ||
+      Boolean(activeStreamConversationIdRef.current)
+
+    // 当 LLM 仍在输出（streaming/recovering）时，发送输入只做入队，不中断当前 SSE。
+    if (isStreamingNow) {
+      const targetConversationId =
+        activeStreamConversationIdRef.current ??
+        currentConversationIdRef.current ??
+        currentConversationId
+
+      if (!targetConversationId) {
+        return
+      }
+
+      setError(null)
+      const optimisticId = createMessageId("preinput")
+      setPreInputQueue((prev) => [
+        ...prev,
+        { id: optimisticId, content, status: "pending" },
+      ])
+      try {
+        let resolvedAsQueue = false
+        let deliveredInline = false
+        await streamConversationSend(
+          accessToken,
+          currentWorkspace.id,
+          {
+            conversation_id: targetConversationId,
+            content,
+            stream: false,
+            channel: "web",
+            input_mode: mode,
+          },
+          {
+            onEnvelope: (envelope) => {
+              if (envelope.type === "queued") {
+                resolvedAsQueue = true
+                setPreInputQueue((prev) => {
+                  const id =
+                    envelope.pending_id != null
+                      ? `db-${envelope.pending_id}`
+                      : createMessageId("preinput")
+                  const next = prev.filter((item) => item.id !== optimisticId && item.id !== id)
+                  next.push({ id, content, status: "queued" })
+                  return next
+                })
+                return
+              }
+
+              deliveredInline = true
+              setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+              setEntries((current) => [
+                ...current,
+                {
+                  id: createMessageId("user"),
+                  role: "user",
+                  content,
+                },
+              ])
+              applyEnvelopeEvent(envelope)
+            },
+          }
+        )
+        if (!resolvedAsQueue && !deliveredInline) {
+          setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+          setEntries((current) => [
+            ...current,
+            {
+              id: createMessageId("user"),
+              role: "user",
+              content,
+            },
+          ])
+        }
+      } catch (enqueueError) {
+        setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+        const message =
+          enqueueError instanceof Error
+            ? enqueueError.message
+            : "发送失败。"
+        setError(message)
+        appendSystemMessage(`发送失败：${message}`)
+      }
       return
     }
 
@@ -1595,10 +1721,16 @@ export function GatewayChatSidebar() {
             if (envelope.type === "queued") {
               // Phase 6: 服务端已入队，前端也加入本地队列用于 UI 展示
               queued = true
-              setPreInputQueue((prev) => [
-                ...prev,
-                { id: createMessageId("preinput"), content },
-              ])
+              setPreInputQueue((prev) => {
+                const id =
+                  envelope.pending_id != null
+                    ? `db-${envelope.pending_id}`
+                    : createMessageId("preinput")
+                if (prev.some((item) => item.id === id)) {
+                  return prev
+                }
+                return [...prev, { id, content, status: "queued" }]
+              })
               return
             }
             applyEnvelopeEvent(envelope)
@@ -1666,36 +1798,6 @@ export function GatewayChatSidebar() {
     }
   }
 
-  // Send the next item from the pre-input queue (called when current SSE completes).
-  const sendNextFromQueueRef = React.useRef<boolean>(false)
-  const sendNextFromQueue = React.useEffectEvent(async () => {
-    if (sendNextFromQueueRef.current) {
-      return
-    }
-
-    setPreInputQueue((queue) => {
-      if (queue.length === 0) {
-        return queue
-      }
-
-      sendNextFromQueueRef.current = true
-      const [head, ...rest] = queue
-      // Fire-and-forget: send the head item
-      void sendContentToApi(head.content).finally(() => {
-        sendNextFromQueueRef.current = false
-      })
-      return rest
-    })
-  })
-
-  // When the current SSE stream finishes, automatically consume the next
-  // item from the pre-input queue (if any).
-  React.useEffect(() => {
-    if (streamStatus === "completed" || streamStatus === "idle" || streamStatus === "error") {
-      void sendNextFromQueue()
-    }
-  }, [streamStatus])
-
   async function handleSend() {
     const content = composer.trim()
     if (!content || !accessToken || !currentWorkspace) {
@@ -1708,40 +1810,79 @@ export function GatewayChatSidebar() {
   }
 
   function handlePromoteToGuided(id: string) {
-    setPreInputQueue((prev) => {
-      const item = prev.find((q) => q.id === id)
-      if (!item) {
-        return prev
-      }
+    const item = preInputQueue.find((q) => q.id === id)
+    if (!item || item.status === "pending" || item.status === "promoting") {
+      return
+    }
 
-      // 调用后端 API 升级为 guided
-      const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
-      if (dbId && accessToken && currentWorkspace && currentConversationId) {
-        void promotePendingInput(
-          accessToken,
-          currentWorkspace.id,
-          currentConversationId,
-          dbId
+    const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
+    if (dbId && accessToken && currentWorkspace && currentConversationId) {
+      setPreInputQueue((prev) =>
+        prev.map((queueItem) =>
+          queueItem.id === id ? { ...queueItem, status: "promoting" } : queueItem
         )
-      }
+      )
+      void promotePendingInput(
+        accessToken,
+        currentWorkspace.id,
+        currentConversationId,
+        dbId
+      ).catch((promoteError) => {
+        const message =
+          promoteError instanceof Error
+            ? promoteError.message
+            : "提升为引导失败。"
+        setPreInputQueue((prev) =>
+          prev.map((queueItem) =>
+            queueItem.id === id ? { ...queueItem, status: "queued" } : queueItem
+          )
+        )
+        setError(message)
+        appendSystemMessage(`提升为引导失败：${message}`)
+      })
+      return
+    }
 
-      // Fire-and-forget: send immediately as guided input.
-      void sendContentToApi(item.content, "guided")
-      return prev.filter((q) => q.id !== id)
-    })
+    setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
+    void sendContentToApi(item.content, "guided")
   }
 
   function handleDeleteFromQueue(id: string) {
-    // 调用后端 API 删除
+    const item = preInputQueue.find((q) => q.id === id)
+    if (!item || item.status === "pending" || item.status === "deleting") {
+      return
+    }
+
     const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
     if (dbId && accessToken && currentWorkspace && currentConversationId) {
+      setPreInputQueue((prev) =>
+        prev.map((queueItem) =>
+          queueItem.id === id ? { ...queueItem, status: "deleting" } : queueItem
+        )
+      )
       void deletePendingInput(
         accessToken,
         currentWorkspace.id,
         currentConversationId,
         dbId
       )
+        .then(() => {
+          setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
+        })
+        .catch((deleteError) => {
+          const message =
+            deleteError instanceof Error ? deleteError.message : "删除预输入失败。"
+          setPreInputQueue((prev) =>
+            prev.map((queueItem) =>
+              queueItem.id === id ? { ...queueItem, status: "queued" } : queueItem
+            )
+          )
+          setError(message)
+          appendSystemMessage(`删除预输入失败：${message}`)
+        })
+      return
     }
+
     setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
   }
 

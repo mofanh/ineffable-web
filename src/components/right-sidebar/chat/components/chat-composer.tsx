@@ -13,13 +13,13 @@ import {
   ArrowUpIcon,
   GripVerticalIcon,
   SendHorizontalIcon,
-  Trash2Icon,
   XIcon,
 } from "lucide-react"
 
 export type PreInputQueueItem = {
   id: string
   content: string
+  status?: "pending" | "queued" | "promoting" | "deleting"
 }
 
 type ChatComposerProps = {
@@ -47,6 +47,9 @@ export function ChatComposer({
   onPromoteToGuided,
   onDeleteFromQueue,
 }: ChatComposerProps) {
+  const isActionPending = (status?: PreInputQueueItem["status"]) =>
+    status === "pending" || status === "promoting" || status === "deleting"
+
   return (
     <SidebarFooter className="p-3">
       {preInputQueue.length > 0 ? (
@@ -62,6 +65,9 @@ export function ChatComposer({
                 className="flex items-start gap-1.5 rounded-lg bg-background px-2.5 py-2 text-[13px] leading-snug shadow-sm"
               >
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground/80">
+                  {item.status === "pending" ? "预进入中 · " : ""}
+                  {item.status === "promoting" ? "引导中 · " : ""}
+                  {item.status === "deleting" ? "删除中 · " : ""}
                   {item.content.length > 100
                     ? `${item.content.slice(0, 100)}...`
                     : item.content}
@@ -74,6 +80,7 @@ export function ChatComposer({
                     className="size-6 rounded-md text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700"
                     title="提升为引导输入（立即注入当前对话）"
                     onClick={() => onPromoteToGuided(item.id)}
+                    disabled={isActionPending(item.status)}
                   >
                     <SendHorizontalIcon className="size-3" />
                     <span className="sr-only">提升为引导</span>
@@ -85,6 +92,7 @@ export function ChatComposer({
                     className="size-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     title="从队列中删除"
                     onClick={() => onDeleteFromQueue(item.id)}
+                    disabled={isActionPending(item.status)}
                   >
                     <XIcon className="size-3" />
                     <span className="sr-only">删除</span>
