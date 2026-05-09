@@ -1035,6 +1035,21 @@ export function GatewayChatSidebar() {
     ])
   }
 
+  function appendUserMessage(content: string, id = createMessageId("user")) {
+    if (!content.trim()) {
+      return
+    }
+
+    setEntries((current) => [
+      ...current,
+      {
+        id,
+        role: "user",
+        content,
+      },
+    ])
+  }
+
   function completeAssistantEntry(fallback?: string) {
     updateAssistantEntry((entry) => {
       if (!entry && !fallback?.trim()) {
@@ -1071,6 +1086,13 @@ export function GatewayChatSidebar() {
     })
   }
 
+  function beginGuidedUserTurn(content: string, id = createMessageId("user")) {
+    completeAssistantEntry()
+    assistantEntryIdRef.current = null
+    appendUserMessage(content, id)
+    return id
+  }
+
   function finalizeConversationTurn(conversationId: string) {
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
@@ -1090,6 +1112,8 @@ export function GatewayChatSidebar() {
   }
 
   function applyFinal(result: GatewayChatFinalResult) {
+    const conversationId =
+      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
@@ -1100,10 +1124,12 @@ export function GatewayChatSidebar() {
     assistantEntryIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
-    const conversationId =
-      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
     if (conversationId) {
-      void refreshPendingInputsForConversation(conversationId)
+      void Promise.all([
+        refreshConversations(),
+        syncConversationMessages(conversationId),
+        refreshPendingInputsForConversation(conversationId),
+      ])
     }
   }
 
@@ -1483,12 +1509,12 @@ export function GatewayChatSidebar() {
     const shouldUsePending =
       pendingMatches != null &&
       (!pendingMatches.runId || !liveRunId || pendingMatches.runId === liveRunId)
-    const runId =
-      (shouldUsePending ? pendingMatches?.runId : null) ??
-      liveRunId ??
-      (shouldUsePending ? selectedConversation?.current_run_id ?? null : null)
+    const runId = (shouldUsePending ? pendingMatches?.runId : null) ?? liveRunId
 
     if (!runId) {
+      if (pendingMatches) {
+        clearPendingConversationResumeState()
+      }
       return
     }
 
@@ -1571,11 +1597,16 @@ export function GatewayChatSidebar() {
       }
 
       setError(null)
-      const optimisticId = createMessageId("preinput")
-      setPreInputQueue((prev) => [
-        ...prev,
-        { id: optimisticId, content, status: "pending" },
-      ])
+      const isGuidedMode = mode === "guided"
+      const optimisticId = createMessageId(isGuidedMode ? "guided" : "preinput")
+      if (isGuidedMode) {
+        beginGuidedUserTurn(content, optimisticId)
+      } else {
+        setPreInputQueue((prev) => [
+          ...prev,
+          { id: optimisticId, content, status: "pending" },
+        ])
+      }
       try {
         let resolvedAsQueue = false
         let deliveredInline = false
@@ -1593,6 +1624,9 @@ export function GatewayChatSidebar() {
             onEnvelope: (envelope) => {
               if (envelope.type === "queued") {
                 resolvedAsQueue = true
+                if (isGuidedMode) {
+                  return
+                }
                 setPreInputQueue((prev) => {
                   const id =
                     envelope.pending_id != null
@@ -1606,32 +1640,26 @@ export function GatewayChatSidebar() {
               }
 
               deliveredInline = true
-              setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
-              setEntries((current) => [
-                ...current,
-                {
-                  id: createMessageId("user"),
-                  role: "user",
-                  content,
-                },
-              ])
+              if (!isGuidedMode) {
+                setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+                appendUserMessage(content)
+              }
               applyEnvelopeEvent(envelope)
             },
           }
         )
         if (!resolvedAsQueue && !deliveredInline) {
-          setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
-          setEntries((current) => [
-            ...current,
-            {
-              id: createMessageId("user"),
-              role: "user",
-              content,
-            },
-          ])
+          if (!isGuidedMode) {
+            setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+            appendUserMessage(content)
+          }
         }
       } catch (enqueueError) {
-        setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+        if (isGuidedMode) {
+          setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
+        } else {
+          setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
+        }
         const message =
           enqueueError instanceof Error
             ? enqueueError.message
@@ -1817,11 +1845,8 @@ export function GatewayChatSidebar() {
 
     const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
     if (dbId && accessToken && currentWorkspace && currentConversationId) {
-      setPreInputQueue((prev) =>
-        prev.map((queueItem) =>
-          queueItem.id === id ? { ...queueItem, status: "promoting" } : queueItem
-        )
-      )
+      const guidedEntryId = beginGuidedUserTurn(item.content)
+      setPreInputQueue((prev) => prev.filter((queueItem) => queueItem.id !== id))
       void promotePendingInput(
         accessToken,
         currentWorkspace.id,
@@ -1832,11 +1857,13 @@ export function GatewayChatSidebar() {
           promoteError instanceof Error
             ? promoteError.message
             : "提升为引导失败。"
-        setPreInputQueue((prev) =>
-          prev.map((queueItem) =>
-            queueItem.id === id ? { ...queueItem, status: "queued" } : queueItem
-          )
-        )
+        setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
+        setPreInputQueue((prev) => {
+          if (prev.some((queueItem) => queueItem.id === id)) {
+            return prev
+          }
+          return [...prev, { ...item, status: "queued" }]
+        })
         setError(message)
         appendSystemMessage(`提升为引导失败：${message}`)
       })
