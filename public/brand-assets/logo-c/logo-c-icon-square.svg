@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <title>Ineffable Logo C - 道·周行 App Icon</title>
+  <desc>80x80 方形应用图标</desc>
+  
+  <rect x="8" y="8" width="64" height="64" rx="14" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+  
+  <g fill="none" stroke="#1a1a1a">
+    <circle cx="40" cy="40" r="20" stroke-width="2"/>
+    <path d="M56 28 A 12 12 0 0 1 58 34" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="40" cy="40" r="2.5" fill="#1a1a1a" stroke="none"/>
+  </g>
+</svg>

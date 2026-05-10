@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <!-- Logo B: 道·交汇 - 方形 App Icon -->
+  <title>Ineffable Logo B - 道·交汇 App Icon</title>
+  <desc>80x80 方形应用图标</desc>
+  
+  <!-- 外框 -->
+  <rect x="8" y="8" width="64" height="64" rx="14" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+  
+  <!-- 核心符号 -->
+  <g fill="none" stroke="#1a1a1a">
+    <path d="M20 24 Q 32 40, 40 40" stroke-width="2" stroke-linecap="round"/>
+    <path d="M60 56 Q 48 40, 40 40" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="40" cy="40" r="4" fill="#1a1a1a" stroke="none"/>
+    <circle cx="40" cy="40" r="8" stroke-width="1" opacity="0.3"/>
+  </g>
+</svg>

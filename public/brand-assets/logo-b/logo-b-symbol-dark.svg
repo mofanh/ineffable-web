@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <!-- Logo B: 道·交汇 - 深色模式 -->
+  <title>Ineffable Logo B - 道·交汇 (Dark)</title>
+  <desc>万物生于有，有生于无。交汇即智慧，连接即意义。</desc>
+  
+  <g fill="none" stroke="white">
+    <path d="M15 20 Q 35 42, 40 40" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M65 60 Q 45 42, 40 40" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="40" cy="40" r="3" fill="white" stroke="none"/>
+    <circle cx="40" cy="40" r="10" stroke-width="0.8" opacity="0.4"/>
+  </g>
+</svg>
