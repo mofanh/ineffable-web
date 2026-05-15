@@ -46,6 +46,7 @@ export const navigation = {
         { title: "协作总览", path: "/console/world/collaboration" },
         { title: "实时任务", path: "/console/world/tasks" },
         { title: "资源看板", path: "/console/world/resources" },
+        { title: "Sandbox", path: "/console/world/sandbox" },
         { title: "CLI 直连", path: "/console/world/cli-direct" },
         { title: "CLI Chat", path: "/console/world/cli-chat" },
         { title: "接口调试", path: "/console/world/api-debug" },

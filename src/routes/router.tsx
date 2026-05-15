@@ -16,6 +16,7 @@ import {
   ConsoleWorldHomePage,
   RealtimeTasksPage,
   ResourceBoardPage,
+  SandboxConsolePage,
 } from "@/pages/console-pages"
 import {
   DocsCenterPage,
@@ -52,6 +53,7 @@ const routeElements: Record<string, React.ReactElement> = {
   "/console/world/collaboration": <CollaborationOverviewPage />,
   "/console/world/tasks": <RealtimeTasksPage />,
   "/console/world/resources": <ResourceBoardPage />,
+  "/console/world/sandbox": <SandboxConsolePage />,
   "/console/world/cli-direct": <CliDirectPage />,
   "/console/world/cli-chat": <CliChatPage />,
   "/console/world/api-debug": <ApiDebugPage />,

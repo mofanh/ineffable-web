@@ -106,6 +106,163 @@ export type MeResponse = {
   workspaces: Workspace[]
 }
 
+export type SandboxExecutionSessionStatus =
+  | "created"
+  | "queued"
+  | "running"
+  | "streaming"
+  | "interrupted"
+  | "failed"
+  | "completed"
+  | "recoverable_disconnected"
+
+export type SandboxPreferenceMode =
+  | "auto"
+  | "local_daemon"
+  | "cloud_runtime"
+  | "specified_environment"
+
+export type SandboxProviderStatus =
+  | "unregistered"
+  | "registered"
+  | "online"
+  | "busy"
+  | "offline"
+  | "error"
+  | "revoked"
+
+export type SandboxEnvironmentStatus =
+  | "created"
+  | "bound"
+  | "ready"
+  | "busy"
+  | "offline"
+  | "error"
+  | "revoked"
+
+export type SandboxProviderStatusView = {
+  provider_id: string
+  provider_type: "local_daemon" | "cloud_runtime"
+  runtime_kind: "local_daemon" | "cloud_runtime"
+  status: SandboxProviderStatus
+  display_name: string
+  version: string
+  environment_id?: string | null
+  bound_project_id?: string | null
+  last_seen_at?: string | null
+}
+
+export type SandboxEnvironmentView = {
+  environment_id: string
+  provider_id: string
+  workspace_id?: string | null
+  project_id?: string | null
+  environment_type: "local" | "cloud"
+  status: SandboxEnvironmentStatus
+  policy_profile?: string | null
+  metadata_json?: Record<string, unknown> | null
+}
+
+export type SandboxProjectPreference = {
+  workspace_id?: string | null
+  project_id: string
+  preference_mode: SandboxPreferenceMode
+  environment_id?: string | null
+  updated_at?: string | null
+}
+
+export type SandboxCapabilityHint = {
+  file_read?: boolean
+  file_write?: boolean
+  command_exec?: boolean
+  command_profile?: string | null
+  mcp_server?: string | null
+  mcp_tool?: string | null
+}
+
+export type SandboxEnvironmentSelection = {
+  environment?: SandboxEnvironmentView | null
+  provider?: SandboxProviderStatusView | null
+  preference_mode: SandboxPreferenceMode
+  selected: boolean
+  reason: string
+}
+
+export type SandboxProjectEnvironmentSummary = {
+  workspace_id?: string | null
+  project_id: string
+  preference: SandboxProjectPreference
+  providers: SandboxProviderStatusView[]
+  environments: SandboxEnvironmentView[]
+  path_grants: SandboxPathGrant[]
+  recommended: SandboxEnvironmentSelection
+}
+
+export type SandboxPathGrant = {
+  grant_id: string
+  environment_id: string
+  project_id?: string | null
+  path: string
+  access_mode: "read_only" | "read_write"
+  created_at: string
+}
+
+export type SandboxPathGrantListResponse = {
+  environment_id: string
+  grants: SandboxPathGrant[]
+}
+
+export type SandboxFileOperation =
+  | { operation: "list_dir"; path: string }
+  | { operation: "read_file"; path: string }
+  | { operation: "write_file"; path: string; content: string }
+
+export type SandboxCommandOperation = {
+  operation: "command"
+  profile: "safe_readonly" | "safe_dev_basic" | string
+  command: string
+  args: string[]
+  cwd: string
+  timeout_seconds: number
+}
+
+export type SandboxExecutionRequestResponse = {
+  execution_request_id: string
+  execution_session_id: string
+  environment_id: string
+  provider_id: string
+  status: SandboxExecutionSessionStatus
+}
+
+export type SandboxExecutionSession = {
+  execution_session_id: string
+  execution_request_id: string
+  environment_id: string
+  provider_id: string
+  status: SandboxExecutionSessionStatus
+  current_step?: string | null
+  checkpoint_ref?: string | null
+  failure_reason?: string | null
+  metadata_json?: Record<string, unknown> | null
+}
+
+export type SandboxApprovalStatus = "pending" | "approved" | "rejected"
+
+export type SandboxApproval = {
+  approval_id: string
+  execution_request_id: string
+  execution_session_id: string
+  environment_id: string
+  provider_id: string
+  status: SandboxApprovalStatus
+  reason?: string | null
+  created_at: string
+}
+
+export type SandboxApprovalListResponse = {
+  approvals: SandboxApproval[]
+}
+
 const API_BASE_URL =
   (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -405,6 +562,203 @@ export function getConversationMessages(
       workspaceId,
     }
   )
+}
+
+export function getSandboxProjectEnvironmentSummary(
+  accessToken: string | null,
+  workspaceId: string | null,
+  projectId: string
+) {
+  const params = new URLSearchParams()
+  if (workspaceId) {
+    params.set("workspace_id", workspaceId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ""
+
+  return requestJson<SandboxProjectEnvironmentSummary>(
+    `/gateway/v1/sandbox/projects/${encodeURIComponent(projectId)}/environment-summary${suffix}`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function upsertSandboxProjectPreference(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    workspace_id?: string | null
+    project_id: string
+    preference_mode: SandboxPreferenceMode
+    environment_id?: string | null
+  }
+) {
+  return requestJson<SandboxProjectPreference>(
+    "/gateway/v1/sandbox/projects/preferences",
+    {
+      method: "POST",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function selectSandboxEnvironment(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    workspace_id?: string | null
+    project_id: string
+    preference_mode?: SandboxPreferenceMode
+    environment_id?: string | null
+    capability_hint?: SandboxCapabilityHint
+  }
+) {
+  return requestJson<SandboxEnvironmentSelection>(
+    "/gateway/v1/sandbox/environments/select",
+    {
+      method: "POST",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function listSandboxPathGrants(
+  accessToken: string | null,
+  workspaceId: string | null,
+  environmentId: string
+) {
+  return requestJson<SandboxPathGrantListResponse>(
+    `/gateway/v1/sandbox/environments/${encodeURIComponent(environmentId)}/path-grants`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function createSandboxFileExecutionRequest(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    environment_id?: string
+    project_id?: string
+    operation: SandboxFileOperation
+    metadata_json?: Record<string, unknown>
+  }
+) {
+  return requestJson<SandboxExecutionRequestResponse>(
+    "/gateway/v1/sandbox/execution-requests/file",
+    {
+      method: "POST",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function createSandboxCommandExecutionRequest(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    environment_id?: string
+    project_id?: string
+    operation: SandboxCommandOperation
+    metadata_json?: Record<string, unknown>
+  }
+) {
+  return requestJson<SandboxExecutionRequestResponse>(
+    "/gateway/v1/sandbox/execution-requests/command",
+    {
+      method: "POST",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function getSandboxExecutionSession(
+  accessToken: string | null,
+  workspaceId: string | null,
+  executionSessionId: string
+) {
+  return requestJson<SandboxExecutionSession>(
+    `/gateway/v1/sandbox/execution-sessions/${encodeURIComponent(executionSessionId)}`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function interruptSandboxExecutionSession(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    execution_session_id: string
+    reason?: string
+  }
+) {
+  return requestJson<{
+    execution_session_id: string
+    status: SandboxExecutionSessionStatus
+  }>("/gateway/v1/sandbox/execution-sessions/interrupt", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: payload,
+  })
+}
+
+export function listPendingSandboxApprovals(
+  accessToken: string | null,
+  workspaceId: string | null
+) {
+  return requestJson<SandboxApprovalListResponse>(
+    "/gateway/v1/sandbox/approvals/pending",
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function approveSandboxApproval(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    approval_id: string
+    reason?: string
+  }
+) {
+  return requestJson<SandboxApproval>("/gateway/v1/sandbox/approvals/approve", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: payload,
+  })
+}
+
+export function rejectSandboxApproval(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    approval_id: string
+    reason?: string
+  }
+) {
+  return requestJson<SandboxApproval>("/gateway/v1/sandbox/approvals/reject", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: payload,
+  })
 }
 
 export async function getConversationEvents(
