@@ -3,25 +3,30 @@ import * as React from "react"
 import { SandboxApprovalsCard } from "@/components/sandbox/sandbox-approvals-card"
 import { SandboxExecutionCard, type SandboxOperationMode } from "@/components/sandbox/sandbox-execution-card"
 import { SandboxGrantsCard } from "@/components/sandbox/sandbox-grants-card"
+import { SandboxRuntimeStrip } from "@/components/sandbox/sandbox-runtime-strip"
 import { SandboxSessionCard } from "@/components/sandbox/sandbox-session-card"
 import {
   SandboxStatusCard,
 } from "@/components/sandbox/sandbox-status-card"
+import { SandboxTimelineCard } from "@/components/sandbox/sandbox-timeline-card"
 import {
   approveSandboxApproval,
   createSandboxCommandExecutionRequest,
   createSandboxFileExecutionRequest,
+  getSandboxExecutionTimeline,
   getSandboxProjectEnvironmentSummary,
   getSandboxExecutionSession,
   interruptSandboxExecutionSession,
   listPendingSandboxApprovals,
   listSandboxPathGrants,
+  listSandboxSessionsForToolCall,
   rejectSandboxApproval,
   selectSandboxEnvironment,
   upsertSandboxProjectPreference,
   type SandboxApproval,
   type SandboxEnvironmentSelection,
   type SandboxExecutionSession,
+  type SandboxExecutionTimeline,
   type SandboxPathGrant,
   type SandboxPreferenceMode,
   type SandboxProjectEnvironmentSummary,
@@ -39,6 +44,7 @@ const STORAGE_KEYS = {
   preferenceMode: "ineffable.sandbox.console.preference_mode",
   environmentId: "ineffable.sandbox.console.environment_id",
   projectId: "ineffable.sandbox.console.project_id",
+  toolCallId: "ineffable.sandbox.console.tool_call_id",
 }
 
 function readStorage(key: string) {
@@ -89,6 +95,11 @@ export function SandboxConsolePage() {
   const [grants, setGrants] = React.useState<SandboxPathGrant[]>([])
   const [approvals, setApprovals] = React.useState<SandboxApproval[]>([])
   const [session, setSession] = React.useState<SandboxExecutionSession | null>(null)
+  const [timeline, setTimeline] = React.useState<SandboxExecutionTimeline | null>(null)
+  const [toolCallId, setToolCallId] = React.useState(() =>
+    readStorage(STORAGE_KEYS.toolCallId)
+  )
+  const [toolCallSessions, setToolCallSessions] = React.useState<SandboxExecutionSession[]>([])
   const [operationMode, setOperationMode] = React.useState<SandboxOperationMode>("write_file")
   const [path, setPath] = React.useState("")
   const [content, setContent] = React.useState("hello from sandbox")
@@ -99,6 +110,7 @@ export function SandboxConsolePage() {
   const [isLoadingGrants, setIsLoadingGrants] = React.useState(false)
   const [isLoadingApprovals, setIsLoadingApprovals] = React.useState(false)
   const [isLoadingSession, setIsLoadingSession] = React.useState(false)
+  const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false)
   const [isLoadingSummary, setIsLoadingSummary] = React.useState(false)
   const [isSavingPreference, setIsSavingPreference] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -106,6 +118,7 @@ export function SandboxConsolePage() {
   const [grantsError, setGrantsError] = React.useState<string | null>(null)
   const [approvalsError, setApprovalsError] = React.useState<string | null>(null)
   const [sessionError, setSessionError] = React.useState<string | null>(null)
+  const [timelineError, setTimelineError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     writeStorage(STORAGE_KEYS.preferenceMode, preferenceMode)
@@ -119,11 +132,36 @@ export function SandboxConsolePage() {
     writeStorage(STORAGE_KEYS.projectId, projectId)
   }, [projectId])
 
+  React.useEffect(() => {
+    writeStorage(STORAGE_KEYS.toolCallId, toolCallId)
+  }, [toolCallId])
+
   const effectiveEnvironmentId =
     environmentId.trim() ||
     selection?.environment?.environment_id ||
     summary?.recommended.environment?.environment_id ||
     ""
+
+  const loadTimeline = React.useCallback(
+    async (executionSessionId: string) => {
+      setIsLoadingTimeline(true)
+      setTimelineError(null)
+      try {
+        const next = await getSandboxExecutionTimeline(
+          accessToken,
+          workspaceId,
+          executionSessionId
+        )
+        setTimeline(next)
+        setSession(next.session)
+      } catch (error) {
+        setTimelineError(errorMessage(error))
+      } finally {
+        setIsLoadingTimeline(false)
+      }
+    },
+    [accessToken, workspaceId]
+  )
 
   const refreshEnvironmentSummary = React.useCallback(async () => {
     const trimmedProjectId = projectId.trim()
@@ -261,12 +299,13 @@ export function SandboxConsolePage() {
         session.execution_session_id
       )
       setSession(next)
+      await loadTimeline(next.execution_session_id)
     } catch (error) {
       setSessionError(errorMessage(error))
     } finally {
       setIsLoadingSession(false)
     }
-  }, [accessToken, session?.execution_session_id, workspaceId])
+  }, [accessToken, loadTimeline, session?.execution_session_id, workspaceId])
 
   const refreshAll = React.useCallback(async () => {
     await refreshEnvironmentSummary()
@@ -334,6 +373,7 @@ export function SandboxConsolePage() {
         response.execution_session_id
       )
       setSession(next)
+      await loadTimeline(next.execution_session_id)
       await refreshApprovals()
     } catch (error) {
       setSessionError(errorMessage(error))
@@ -347,8 +387,8 @@ export function SandboxConsolePage() {
     commandProfile,
     content,
     cwd,
-    environmentId,
     effectiveEnvironmentId,
+    loadTimeline,
     operationMode,
     path,
     projectId,
@@ -370,11 +410,12 @@ export function SandboxConsolePage() {
           approval.execution_session_id
         )
         setSession(next)
+        await loadTimeline(next.execution_session_id)
       } catch (error) {
         setApprovalsError(errorMessage(error))
       }
     },
-    [accessToken, refreshApprovals, workspaceId]
+    [accessToken, loadTimeline, refreshApprovals, workspaceId]
   )
 
   const reject = React.useCallback(
@@ -385,11 +426,18 @@ export function SandboxConsolePage() {
           reason: "rejected from sandbox console",
         })
         await refreshApprovals()
+        const next = await getSandboxExecutionSession(
+          accessToken,
+          workspaceId,
+          approval.execution_session_id
+        )
+        setSession(next)
+        await loadTimeline(next.execution_session_id)
       } catch (error) {
         setApprovalsError(errorMessage(error))
       }
     },
-    [accessToken, refreshApprovals, workspaceId]
+    [accessToken, loadTimeline, refreshApprovals, workspaceId]
   )
 
   const interruptLast = React.useCallback(async () => {
@@ -410,12 +458,56 @@ export function SandboxConsolePage() {
         session.execution_session_id
       )
       setSession(next)
+      await loadTimeline(next.execution_session_id)
     } catch (error) {
       setSessionError(errorMessage(error))
     } finally {
       setIsLoadingSession(false)
     }
-  }, [accessToken, session?.execution_session_id, workspaceId])
+  }, [accessToken, loadTimeline, session?.execution_session_id, workspaceId])
+
+  const refreshTimeline = React.useCallback(async () => {
+    const executionSessionId =
+      timeline?.session.execution_session_id ?? session?.execution_session_id
+    if (!executionSessionId) {
+      return
+    }
+    await loadTimeline(executionSessionId)
+  }, [loadTimeline, session?.execution_session_id, timeline?.session.execution_session_id])
+
+  const lookupToolCallSessions = React.useCallback(async () => {
+    const trimmedToolCallId = toolCallId.trim()
+    if (!trimmedToolCallId) {
+      setTimelineError("需要先填写 tool_call_id。")
+      return
+    }
+    setIsLoadingTimeline(true)
+    setTimelineError(null)
+    try {
+      const response = await listSandboxSessionsForToolCall(
+        accessToken,
+        workspaceId,
+        trimmedToolCallId
+      )
+      setToolCallSessions(response.sessions)
+      const latest = response.sessions[0]
+      if (latest) {
+        await loadTimeline(latest.execution_session_id)
+      }
+    } catch (error) {
+      setTimelineError(errorMessage(error))
+    } finally {
+      setIsLoadingTimeline(false)
+    }
+  }, [accessToken, loadTimeline, toolCallId, workspaceId])
+
+  const selectToolCallSession = React.useCallback(
+    async (nextSession: SandboxExecutionSession) => {
+      setSession(nextSession)
+      await loadTimeline(nextSession.execution_session_id)
+    },
+    [loadTimeline]
+  )
 
   const canSubmit =
     Boolean(effectiveEnvironmentId) &&
@@ -425,6 +517,14 @@ export function SandboxConsolePage() {
 
   return (
     <div className="space-y-4">
+      <SandboxRuntimeStrip
+        projectId={projectId}
+        summary={summary}
+        selection={selection}
+        isLoading={isLoadingSummary || isLoadingGrants || isLoadingApprovals}
+        onRefresh={refreshAll}
+      />
+
       <SandboxStatusCard
         preferenceMode={preferenceMode}
         environmentId={environmentId}
@@ -468,6 +568,17 @@ export function SandboxConsolePage() {
             error={sessionError}
             isLoading={isLoadingSession}
             onRefresh={refreshSession}
+          />
+          <SandboxTimelineCard
+            timeline={timeline}
+            toolCallId={toolCallId}
+            toolCallSessions={toolCallSessions}
+            error={timelineError}
+            isLoading={isLoadingTimeline}
+            onToolCallIdChange={setToolCallId}
+            onLookupToolCall={lookupToolCallSessions}
+            onSelectSession={selectToolCallSession}
+            onRefresh={refreshTimeline}
           />
         </div>
 

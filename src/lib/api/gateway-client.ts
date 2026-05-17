@@ -246,6 +246,44 @@ export type SandboxExecutionSession = {
   metadata_json?: Record<string, unknown> | null
 }
 
+export type SandboxLogView = {
+  log_id: string
+  execution_session_id: string
+  stream: string
+  message: string
+  metadata_json?: Record<string, unknown> | null
+  created_at: string
+}
+
+export type SandboxArtifactView = {
+  artifact_id: string
+  execution_session_id: string
+  artifact_type: string
+  name: string
+  uri: string
+  metadata_json?: Record<string, unknown> | null
+  created_at: string
+}
+
+export type SandboxCheckpointView = {
+  checkpoint_id: string
+  execution_session_id: string
+  checkpoint_ref: string
+  metadata_json?: Record<string, unknown> | null
+  created_at: string
+}
+
+export type SandboxExecutionTimeline = {
+  session: SandboxExecutionSession
+  logs: SandboxLogView[]
+  artifacts: SandboxArtifactView[]
+  checkpoints: SandboxCheckpointView[]
+}
+
+export type SandboxToolCallSessionsResponse = {
+  sessions: SandboxExecutionSession[]
+}
+
 export type SandboxApprovalStatus = "pending" | "approved" | "rejected"
 
 export type SandboxApproval = {
@@ -690,6 +728,34 @@ export function getSandboxExecutionSession(
 ) {
   return requestJson<SandboxExecutionSession>(
     `/gateway/v1/sandbox/execution-sessions/${encodeURIComponent(executionSessionId)}`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function getSandboxExecutionTimeline(
+  accessToken: string | null,
+  workspaceId: string | null,
+  executionSessionId: string
+) {
+  return requestJson<SandboxExecutionTimeline>(
+    `/gateway/v1/sandbox/execution-sessions/${encodeURIComponent(executionSessionId)}/timeline`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function listSandboxSessionsForToolCall(
+  accessToken: string | null,
+  workspaceId: string | null,
+  toolCallId: string
+) {
+  return requestJson<SandboxToolCallSessionsResponse>(
+    `/gateway/v1/sandbox/tool-calls/${encodeURIComponent(toolCallId)}/execution-sessions`,
     {
       accessToken,
       workspaceId,
