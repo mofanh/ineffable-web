@@ -1,6 +1,5 @@
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-export { SandboxConsolePage } from "@/pages/sandbox-console-page"
 
 function createStaticMetrics(context: string) {
   return [

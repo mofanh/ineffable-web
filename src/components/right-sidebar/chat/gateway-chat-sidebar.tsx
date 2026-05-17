@@ -49,12 +49,15 @@ import {
   getConversationEvents,
   getConversationMessages,
   getPendingInputs,
+  listSandboxWorkspaceEnvironments,
   promotePendingInput,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
   type Conversation,
   type ConversationMessageRecord,
+  type SandboxEnvironmentView,
+  type SandboxProviderStatusView,
 } from "@/lib/api/gateway-client"
 import type {
   GatewayChatFinalResult,
@@ -78,6 +81,17 @@ function createAssistantEntry(status: AssistantEntry["status"]): AssistantEntry 
     subagentOrder: [],
     subagents: {},
   }
+}
+
+function sandboxStorageKey(conversationId: string | null | undefined) {
+  return `ineffable.chat.sandbox.${conversationId ?? "new"}`
+}
+
+function sandboxOptionLabel(
+  environment: SandboxEnvironmentView,
+  provider?: SandboxProviderStatusView
+) {
+  return provider?.display_name || environment.environment_type || environment.environment_id
 }
 
 function buildConversationTitle(content: string) {
@@ -544,6 +558,10 @@ export function GatewayChatSidebar() {
   const [error, setError] = React.useState<string | null>(null)
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false)
   const [hydratedConversationId, setHydratedConversationId] = React.useState<string | null>(null)
+  const [sandboxOptions, setSandboxOptions] = React.useState<
+    { environmentId: string; label: string; status: string }[]
+  >([])
+  const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
@@ -598,6 +616,60 @@ export function GatewayChatSidebar() {
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
   }, [currentConversationId])
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+    setSelectedSandboxEnvironmentId(
+      window.localStorage.getItem(sandboxStorageKey(currentConversationId)) ?? ""
+    )
+  }, [currentConversationId])
+
+  React.useEffect(() => {
+    if (!accessToken || !currentWorkspace) {
+      setSandboxOptions([])
+      return
+    }
+
+    let cancelled = false
+    listSandboxWorkspaceEnvironments(accessToken, currentWorkspace.id)
+      .then((response) => {
+        if (cancelled) {
+          return
+        }
+        const providersById = new Map(
+          response.providers.map((provider) => [provider.provider_id, provider])
+        )
+        setSandboxOptions(
+          response.environments
+            .filter((environment) => {
+              const provider = providersById.get(environment.provider_id)
+              return (
+                provider?.status === "online" &&
+                ["bound", "ready", "busy"].includes(environment.status)
+              )
+            })
+            .map((environment) => ({
+              environmentId: environment.environment_id,
+              label: sandboxOptionLabel(
+                environment,
+                providersById.get(environment.provider_id)
+              ),
+              status: environment.status,
+            }))
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSandboxOptions([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, currentWorkspace])
 
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
@@ -1579,6 +1651,9 @@ export function GatewayChatSidebar() {
     if (!accessToken || !currentWorkspace || !content.trim()) {
       return
     }
+    const sandboxPayload = selectedSandboxEnvironmentId
+      ? { environment_id: selectedSandboxEnvironmentId }
+      : undefined
 
     const isStreamingNow =
       streamStatusRef.current === "streaming" ||
@@ -1619,6 +1694,7 @@ export function GatewayChatSidebar() {
             stream: false,
             channel: "web",
             input_mode: mode,
+            sandbox: sandboxPayload,
           },
           {
             onEnvelope: (envelope) => {
@@ -1686,6 +1762,12 @@ export function GatewayChatSidebar() {
       const createdConversation = await createConversation(buildConversationTitle(content))
       targetConversationId = createdConversation.id
       skipNextConversationSyncRef.current = targetConversationId
+      if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
+        window.localStorage.setItem(
+          sandboxStorageKey(targetConversationId),
+          selectedSandboxEnvironmentId
+        )
+      }
     }
 
     // 统一输入：所有 send 都立即显示 user 气泡（后端负责决定排队或立即处理）
@@ -1742,6 +1824,7 @@ export function GatewayChatSidebar() {
           stream: true,
           channel: "web",
           input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
+          sandbox: sandboxPayload,
         },
         {
           signal: controller.signal,
@@ -1835,6 +1918,13 @@ export function GatewayChatSidebar() {
     // 统一输入：不再由前端判断排队/立即处理，后端根据活跃 run 状态自动决定
     setComposer("")
     await sendContentToApi(content)
+  }
+
+  function handleSandboxEnvironmentChange(value: string) {
+    setSelectedSandboxEnvironmentId(value)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(sandboxStorageKey(currentConversationId), value)
+    }
   }
 
   function handlePromoteToGuided(id: string) {
@@ -1963,8 +2053,11 @@ export function GatewayChatSidebar() {
         error={error}
         isSending={isSending}
         preInputQueue={preInputQueue}
+        sandboxOptions={sandboxOptions}
+        selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
+        onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
         onSend={() => {
           void handleSend()
         }}

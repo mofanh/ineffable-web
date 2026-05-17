@@ -7,6 +7,13 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { SidebarFooter } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import {
@@ -27,8 +34,11 @@ type ChatComposerProps = {
   error: string | null
   isSending: boolean
   preInputQueue: PreInputQueueItem[]
+  sandboxOptions: { environmentId: string; label: string; status: string }[]
+  selectedSandboxEnvironmentId: string
   onComposerChange: (value: string) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onSandboxEnvironmentChange: (value: string) => void
   onSend: () => void
   onStop: () => void
   onPromoteToGuided: (id: string) => void
@@ -40,8 +50,11 @@ export function ChatComposer({
   error,
   isSending,
   preInputQueue,
+  sandboxOptions,
+  selectedSandboxEnvironmentId,
   onComposerChange,
   onComposerKeyDown,
+  onSandboxEnvironmentChange,
   onSend,
   onStop,
   onPromoteToGuided,
@@ -131,11 +144,37 @@ export function ChatComposer({
             align="block-end"
             className="justify-between border-t border-sidebar-border bg-sidebar-accent/15"
           >
-            <p className="text-muted-foreground text-[11px]">
-              {isSending
-                ? "预输入 · Cmd/Ctrl + Enter 加入队列"
-                : "Cmd/Ctrl + Enter 发送"}
-            </p>
+            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center">
+              <p className="text-muted-foreground text-[11px]">
+                {isSending
+                  ? "预输入 · Cmd/Ctrl + Enter 加入队列"
+                  : "Cmd/Ctrl + Enter 发送"}
+              </p>
+              <Select
+                value={selectedSandboxEnvironmentId || "__auto__"}
+                onValueChange={(value) =>
+                  onSandboxEnvironmentChange(value === "__auto__" ? "" : value)
+                }
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 w-[210px] max-w-full rounded-md bg-background text-xs"
+                >
+                  <SelectValue placeholder="Sandbox" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">Sandbox: Auto</SelectItem>
+                  {sandboxOptions.map((option) => (
+                    <SelectItem
+                      key={option.environmentId}
+                      value={option.environmentId}
+                    >
+                      {option.label} / {option.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-2">
               {isSending ? (
                 <Button

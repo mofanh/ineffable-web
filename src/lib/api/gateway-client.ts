@@ -198,6 +198,12 @@ export type SandboxProjectEnvironmentSummary = {
   recommended: SandboxEnvironmentSelection
 }
 
+export type SandboxWorkspaceEnvironmentListResponse = {
+  workspace_id?: string | null
+  providers: SandboxProviderStatusView[]
+  environments: SandboxEnvironmentView[]
+}
+
 export type SandboxPathGrant = {
   grant_id: string
   environment_id: string
@@ -622,6 +628,25 @@ export function getSandboxProjectEnvironmentSummary(
   )
 }
 
+export function listSandboxWorkspaceEnvironments(
+  accessToken: string | null,
+  workspaceId: string | null
+) {
+  const params = new URLSearchParams()
+  if (workspaceId) {
+    params.set("workspace_id", workspaceId)
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : ""
+
+  return requestJson<SandboxWorkspaceEnvironmentListResponse>(
+    `/gateway/v1/sandbox/environments${suffix}`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
 export function upsertSandboxProjectPreference(
   accessToken: string | null,
   workspaceId: string | null,
@@ -927,6 +952,9 @@ export async function streamConversationSend(
     stream?: boolean
     channel?: string
     input_mode?: string
+    sandbox?: {
+      environment_id?: string
+    }
   },
   options: {
     signal?: AbortSignal
