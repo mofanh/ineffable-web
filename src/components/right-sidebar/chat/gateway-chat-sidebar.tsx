@@ -39,23 +39,28 @@ import {
 } from "@/components/right-sidebar/chat/gateway-chat-helpers"
 import type {
   AssistantEntry,
+  ApprovalEntry,
   ChatEntry,
   StreamStatus,
   SubagentView,
 } from "@/components/right-sidebar/chat/gateway-chat-types"
 import { useAppSession } from "@/contexts/app-session"
 import {
+  approveSandboxApproval,
   deletePendingInput,
   getConversationEvents,
   getConversationMessages,
   getPendingInputs,
   listSandboxWorkspaceEnvironments,
   promotePendingInput,
+  rejectSandboxApproval,
+  resumeRunWithApproval,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
   type Conversation,
   type ConversationMessageRecord,
+  type ResumeRunResponse,
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/lib/api/gateway-client"
@@ -92,6 +97,113 @@ function sandboxOptionLabel(
   provider?: SandboxProviderStatusView
 ) {
   return provider?.display_name || environment.environment_type || environment.environment_id
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : ""
+}
+
+function parseJsonObject(value: string | null | undefined) {
+  if (!value?.trim()) {
+    return null
+  }
+
+  try {
+    return objectValue(JSON.parse(value))
+  } catch {
+    return null
+  }
+}
+
+function approvalNeedFromRaw(
+  raw: unknown,
+  context?: {
+    runId?: string | null
+    sessionKey?: string | null
+  }
+): ApprovalEntry | null {
+  const need = objectValue(raw)
+  if (!need || need.kind !== "approval") {
+    return null
+  }
+
+  const payload = objectValue(need.payload)
+  const needId = stringValue(need.need_id)
+  const approvalId = stringValue(payload?.approval_id) || needId
+  const executionSessionId = stringValue(payload?.execution_session_id)
+  const action =
+    stringValue(need.action) ||
+    stringValue(payload?.action) ||
+    "run sandbox command"
+
+  if (!needId && !approvalId && !executionSessionId) {
+    return null
+  }
+
+  return {
+    id: `approval-${approvalId || needId || executionSessionId}`,
+    role: "approval",
+    needId: needId || approvalId || executionSessionId,
+    action,
+    approvalId: approvalId || null,
+    executionSessionId: executionSessionId || null,
+    environmentId: stringValue(payload?.environment_id) || null,
+    providerId: stringValue(payload?.provider_id) || null,
+    runId: context?.runId ?? null,
+    sessionKey: context?.sessionKey ?? null,
+    status: "pending",
+  }
+}
+
+function approvalNeedFromEvent(event: GatewayChatStreamEvent): ApprovalEntry | null {
+  const metadata = objectValue(event.metadata)
+  const runId = event.run_id || stringValue(metadata?.run_id) || null
+  const sessionKey = stringValue(metadata?.session_key) || null
+  const context = { runId, sessionKey }
+  const metadataPayload = objectValue(metadata?.payload)
+  const fromMetadata = approvalNeedFromRaw(
+    objectValue(metadata?.pending_need) ??
+      objectValue(metadata?.blocking_need) ??
+      objectValue(metadataPayload?.pending_need),
+    context
+  )
+  if (fromMetadata) {
+    return fromMetadata
+  }
+
+  const parsedContent = parseJsonObject(event.content)
+  return approvalNeedFromRaw(
+    objectValue(parsedContent?.blocking_need) ??
+      objectValue(parsedContent?.pending_need),
+    context
+  )
+}
+
+function approvalNeedFromMessage(message: ConversationMessageRecord): ApprovalEntry | null {
+  const metadata = objectValue(message.metadata_json)
+  const runId = message.run_id || stringValue(metadata?.run_id) || null
+  const sessionKey = stringValue(metadata?.session_key) || null
+  const context = { runId, sessionKey }
+  const fromMetadata = approvalNeedFromRaw(
+    objectValue(metadata?.pending_need) ?? objectValue(metadata?.blocking_need),
+    context
+  )
+  if (fromMetadata) {
+    return fromMetadata
+  }
+
+  const parsedContent = parseJsonObject(message.content)
+  return approvalNeedFromRaw(
+    objectValue(parsedContent?.blocking_need) ??
+      objectValue(parsedContent?.pending_need),
+    context
+  )
 }
 
 function buildConversationTitle(content: string) {
@@ -496,6 +608,15 @@ function mapConversationMessagesToEntries(messages: ConversationMessageRecord[])
   messages
     .filter(hasRenderableConversationMessageContent)
     .forEach((message) => {
+      const approvalEntry = approvalNeedFromMessage(message)
+      if (approvalEntry) {
+        flushAssistantMessages()
+        if (!entries.some((entry) => entry.id === approvalEntry.id)) {
+          entries.push(approvalEntry)
+        }
+        return
+      }
+
       if (message.role === "user" || message.message_type === "input") {
         flushAssistantMessages()
         entries.push({
@@ -719,6 +840,10 @@ export function GatewayChatSidebar() {
       entries.filter((entry) => {
         if (entry.role === "assistant") {
           return hasAssistantEntryContent(entry)
+        }
+
+        if (entry.role === "approval") {
+          return Boolean(entry.needId || entry.approvalId)
         }
 
         return Boolean(entry.content.trim())
@@ -1122,6 +1247,64 @@ export function GatewayChatSidebar() {
     ])
   }
 
+  function upsertApprovalEntry(approval: ApprovalEntry) {
+    setEntries((current) => {
+      const index = current.findIndex(
+        (entry) =>
+          entry.role === "approval" &&
+          (entry.id === approval.id ||
+            entry.approvalId === approval.approvalId ||
+            entry.needId === approval.needId)
+      )
+      if (index < 0) {
+        return [...current, approval]
+      }
+
+      const existing = current[index]
+      if (existing.role !== "approval") {
+        return current
+      }
+
+      const cloned = [...current]
+      cloned[index] = {
+        ...existing,
+        ...approval,
+        status:
+          existing.status === "approved" || existing.status === "rejected"
+            ? existing.status
+            : approval.status,
+        error: existing.error ?? approval.error,
+      }
+      return cloned
+    })
+  }
+
+  function updateApprovalEntry(
+    entryId: string,
+    updater: (entry: ApprovalEntry) => ApprovalEntry
+  ) {
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.role === "approval" && entry.id === entryId
+          ? updater(entry)
+          : entry
+      )
+    )
+  }
+
+  function markAwaitingHuman() {
+    terminalEventSeenRef.current = true
+    recoveryInFlightRef.current = false
+    clearRecoveryTimer()
+    activeStreamConversationIdRef.current = null
+    activeRunIdRef.current = null
+    clearPendingConversationResumeState()
+    completeAssistantEntry()
+    assistantEntryIdRef.current = null
+    setError(null)
+    updateStreamStatus("completed")
+  }
+
   function completeAssistantEntry(fallback?: string) {
     updateAssistantEntry((entry) => {
       if (!entry && !fallback?.trim()) {
@@ -1205,6 +1388,60 @@ export function GatewayChatSidebar() {
     }
   }
 
+  function applyResumeResponse(response: ResumeRunResponse) {
+    if (Array.isArray(response.forward_messages)) {
+      response.forward_messages.forEach((message, index) => {
+        applyEvent(
+          canonicalizeGatewayEvent({
+            run_id: response.run_id ?? undefined,
+            seq: index + 1,
+            ts_ms: Date.now(),
+            stream: "resume",
+            event: "message",
+            phase: "resume",
+            scope:
+              typeof message.scope === "string" ? message.scope : "main",
+            role: typeof message.role === "string" ? message.role : "assistant",
+            content: message.content,
+            metadata: message.metadata ?? null,
+          })
+        )
+      })
+    }
+
+    const pendingApproval = approvalNeedFromRaw(response.pending_need, {
+      runId: response.run_id ?? null,
+      sessionKey: response.session_key ?? null,
+    })
+    if (pendingApproval) {
+      upsertApprovalEntry(pendingApproval)
+      markAwaitingHuman()
+      return
+    }
+
+    if (response.output?.trim()) {
+      assistantEntryIdRef.current = null
+      ensureAssistantEntry()
+      completeAssistantEntry(response.output)
+    }
+
+    terminalEventSeenRef.current = true
+    recoveryInFlightRef.current = false
+    clearRecoveryTimer()
+    activeStreamConversationIdRef.current = null
+    activeRunIdRef.current = null
+    clearPendingConversationResumeState()
+    setError(null)
+    updateStreamStatus("completed")
+    if (currentConversationIdRef.current) {
+      void Promise.all([
+        refreshConversations(),
+        syncConversationMessages(currentConversationIdRef.current),
+        refreshPendingInputsForConversation(currentConversationIdRef.current),
+      ])
+    }
+  }
+
   function applyEvent(event: GatewayChatStreamEvent) {
     // ── Pending Input 事件 ──
     if (event.event === "pending_input_queued") {
@@ -1239,6 +1476,17 @@ export function GatewayChatSidebar() {
       const id = parsePendingInputId(event)
       if (id != null) {
         setPreInputQueue((prev) => prev.filter((q) => q.id !== `db-${id}`))
+      }
+      return
+    }
+
+    const approvalEntry = approvalNeedFromEvent(event)
+    if (approvalEntry) {
+      upsertApprovalEntry(approvalEntry)
+      const metadata = objectValue(event.metadata)
+      const runState = stringValue(metadata?.run_state)
+      if (event.event === "run_awaiting_human" || runState === "awaiting_human") {
+        markAwaitingHuman()
       }
       return
     }
@@ -1646,6 +1894,79 @@ export function GatewayChatSidebar() {
     }
   }
 
+  async function handleResolveApproval(entryId: string, approved: boolean) {
+    if (!accessToken || !currentWorkspace) {
+      return
+    }
+
+    const entry = entries.find(
+      (item): item is ApprovalEntry =>
+        item.role === "approval" && item.id === entryId
+    )
+    if (!entry || !entry.approvalId) {
+      return
+    }
+
+    updateApprovalEntry(entryId, (current) => ({
+      ...current,
+      status: approved ? "approving" : "rejecting",
+      error: null,
+    }))
+    setError(null)
+    updateStreamStatus("streaming")
+
+    try {
+      if (approved) {
+        await approveSandboxApproval(accessToken, currentWorkspace.id, {
+          approval_id: entry.approvalId,
+        })
+      } else {
+        await rejectSandboxApproval(accessToken, currentWorkspace.id, {
+          approval_id: entry.approvalId,
+        })
+      }
+
+      updateApprovalEntry(entryId, (current) => ({
+        ...current,
+        status: approved ? "approved" : "rejected",
+        error: null,
+      }))
+
+      if (!entry.runId && !entry.sessionKey) {
+        updateStreamStatus("completed")
+        appendSystemMessage(
+          approved
+            ? "已批准 sandbox 命令。当前对话缺少可恢复的 run 信息，请发送下一条消息继续。"
+            : "已拒绝 sandbox 命令。"
+        )
+        return
+      }
+
+      const resumed = await resumeRunWithApproval(
+        accessToken,
+        currentWorkspace.id,
+        {
+          run_id: entry.runId,
+          session_key: entry.sessionKey,
+          need_id: entry.needId,
+          approved,
+        }
+      )
+      applyResumeResponse(resumed)
+    } catch (approvalError) {
+      const message =
+        approvalError instanceof Error ? approvalError.message : "审批操作失败。"
+      updateApprovalEntry(entryId, (current) => ({
+        ...current,
+        status: "error",
+        error: message,
+      }))
+      updateStreamStatus("error")
+      setError(message)
+      appendSystemMessage(`审批失败：${message}`)
+    }
+  }
+
   // Core send flow: shared by normal send and guided injection fallback.
   async function sendContentToApi(content: string, mode?: "guided") {
     if (!accessToken || !currentWorkspace || !content.trim()) {
@@ -2040,6 +2361,12 @@ export function GatewayChatSidebar() {
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
           onScrollToBottomClick={handleScrollToBottomClick}
+          onApproveApproval={(entryId) => {
+            void handleResolveApproval(entryId, true)
+          }}
+          onRejectApproval={(entryId) => {
+            void handleResolveApproval(entryId, false)
+          }}
         />
         {isLoadingMessages ? (
           <div className="px-4 pb-3 text-xs text-muted-foreground">正在同步历史消息…</div>

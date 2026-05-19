@@ -307,6 +307,17 @@ export type SandboxApprovalListResponse = {
   approvals: SandboxApproval[]
 }
 
+export type ResumeRunResponse = {
+  output?: string
+  session_key?: string
+  agent_id?: string
+  run_id?: string | null
+  run_state?: string | null
+  pending_need?: Record<string, unknown> | null
+  resumable?: boolean | null
+  forward_messages?: import("@/lib/api/chat/gateway-events").GatewayForwardMessage[]
+}
+
 const API_BASE_URL =
   (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -849,6 +860,32 @@ export function rejectSandboxApproval(
     accessToken,
     workspaceId,
     body: payload,
+  })
+}
+
+export function resumeRunWithApproval(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    run_id?: string | null
+    session_key?: string | null
+    need_id: string
+    approved: boolean
+  }
+) {
+  return requestJson<ResumeRunResponse>("/gateway/v1/runs/resume", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: {
+      run_id: payload.run_id,
+      session_key: payload.session_key,
+      resolution: {
+        kind: "approval",
+        need_id: payload.need_id,
+        approved: payload.approved,
+      },
+    },
   })
 }
 

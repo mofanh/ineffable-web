@@ -4,7 +4,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { hasAgentPaneContent } from "@/components/right-sidebar/chat/chat-pane-state"
 import type { ChatEntry } from "@/components/right-sidebar/chat/gateway-chat-types"
-import { ArrowDownIcon, SparklesIcon } from "lucide-react"
+import {
+  ArrowDownIcon,
+  CheckIcon,
+  Loader2Icon,
+  ShieldAlertIcon,
+  SparklesIcon,
+  XIcon,
+} from "lucide-react"
 import { AgentPane } from "@/components/right-sidebar/chat/components/agent-pane"
 
 type ChatMessageListProps = {
@@ -14,6 +21,8 @@ type ChatMessageListProps = {
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
   onViewportScroll: () => void
   onScrollToBottomClick: () => void
+  onApproveApproval: (entryId: string) => void
+  onRejectApproval: (entryId: string) => void
 }
 
 function StreamingTailDot() {
@@ -32,6 +41,8 @@ export function ChatMessageList({
   scrollViewportRef,
   onViewportScroll,
   onScrollToBottomClick,
+  onApproveApproval,
+  onRejectApproval,
 }: ChatMessageListProps) {
   if (entries.length === 0) {
     return (
@@ -78,6 +89,81 @@ export function ChatMessageList({
                 </Avatar>
                 <div className="max-w-[86%] text-sm leading-7 text-destructive">
                   <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                </div>
+              </div>
+            )
+          }
+
+          if (entry.role === "approval") {
+            const isBusy =
+              entry.status === "approving" || entry.status === "rejecting"
+            const isResolved =
+              entry.status === "approved" || entry.status === "rejected"
+
+            return (
+              <div key={entry.id} className="flex justify-start gap-3">
+                <Avatar className="mt-1 size-8 border border-amber-200 bg-amber-50">
+                  <AvatarFallback className="bg-amber-50 text-amber-700">
+                    <ShieldAlertIcon className="size-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="max-w-[92%] min-w-0 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-950">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-amber-800">
+                      Sandbox 命令等待审批
+                    </p>
+                    <p className="whitespace-pre-wrap break-words leading-6">
+                      {entry.action}
+                    </p>
+                    {entry.executionSessionId ? (
+                      <p className="break-all font-mono text-[11px] text-amber-800/80">
+                        session {entry.executionSessionId}
+                      </p>
+                    ) : null}
+                    {entry.error ? (
+                      <p className="text-xs text-destructive">{entry.error}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 rounded-md bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
+                      disabled={isBusy || isResolved || !entry.approvalId}
+                      onClick={() => onApproveApproval(entry.id)}
+                    >
+                      {entry.status === "approving" ? (
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      ) : (
+                        <CheckIcon className="size-3.5" />
+                      )}
+                      批准
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-md border-amber-300 px-3 text-xs text-amber-900 hover:bg-amber-100"
+                      disabled={isBusy || isResolved || !entry.approvalId}
+                      onClick={() => onRejectApproval(entry.id)}
+                    >
+                      {entry.status === "rejecting" ? (
+                        <Loader2Icon className="size-3.5 animate-spin" />
+                      ) : (
+                        <XIcon className="size-3.5" />
+                      )}
+                      拒绝
+                    </Button>
+                    {entry.status === "approved" ? (
+                      <span className="text-xs text-emerald-700">
+                        已批准，正在继续执行
+                      </span>
+                    ) : null}
+                    {entry.status === "rejected" ? (
+                      <span className="text-xs text-amber-800">已拒绝</span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             )
