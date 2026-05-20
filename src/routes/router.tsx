@@ -46,6 +46,11 @@ import {
 import { FeedbackPage, SupportPage } from "@/pages/support-pages"
 import { defaultPath } from "@/routes/navigation"
 
+function PrototypeWorkbenchRedirect() {
+  window.location.replace("/prototype/project-workbench/index.html")
+  return null
+}
+
 const routeElements: Record<string, React.ReactElement> = {
   "/account": <AccountPage />,
   "/console/world": <ConsoleWorldHomePage />,
@@ -78,6 +83,10 @@ const routeElements: Record<string, React.ReactElement> = {
 }
 
 export const router = createBrowserRouter([
+  {
+    path: "/prototype/project-workbench",
+    element: <PrototypeWorkbenchRedirect />,
+  },
   {
     path: "/",
     element: (

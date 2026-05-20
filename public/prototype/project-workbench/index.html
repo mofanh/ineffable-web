@@ -1,0 +1,1492 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ineffable Project Workbench Prototype</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f8fb;
+        --panel: #ffffff;
+        --panel-2: #f9fafb;
+        --subtle: #f1f5f9;
+        --line: #e2e8f0;
+        --line-strong: #cbd5e1;
+        --text: #0f172a;
+        --text-2: #334155;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --accent: #0f766e;
+        --accent-2: #0ea5e9;
+        --accent-soft: #e0f2fe;
+        --ok: #059669;
+        --warn: #d97706;
+        --danger: #dc2626;
+        --purple: #7c3aed;
+        --shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+        --radius: 8px;
+        --sidebar: 272px;
+        --right: 382px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        font-size: 13px;
+        letter-spacing: 0;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: var(--sidebar) minmax(620px, 1fr) var(--right);
+        grid-template-rows: 52px minmax(0, 1fr);
+        height: 100vh;
+        min-width: 1180px;
+      }
+
+      .topbar {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.92);
+        padding: 0 14px 0 16px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 236px;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+        color: var(--accent);
+        font-weight: 750;
+      }
+
+      .brand strong,
+      .project-switcher strong {
+        display: block;
+        font-size: 13px;
+        line-height: 17px;
+      }
+
+      .brand span,
+      .project-switcher span {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 15px;
+      }
+
+      .project-switcher {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 250px;
+      }
+
+      .search {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        max-width: 540px;
+        height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel-2);
+        color: var(--muted);
+        padding: 0 10px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .sidebar {
+        grid-row: 2;
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .sidebar-scroll {
+        overflow: auto;
+        padding: 12px;
+      }
+
+      .nav-section {
+        margin-bottom: 16px;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--faint);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 4px 8px;
+      }
+
+      .nav-item,
+      .tree-item {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: var(--text-2);
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        padding: 6px 8px;
+        border-radius: 7px;
+        text-align: left;
+      }
+
+      .nav-item:hover,
+      .tree-item:hover,
+      .nav-item.active,
+      .tree-item.active {
+        background: var(--subtle);
+        color: var(--text);
+      }
+
+      .nav-item.active,
+      .tree-item.active {
+        box-shadow: inset 2px 0 0 var(--accent);
+      }
+
+      .tree-item.depth-1 {
+        padding-left: 24px;
+      }
+
+      .tree-item.depth-2 {
+        padding-left: 38px;
+      }
+
+      .label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .glyph {
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .badge,
+      .pill,
+      .count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 20px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1;
+        padding: 0 7px;
+        white-space: nowrap;
+      }
+
+      .count {
+        min-width: 20px;
+        padding: 0 5px;
+      }
+
+      .pill.ok {
+        color: var(--ok);
+        background: #ecfdf5;
+        border-color: #bbf7d0;
+      }
+
+      .pill.warn {
+        color: var(--warn);
+        background: #fffbeb;
+        border-color: #fde68a;
+      }
+
+      .pill.danger {
+        color: var(--danger);
+        background: #fef2f2;
+        border-color: #fecaca;
+      }
+
+      .pill.running {
+        color: #0369a1;
+        background: var(--accent-soft);
+        border-color: #bae6fd;
+      }
+
+      .pill.draft {
+        color: var(--purple);
+        background: #f5f3ff;
+        border-color: #ddd6fe;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--faint);
+      }
+
+      .dot.ok {
+        background: var(--ok);
+      }
+
+      .dot.warn {
+        background: var(--warn);
+      }
+
+      .dot.danger {
+        background: var(--danger);
+      }
+
+      .dot.running {
+        background: var(--accent-2);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.13);
+      }
+
+      .center {
+        grid-row: 2;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+      }
+
+      .canvas-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 76px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+        padding: 14px 18px;
+      }
+
+      .title-stack {
+        min-width: 0;
+      }
+
+      .kicker {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 20px;
+        line-height: 26px;
+        font-weight: 720;
+      }
+
+      h2 {
+        font-size: 14px;
+        line-height: 20px;
+        font-weight: 720;
+      }
+
+      h3 {
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 700;
+      }
+
+      .header-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .header-actions,
+      .toolbar,
+      .button-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 30px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--text-2);
+        padding: 0 10px;
+        white-space: nowrap;
+        box-shadow: var(--shadow);
+      }
+
+      .btn:hover,
+      .btn.active {
+        border-color: var(--line-strong);
+        color: var(--text);
+        background: var(--subtle);
+      }
+
+      .btn.primary {
+        border-color: #0f766e;
+        background: #0f766e;
+        color: white;
+      }
+
+      .btn.danger {
+        color: var(--danger);
+        border-color: #fecaca;
+        background: #fff7f7;
+      }
+
+      .canvas-toolbar {
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.84);
+        padding: 10px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .canvas-main {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 240px;
+        overflow: hidden;
+      }
+
+      .canvas-body {
+        min-width: 0;
+        overflow: auto;
+        padding: 16px 18px 18px;
+      }
+
+      .context-rail {
+        border-left: 1px solid var(--line);
+        background: var(--panel);
+        overflow: auto;
+        padding: 14px;
+      }
+
+      .statusbar {
+        min-height: 32px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--muted);
+        padding: 0 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+      }
+
+      .right {
+        grid-row: 2;
+        border-left: 1px solid var(--line);
+        background: var(--panel);
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .right-header {
+        border-bottom: 1px solid var(--line);
+        padding: 14px;
+      }
+
+      .context-card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel-2);
+        padding: 10px;
+      }
+
+      .chat-stream {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 12px 14px;
+      }
+
+      .composer {
+        border-top: 1px solid var(--line);
+        padding: 12px;
+        background: var(--panel);
+      }
+
+      .composer textarea {
+        width: 100%;
+        min-height: 72px;
+        resize: none;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        color: var(--text);
+        background: var(--panel-2);
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .grid.cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .card.pad {
+        padding: 12px;
+      }
+
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 12px 8px;
+      }
+
+      .card-body {
+        padding: 0 12px 12px;
+      }
+
+      .metric {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .metric strong {
+        font-size: 24px;
+        line-height: 30px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .small {
+        font-size: 12px;
+      }
+
+      .tiny {
+        font-size: 11px;
+      }
+
+      .list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 34px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel-2);
+      }
+
+      .row.compact {
+        min-height: 28px;
+        padding: 6px 8px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .source,
+      .preview,
+      .log {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .source pre,
+      .log pre {
+        margin: 0;
+        padding: 12px;
+        overflow: auto;
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 12px;
+        line-height: 18px;
+        color: #1e293b;
+      }
+
+      .preview-inner {
+        padding: 18px;
+      }
+
+      .doc h2,
+      .doc h3 {
+        margin-top: 16px;
+        margin-bottom: 8px;
+      }
+
+      .doc p {
+        color: var(--text-2);
+        line-height: 1.65;
+        margin-bottom: 10px;
+      }
+
+      .doc ul {
+        margin: 0 0 12px 18px;
+        padding: 0;
+        color: var(--text-2);
+        line-height: 1.65;
+      }
+
+      .mock-browser {
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: white;
+      }
+
+      .browser-bar {
+        height: 32px;
+        border-bottom: 1px solid var(--line);
+        background: var(--subtle);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+      }
+
+      .browser-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--line-strong);
+      }
+
+      .product-shell {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        min-height: 360px;
+      }
+
+      .product-nav {
+        border-right: 1px solid var(--line);
+        background: #f8fafc;
+        padding: 14px;
+      }
+
+      .product-content {
+        padding: 16px;
+      }
+
+      .timeline {
+        position: relative;
+        display: grid;
+        gap: 10px;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 12px;
+        top: 8px;
+        bottom: 8px;
+        width: 1px;
+        background: var(--line-strong);
+      }
+
+      .timeline-item {
+        position: relative;
+        display: grid;
+        grid-template-columns: 25px minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .node {
+        width: 25px;
+        display: flex;
+        justify-content: center;
+        padding-top: 5px;
+        z-index: 1;
+      }
+
+      .node::after {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 2px solid white;
+        background: var(--accent-2);
+        box-shadow: 0 0 0 1px var(--line-strong);
+      }
+
+      .tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 2px;
+        background: var(--panel-2);
+      }
+
+      .tab {
+        border: 0;
+        background: transparent;
+        border-radius: 6px;
+        min-height: 26px;
+        color: var(--muted);
+        padding: 0 9px;
+      }
+
+      .tab.active {
+        background: var(--panel);
+        color: var(--text);
+        box-shadow: var(--shadow);
+      }
+
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--panel);
+      }
+
+      .table th,
+      .table td {
+        border-bottom: 1px solid var(--line);
+        padding: 9px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .table th {
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: var(--panel-2);
+      }
+
+      .table tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .approval {
+        border: 1px solid #fed7aa;
+        background: #fff7ed;
+      }
+
+      .message {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+
+      .bubble {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 10px;
+        background: var(--panel-2);
+        line-height: 1.45;
+      }
+
+      .message.user .bubble {
+        background: #ecfeff;
+        border-color: #a5f3fc;
+      }
+
+      .message.agent .bubble {
+        background: var(--panel);
+      }
+
+      .message.system .bubble {
+        background: #f8fafc;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .agent-group {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px;
+        background: var(--panel-2);
+        margin-bottom: 10px;
+      }
+
+      .bar {
+        height: 7px;
+        border-radius: 99px;
+        background: var(--line);
+        overflow: hidden;
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      @media (max-width: 1280px) {
+        .app {
+          grid-template-columns: 240px minmax(560px, 1fr) 350px;
+        }
+        .canvas-main {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .context-rail {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark">I</div>
+          <div>
+            <strong>Ineffable</strong>
+            <span>Team agent workspace</span>
+          </div>
+        </div>
+        <div class="project-switcher">
+          <span class="badge">Workspace</span>
+          <div>
+            <strong>World Lab</strong>
+            <span>Project: ineffable platform</span>
+          </div>
+        </div>
+        <div class="search">Search projects, runs, files, agents</div>
+        <div class="top-actions">
+          <span class="pill running"><span class="dot running"></span>&nbsp;2 runs active</span>
+          <button class="btn">New task</button>
+          <button class="btn primary">Ask agent</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-scroll">
+          <section class="nav-section">
+            <div class="section-title">Workspace</div>
+            <button class="nav-item active" data-view="workspace">
+              <span class="glyph">W</span><span class="label">Projects</span><span class="count">4</span>
+            </button>
+            <button class="nav-item" data-view="overview">
+              <span class="glyph">O</span><span class="label">Project Overview</span><span class="dot running"></span>
+            </button>
+            <button class="nav-item" data-view="run">
+              <span class="glyph">R</span><span class="label">Tasks / Runs</span><span class="count">12</span>
+            </button>
+            <button class="nav-item" data-view="envs">
+              <span class="glyph">S</span><span class="label">Sandbox Environments</span><span class="dot ok"></span>
+            </button>
+          </section>
+
+          <section class="nav-section">
+            <div class="section-title">Project Objects <span>ineffable</span></div>
+            <button class="tree-item" data-view="overview">
+              <span class="glyph">P</span><span class="label">Overview</span><span class="pill running">live</span>
+            </button>
+            <button class="tree-item" data-view="markdown">
+              <span class="glyph">M</span><span class="label">PRD_DRAFT_v1.md</span><span class="pill draft">draft</span>
+            </button>
+            <button class="tree-item" data-view="html">
+              <span class="glyph">H</span><span class="label">prototype.html</span><span class="pill ok">ready</span>
+            </button>
+            <button class="tree-item" data-view="run">
+              <span class="glyph">T</span><span class="label">Run: generate canvas prototype</span><span class="dot running"></span>
+            </button>
+            <button class="tree-item" data-view="approval">
+              <span class="glyph">A</span><span class="label">Approval: write public file</span><span class="pill warn">wait</span>
+            </button>
+            <button class="tree-item depth-1" data-view="envs">
+              <span class="glyph">F</span><span class="label">Files / Artifacts</span><span class="count">8</span>
+            </button>
+            <button class="tree-item depth-2" data-view="markdown">
+              <span class="glyph">-</span><span class="label">PRODUCT_CONTEXT.md</span><span></span>
+            </button>
+            <button class="tree-item depth-2" data-view="html">
+              <span class="glyph">-</span><span class="label">prototype-v2.html</span><span></span>
+            </button>
+            <button class="tree-item depth-1" data-view="env-detail">
+              <span class="glyph">E</span><span class="label">Local daemon: macbook-pro</span><span class="dot ok"></span>
+            </button>
+          </section>
+
+          <section class="nav-section">
+            <div class="section-title">Bound Agents</div>
+            <div class="row compact">
+              <div class="stack">
+                <strong>Lead Agent</strong>
+                <span class="muted tiny">Planning, orchestration</span>
+              </div>
+              <span class="pill running">active</span>
+            </div>
+            <div class="row compact">
+              <div class="stack">
+                <strong>Frontend Agent</strong>
+                <span class="muted tiny">HTML, CSS, checks</span>
+              </div>
+              <span class="pill running">running</span>
+            </div>
+            <div class="row compact">
+              <div class="stack">
+                <strong>Reviewer Agent</strong>
+                <span class="muted tiny">Risk and QA</span>
+              </div>
+              <span class="pill">idle</span>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <main class="center">
+        <section class="canvas-header">
+          <div class="title-stack">
+            <div class="kicker" id="canvasKicker"></div>
+            <h1 id="canvasTitle"></h1>
+            <div class="header-meta" id="canvasMeta"></div>
+          </div>
+          <div class="header-actions" id="headerActions"></div>
+        </section>
+        <section class="canvas-toolbar">
+          <div class="toolbar" id="toolbar"></div>
+          <div class="toolbar">
+            <button class="btn">History</button>
+            <button class="btn">Ask Agent</button>
+          </div>
+        </section>
+        <section class="canvas-main">
+          <div class="canvas-body" id="canvasBody"></div>
+          <aside class="context-rail" id="contextRail"></aside>
+        </section>
+        <section class="statusbar">
+          <span id="statusLeft"></span>
+          <span id="statusRight"></span>
+        </section>
+      </main>
+
+      <aside class="right">
+        <div class="right-header">
+          <div class="context-card">
+            <div class="kicker">Current Context</div>
+            <h2 id="rightContextTitle"></h2>
+            <div class="header-meta" id="rightContextMeta"></div>
+          </div>
+        </div>
+        <div class="chat-stream" id="chatStream"></div>
+        <div class="composer">
+          <div class="tabs" style="margin-bottom: 8px">
+            <button class="tab active">Ask</button>
+            <button class="tab">Continue</button>
+            <button class="tab">Fix</button>
+            <button class="tab">Execute</button>
+          </div>
+          <textarea placeholder="Ask the active agents about the current object"></textarea>
+          <div class="button-row" style="justify-content: space-between; margin-top: 8px">
+            <span class="muted tiny">Context is pinned to the open canvas object</span>
+            <button class="btn primary">Send</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      const shared = {
+        projectMeta:
+          '<span class="pill running">running</span><span>Updated 12 min ago</span><span>Last actor: Lead Agent</span>',
+        defaultActions:
+          '<button class="btn">Open object</button><button class="btn">Create task</button><button class="btn primary">Continue work</button>',
+      };
+
+      const views = {
+        workspace: {
+          kicker: 'Workspace / Projects',
+          title: 'Project List',
+          meta:
+            '<span class="pill ok">4 active projects</span><span>World Lab</span><span>Team workspace</span>',
+          actions:
+            '<button class="btn">Import project</button><button class="btn primary">New project</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab active">Active</button><button class="tab">Archived</button><button class="tab">Shared</button></div>',
+          body: `
+            <div class="grid cols-2">
+              ${projectCard('ineffable platform', 'Team AI workspace with project canvas, agents, sandbox, artifacts.', 'running', '12 runs', '8 artifacts')}
+              ${projectCard('frontend channel', 'Gateway and SSE UI for main and sub agent outputs.', 'draft', '5 runs', '3 artifacts')}
+              ${projectCard('local daemon', 'Local runtime binding, policy, command profiles, audit log.', 'completed', '9 runs', '6 artifacts')}
+              ${projectCard('docs automation', 'Project docs, changelog drafts, release summaries.', 'idle', '2 runs', '4 artifacts')}
+            </div>
+          `,
+          rail: rail([
+            ['Recommended next', 'Open ineffable platform overview'],
+            ['Pending approvals', '1 environment write action'],
+            ['Active agents', 'Lead Agent, Frontend Agent'],
+          ]),
+          status: ['Workspace index synced', 'Search index healthy'],
+          chat: chatFor('workspace'),
+        },
+        overview: {
+          kicker: 'Project Canvas / Overview',
+          title: 'ineffable platform',
+          meta: shared.projectMeta,
+          actions: shared.defaultActions,
+          toolbar:
+            '<div class="tabs"><button class="tab active">Overview</button><button class="tab">Tasks</button><button class="tab">Agents</button><button class="tab">Sandbox</button><button class="tab">Activity</button></div>',
+          body: `
+            <div class="grid cols-3" style="margin-bottom: 12px">
+              ${metricCard('Active Tasks', '5', '2 running, 1 waiting approval', 'running')}
+              ${metricCard('Agent Status', '3', '2 active, 1 idle', 'ok')}
+              ${metricCard('Sandbox Status', '2', 'Local connected, cloud idle', 'ok')}
+            </div>
+            <div class="grid cols-2">
+              <section class="card">
+                <div class="card-head"><h2>Project Summary</h2><span class="pill draft">planning</span></div>
+                <div class="card-body doc">
+                  <p>Ineffable is moving from chat sessions toward a project-level collaboration container where documents, runs, environments, and artifacts become durable objects.</p>
+                  <ul>
+                    <li>Project is the primary container.</li>
+                    <li>Chat drives work but does not own every result.</li>
+                    <li>The center canvas is the shared working surface.</li>
+                  </ul>
+                </div>
+              </section>
+              <section class="card">
+                <div class="card-head"><h2>Active Work</h2><span class="pill running">live</span></div>
+                <div class="card-body list">
+                  ${workRow('Generate P0 prototype', 'Frontend Agent', 'running')}
+                  ${workRow('Review sandbox policy copy', 'Reviewer Agent', 'waiting_approval')}
+                  ${workRow('Promote prototype.html artifact', 'Lead Agent', 'draft')}
+                  ${workRow('Summarize product object model', 'Docs Agent', 'completed')}
+                </div>
+              </section>
+              <section class="card">
+                <div class="card-head"><h2>Recent Artifacts</h2><span class="count">8</span></div>
+                <div class="card-body list">
+                  ${artifactRow('PRODUCT_CONTEXT.md', 'Markdown', 'v3')}
+                  ${artifactRow('prototype.html', 'HTML', 'v2')}
+                  ${artifactRow('run-472.log', 'Log', '12 KB')}
+                  ${artifactRow('file-change-summary.json', 'Output', '4 KB')}
+                </div>
+              </section>
+              <section class="card">
+                <div class="card-head"><h2>Risks / Blockers</h2><span class="pill warn">2 open</span></div>
+                <div class="card-body list">
+                  ${riskRow('Approval required before writing public prototype files.', 'High')}
+                  ${riskRow('Cloud environment has no bound repository yet.', 'Medium')}
+                  ${riskRow('Artifact promotion policy not finalized.', 'Low')}
+                </div>
+              </section>
+            </div>
+          `,
+          rail: rail([
+            ['Current object', 'Project overview'],
+            ['Related run', 'run-472 generate canvas prototype'],
+            ['Next action', 'Open Markdown Canvas or approve file write'],
+          ]),
+          status: ['Auto-saved overview state', 'Local sandbox connected'],
+          chat: chatFor('overview'),
+        },
+        markdown: {
+          kicker: 'Project Canvas / Markdown Document',
+          title: 'PRD_DRAFT_v1.md',
+          meta:
+            '<span class="pill draft">draft</span><span>Edited 8 min ago</span><span>Editor: Lead Agent</span><span>Linked task: define product canvas</span>',
+          actions:
+            '<button class="btn">Create task from doc</button><button class="btn">Generate HTML</button><button class="btn primary">Ask Agent</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab">Preview</button><button class="tab">Source</button><button class="tab active">Split View</button><button class="tab">History</button></div>',
+          body: `
+            <div class="split">
+              <section class="source">
+<pre># Product Canvas
+
+## Goal
+Make every project object visible, editable, and traceable.
+
+## Core objects
+- Project
+- Markdown Document
+- HTML Prototype
+- Task / Run
+- Artifact
+- Sandbox Environment
+
+## Open decisions
+- How should artifact promotion work?
+- Which actions require explicit approval?
+- How much run detail belongs in chat?</pre>
+              </section>
+              <section class="preview">
+                <div class="preview-inner doc">
+                  <h2>Product Canvas</h2>
+                  <p>The canvas is the durable project surface for human and agent collaboration. It makes project objects explicit instead of hiding them inside a chat transcript.</p>
+                  <h3>Core objects</h3>
+                  <ul>
+                    <li>Markdown documents for plans, specs, and summaries.</li>
+                    <li>HTML prototypes for previewable deliverables.</li>
+                    <li>Runs for execution history, logs, file changes, and approvals.</li>
+                  </ul>
+                  <h3>Open decisions</h3>
+                  <p>Artifact promotion, high-risk approvals, and chat-to-run synchronization need product decisions before implementation.</p>
+                </div>
+              </section>
+            </div>
+          `,
+          rail: rail([
+            ['Related agents', 'Lead Agent, Docs Agent'],
+            ['Source run', 'run-431 doc synthesis'],
+            ['Selection actions', 'Rewrite, shorten, expand, extract risks'],
+          ]),
+          status: ['Markdown rendered', 'Agent is drafting section: Approval model'],
+          chat: chatFor('markdown'),
+        },
+        html: {
+          kicker: 'Project Canvas / HTML Prototype',
+          title: 'prototype.html',
+          meta:
+            '<span class="pill ok">ready</span><span>Generated 18 min ago</span><span>Source: Frontend Agent</span><span>Version: v2</span>',
+          actions:
+            '<button class="btn">Open new tab</button><button class="btn">Save as artifact</button><button class="btn primary">Revise page</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab active">Preview</button><button class="tab">Source</button><button class="tab">Split</button><button class="tab">Versions</button></div>',
+          body: `
+            <div class="mock-browser">
+              <div class="browser-bar">
+                <span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span>
+                <span class="badge" style="margin-left: 8px">/prototype/project-workbench</span>
+              </div>
+              <div class="product-shell">
+                <div class="product-nav">
+                  <h3>Project</h3>
+                  <div class="list" style="margin-top: 12px">
+                    <span class="pill running">Overview</span>
+                    <span class="pill">Documents</span>
+                    <span class="pill">Runs</span>
+                    <span class="pill">Sandbox</span>
+                  </div>
+                </div>
+                <div class="product-content">
+                  <div class="grid cols-3" style="margin-bottom: 12px">
+                    ${metricCard('Runs', '12', '2 active', 'running')}
+                    ${metricCard('Artifacts', '8', '3 promoted', 'ok')}
+                    ${metricCard('Approvals', '1', 'waiting', 'warn')}
+                  </div>
+                  <div class="grid cols-2">
+                    <div class="card pad"><h2>Agent Activity</h2><p class="muted small" style="margin-top: 8px">Lead Agent split the request, Frontend Agent is editing the prototype, Reviewer Agent is queued.</p></div>
+                    <div class="card pad"><h2>Sandbox</h2><p class="muted small" style="margin-top: 8px">Local daemon is connected with write access limited to the project workspace.</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `,
+          rail: rail([
+            ['Linked task', 'task-184 P0 prototype'],
+            ['Source agent', 'Frontend Agent'],
+            ['Recommended next', 'Add approval state and run timeline'],
+          ]),
+          status: ['Preview sandboxed', 'No external network required'],
+          chat: chatFor('html'),
+        },
+        run: {
+          kicker: 'Project Canvas / Task Run',
+          title: 'Run: generate canvas prototype',
+          meta:
+            '<span class="pill running">running</span><span>Started 22 min ago</span><span>Agent: Frontend Agent</span><span>Environment: local</span>',
+          actions:
+            '<button class="btn danger">Stop</button><button class="btn">Retry</button><button class="btn">Resume</button><button class="btn primary">Summarize</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab active">Timeline</button><button class="tab">Logs</button><button class="tab">File Changes</button><button class="tab">Artifacts</button><button class="tab">Errors</button></div>',
+          body: `
+            <div class="grid cols-2">
+              <section class="card pad">
+                <h2>Run Summary</h2>
+                <div class="list" style="margin-top: 10px">
+                  ${kv('Goal', 'Create standalone HTML prototype for P0 screens')}
+                  ${kv('Project', 'ineffable platform')}
+                  ${kv('Agent combo', 'Lead Agent -> Frontend Agent -> Reviewer Agent')}
+                  ${kv('Sandbox', 'local daemon, project write scope')}
+                </div>
+              </section>
+              <section class="card pad">
+                <h2>Execution Timeline</h2>
+                <div class="timeline" style="margin-top: 12px">
+                  ${timeline('Request created', 'User selected P0 static prototype scope.', 'completed')}
+                  ${timeline('Main agent split task', 'Pages, states, and canvas modes mapped.', 'completed')}
+                  ${timeline('Environment bound', 'Local daemon macbook-pro accepted policy.', 'completed')}
+                  ${timeline('Approval requested', 'Write new prototype file under public/.', 'waiting')}
+                  ${timeline('Output received', 'HTML shell, mock data, and page interactions.', 'running')}
+                </div>
+              </section>
+            </div>
+            <section class="card" style="margin-top: 12px">
+              <div class="card-head"><h2>Detail Tabs</h2><span class="pill running">live tail</span></div>
+              <div class="card-body grid cols-3">
+                <div class="log"><pre>[12:10:04] inspect docs
+[12:13:44] generate layout map
+[12:16:02] write HTML prototype</pre></div>
+                <div class="log"><pre>+ public/prototype/project-workbench/index.html
+ P0 routes represented as canvas states
+ static mock data only</pre></div>
+                <div class="log"><pre>artifact: prototype.html
+status: draft
+promotion: pending approval</pre></div>
+              </div>
+            </section>
+          `,
+          rail: rail([
+            ['Waiting on', 'Approval: write public file'],
+            ['Checkpoint', 'layout-map-v1'],
+            ['Resume options', 'Frontend Agent, Reviewer Agent'],
+          ]),
+          status: ['Run checkpoint saved', '1 high-risk action awaiting approval'],
+          chat: chatFor('run'),
+        },
+        envs: {
+          kicker: 'Project Canvas / Sandbox',
+          title: 'Sandbox Environments',
+          meta:
+            '<span class="pill ok">2 environments</span><span>Local active</span><span>Cloud idle</span>',
+          actions:
+            '<button class="btn">Bind environment</button><button class="btn primary">Create cloud runtime</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab active">All</button><button class="tab">Local</button><button class="tab">Cloud</button></div>',
+          body: `
+            <table class="table">
+              <thead><tr><th>Provider</th><th>Runtime</th><th>Status</th><th>Bound project</th><th>Policy</th><th>Allowed paths</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td>Local</td><td>macbook-pro daemon</td><td><span class="pill ok">connected</span></td><td>ineffable platform</td><td>confirm writes outside public</td><td>/dev/Ineffable-web</td><td><button class="btn" data-view="env-detail">View Details</button></td></tr>
+                <tr><td>Cloud</td><td>linux-ephemeral</td><td><span class="pill">idle</span></td><td>unbound</td><td>approval required</td><td>none</td><td><button class="btn">Bind</button></td></tr>
+                <tr><td>Local</td><td>docs-worker</td><td><span class="pill warn">stale heartbeat</span></td><td>docs automation</td><td>read only</td><td>/plan</td><td><button class="btn">Rebind</button></td></tr>
+              </tbody>
+            </table>
+          `,
+          rail: rail([
+            ['Current session', 'session-local-8841'],
+            ['Recent task', 'Generate P0 prototype'],
+            ['Policy summary', 'Writes require audit, shell commands logged'],
+          ]),
+          status: ['Local heartbeat 14 sec ago', 'Cloud runtime not allocated'],
+          chat: chatFor('envs'),
+        },
+        'env-detail': {
+          kicker: 'Project Canvas / Local Environment Detail',
+          title: 'macbook-pro daemon',
+          meta:
+            '<span class="pill ok">healthy</span><span>Last heartbeat 14 sec ago</span><span>Bound project: ineffable platform</span>',
+          actions:
+            '<button class="btn">View logs</button><button class="btn">Rebind</button><button class="btn danger">Revoke</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab active">Details</button><button class="tab">Policy</button><button class="tab">Recent Tasks</button><button class="tab">Artifacts</button></div>',
+          body: `
+            <div class="grid cols-2">
+              <section class="card pad">
+                <h2>Basic Information</h2>
+                <div class="list" style="margin-top: 10px">
+                  ${kv('Provider', 'Local daemon')}
+                  ${kv('Runtime', 'darwin arm64')}
+                  ${kv('Health', 'healthy')}
+                  ${kv('Current session', 'session-local-8841')}
+                </div>
+              </section>
+              <section class="card pad">
+                <h2>Policy</h2>
+                <div class="list" style="margin-top: 10px">
+                  ${kv('Command profile', 'default-safe')}
+                  ${kv('Write policy', 'confirm outside /public/prototype')}
+                  ${kv('Network', 'enabled, audited')}
+                  ${kv('Risk level', 'medium')}
+                </div>
+              </section>
+              <section class="card pad">
+                <h2>Authorized Directories</h2>
+                <div class="list" style="margin-top: 10px">
+                  ${artifactRow('/Users/bojingli/self/project/dev/Ineffable-web', 'write', 'active')}
+                  ${artifactRow('/Users/bojingli/self/project/dev/Ineffable/plan', 'read', 'active')}
+                </div>
+              </section>
+              <section class="card pad">
+                <h2>Recent Task Results</h2>
+                <div class="list" style="margin-top: 10px">
+                  ${workRow('Read prototype document', 'Lead Agent', 'completed')}
+                  ${workRow('Inspect frontend shell', 'Frontend Agent', 'completed')}
+                  ${workRow('Write standalone HTML', 'Frontend Agent', 'running')}
+                </div>
+              </section>
+            </div>
+          `,
+          rail: rail([
+            ['Allowed action', 'Create prototype static files'],
+            ['Restricted action', 'Delete project files'],
+            ['Audit destination', 'run timeline and environment log'],
+          ]),
+          status: ['Environment healthy', 'Command profile default-safe'],
+          chat: chatFor('env-detail'),
+        },
+        approval: {
+          kicker: 'Project Canvas / Approval',
+          title: 'Approval: write public prototype file',
+          meta:
+            '<span class="pill warn">waiting_approval</span><span>Requested 3 min ago</span><span>Agent: Frontend Agent</span>',
+          actions:
+            '<button class="btn danger">Reject</button><button class="btn primary">Approve</button>',
+          toolbar:
+            '<div class="tabs"><button class="tab active">Request</button><button class="tab">Command</button><button class="tab">Diff</button><button class="tab">Policy</button></div>',
+          body: `
+            <section class="card approval pad">
+              <h2>High Context Approval</h2>
+              <p class="muted small" style="margin-top: 6px">This request will be written to the run timeline and environment audit log.</p>
+              <div class="grid cols-2" style="margin-top: 12px">
+                ${approvalField('Project', 'ineffable platform')}
+                ${approvalField('Agent', 'Frontend Agent')}
+                ${approvalField('Environment', 'Local daemon: macbook-pro')}
+                ${approvalField('Action', 'Create standalone HTML prototype')}
+                ${approvalField('Working Directory', '/Users/bojingli/self/project/dev/Ineffable-web')}
+                ${approvalField('Risk Level', 'Medium')}
+              </div>
+            </section>
+            <section class="card" style="margin-top: 12px">
+              <div class="card-head"><h2>Command / File Change</h2><span class="pill warn">requires decision</span></div>
+              <div class="card-body">
+                <div class="log"><pre>create file:
+public/prototype/project-workbench/index.html
+
+reason:
+Make the P0 project workbench prototype accessible at
+/prototype/project-workbench/ without changing production React routes.</pre></div>
+              </div>
+            </section>
+          `,
+          rail: rail([
+            ['Decision effect', 'Approve continues run; reject marks run interrupted'],
+            ['Audit trail', 'Run timeline, environment log'],
+            ['Fallback', 'Save artifact only, no public path'],
+          ]),
+          status: ['Approval pending', 'Run is resumable after decision'],
+          chat: chatFor('approval'),
+        },
+      };
+
+      function projectCard(name, desc, status, runs, artifacts) {
+        return `<button class="card pad" data-view="overview" style="text-align:left">
+          <div class="metric"><h2>${name}</h2><span class="pill ${statusClass(status)}">${status}</span></div>
+          <p class="muted small" style="margin-top:8px; line-height:1.5">${desc}</p>
+          <div class="header-meta" style="margin-top:12px"><span>${runs}</span><span>${artifacts}</span><span>Updated today</span></div>
+        </button>`;
+      }
+
+      function metricCard(label, value, detail, status) {
+        return `<section class="card pad">
+          <div class="metric"><div><span class="muted tiny">${label}</span><br><strong>${value}</strong></div><span class="dot ${status}"></span></div>
+          <p class="muted small" style="margin-top:7px">${detail}</p>
+          <div class="bar" style="margin-top:10px"><span style="width:${status === 'warn' ? '48' : status === 'running' ? '72' : '84'}%"></span></div>
+        </section>`;
+      }
+
+      function workRow(title, agent, status) {
+        return `<div class="row"><div class="stack"><strong>${title}</strong><span class="muted tiny">${agent}</span></div><span class="pill ${statusClass(status)}">${status}</span></div>`;
+      }
+
+      function artifactRow(name, type, meta) {
+        return `<div class="row compact"><div class="stack"><strong>${name}</strong><span class="muted tiny">${type}</span></div><span class="badge">${meta}</span></div>`;
+      }
+
+      function riskRow(text, level) {
+        return `<div class="row"><div class="stack"><strong>${text}</strong><span class="muted tiny">Needs project owner decision</span></div><span class="pill ${level === 'High' ? 'danger' : level === 'Medium' ? 'warn' : ''}">${level}</span></div>`;
+      }
+
+      function kv(key, value) {
+        return `<div class="row compact"><span class="muted">${key}</span><strong>${value}</strong></div>`;
+      }
+
+      function timeline(title, detail, status) {
+        return `<div class="timeline-item"><div class="node"></div><div class="row"><div class="stack"><strong>${title}</strong><span class="muted tiny">${detail}</span></div><span class="pill ${statusClass(status)}">${status}</span></div></div>`;
+      }
+
+      function approvalField(key, value) {
+        return `<div class="card pad"><span class="muted tiny">${key}</span><h3 style="margin-top:6px">${value}</h3></div>`;
+      }
+
+      function rail(items) {
+        return `<div class="list">
+          <div class="section-title" style="padding-left:0">Canvas Context</div>
+          ${items.map(([key, value]) => `<div class="context-card"><span class="muted tiny">${key}</span><h3 style="margin-top:5px">${value}</h3></div>`).join('')}
+          <div class="section-title" style="padding-left:0; margin-top:8px">Object Lineage</div>
+          <div class="timeline">
+            ${timeline('User request', 'Scope: P0 prototype', 'completed')}
+            ${timeline('Agent run', 'Mock data and static page', 'running')}
+            ${timeline('Artifact', 'Promotion pending', 'draft')}
+          </div>
+        </div>`;
+      }
+
+      function chatFor(view) {
+        const base = {
+          workspace: 'Open the ineffable platform project and show active runs.',
+          overview: 'Continue from the product overview and identify the next object to edit.',
+          markdown: 'Rewrite the open decisions section for engineering review.',
+          html: 'Adjust the prototype preview to show sandbox and run status more clearly.',
+          run: 'Explain why this run is waiting for approval and what can be resumed.',
+          envs: 'Which environment should handle the next frontend prototype task?',
+          'env-detail': 'Show me the current policy and the last command result.',
+          approval: 'Approve only if the path is limited to the prototype directory.',
+        }[view];
+        return `
+          <div class="message user"><span class="muted tiny">You</span><div class="bubble">${base}</div></div>
+          <div class="message agent"><span class="muted tiny">Lead Agent</span><div class="bubble">I pinned the current object and routed the work to the specialized agent. The run timeline will keep file changes, logs, and decisions attached to this project.</div></div>
+          <div class="agent-group">
+            <div class="metric"><strong style="font-size:13px;line-height:18px">Frontend Agent</strong><span class="pill running">running</span></div>
+            <p class="muted small" style="margin-top:7px">Building canvas state, object navigation, environment cards, and approval surface.</p>
+          </div>
+          <div class="agent-group">
+            <div class="metric"><strong style="font-size:13px;line-height:18px">Reviewer Agent</strong><span class="pill">queued</span></div>
+            <p class="muted small" style="margin-top:7px">Will check status consistency, missing P0 pages, and approval context.</p>
+          </div>
+          <div class="message system"><div class="bubble">System event: active object state is synchronized across sidebar, canvas header, and chat context.</div></div>
+        `;
+      }
+
+      function statusClass(status) {
+        if (status === 'completed' || status === 'ready' || status === 'ok' || status === 'connected') return 'ok';
+        if (status === 'running' || status === 'live') return 'running';
+        if (status === 'waiting' || status === 'waiting_approval' || status === 'wait') return 'warn';
+        if (status === 'failed') return 'danger';
+        if (status === 'draft' || status === 'planning') return 'draft';
+        return '';
+      }
+
+      function setView(name) {
+        const view = views[name] || views.overview;
+        document.querySelectorAll('[data-view]').forEach((node) => {
+          node.classList.toggle('active', node.dataset.view === name);
+        });
+        document.getElementById('canvasKicker').innerHTML = view.kicker;
+        document.getElementById('canvasTitle').textContent = view.title;
+        document.getElementById('canvasMeta').innerHTML = view.meta;
+        document.getElementById('headerActions').innerHTML = view.actions;
+        document.getElementById('toolbar').innerHTML = view.toolbar;
+        document.getElementById('canvasBody').innerHTML = view.body;
+        document.getElementById('contextRail').innerHTML = view.rail;
+        document.getElementById('statusLeft').textContent = view.status[0];
+        document.getElementById('statusRight').textContent = view.status[1];
+        document.getElementById('rightContextTitle').textContent = view.title;
+        document.getElementById('rightContextMeta').innerHTML = view.meta;
+        document.getElementById('chatStream').innerHTML = view.chat;
+        wireButtons();
+      }
+
+      function wireButtons() {
+        document.querySelectorAll('[data-view]').forEach((node) => {
+          node.onclick = () => setView(node.dataset.view);
+        });
+      }
+
+      wireButtons();
+      setView('overview');
+    </script>
+  </body>
+</html>
