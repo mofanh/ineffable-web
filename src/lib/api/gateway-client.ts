@@ -17,9 +17,33 @@ export type Workspace = {
   slug: string
   name: string
   owner_user_id: string
+  workspace_type?: "personal" | "team" | string
   plan: string
   status: string
   settings_json?: Record<string, unknown> | null
+}
+
+export type WorkspaceObject = {
+  id: string
+  workspace_id: string
+  parent_id?: string | null
+  kind: "folder" | "file" | string
+  name: string
+  path: string
+  mime_type?: string | null
+  current_version_id?: string | null
+  created_by_actor_type: "user" | "agent" | string
+  created_by_actor_id: string
+  updated_by_actor_type: "user" | "agent" | string
+  updated_by_actor_id: string
+  created_at: string
+  updated_at: string
+}
+
+export type WorkspaceTreeResponse = {
+  workspace_id: string
+  user_id: string
+  objects: WorkspaceObject[]
 }
 
 export type Conversation = {
@@ -544,6 +568,16 @@ export function listWorkspaces(accessToken: string) {
   return requestJson<{ workspaces: Workspace[] }>("/gateway/v1/workspaces/list", {
     accessToken,
   })
+}
+
+export function listWorkspaceTree(accessToken: string, workspaceId: string) {
+  return requestJson<WorkspaceTreeResponse>(
+    `/gateway/v1/workspaces/${workspaceId}/tree`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
 }
 
 export function createConversation(

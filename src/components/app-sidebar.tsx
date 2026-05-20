@@ -38,6 +38,11 @@ import { IneffableLogo } from "@/components/ineffable-logo"
 import { useAppSession } from "@/contexts/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
 import {
+  listWorkspaceTree,
+  type Workspace,
+  type WorkspaceObject,
+} from "@/lib/api/gateway-client"
+import {
   BadgeCheckIcon,
   BellIcon,
   BotIcon,
@@ -60,7 +65,7 @@ import {
 type SidebarEntry = {
   id: string
   title: string
-  kind: "folder" | "markdown" | "html"
+  kind: "folder" | "markdown" | "html" | "text"
   depth?: number
   expanded?: boolean
   accent?: "team" | "file" | "html"
@@ -72,26 +77,93 @@ const primaryNavItems = [
   { id: "skills-rules-memory", title: "Skills, Rules, Memory", icon: BrainIcon },
 ]
 
-const teamSpaceEntries: SidebarEntry[] = [
-  { id: "team-root", title: "team", kind: "folder", accent: "team" },
-  { id: "team-system", title: "System", kind: "folder", depth: 1, expanded: true },
-  { id: "team-skills", title: "Skills", kind: "folder", depth: 2 },
-  { id: "team-agents", title: "AGENTS.md", kind: "markdown", depth: 1 },
-]
+type WorkspaceTreeMap = Record<string, WorkspaceObject[]>
 
-const personalSpaceEntries: SidebarEntry[] = [
-  { id: "personal-help", title: "帮助文档", kind: "folder" },
-  { id: "personal-drafts", title: "drafts", kind: "folder" },
-  { id: "personal-system", title: "System", kind: "folder" },
-  {
-    id: "personal-douyin",
-    title: "抖音猫咪知识视频-配音方案调...",
-    kind: "markdown",
-  },
-  { id: "personal-quick-html", title: "快速开始.html", kind: "html" },
-  { id: "personal-quick-md", title: "快速开始.md", kind: "markdown" },
-  { id: "personal-agents", title: "AGENTS.md", kind: "markdown" },
-]
+function getWorkspaceType(workspace: Workspace) {
+  return workspace.workspace_type || "team"
+}
+
+function getObjectEntryKind(object: WorkspaceObject): SidebarEntry["kind"] {
+  if (object.kind === "folder") {
+    return "folder"
+  }
+
+  const lowerName = object.name.toLowerCase()
+  if (lowerName.endsWith(".html") || lowerName.endsWith(".htm")) {
+    return "html"
+  }
+  if (lowerName.endsWith(".md") || lowerName.endsWith(".markdown")) {
+    return "markdown"
+  }
+
+  return "text"
+}
+
+function buildObjectEntries(objects: WorkspaceObject[], baseDepth = 0) {
+  const byParent = new Map<string, WorkspaceObject[]>()
+
+  for (const object of objects) {
+    const parentKey = object.parent_id || "root"
+    const siblings = byParent.get(parentKey) ?? []
+    siblings.push(object)
+    byParent.set(parentKey, siblings)
+  }
+
+  for (const siblings of byParent.values()) {
+    siblings.sort((left, right) => {
+      if (left.kind !== right.kind) {
+        return left.kind === "folder" ? -1 : 1
+      }
+
+      return left.name.localeCompare(right.name)
+    })
+  }
+
+  const entries: SidebarEntry[] = []
+  const visit = (parentKey: string, depth: number) => {
+    const children = byParent.get(parentKey) ?? []
+
+    for (const child of children) {
+      entries.push({
+        id: child.id,
+        title: child.name,
+        kind: getObjectEntryKind(child),
+        depth,
+        expanded: child.kind === "folder",
+      })
+
+      if (child.kind === "folder") {
+        visit(child.id, depth + 1)
+      }
+    }
+  }
+
+  visit("root", baseDepth)
+  return entries
+}
+
+function buildWorkspaceEntries(
+  workspace: Workspace,
+  objects: WorkspaceObject[],
+  options?: { includeRoot?: boolean; rootAccent?: SidebarEntry["accent"] }
+) {
+  const objectEntries = buildObjectEntries(objects, options?.includeRoot ? 1 : 0)
+
+  if (!options?.includeRoot) {
+    return objectEntries
+  }
+
+  return [
+    {
+      id: `workspace:${workspace.id}`,
+      title: workspace.name,
+      kind: "folder" as const,
+      expanded: true,
+      accent: options.rootAccent,
+    },
+    ...objectEntries,
+  ]
+}
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
   if (item.accent === "team") {
@@ -183,11 +255,17 @@ function PrimaryNav({
 function SpaceSection({
   title,
   entries,
+  emptyLabel,
+  isLoading,
+  error,
   selectedEntryId,
   onSelectEntry,
 }: {
   title: string
   entries: SidebarEntry[]
+  emptyLabel?: string
+  isLoading?: boolean
+  error?: string | null
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
 }) {
@@ -198,14 +276,22 @@ function SpaceSection({
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
-          {entries.map((item) => (
-            <SidebarEntryButton
-              key={item.id}
-              item={item}
-              selectedEntryId={selectedEntryId}
-              onSelectEntry={onSelectEntry}
-            />
-          ))}
+          {entries.length ? (
+            entries.map((item) => (
+              <SidebarEntryButton
+                key={item.id}
+                item={item}
+                selectedEntryId={selectedEntryId}
+                onSelectEntry={onSelectEntry}
+              />
+            ))
+          ) : (
+            <SidebarMenuItem>
+              <div className="px-2 py-1.5 text-sm text-sidebar-foreground/45">
+                {isLoading ? "Loading..." : error || emptyLabel || "Empty"}
+              </div>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -390,8 +476,94 @@ function WorkspaceAccountSwitcher({
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const logoVariant = useLogoVariant({ mode: "rotate" })
-  const { currentUser, logout } = useAppSession()
+  const { accessToken, currentUser, logout, workspaces } = useAppSession()
   const [selectedEntryId, setSelectedEntryId] = React.useState("skills-rules-memory")
+  const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
+  const [isTreeLoading, setIsTreeLoading] = React.useState(false)
+  const [treeError, setTreeError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!accessToken || !workspaces.length) {
+      setWorkspaceTrees({})
+      setTreeError(null)
+      setIsTreeLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    setIsTreeLoading(true)
+    setTreeError(null)
+
+    void Promise.allSettled(
+      workspaces.map(async (workspace) => {
+        const tree = await listWorkspaceTree(accessToken, workspace.id)
+        return [workspace.id, tree.objects] as const
+      })
+    ).then((results) => {
+      if (cancelled) {
+        return
+      }
+
+      const nextTrees: WorkspaceTreeMap = {}
+      let failed = false
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const [workspaceId, objects] = result.value
+          nextTrees[workspaceId] = objects
+        } else {
+          failed = true
+        }
+      }
+
+      setWorkspaceTrees(nextTrees)
+      setTreeError(failed ? "Failed to load files" : null)
+      setIsTreeLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, workspaces])
+
+  const teamWorkspaces = React.useMemo(
+    () => workspaces.filter((workspace) => getWorkspaceType(workspace) === "team"),
+    [workspaces]
+  )
+
+  const personalWorkspaces = React.useMemo(() => {
+    const personal = workspaces.filter(
+      (workspace) => getWorkspaceType(workspace) === "personal"
+    )
+
+    if (personal.length) {
+      return personal
+    }
+
+    return workspaces.filter((workspace) => getWorkspaceType(workspace) !== "team")
+  }, [workspaces])
+
+  const teamSpaceEntries = React.useMemo(
+    () =>
+      teamWorkspaces.flatMap((workspace) =>
+        buildWorkspaceEntries(workspace, workspaceTrees[workspace.id] ?? [], {
+          includeRoot: true,
+          rootAccent: "team",
+        })
+      ),
+    [teamWorkspaces, workspaceTrees]
+  )
+
+  const personalSpaceEntries = React.useMemo(
+    () =>
+      personalWorkspaces.flatMap((workspace) =>
+        buildWorkspaceEntries(workspace, workspaceTrees[workspace.id] ?? [], {
+          includeRoot: personalWorkspaces.length > 1,
+        })
+      ),
+    [personalWorkspaces, workspaceTrees]
+  )
 
   const navSecondary = navigation.secondary.map((item) => ({
     title: item.title,
@@ -425,12 +597,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SpaceSection
           title="Team Spaces"
           entries={teamSpaceEntries}
+          emptyLabel="No team spaces"
+          isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
+          error={treeError}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
         />
         <SpaceSection
           title="Personal Space"
           entries={personalSpaceEntries}
+          emptyLabel="No files"
+          isLoading={isTreeLoading && Boolean(personalWorkspaces.length)}
+          error={treeError}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
         />
