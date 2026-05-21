@@ -50,6 +50,10 @@ import {
   type WorkspaceObject,
 } from "@/lib/api/gateway-client"
 import {
+  WORKSPACE_OBJECTS_CHANGED_EVENT,
+  type WorkspaceObjectsChangedEvent,
+} from "@/lib/workspace-events"
+import {
   BadgeCheckIcon,
   BellIcon,
   BotIcon,
@@ -774,6 +778,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       cancelled = true
     }
   }, [accessToken, refreshWorkspaceTrees, workspaces])
+
+  React.useEffect(() => {
+    const handleWorkspaceObjectsChanged = (event: Event) => {
+      const detail = (event as WorkspaceObjectsChangedEvent).detail
+      if (!detail?.workspaceId) {
+        return
+      }
+
+      if (!workspaces.some((workspace) => workspace.id === detail.workspaceId)) {
+        return
+      }
+
+      void refreshWorkspaceTrees({
+        workspaceIds: [detail.workspaceId],
+        showLoading: false,
+      })
+    }
+
+    window.addEventListener(
+      WORKSPACE_OBJECTS_CHANGED_EVENT,
+      handleWorkspaceObjectsChanged
+    )
+    return () => {
+      window.removeEventListener(
+        WORKSPACE_OBJECTS_CHANGED_EVENT,
+        handleWorkspaceObjectsChanged
+      )
+    }
+  }, [refreshWorkspaceTrees, workspaces])
 
   const teamWorkspaces = React.useMemo(
     () => workspaces.filter((workspace) => getWorkspaceType(workspace) === "team"),

@@ -21,6 +21,10 @@ import {
   type WorkspaceObject,
   type WorkspaceObjectVersion,
 } from "@/lib/api/gateway-client"
+import {
+  WORKSPACE_OBJECTS_CHANGED_EVENT,
+  type WorkspaceObjectsChangedEvent,
+} from "@/lib/workspace-events"
 import { cn } from "@/lib/utils"
 
 function getLanguageExtensions(object: WorkspaceObject | null): Extension[] {
@@ -110,6 +114,47 @@ export function WorkspaceObjectEditorPage() {
   React.useEffect(() => {
     void loadContent()
   }, [loadContent])
+
+  React.useEffect(() => {
+    const handleWorkspaceObjectsChanged = (event: Event) => {
+      const detail = (event as WorkspaceObjectsChangedEvent).detail
+      if (!detail || detail.workspaceId !== workspaceId) {
+        return
+      }
+
+      const affectsCurrentObject =
+        detail.objectId === objectId ||
+        (Boolean(detail.path) && Boolean(object?.path) && detail.path === object?.path)
+      if (!affectsCurrentObject) {
+        return
+      }
+
+      if (detail.versionId && detail.versionId === version?.id) {
+        return
+      }
+
+      if (isDirty) {
+        setSaveState("conflict")
+        setError(
+          "This file has a newer version. Reload before saving again, or save your local content as a new file."
+        )
+        return
+      }
+
+      void loadContent()
+    }
+
+    window.addEventListener(
+      WORKSPACE_OBJECTS_CHANGED_EVENT,
+      handleWorkspaceObjectsChanged
+    )
+    return () => {
+      window.removeEventListener(
+        WORKSPACE_OBJECTS_CHANGED_EVENT,
+        handleWorkspaceObjectsChanged
+      )
+    }
+  }, [isDirty, loadContent, object?.path, objectId, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty) {
