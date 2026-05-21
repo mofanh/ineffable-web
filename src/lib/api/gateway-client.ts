@@ -671,6 +671,54 @@ export function updateWorkspaceObjectContent(
   })
 }
 
+export function listWorkspaceObjectVersions(
+  accessToken: string,
+  workspaceId: string,
+  objectId: string
+) {
+  return requestJson<{
+    object: WorkspaceObject
+    versions: WorkspaceObjectVersion[]
+  }>(`/gateway/v1/workspace-objects/${objectId}/versions`, {
+    accessToken,
+    workspaceId,
+  })
+}
+
+export function getWorkspaceObjectVersionContent(
+  accessToken: string,
+  workspaceId: string,
+  versionId: string
+) {
+  return requestJson<WorkspaceObjectContentResponse>(
+    `/gateway/v1/workspace-object-versions/${versionId}/content`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function restoreWorkspaceObjectVersion(
+  accessToken: string,
+  workspaceId: string,
+  objectId: string,
+  payload: {
+    version_id: string
+    expected_version_id?: string | null
+  }
+) {
+  return requestJson<{
+    object: WorkspaceObject
+    version: WorkspaceObjectVersion
+  }>(`/gateway/v1/workspace-objects/${objectId}/restore-version`, {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: payload,
+  })
+}
+
 export function renameMoveWorkspaceObject(
   accessToken: string,
   workspaceId: string,
