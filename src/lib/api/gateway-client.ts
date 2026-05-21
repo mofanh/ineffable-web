@@ -650,6 +650,27 @@ export function getWorkspaceObjectContent(
   )
 }
 
+export function updateWorkspaceObjectContent(
+  accessToken: string,
+  workspaceId: string,
+  objectId: string,
+  payload: {
+    content: string
+    mime_type?: string | null
+    expected_version_id?: string | null
+  }
+) {
+  return requestJson<{
+    object: WorkspaceObject
+    version: WorkspaceObjectVersion
+  }>(`/gateway/v1/workspace-objects/${objectId}/content`, {
+    method: "PATCH",
+    accessToken,
+    workspaceId,
+    body: payload,
+  })
+}
+
 export function renameMoveWorkspaceObject(
   accessToken: string,
   workspaceId: string,

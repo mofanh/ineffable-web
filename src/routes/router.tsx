@@ -44,6 +44,7 @@ import {
   SettingsTeamPage,
 } from "@/pages/settings-pages"
 import { FeedbackPage, SupportPage } from "@/pages/support-pages"
+import { WorkspaceObjectEditorPage } from "@/pages/workspace-object-editor-page"
 import { defaultPath } from "@/routes/navigation"
 
 function PrototypeWorkbenchRedirect() {
@@ -121,6 +122,10 @@ export const router = createBrowserRouter([
         path: path.replace(/^\//, ""),
         element,
       })),
+      {
+        path: "workspace/:workspaceId/objects/:objectId",
+        element: <WorkspaceObjectEditorPage />,
+      },
       {
         path: "*",
         element: <Navigate to={defaultPath} replace />,

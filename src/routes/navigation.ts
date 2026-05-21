@@ -173,5 +173,13 @@ navigation.secondary.forEach((item) => {
 export const allRouteMeta = Array.from(routeMetaMap.values())
 
 export function getRouteMeta(pathname: string) {
+  if (pathname.startsWith("/workspace/")) {
+    return {
+      path: pathname,
+      title: "Workspace File",
+      breadcrumbs: [{ label: "Workspace" }, { label: "File" }],
+    }
+  }
+
   return routeMetaMap.get(pathname)
 }

@@ -35,7 +35,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Link } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { IneffableLogo } from "@/components/ineffable-logo"
 import { useAppSession } from "@/contexts/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
@@ -366,11 +366,13 @@ function SidebarEntryButton({
   item,
   selectedEntryId,
   onSelectEntry,
+  onOpenEntry,
   onAction,
 }: {
   item: SidebarEntry
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
+  onOpenEntry: (item: SidebarEntry) => void
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
 }) {
   const depthClass =
@@ -383,7 +385,10 @@ function SidebarEntryButton({
         isActive={selectedEntryId === item.id}
         tooltip={item.title}
         className={depthClass}
-        onClick={() => onSelectEntry(item.id)}
+        onClick={() => {
+          onSelectEntry(item.id)
+          onOpenEntry(item)
+        }}
       >
         <EntryIcon item={item} />
         <span>{item.title}</span>
@@ -439,6 +444,7 @@ function SpaceSection({
   canCreate,
   selectedEntryId,
   onSelectEntry,
+  onOpenEntry,
   onCreate,
   onAction,
 }: {
@@ -450,6 +456,7 @@ function SpaceSection({
   canCreate?: boolean
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
+  onOpenEntry: (item: SidebarEntry) => void
   onCreate: (kind: "file" | "folder") => void
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
 }) {
@@ -486,6 +493,7 @@ function SpaceSection({
                 item={item}
                 selectedEntryId={selectedEntryId}
                 onSelectEntry={onSelectEntry}
+                onOpenEntry={onOpenEntry}
                 onAction={onAction}
               />
             ))
@@ -681,10 +689,19 @@ function WorkspaceAccountSwitcher({
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const logoVariant = useLogoVariant({ mode: "rotate" })
   const { accessToken, currentUser, logout, workspaces } = useAppSession()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [selectedEntryId, setSelectedEntryId] = React.useState("skills-rules-memory")
   const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
   const [isTreeLoading, setIsTreeLoading] = React.useState(false)
   const [treeError, setTreeError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    const match = location.pathname.match(/^\/workspace\/[^/]+\/objects\/([^/]+)/)
+    if (match?.[1]) {
+      setSelectedEntryId(decodeURIComponent(match[1]))
+    }
+  }, [location.pathname])
 
   const refreshWorkspaceTrees = React.useCallback(
     async (options?: { workspaceIds?: string[]; showLoading?: boolean }) => {
@@ -861,6 +878,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               })
 
         setSelectedEntryId(response.object.id)
+        if (response.object.kind === "file") {
+          void navigate(`/workspace/${workspace.id}/objects/${response.object.id}`)
+        }
         await refreshWorkspaceTrees({
           workspaceIds: [workspace.id],
           showLoading: false,
@@ -869,7 +889,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         window.alert(error instanceof Error ? error.message : "Create failed")
       }
     },
-    [accessToken, refreshWorkspaceTrees]
+    [accessToken, navigate, refreshWorkspaceTrees]
   )
 
   const duplicateObject = React.useCallback(
@@ -976,7 +996,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return
         }
 
-        const url = `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
+        const url =
+          item.object?.kind === "file" && item.workspaceId
+            ? `${window.location.origin}/workspace/${item.workspaceId}/objects/${item.object.id}`
+            : `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
         if (action === "copy-link") {
           await navigator.clipboard?.writeText(url)
           return
@@ -1121,6 +1144,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     ]
   )
 
+  const openEntry = React.useCallback(
+    (item: SidebarEntry) => {
+      if (item.object?.kind === "file" && item.workspaceId) {
+        navigate(`/workspace/${item.workspaceId}/objects/${item.object.id}`)
+      }
+    },
+    [navigate]
+  )
+
   const navSecondary = navigation.secondary.map((item) => ({
     title: item.title,
     url: item.path,
@@ -1159,6 +1191,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           canCreate={Boolean(teamWorkspaces.length)}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
+          onOpenEntry={openEntry}
           onCreate={(kind) => {
             const workspace = getSectionWorkspace(teamWorkspaces)
             if (!workspace) {
@@ -1178,6 +1211,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           canCreate={Boolean(personalWorkspaces.length)}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
+          onOpenEntry={openEntry}
           onCreate={(kind) => {
             const workspace = getSectionWorkspace(personalWorkspaces)
             if (!workspace) {
