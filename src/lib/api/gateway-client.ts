@@ -46,6 +46,25 @@ export type WorkspaceTreeResponse = {
   objects: WorkspaceObject[]
 }
 
+export type WorkspaceObjectVersion = {
+  id: string
+  object_id: string
+  version_no: number
+  storage_bucket: string
+  storage_key: string
+  content_sha256: string
+  size_bytes: number
+  created_by_actor_type: "user" | "agent" | string
+  created_by_actor_id: string
+  created_at: string
+}
+
+export type WorkspaceObjectContentResponse = {
+  object: WorkspaceObject
+  version: WorkspaceObjectVersion
+  content: string
+}
+
 export type Conversation = {
   id: string
   workspace_id: string
@@ -574,6 +593,89 @@ export function listWorkspaceTree(accessToken: string, workspaceId: string) {
   return requestJson<WorkspaceTreeResponse>(
     `/gateway/v1/workspaces/${workspaceId}/tree`,
     {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function createWorkspaceFolder(
+  accessToken: string,
+  workspaceId: string,
+  payload: { name: string; parent_id?: string | null }
+) {
+  return requestJson<{ object: WorkspaceObject }>(
+    `/gateway/v1/workspaces/${workspaceId}/folders`,
+    {
+      method: "POST",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function createWorkspaceFile(
+  accessToken: string,
+  workspaceId: string,
+  payload: {
+    name: string
+    content: string
+    parent_id?: string | null
+    mime_type?: string | null
+  }
+) {
+  return requestJson<{ object: WorkspaceObject; version: WorkspaceObjectVersion }>(
+    `/gateway/v1/workspaces/${workspaceId}/files`,
+    {
+      method: "POST",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function getWorkspaceObjectContent(
+  accessToken: string,
+  workspaceId: string,
+  objectId: string
+) {
+  return requestJson<WorkspaceObjectContentResponse>(
+    `/gateway/v1/workspace-objects/${objectId}/content`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function renameMoveWorkspaceObject(
+  accessToken: string,
+  workspaceId: string,
+  objectId: string,
+  payload: { name?: string; parent_id?: string | null }
+) {
+  return requestJson<{ object: WorkspaceObject }>(
+    `/gateway/v1/workspace-objects/${objectId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      workspaceId,
+      body: payload,
+    }
+  )
+}
+
+export function deleteWorkspaceObject(
+  accessToken: string,
+  workspaceId: string,
+  objectId: string
+) {
+  return requestJson<{ object: WorkspaceObject }>(
+    `/gateway/v1/workspace-objects/${objectId}`,
+    {
+      method: "DELETE",
       accessToken,
       workspaceId,
     }

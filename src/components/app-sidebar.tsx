@@ -23,10 +23,12 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -38,7 +40,12 @@ import { IneffableLogo } from "@/components/ineffable-logo"
 import { useAppSession } from "@/contexts/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
 import {
+  createWorkspaceFile,
+  createWorkspaceFolder,
+  deleteWorkspaceObject,
+  getWorkspaceObjectContent,
   listWorkspaceTree,
+  renameMoveWorkspaceObject,
   type Workspace,
   type WorkspaceObject,
 } from "@/lib/api/gateway-client"
@@ -51,14 +58,24 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  CopyIcon,
   CreditCardIcon,
+  DownloadIcon,
+  ExternalLinkIcon,
   FileCodeIcon,
+  FilePlusIcon,
   FileTextIcon,
+  FolderInputIcon,
+  FolderPlusIcon,
+  LinkIcon,
   LogOutIcon,
+  MoreHorizontalIcon,
   PackageIcon,
+  PencilIcon,
   PlusIcon,
   SettingsIcon,
   SparklesIcon,
+  Trash2Icon,
   ZapIcon,
 } from "lucide-react"
 
@@ -66,6 +83,9 @@ type SidebarEntry = {
   id: string
   title: string
   kind: "folder" | "markdown" | "html" | "text"
+  workspaceId?: string
+  object?: WorkspaceObject
+  isWorkspaceRoot?: boolean
   depth?: number
   expanded?: boolean
   accent?: "team" | "file" | "html"
@@ -99,7 +119,11 @@ function getObjectEntryKind(object: WorkspaceObject): SidebarEntry["kind"] {
   return "text"
 }
 
-function buildObjectEntries(objects: WorkspaceObject[], baseDepth = 0) {
+function buildObjectEntries(
+  workspaceId: string,
+  objects: WorkspaceObject[],
+  baseDepth = 0
+) {
   const byParent = new Map<string, WorkspaceObject[]>()
 
   for (const object of objects) {
@@ -128,6 +152,8 @@ function buildObjectEntries(objects: WorkspaceObject[], baseDepth = 0) {
         id: child.id,
         title: child.name,
         kind: getObjectEntryKind(child),
+        workspaceId,
+        object: child,
         depth,
         expanded: child.kind === "folder",
       })
@@ -147,7 +173,11 @@ function buildWorkspaceEntries(
   objects: WorkspaceObject[],
   options?: { includeRoot?: boolean; rootAccent?: SidebarEntry["accent"] }
 ) {
-  const objectEntries = buildObjectEntries(objects, options?.includeRoot ? 1 : 0)
+  const objectEntries = buildObjectEntries(
+    workspace.id,
+    objects,
+    options?.includeRoot ? 1 : 0
+  )
 
   if (!options?.includeRoot) {
     return objectEntries
@@ -158,11 +188,61 @@ function buildWorkspaceEntries(
       id: `workspace:${workspace.id}`,
       title: workspace.name,
       kind: "folder" as const,
+      workspaceId: workspace.id,
+      isWorkspaceRoot: true,
       expanded: true,
       accent: options.rootAccent,
     },
     ...objectEntries,
   ]
+}
+
+function getCopyName(name: string) {
+  const dotIndex = name.lastIndexOf(".")
+  if (dotIndex > 0) {
+    return `${name.slice(0, dotIndex)} copy${name.slice(dotIndex)}`
+  }
+
+  return `${name} copy`
+}
+
+function getUniqueName(
+  objects: WorkspaceObject[],
+  parentId: string | null | undefined,
+  preferredName: string
+) {
+  const siblings = new Set(
+    objects
+      .filter((object) => (object.parent_id || null) === (parentId || null))
+      .map((object) => object.name.toLowerCase())
+  )
+
+  if (!siblings.has(preferredName.toLowerCase())) {
+    return preferredName
+  }
+
+  const dotIndex = preferredName.lastIndexOf(".")
+  const stem = dotIndex > 0 ? preferredName.slice(0, dotIndex) : preferredName
+  const ext = dotIndex > 0 ? preferredName.slice(dotIndex) : ""
+
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${stem} ${index}${ext}`
+    if (!siblings.has(candidate.toLowerCase())) {
+      return candidate
+    }
+  }
+
+  return `${stem} ${Date.now()}${ext}`
+}
+
+function downloadTextFile(filename: string, content: string, type = "text/plain") {
+  const blob = new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
@@ -189,14 +269,109 @@ function EntryIcon({ item }: { item: SidebarEntry }) {
   return <FileTextIcon className="text-sky-500" />
 }
 
+type WorkspaceObjectAction =
+  | "new-file"
+  | "new-folder"
+  | "copy-link"
+  | "open-new-tab"
+  | "duplicate"
+  | "rename"
+  | "move"
+  | "export"
+  | "delete"
+
+function WorkspaceObjectMenu({
+  item,
+  onAction,
+}: {
+  item: SidebarEntry
+  onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuAction
+          showOnHover
+          aria-label={`${item.title} actions`}
+          onClick={(event) => {
+            event.stopPropagation()
+          }}
+        >
+          <MoreHorizontalIcon />
+        </SidebarMenuAction>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-56">
+        <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
+          <LinkIcon />
+          <span>Copy Link</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onAction("open-new-tab", item)}>
+          <ExternalLinkIcon />
+          <span>Open in New Tab</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {item.kind === "folder" ? (
+          <>
+            <DropdownMenuItem onClick={() => onAction("new-file", item)}>
+              <FilePlusIcon />
+              <span>New File</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAction("new-folder", item)}>
+              <FolderPlusIcon />
+              <span>New Folder</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+        {!item.isWorkspaceRoot ? (
+          <DropdownMenuItem onClick={() => onAction("duplicate", item)}>
+            <CopyIcon />
+            <span>Duplicate</span>
+          </DropdownMenuItem>
+        ) : null}
+        {!item.isWorkspaceRoot ? (
+          <DropdownMenuItem onClick={() => onAction("rename", item)}>
+            <PencilIcon />
+            <span>Rename</span>
+          </DropdownMenuItem>
+        ) : null}
+        {!item.isWorkspaceRoot ? (
+          <DropdownMenuItem onClick={() => onAction("move", item)}>
+            <FolderInputIcon />
+            <span>Move To...</span>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onClick={() => onAction("export", item)}>
+          <DownloadIcon />
+          <span>Export</span>
+        </DropdownMenuItem>
+        {!item.isWorkspaceRoot ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onAction("delete", item)}
+            >
+              <Trash2Icon />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function SidebarEntryButton({
   item,
   selectedEntryId,
   onSelectEntry,
+  onAction,
 }: {
   item: SidebarEntry
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
+  onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
 }) {
   const depthClass =
     item.depth === 2 ? "pl-12" : item.depth === 1 ? "pl-7" : undefined
@@ -213,6 +388,9 @@ function SidebarEntryButton({
         <EntryIcon item={item} />
         <span>{item.title}</span>
       </SidebarMenuButton>
+      {item.workspaceId ? (
+        <WorkspaceObjectMenu item={item} onAction={onAction} />
+      ) : null}
     </SidebarMenuItem>
   )
 }
@@ -258,22 +436,47 @@ function SpaceSection({
   emptyLabel,
   isLoading,
   error,
+  canCreate,
   selectedEntryId,
   onSelectEntry,
+  onCreate,
+  onAction,
 }: {
   title: string
   entries: SidebarEntry[]
   emptyLabel?: string
   isLoading?: boolean
   error?: string | null
+  canCreate?: boolean
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
+  onCreate: (kind: "file" | "folder") => void
+  onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
 }) {
   return (
     <SidebarGroup className="gap-2">
       <SidebarGroupLabel className="h-auto px-2 py-1 text-sm font-normal tracking-[0.12em] text-sidebar-foreground/50">
         {title}
       </SidebarGroupLabel>
+      {canCreate ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarGroupAction aria-label={`Create in ${title}`}>
+              <PlusIcon />
+            </SidebarGroupAction>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start">
+            <DropdownMenuItem onClick={() => onCreate("file")}>
+              <FilePlusIcon />
+              <span>New File</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onCreate("folder")}>
+              <FolderPlusIcon />
+              <span>New Folder</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
           {entries.length ? (
@@ -283,6 +486,7 @@ function SpaceSection({
                 item={item}
                 selectedEntryId={selectedEntryId}
                 onSelectEntry={onSelectEntry}
+                onAction={onAction}
               />
             ))
           ) : (
@@ -482,28 +686,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isTreeLoading, setIsTreeLoading] = React.useState(false)
   const [treeError, setTreeError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
-    if (!accessToken || !workspaces.length) {
-      setWorkspaceTrees({})
-      setTreeError(null)
-      setIsTreeLoading(false)
-      return
-    }
-
-    let cancelled = false
-
-    setIsTreeLoading(true)
-    setTreeError(null)
-
-    void Promise.allSettled(
-      workspaces.map(async (workspace) => {
-        const tree = await listWorkspaceTree(accessToken, workspace.id)
-        return [workspace.id, tree.objects] as const
-      })
-    ).then((results) => {
-      if (cancelled) {
+  const refreshWorkspaceTrees = React.useCallback(
+    async (options?: { workspaceIds?: string[]; showLoading?: boolean }) => {
+      if (!accessToken || !workspaces.length) {
+        setWorkspaceTrees({})
+        setTreeError(null)
+        setIsTreeLoading(false)
         return
       }
+
+      const workspaceIds = options?.workspaceIds
+      const targetWorkspaces = workspaceIds
+        ? workspaces.filter((workspace) => workspaceIds.includes(workspace.id))
+        : workspaces
+
+      if (!targetWorkspaces.length) {
+        return
+      }
+
+      if (options?.showLoading !== false) {
+        setIsTreeLoading(true)
+      }
+      setTreeError(null)
+
+      const results = await Promise.allSettled(
+        targetWorkspaces.map(async (workspace) => {
+          const tree = await listWorkspaceTree(accessToken, workspace.id)
+          return [workspace.id, tree.objects] as const
+        })
+      )
 
       const nextTrees: WorkspaceTreeMap = {}
       let failed = false
@@ -517,15 +728,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         }
       }
 
-      setWorkspaceTrees(nextTrees)
+      setWorkspaceTrees((current) =>
+        workspaceIds ? { ...current, ...nextTrees } : nextTrees
+      )
       setTreeError(failed ? "Failed to load files" : null)
       setIsTreeLoading(false)
+    },
+    [accessToken, workspaces]
+  )
+
+  React.useEffect(() => {
+    if (!accessToken || !workspaces.length) {
+      setWorkspaceTrees({})
+      setTreeError(null)
+      setIsTreeLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    void refreshWorkspaceTrees().then(() => {
+      if (cancelled) {
+        return
+      }
     })
 
     return () => {
       cancelled = true
     }
-  }, [accessToken, workspaces])
+  }, [accessToken, refreshWorkspaceTrees, workspaces])
 
   const teamWorkspaces = React.useMemo(
     () => workspaces.filter((workspace) => getWorkspaceType(workspace) === "team"),
@@ -565,6 +796,331 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     [personalWorkspaces, workspaceTrees]
   )
 
+  const getSectionWorkspace = React.useCallback(
+    (sectionWorkspaces: Workspace[]) => {
+      if (!sectionWorkspaces.length) {
+        window.alert("No workspace available.")
+        return null
+      }
+
+      if (sectionWorkspaces.length === 1) {
+        return sectionWorkspaces[0]
+      }
+
+      const input = window.prompt(
+        `Workspace name:\n${sectionWorkspaces.map((workspace) => workspace.name).join("\n")}`,
+        sectionWorkspaces[0].name
+      )
+      if (!input) {
+        return null
+      }
+
+      return (
+        sectionWorkspaces.find(
+          (workspace) =>
+            workspace.name.toLowerCase() === input.trim().toLowerCase() ||
+            workspace.slug.toLowerCase() === input.trim().toLowerCase()
+        ) ?? null
+      )
+    },
+    []
+  )
+
+  const createObject = React.useCallback(
+    async ({
+      workspace,
+      parentId,
+      kind,
+    }: {
+      workspace: Workspace
+      parentId?: string | null
+      kind: "file" | "folder"
+    }) => {
+      if (!accessToken) {
+        return
+      }
+
+      const name = window.prompt(kind === "file" ? "File name" : "Folder name")
+      const normalizedName = name?.trim()
+      if (!normalizedName) {
+        return
+      }
+
+      try {
+        const response =
+          kind === "file"
+            ? await createWorkspaceFile(accessToken, workspace.id, {
+                name: normalizedName,
+                parent_id: parentId ?? null,
+                content: "",
+                mime_type: "text/plain",
+              })
+            : await createWorkspaceFolder(accessToken, workspace.id, {
+                name: normalizedName,
+                parent_id: parentId ?? null,
+              })
+
+        setSelectedEntryId(response.object.id)
+        await refreshWorkspaceTrees({
+          workspaceIds: [workspace.id],
+          showLoading: false,
+        })
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Create failed")
+      }
+    },
+    [accessToken, refreshWorkspaceTrees]
+  )
+
+  const duplicateObject = React.useCallback(
+    async (item: SidebarEntry) => {
+      if (!accessToken || !item.object || !item.workspaceId) {
+        return
+      }
+
+      const objects = workspaceTrees[item.workspaceId] ?? []
+      const source = item.object
+      const preferredName = getUniqueName(
+        objects,
+        source.parent_id,
+        getCopyName(source.name)
+      )
+
+      if (source.kind === "file") {
+        const content = await getWorkspaceObjectContent(
+          accessToken,
+          item.workspaceId,
+          source.id
+        )
+        const created = await createWorkspaceFile(accessToken, item.workspaceId, {
+          name: preferredName,
+          parent_id: source.parent_id ?? null,
+          content: content.content,
+          mime_type: source.mime_type || "text/plain",
+        })
+        setSelectedEntryId(created.object.id)
+        return
+      }
+
+      const childrenByParent = new Map<string, WorkspaceObject[]>()
+      for (const object of objects) {
+        const parentKey = object.parent_id || "root"
+        const siblings = childrenByParent.get(parentKey) ?? []
+        siblings.push(object)
+        childrenByParent.set(parentKey, siblings)
+      }
+
+      const createdRoot = await createWorkspaceFolder(accessToken, item.workspaceId, {
+        name: preferredName,
+        parent_id: source.parent_id ?? null,
+      })
+      setSelectedEntryId(createdRoot.object.id)
+
+      const cloneChildren = async (sourceParentId: string, targetParentId: string) => {
+        const children = [...(childrenByParent.get(sourceParentId) ?? [])].sort(
+          (left, right) => {
+            if (left.kind !== right.kind) {
+              return left.kind === "folder" ? -1 : 1
+            }
+
+            return left.name.localeCompare(right.name)
+          }
+        )
+
+        for (const child of children) {
+          if (child.kind === "folder") {
+            const created = await createWorkspaceFolder(accessToken, item.workspaceId!, {
+              name: child.name,
+              parent_id: targetParentId,
+            })
+            await cloneChildren(child.id, created.object.id)
+          } else {
+            const content = await getWorkspaceObjectContent(
+              accessToken,
+              item.workspaceId!,
+              child.id
+            )
+            await createWorkspaceFile(accessToken, item.workspaceId!, {
+              name: child.name,
+              parent_id: targetParentId,
+              content: content.content,
+              mime_type: child.mime_type || "text/plain",
+            })
+          }
+        }
+      }
+
+      await cloneChildren(source.id, createdRoot.object.id)
+    },
+    [accessToken, workspaceTrees]
+  )
+
+  const handleObjectAction = React.useCallback(
+    async (action: WorkspaceObjectAction, item: SidebarEntry) => {
+      if (!accessToken || !item.workspaceId) {
+        return
+      }
+
+      const workspace = workspaces.find((candidate) => candidate.id === item.workspaceId)
+      if (!workspace) {
+        return
+      }
+
+      try {
+        if (action === "new-file" || action === "new-folder") {
+          await createObject({
+            workspace,
+            parentId: item.object?.kind === "folder" ? item.object.id : null,
+            kind: action === "new-file" ? "file" : "folder",
+          })
+          return
+        }
+
+        const url = `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
+        if (action === "copy-link") {
+          await navigator.clipboard?.writeText(url)
+          return
+        }
+
+        if (action === "open-new-tab") {
+          window.open(url, "_blank", "noopener,noreferrer")
+          return
+        }
+
+        if (action === "export") {
+          if (!item.object || item.isWorkspaceRoot) {
+            const objects = workspaceTrees[item.workspaceId] ?? []
+            downloadTextFile(
+              `${workspace.name}.json`,
+              JSON.stringify({ workspace, objects }, null, 2),
+              "application/json"
+            )
+            return
+          }
+
+          if (item.object.kind === "file") {
+            const response = await getWorkspaceObjectContent(
+              accessToken,
+              item.workspaceId,
+              item.object.id
+            )
+            downloadTextFile(
+              item.object.name,
+              response.content,
+              item.object.mime_type || "text/plain"
+            )
+            return
+          }
+
+          const prefix = `${item.object.path}/`
+          const objects = (workspaceTrees[item.workspaceId] ?? []).filter(
+            (object) => object.id === item.object?.id || object.path.startsWith(prefix)
+          )
+          downloadTextFile(
+            `${item.object.name}.json`,
+            JSON.stringify({ folder: item.object, objects }, null, 2),
+            "application/json"
+          )
+          return
+        }
+
+        if (!item.object) {
+          return
+        }
+
+        if (action === "duplicate") {
+          await duplicateObject(item)
+          await refreshWorkspaceTrees({
+            workspaceIds: [item.workspaceId],
+            showLoading: false,
+          })
+          return
+        }
+
+        if (action === "rename") {
+          const name = window.prompt("Rename", item.object.name)
+          const normalizedName = name?.trim()
+          if (!normalizedName || normalizedName === item.object.name) {
+            return
+          }
+
+          const response = await renameMoveWorkspaceObject(
+            accessToken,
+            item.workspaceId,
+            item.object.id,
+            { name: normalizedName }
+          )
+          setSelectedEntryId(response.object.id)
+          await refreshWorkspaceTrees({
+            workspaceIds: [item.workspaceId],
+            showLoading: false,
+          })
+          return
+        }
+
+        if (action === "move") {
+          const targetPath = window.prompt(
+            "Move to folder path. Leave blank for workspace root.",
+            ""
+          )
+          if (targetPath === null) {
+            return
+          }
+
+          const normalizedPath = targetPath.trim().replace(/^\/+|\/+$/g, "")
+          const targetFolder = normalizedPath
+            ? (workspaceTrees[item.workspaceId] ?? []).find(
+                (object) =>
+                  object.kind === "folder" &&
+                  object.path.toLowerCase() === normalizedPath.toLowerCase()
+              )
+            : null
+          if (normalizedPath && !targetFolder) {
+            window.alert("Target folder not found.")
+            return
+          }
+
+          const response = await renameMoveWorkspaceObject(
+            accessToken,
+            item.workspaceId,
+            item.object.id,
+            { parent_id: targetFolder?.id ?? null }
+          )
+          setSelectedEntryId(response.object.id)
+          await refreshWorkspaceTrees({
+            workspaceIds: [item.workspaceId],
+            showLoading: false,
+          })
+          return
+        }
+
+        if (action === "delete") {
+          const confirmed = window.confirm(`Delete "${item.object.name}"?`)
+          if (!confirmed) {
+            return
+          }
+
+          await deleteWorkspaceObject(accessToken, item.workspaceId, item.object.id)
+          setSelectedEntryId("skills-rules-memory")
+          await refreshWorkspaceTrees({
+            workspaceIds: [item.workspaceId],
+            showLoading: false,
+          })
+        }
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Action failed")
+      }
+    },
+    [
+      accessToken,
+      createObject,
+      duplicateObject,
+      refreshWorkspaceTrees,
+      workspaceTrees,
+      workspaces,
+    ]
+  )
+
   const navSecondary = navigation.secondary.map((item) => ({
     title: item.title,
     url: item.path,
@@ -600,8 +1156,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           emptyLabel="No team spaces"
           isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
           error={treeError}
+          canCreate={Boolean(teamWorkspaces.length)}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
+          onCreate={(kind) => {
+            const workspace = getSectionWorkspace(teamWorkspaces)
+            if (!workspace) {
+              return
+            }
+
+            void createObject({ workspace, kind })
+          }}
+          onAction={handleObjectAction}
         />
         <SpaceSection
           title="Personal Space"
@@ -609,8 +1175,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           emptyLabel="No files"
           isLoading={isTreeLoading && Boolean(personalWorkspaces.length)}
           error={treeError}
+          canCreate={Boolean(personalWorkspaces.length)}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
+          onCreate={(kind) => {
+            const workspace = getSectionWorkspace(personalWorkspaces)
+            if (!workspace) {
+              return
+            }
+
+            void createObject({ workspace, kind })
+          }}
+          onAction={handleObjectAction}
         />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
