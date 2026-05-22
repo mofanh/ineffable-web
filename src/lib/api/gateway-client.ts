@@ -50,9 +50,6 @@ export type WorkspaceObjectVersion = {
   id: string
   object_id: string
   version_no: number
-  storage_bucket: string
-  storage_key: string
-  content_sha256: string
   size_bytes: number
   created_by_actor_type: "user" | "agent" | string
   created_by_actor_id: string
