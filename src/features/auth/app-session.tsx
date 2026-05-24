@@ -16,18 +16,14 @@ import {
 } from "@/lib/api/gateway-client"
 import { defaultPath } from "@/routes/navigation"
 
-type SessionStatus = "loading" | "authenticated" | "unauthenticated"
+export type SessionStatus = "loading" | "authenticated" | "unauthenticated"
 
-type AppSessionContextValue = {
+type AuthSessionContextValue = {
   status: SessionStatus
   accessToken: string | null
   refreshToken: string | null
   currentSessionId: string | null
   currentUser: AppUser | null
-  workspaces: Workspace[]
-  currentWorkspace: Workspace | null
-  conversations: Conversation[]
-  currentConversationId: string | null
   isBootstrapping: boolean
   login: (payload: { email: string; password: string }) => Promise<void>
   register: (payload: {
@@ -37,11 +33,25 @@ type AppSessionContextValue = {
   }) => Promise<void>
   logout: () => Promise<void>
   refreshAppData: () => Promise<void>
+}
+
+type WorkspaceSessionContextValue = {
+  workspaces: Workspace[]
+  currentWorkspace: Workspace | null
   selectWorkspace: (workspaceId: string) => Promise<void>
+}
+
+type ConversationSessionContextValue = {
+  conversations: Conversation[]
+  currentConversationId: string | null
   refreshConversations: () => Promise<void>
   createConversation: (title: string) => Promise<Conversation>
   selectConversation: (conversationId: string | null) => void
 }
+
+type AppSessionContextValue = AuthSessionContextValue &
+  WorkspaceSessionContextValue &
+  ConversationSessionContextValue
 
 const STORAGE_KEYS = {
   accessToken: "ineffable.auth.access_token",
@@ -51,7 +61,11 @@ const STORAGE_KEYS = {
   conversationId: "ineffable.chat.conversation_id",
 }
 
-const AppSessionContext = React.createContext<AppSessionContextValue | null>(null)
+const AuthSessionContext = React.createContext<AuthSessionContextValue | null>(null)
+const WorkspaceSessionContext =
+  React.createContext<WorkspaceSessionContextValue | null>(null)
+const ConversationSessionContext =
+  React.createContext<ConversationSessionContextValue | null>(null)
 
 function readStorage(key: string) {
   if (typeof window === "undefined") {
@@ -326,69 +340,111 @@ export function AppSessionProvider({
     writeStorage(STORAGE_KEYS.conversationId, conversationId)
   }, [])
 
-  const value = React.useMemo<AppSessionContextValue>(
+  const authValue = React.useMemo<AuthSessionContextValue>(
     () => ({
       status,
       accessToken,
       refreshToken,
       currentSessionId,
       currentUser,
-      workspaces,
-      currentWorkspace:
-        workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null,
-      conversations,
-      currentConversationId,
       isBootstrapping,
       login,
       register,
       logout,
       refreshAppData,
+    }),
+    [
+      accessToken,
+      currentSessionId,
+      currentUser,
+      isBootstrapping,
+      login,
+      logout,
+      refreshAppData,
+      refreshToken,
+      register,
+      status,
+    ]
+  )
+
+  const workspaceValue = React.useMemo<WorkspaceSessionContextValue>(
+    () => ({
+      workspaces,
+      currentWorkspace:
+        workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null,
       selectWorkspace,
+    }),
+    [currentWorkspaceId, selectWorkspace, workspaces]
+  )
+
+  const conversationValue = React.useMemo<ConversationSessionContextValue>(
+    () => ({
+      conversations,
+      currentConversationId,
       refreshConversations: () => refreshConversations(),
       createConversation: createConversationForWorkspace,
       selectConversation,
     }),
     [
-      accessToken,
       conversations,
       createConversationForWorkspace,
       currentConversationId,
-      currentSessionId,
-      currentUser,
-      currentWorkspaceId,
-      isBootstrapping,
-      login,
-      logout,
-      refreshAppData,
       refreshConversations,
-      refreshToken,
-      register,
       selectConversation,
-      selectWorkspace,
-      status,
-      workspaces,
     ]
   )
 
   return (
-    <AppSessionContext.Provider value={value}>
-      {children}
-    </AppSessionContext.Provider>
+    <AuthSessionContext.Provider value={authValue}>
+      <WorkspaceSessionContext.Provider value={workspaceValue}>
+        <ConversationSessionContext.Provider value={conversationValue}>
+          {children}
+        </ConversationSessionContext.Provider>
+      </WorkspaceSessionContext.Provider>
+    </AuthSessionContext.Provider>
   )
 }
 
-export function useAppSession() {
-  const context = React.useContext(AppSessionContext)
+export function useAuthSession() {
+  const context = React.useContext(AuthSessionContext)
 
   if (!context) {
-    throw new Error("useAppSession must be used within AppSessionProvider")
+    throw new Error("useAuthSession must be used within AppSessionProvider")
   }
 
   return context
 }
 
+export function useWorkspaceSession() {
+  const context = React.useContext(WorkspaceSessionContext)
+
+  if (!context) {
+    throw new Error("useWorkspaceSession must be used within AppSessionProvider")
+  }
+
+  return context
+}
+
+export function useConversationSession() {
+  const context = React.useContext(ConversationSessionContext)
+
+  if (!context) {
+    throw new Error("useConversationSession must be used within AppSessionProvider")
+  }
+
+  return context
+}
+
+export function useAppSession(): AppSessionContextValue {
+  return {
+    ...useAuthSession(),
+    ...useWorkspaceSession(),
+    ...useConversationSession(),
+  }
+}
+
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { status, isBootstrapping } = useAppSession()
+  const { status, isBootstrapping } = useAuthSession()
 
   if (status === "loading" || isBootstrapping) {
     return (
@@ -410,7 +466,7 @@ export function RedirectIfAuthenticated({
 }: {
   children: React.ReactNode
 }) {
-  const { status, isBootstrapping } = useAppSession()
+  const { status, isBootstrapping } = useAuthSession()
 
   if (status === "loading" || isBootstrapping) {
     return (

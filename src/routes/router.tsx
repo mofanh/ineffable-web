@@ -4,7 +4,7 @@ import App from "@/App"
 import {
   RedirectIfAuthenticated,
   RequireAuth,
-} from "@/contexts/app-session"
+} from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
 import { AccountPage } from "@/pages/account-pages"
 import { LoginPage, RegisterPage } from "@/pages/auth-pages"

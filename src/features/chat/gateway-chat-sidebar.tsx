@@ -62,7 +62,7 @@ import {
   writePendingConversationResumeState,
 } from "@/features/chat/model/conversation-resume"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
-import { useAppSession } from "@/contexts/app-session"
+import { useAppSession } from "@/features/auth/app-session"
 import {
   approveSandboxApproval,
   deletePendingInput,

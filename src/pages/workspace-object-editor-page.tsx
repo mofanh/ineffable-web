@@ -10,7 +10,7 @@ import type { Extension } from "@codemirror/state"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { useAppSession } from "@/contexts/app-session"
+import { useAppSession } from "@/features/auth/app-session"
 import {
   createWorkspaceFile,
   getWorkspaceObjectContent,

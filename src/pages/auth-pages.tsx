@@ -17,7 +17,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { useAppSession } from "@/contexts/app-session"
+import { useAppSession } from "@/features/auth/app-session"
 import { CheckCircle2Icon } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 

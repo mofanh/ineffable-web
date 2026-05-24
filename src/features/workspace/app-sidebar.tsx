@@ -37,7 +37,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { IneffableLogo } from "@/components/ineffable-logo"
-import { useAppSession } from "@/contexts/app-session"
+import { useAppSession } from "@/features/auth/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
 import {
   createWorkspaceFile,

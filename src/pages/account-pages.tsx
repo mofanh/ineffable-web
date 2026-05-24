@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import { useAppSession } from "@/contexts/app-session"
+import { useAppSession } from "@/features/auth/app-session"
 import {
   fetchAuthSessions,
   revokeAuthSession,
