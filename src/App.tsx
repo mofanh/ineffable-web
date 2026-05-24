@@ -91,7 +91,7 @@ export function App() {
   }, [clampRightSidebarWidth])
 
   return (
-    <div className="flex min-h-svh w-full">
+    <div className="flex min-h-svh w-full bg-sidebar">
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
@@ -154,18 +154,16 @@ export function App() {
         onMouseDown={startRightSidebarResize}
         onDoubleClick={() => setRightSidebarWidth(RIGHT_SIDEBAR_DEFAULT_WIDTH)}
         className={cn(
-          "relative hidden w-1 shrink-0 cursor-col-resize md:flex",
+          "relative hidden w-1 shrink-0 cursor-col-resize bg-sidebar md:flex",
           isRightSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
-      >
-        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border/80" />
-      </div>
+      />
 
       <SidebarProvider
         defaultOpen
         open={isRightSidebarOpen}
         onOpenChange={setIsRightSidebarOpen}
-        className="w-auto bg-transparent"
+        className="w-auto"
         style={
           {
             "--sidebar-width": `${rightSidebarWidth}px`,

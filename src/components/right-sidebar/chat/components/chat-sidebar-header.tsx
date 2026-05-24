@@ -152,8 +152,8 @@ export function ChatSidebarHeader({
   )
 
   return (
-    <SidebarHeader className="gap-0 border-b border-sidebar-border bg-background p-0">
-      <div className="flex h-[60px] shrink-0 items-center gap-2.5 bg-background pr-3 pl-5">
+    <SidebarHeader className="gap-0 bg-sidebar p-0">
+      <div className="flex h-[60px] shrink-0 items-center gap-2.5 bg-sidebar pr-3 pl-5">
         {/* <HeaderAvatar /> */}
 
         {/* <div className="h-4 w-px shrink-0 bg-border" aria-hidden="true" /> */}

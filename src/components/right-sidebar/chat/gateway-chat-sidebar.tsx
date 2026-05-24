@@ -2,7 +2,6 @@ import * as React from "react"
 
 import {
   SidebarContent,
-  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
 import {
@@ -2386,8 +2385,6 @@ export function GatewayChatSidebar() {
         onCollapseSidebar={toggleSidebar}
       />
 
-      <SidebarSeparator />
-
       <SidebarContent className="bg-sidebar/50">
         <ChatMessageList
           entries={visibleEntries}
@@ -2407,8 +2404,6 @@ export function GatewayChatSidebar() {
           <div className="px-4 pb-3 text-xs text-muted-foreground">正在同步历史消息…</div>
         ) : null}
       </SidebarContent>
-
-      <SidebarSeparator />
 
       <ChatComposer
         composer={composer}
