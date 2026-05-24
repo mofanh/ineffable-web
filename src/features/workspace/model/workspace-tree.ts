@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceObject } from "@/lib/api/gateway-client"
+import type { Workspace, WorkspaceObject } from "@/features/workspace/api/workspace-api"
 
 export type SidebarEntry = {
   id: string

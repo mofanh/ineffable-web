@@ -79,7 +79,7 @@ import {
   type ResumeRunResponse,
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
-} from "@/lib/api/gateway-client"
+} from "@/features/chat/api/chat-api"
 import type {
   GatewayChatFinalResult,
   GatewayChatStreamEnvelope,

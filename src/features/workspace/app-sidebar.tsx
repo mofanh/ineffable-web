@@ -48,7 +48,7 @@ import {
   renameMoveWorkspaceObject,
   type Workspace,
   type WorkspaceObject,
-} from "@/lib/api/gateway-client"
+} from "@/features/workspace/api/workspace-api"
 import { downloadTextFile } from "@/features/workspace/model/download"
 import {
   buildWorkspaceEntries,

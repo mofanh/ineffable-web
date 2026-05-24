@@ -24,7 +24,7 @@ import {
   fetchAuthSessions,
   revokeAuthSession,
   type UserSessionRecord,
-} from "@/lib/api/gateway-client"
+} from "@/features/auth/api/auth-api"
 import {
   BadgeCheckIcon,
   BellIcon,

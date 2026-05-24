@@ -2,18 +2,22 @@ import * as React from "react"
 import { Navigate } from "react-router-dom"
 
 import {
-  createConversation,
-  createWorkspace,
   fetchMe,
   loginUser,
   logoutUser,
   refreshToken as refreshAuthToken,
   registerUser,
-  listConversations,
   type AppUser,
+} from "@/features/auth/api/auth-api"
+import {
+  createConversation,
+  listConversations,
   type Conversation,
+} from "@/features/chat/api/chat-api"
+import {
+  createWorkspace,
   type Workspace,
-} from "@/lib/api/gateway-client"
+} from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated"

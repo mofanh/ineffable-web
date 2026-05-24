@@ -30,7 +30,7 @@ import { approvalNeedFromMessage } from "@/features/chat/model/chat-parsing"
 import type {
   Conversation,
   ConversationMessageRecord,
-} from "@/lib/api/gateway-client"
+} from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 

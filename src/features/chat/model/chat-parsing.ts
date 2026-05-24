@@ -1,4 +1,4 @@
-import type { ConversationMessageRecord } from "@/lib/api/gateway-client"
+import type { ConversationMessageRecord } from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import type { ApprovalEntry } from "@/features/chat/gateway-chat-types"
 

@@ -20,7 +20,7 @@ import {
   updateWorkspaceObjectContent,
   type WorkspaceObject,
   type WorkspaceObjectVersion,
-} from "@/lib/api/gateway-client"
+} from "@/features/workspace/api/workspace-api"
 import {
   WORKSPACE_OBJECTS_CHANGED_EVENT,
   type WorkspaceObjectsChangedEvent,
