@@ -1,12 +1,12 @@
 import {
   createEmptyAgentPane,
   hasAgentPaneContent,
-} from "@/components/right-sidebar/chat/chat-pane-state"
+} from "@/features/chat/chat-pane-state"
 import type {
   GatewayChatFinalResult,
   GatewayChatStreamEvent,
 } from "@/lib/api/chat/gateway-events"
-import type { AssistantEntry, SubagentView } from "@/components/right-sidebar/chat/gateway-chat-types"
+import type { AssistantEntry, SubagentView } from "@/features/chat/gateway-chat-types"
 
 export const STORAGE_KEYS = {
   peerId: "gateway-chat-peer-id",

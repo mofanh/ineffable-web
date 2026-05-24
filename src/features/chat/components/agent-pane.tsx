@@ -13,7 +13,7 @@ import {
   type ThinkBlock,
   type ToolCallStatus,
   type ToolCallView,
-} from "@/components/right-sidebar/chat/chat-pane-state"
+} from "@/features/chat/chat-pane-state"
 import { cn } from "@/lib/utils"
 import { BrainCircuitIcon, ChevronDownIcon, WrenchIcon } from "lucide-react"
 

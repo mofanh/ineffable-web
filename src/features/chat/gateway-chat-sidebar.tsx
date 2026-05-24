@@ -14,13 +14,13 @@ import {
   finalizePane,
   type AgentPaneState,
   upsertToolInPane,
-} from "@/components/right-sidebar/chat/chat-pane-state"
+} from "@/features/chat/chat-pane-state"
 import {
   ChatComposer,
   type PreInputQueueItem,
-} from "@/components/right-sidebar/chat/components/chat-composer"
-import { ChatMessageList } from "@/components/right-sidebar/chat/components/chat-message-list"
-import { ChatSidebarHeader } from "@/components/right-sidebar/chat/components/chat-sidebar-header"
+} from "@/features/chat/components/chat-composer"
+import { ChatMessageList } from "@/features/chat/components/chat-message-list"
+import { ChatSidebarHeader } from "@/features/chat/components/chat-sidebar-header"
 import {
   createEmptySubagent,
   createMessageId,
@@ -35,14 +35,14 @@ import {
   isSubScope,
   isTextDeltaEvent,
   isToolEvent,
-} from "@/components/right-sidebar/chat/gateway-chat-helpers"
+} from "@/features/chat/gateway-chat-helpers"
 import type {
   AssistantEntry,
   ApprovalEntry,
   ChatEntry,
   StreamStatus,
   SubagentView,
-} from "@/components/right-sidebar/chat/gateway-chat-types"
+} from "@/features/chat/gateway-chat-types"
 import { useAppSession } from "@/contexts/app-session"
 import {
   approveSandboxApproval,

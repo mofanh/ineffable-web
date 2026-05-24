@@ -2,8 +2,8 @@ import * as React from "react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { hasAgentPaneContent } from "@/components/right-sidebar/chat/chat-pane-state"
-import type { ChatEntry } from "@/components/right-sidebar/chat/gateway-chat-types"
+import { hasAgentPaneContent } from "@/features/chat/chat-pane-state"
+import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ArrowDownIcon,
   CheckIcon,
@@ -12,7 +12,7 @@ import {
   SparklesIcon,
   XIcon,
 } from "lucide-react"
-import { AgentPane } from "@/components/right-sidebar/chat/components/agent-pane"
+import { AgentPane } from "@/features/chat/components/agent-pane"
 
 type ChatMessageListProps = {
   entries: ChatEntry[]

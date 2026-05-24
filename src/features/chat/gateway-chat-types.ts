@@ -1,4 +1,4 @@
-import type { AgentPaneState } from "@/components/right-sidebar/chat/chat-pane-state"
+import type { AgentPaneState } from "@/features/chat/chat-pane-state"
 
 export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "error"
 
