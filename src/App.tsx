@@ -1,4 +1,4 @@
-import { AppSidebar } from "@/components/app-sidebar"
+import { AppSidebar } from "@/features/workspace/app-sidebar"
 import { RightSidebar } from "@/components/right-sidebar"
 import { Button } from "@/components/ui/button"
 import {
