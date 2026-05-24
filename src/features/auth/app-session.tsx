@@ -240,7 +240,7 @@ export function AppSessionProvider({
 
     try {
       await hydrateWithToken(accessToken)
-    } catch (error) {
+    } catch {
       if (!refreshToken) {
         clearSession()
         setIsBootstrapping(false)

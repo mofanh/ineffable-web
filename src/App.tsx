@@ -1,1 +1,5 @@
-export { AppShell as App, default } from "@/app/app-shell"
+import { AppShell } from "@/app/app-shell"
+
+export default function App() {
+  return <AppShell />
+}
