@@ -247,7 +247,12 @@ export function GatewayChatSidebar() {
     return () => {
       cancelled = true
     }
-  }, [currentConversationId, refreshPendingInputsForConversation])
+  }, [
+    accessToken,
+    currentConversationId,
+    currentWorkspace,
+    refreshPendingInputsForConversation,
+  ])
 
   React.useEffect(() => {
     streamStatusRef.current = streamStatus
