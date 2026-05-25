@@ -15,6 +15,7 @@ import {
   RIGHT_SIDEBAR_DEFAULT_WIDTH,
   useRightSidebarResize,
 } from "@/app/shell/use-right-sidebar-resize"
+import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import { Fragment } from "react"
@@ -23,9 +24,18 @@ import type { CSSProperties } from "react"
 import { PanelRightIcon } from "lucide-react"
 
 export function AppShell() {
+  return (
+    <AppHeaderProvider>
+      <AppShellContent />
+    </AppHeaderProvider>
+  )
+}
+
+function AppShellContent() {
   const { pathname } = useLocation()
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
   const breadcrumbs = routeMeta?.breadcrumbs ?? [{ label: "World 控制台" }]
+  const { headerContent } = useAppHeader()
   const {
     isRightSidebarOpen,
     rightSidebarWidth,
@@ -46,33 +56,38 @@ export function AppShell() {
                 orientation="vertical"
                 className="mr-2 data-[orientation=vertical]:h-4"
               />
-              <Breadcrumb>
-                <BreadcrumbList>
-                  {breadcrumbs.map((crumb, index) => {
-                    const isLast = index === breadcrumbs.length - 1
+              {headerContent?.leading ? (
+                headerContent.leading
+              ) : (
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    {breadcrumbs.map((crumb, index) => {
+                      const isLast = index === breadcrumbs.length - 1
 
-                    return (
-                      <Fragment key={`${crumb.label}-${index}`}>
-                        <BreadcrumbItem>
-                          {isLast ? (
-                            <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                          ) : crumb.path ? (
-                            <BreadcrumbLink asChild>
-                              <Link to={crumb.path}>{crumb.label}</Link>
-                            </BreadcrumbLink>
-                          ) : (
-                            <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                          )}
-                        </BreadcrumbItem>
-                        {!isLast ? <BreadcrumbSeparator /> : null}
-                      </Fragment>
-                    )
-                  })}
-                </BreadcrumbList>
-              </Breadcrumb>
+                      return (
+                        <Fragment key={`${crumb.label}-${index}`}>
+                          <BreadcrumbItem>
+                            {isLast ? (
+                              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                            ) : crumb.path ? (
+                              <BreadcrumbLink asChild>
+                                <Link to={crumb.path}>{crumb.label}</Link>
+                              </BreadcrumbLink>
+                            ) : (
+                              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                            )}
+                          </BreadcrumbItem>
+                          {!isLast ? <BreadcrumbSeparator /> : null}
+                        </Fragment>
+                      )
+                    })}
+                  </BreadcrumbList>
+                </Breadcrumb>
+              )}
             </div>
 
-            <div className="flex">
+            <div className="flex shrink-0 items-center gap-2">
+              {headerContent?.trailing}
               <Button
                 type="button"
                 variant="ghost"
