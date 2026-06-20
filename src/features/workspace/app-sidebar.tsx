@@ -546,6 +546,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate()
   const [selectedEntryId, setSelectedEntryId] = React.useState("skills-rules-memory")
   const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
+  const [collapsedEntryIds, setCollapsedEntryIds] = React.useState<Set<string>>(
+    () => new Set()
+  )
   const [isTreeLoading, setIsTreeLoading] = React.useState(false)
   const [treeError, setTreeError] = React.useState<string | null>(null)
 
@@ -664,7 +667,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const personalWorkspaces = React.useMemo(() => {
     const personal = workspaces.filter(
-      (workspace) => getWorkspaceType(workspace) === "personal"
+      (workspace) =>
+        getWorkspaceType(workspace) === "personal" &&
+        (!currentUser?.id || workspace.owner_user_id === currentUser.id)
     )
 
     if (personal.length) {
@@ -672,7 +677,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     return workspaces.filter((workspace) => getWorkspaceType(workspace) !== "team")
-  }, [workspaces])
+  }, [currentUser?.id, workspaces])
 
   const teamSpaceEntries = React.useMemo(
     () =>
@@ -680,9 +685,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         buildWorkspaceEntries(workspace, workspaceTrees[workspace.id] ?? [], {
           includeRoot: true,
           rootAccent: "team",
+          collapsedEntryIds,
         })
       ),
-    [teamWorkspaces, workspaceTrees]
+    [collapsedEntryIds, teamWorkspaces, workspaceTrees]
   )
 
   const personalSpaceEntries = React.useMemo(
@@ -690,9 +696,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       personalWorkspaces.flatMap((workspace) =>
         buildWorkspaceEntries(workspace, workspaceTrees[workspace.id] ?? [], {
           includeRoot: personalWorkspaces.length > 1,
+          collapsedEntryIds,
         })
       ),
-    [personalWorkspaces, workspaceTrees]
+    [collapsedEntryIds, personalWorkspaces, workspaceTrees]
   )
 
   const getSectionWorkspace = React.useCallback(
@@ -1028,6 +1035,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const openEntry = React.useCallback(
     (item: SidebarEntry) => {
+      if (item.kind === "folder") {
+        setCollapsedEntryIds((current) => {
+          const next = new Set(current)
+          if (next.has(item.id)) {
+            next.delete(item.id)
+          } else {
+            next.add(item.id)
+          }
+          return next
+        })
+        return
+      }
+
       if (item.object?.kind === "file" && item.workspaceId) {
         navigate(`/workspace/${item.workspaceId}/objects/${item.object.id}`)
       }

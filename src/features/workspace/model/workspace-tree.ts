@@ -37,7 +37,8 @@ function getObjectEntryKind(object: WorkspaceObject): SidebarEntry["kind"] {
 function buildObjectEntries(
   workspaceId: string,
   objects: WorkspaceObject[],
-  baseDepth = 0
+  baseDepth = 0,
+  collapsedEntryIds?: Set<string>
 ) {
   const byParent = new Map<string, WorkspaceObject[]>()
 
@@ -70,10 +71,10 @@ function buildObjectEntries(
         workspaceId,
         object: child,
         depth,
-        expanded: child.kind === "folder",
+        expanded: child.kind === "folder" && !collapsedEntryIds?.has(child.id),
       })
 
-      if (child.kind === "folder") {
+      if (child.kind === "folder" && !collapsedEntryIds?.has(child.id)) {
         visit(child.id, depth + 1)
       }
     }
@@ -86,12 +87,19 @@ function buildObjectEntries(
 export function buildWorkspaceEntries(
   workspace: Workspace,
   objects: WorkspaceObject[],
-  options?: { includeRoot?: boolean; rootAccent?: SidebarEntry["accent"] }
+  options?: {
+    includeRoot?: boolean
+    rootAccent?: SidebarEntry["accent"]
+    collapsedEntryIds?: Set<string>
+  }
 ) {
+  const rootId = `workspace:${workspace.id}`
+  const rootExpanded = !options?.collapsedEntryIds?.has(rootId)
   const objectEntries = buildObjectEntries(
     workspace.id,
     objects,
-    options?.includeRoot ? 1 : 0
+    options?.includeRoot ? 1 : 0,
+    options?.collapsedEntryIds
   )
 
   if (!options?.includeRoot) {
@@ -100,15 +108,15 @@ export function buildWorkspaceEntries(
 
   return [
     {
-      id: `workspace:${workspace.id}`,
+      id: rootId,
       title: workspace.name,
       kind: "folder" as const,
       workspaceId: workspace.id,
       isWorkspaceRoot: true,
-      expanded: true,
+      expanded: rootExpanded,
       accent: options.rootAccent,
     },
-    ...objectEntries,
+    ...(rootExpanded ? objectEntries : []),
   ]
 }
 
