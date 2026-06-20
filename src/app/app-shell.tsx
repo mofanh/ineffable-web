@@ -46,7 +46,7 @@ function AppShellContent() {
 
   return (
     <div className="flex min-h-svh w-full bg-sidebar">
-      <SidebarProvider>
+      <SidebarProvider className="min-w-0">
         <AppSidebar />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center justify-between gap-4 px-4">
