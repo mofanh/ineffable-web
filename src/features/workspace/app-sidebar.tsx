@@ -367,13 +367,15 @@ function WorkspaceMenuItem({
   title,
   description,
   active,
+  onSelect,
 }: {
   title: string
   description?: string
   active?: boolean
+  onSelect?: () => void
 }) {
   return (
-    <DropdownMenuItem className="items-start gap-2 py-2">
+    <DropdownMenuItem className="items-start gap-2 py-2" onClick={onSelect}>
       <Building2Icon className="mt-0.5 text-muted-foreground" />
       <div className="grid min-w-0 flex-1 gap-0.5">
         <span className="truncate font-medium">{title}</span>
@@ -390,6 +392,9 @@ function WorkspaceMenuItem({
 
 function WorkspaceAccountSwitcher({
   user,
+  workspaces,
+  currentWorkspace,
+  onSelectWorkspace,
   onLogout,
 }: {
   user: {
@@ -397,6 +402,9 @@ function WorkspaceAccountSwitcher({
     email: string
     avatar: string
   }
+  workspaces: Workspace[]
+  currentWorkspace: Workspace | null
+  onSelectWorkspace: (workspaceId: string) => void
   onLogout?: () => void
 }) {
   const { isMobile } = useSidebar()
@@ -406,6 +414,16 @@ function WorkspaceAccountSwitcher({
     .join("")
     .slice(0, 2)
     .toUpperCase()
+  const personalWorkspaces = workspaces.filter(
+    (workspace) => getWorkspaceType(workspace) === "personal"
+  )
+  const teamWorkspaces = workspaces.filter(
+    (workspace) => getWorkspaceType(workspace) === "team"
+  )
+  const workspaceDescription = (workspace: Workspace) =>
+    getWorkspaceType(workspace) === "personal"
+      ? "Private workspace"
+      : "Team workspace"
 
   return (
     <DropdownMenu>
@@ -447,29 +465,56 @@ function WorkspaceAccountSwitcher({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Current Workspace</DropdownMenuLabel>
-        <WorkspaceMenuItem
-          title="team"
-          description="Team workspace · 6 members"
-          active
-        />
+        {currentWorkspace ? (
+          <WorkspaceMenuItem
+            title={currentWorkspace.name}
+            description={workspaceDescription(currentWorkspace)}
+            active
+          />
+        ) : (
+          <DropdownMenuItem disabled className="text-muted-foreground">
+            No workspace selected
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Switch Workspace</DropdownMenuLabel>
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-2 pb-0 pt-1 text-[11px] uppercase tracking-normal">
             Personal
           </DropdownMenuLabel>
-          <WorkspaceMenuItem
-            title="lier's Workspace"
-            description="Private workspace"
-          />
+          {personalWorkspaces.length ? (
+            personalWorkspaces.map((workspace) => (
+              <WorkspaceMenuItem
+                key={workspace.id}
+                title={workspace.name}
+                description={workspaceDescription(workspace)}
+                active={currentWorkspace?.id === workspace.id}
+                onSelect={() => onSelectWorkspace(workspace.id)}
+              />
+            ))
+          ) : (
+            <DropdownMenuItem disabled className="text-muted-foreground">
+              No personal space
+            </DropdownMenuItem>
+          )}
           <DropdownMenuLabel className="px-2 pb-0 pt-1 text-[11px] uppercase tracking-normal">
             Team
           </DropdownMenuLabel>
-          <WorkspaceMenuItem
-            title="team"
-            description="Team workspace · 6 members"
-            active
-          />
+          {teamWorkspaces.length ? (
+            teamWorkspaces.map((workspace) => (
+              <WorkspaceMenuItem
+                key={workspace.id}
+                title={workspace.name}
+                description={workspaceDescription(workspace)}
+                active={currentWorkspace?.id === workspace.id}
+                onSelect={() => onSelectWorkspace(workspace.id)}
+              />
+            ))
+          ) : (
+            <DropdownMenuItem disabled className="text-muted-foreground">
+              No team spaces
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
@@ -541,7 +586,14 @@ function WorkspaceAccountSwitcher({
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const logoVariant = useLogoVariant({ mode: "rotate" })
-  const { accessToken, currentUser, logout, workspaces } = useAppSession()
+  const {
+    accessToken,
+    currentUser,
+    currentWorkspace,
+    logout,
+    selectWorkspace,
+    workspaces,
+  } = useAppSession()
   const location = useLocation()
   const navigate = useNavigate()
   const [selectedEntryId, setSelectedEntryId] = React.useState("skills-rules-memory")
@@ -1135,6 +1187,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 name: currentUser?.display_name || currentUser?.email || "Workspace User",
                 email: currentUser?.email || "未登录",
                 avatar: currentUser?.avatar_url || "",
+              }}
+              workspaces={workspaces}
+              currentWorkspace={currentWorkspace}
+              onSelectWorkspace={(workspaceId) => {
+                void selectWorkspace(workspaceId)
               }}
               onLogout={() => {
                 void logout()

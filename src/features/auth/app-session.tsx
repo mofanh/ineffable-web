@@ -15,10 +15,7 @@ import {
   listConversations,
   type Conversation,
 } from "@/features/chat/api/chat-api"
-import {
-  createWorkspace,
-  type Workspace,
-} from "@/features/workspace/api/workspace-api"
+import { type Workspace } from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated"
@@ -93,14 +90,27 @@ function writeStorage(key: string, value: string | null) {
   window.localStorage.removeItem(key)
 }
 
-function slugify(input: string) {
-  const normalized = input
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+function getWorkspaceType(workspace: Workspace) {
+  return workspace.workspace_type || "team"
+}
 
-  return normalized || `workspace-${Date.now()}`
+function chooseWorkspaceId(
+  workspaces: Workspace[],
+  preferredWorkspaceId?: string | null,
+  backendWorkspaceId?: string | null
+) {
+  const findWorkspace = (workspaceId?: string | null) =>
+    workspaceId
+      ? workspaces.find((workspace) => workspace.id === workspaceId) ?? null
+      : null
+
+  return (
+    findWorkspace(preferredWorkspaceId)?.id ||
+    findWorkspace(backendWorkspaceId)?.id ||
+    workspaces.find((workspace) => getWorkspaceType(workspace) === "personal")?.id ||
+    workspaces.find((workspace) => getWorkspaceType(workspace) === "team")?.id ||
+    null
+  )
 }
 
 export function AppSessionProvider({
@@ -159,23 +169,6 @@ export function AppSessionProvider({
     writeStorage(STORAGE_KEYS.sessionId, nextSessionId)
   }, [])
 
-  const ensureWorkspace = React.useCallback(
-    async (token: string, user: AppUser, existingWorkspaces: Workspace[]) => {
-      if (existingWorkspaces.length > 0) {
-        return existingWorkspaces
-      }
-
-      const base = user.display_name || user.email.split("@")[0] || "Workspace"
-      const response = await createWorkspace(token, {
-        slug: `${slugify(base)}-${Date.now().toString().slice(-6)}`,
-        name: `${base} Workspace`,
-      })
-
-      return [response.workspace]
-    },
-    []
-  )
-
   const refreshConversations = React.useCallback(
     async (workspaceIdOverride?: string | null, tokenOverride?: string | null) => {
       const token = tokenOverride ?? accessToken
@@ -208,19 +201,17 @@ export function AppSessionProvider({
 
   const hydrateWithToken = React.useCallback(
     async (token: string) => {
-      const me = await fetchMe(token, currentWorkspaceId)
-      const nextWorkspaces = await ensureWorkspace(token, me.user, me.workspaces)
+      const me = await fetchMe(token)
+      const nextWorkspaces = me.workspaces
 
       setCurrentUser(me.user)
       setWorkspaces(nextWorkspaces)
 
-      const nextWorkspaceId =
-        (currentWorkspaceId &&
-          nextWorkspaces.some((workspace) => workspace.id === currentWorkspaceId) &&
-          currentWorkspaceId) ||
-        me.current_workspace_id ||
-        nextWorkspaces[0]?.id ||
-        null
+      const nextWorkspaceId = chooseWorkspaceId(
+        nextWorkspaces,
+        currentWorkspaceId,
+        me.current_workspace_id
+      )
 
       setCurrentWorkspaceId(nextWorkspaceId)
       writeStorage(STORAGE_KEYS.workspaceId, nextWorkspaceId)
@@ -228,7 +219,7 @@ export function AppSessionProvider({
 
       await refreshConversations(nextWorkspaceId, token)
     },
-    [currentWorkspaceId, ensureWorkspace, refreshConversations]
+    [currentWorkspaceId, refreshConversations]
   )
 
   const refreshAppData = React.useCallback(async () => {
