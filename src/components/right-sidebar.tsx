@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/ui/sidebar"
 
 export function RightSidebar() {
   return (
-    <Sidebar side="right" variant="inset" mobileMode="full">
+    <Sidebar side="right" variant="inset" mobileMode="full" className="p-0">
       <GatewayChatSidebar />
     </Sidebar>
   )

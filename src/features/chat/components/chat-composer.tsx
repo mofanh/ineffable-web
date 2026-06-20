@@ -64,9 +64,9 @@ export function ChatComposer({
     status === "pending" || status === "promoting" || status === "deleting"
 
   return (
-    <SidebarFooter className="p-3">
+    <SidebarFooter className="p-2">
       {preInputQueue.length > 0 ? (
-        <div className="mb-2 space-y-1.5">
+        <div className="mb-1.5 space-y-1.5">
           <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">
             <GripVerticalIcon className="size-3" />
             <span>预输入队列 ({preInputQueue.length})</span>
@@ -118,7 +118,7 @@ export function ChatComposer({
       ) : null}
 
       <form
-        className="space-y-2"
+        className="space-y-1.5"
         onSubmit={(event) => {
           event.preventDefault()
           onSend()
@@ -134,22 +134,17 @@ export function ChatComposer({
                 ? "预输入 → 排队等待当前任务完成..."
                 : "给 LLM 发送消息..."
             }
-            rows={4}
+            rows={2}
             value={composer}
             onChange={(event) => onComposerChange(event.target.value)}
             onKeyDown={onComposerKeyDown}
-            className="min-h-24 border-0 bg-transparent shadow-none focus-visible:ring-0"
+            className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
           />
           <InputGroupAddon
             align="block-end"
-            className="justify-between border-t border-sidebar-border bg-sidebar-accent/15"
+            className="justify-between border-t border-sidebar-border bg-sidebar-accent/15 px-2 py-1.5 [.border-t]:pt-1.5"
           >
-            <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center">
-              <p className="text-muted-foreground text-[11px]">
-                {isSending
-                  ? "预输入 · Cmd/Ctrl + Enter 加入队列"
-                  : "Cmd/Ctrl + Enter 发送"}
-              </p>
+            <div className="flex min-w-0 items-center">
               <Select
                 value={selectedSandboxEnvironmentId || "__auto__"}
                 onValueChange={(value) =>
@@ -158,7 +153,7 @@ export function ChatComposer({
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-7 w-[210px] max-w-full rounded-md bg-background text-xs"
+                  className="h-7 w-[160px] max-w-full rounded-md bg-background text-xs"
                 >
                   <SelectValue placeholder="Sandbox" />
                 </SelectTrigger>

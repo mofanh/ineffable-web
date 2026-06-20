@@ -13,6 +13,8 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import {
   RIGHT_SIDEBAR_DEFAULT_WIDTH,
+  RIGHT_SIDEBAR_MAX_WIDTH,
+  RIGHT_SIDEBAR_MIN_WIDTH,
   useRightSidebarResize,
 } from "@/app/shell/use-right-sidebar-resize"
 import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
@@ -42,14 +44,15 @@ function AppShellContent() {
     setIsRightSidebarOpen,
     setRightSidebarWidth,
     startRightSidebarResize,
+    handleRightSidebarResizeKeyDown,
   } = useRightSidebarResize()
 
   return (
-    <div className="flex min-h-svh w-full bg-sidebar">
+    <div className="relative flex min-h-svh w-full bg-sidebar">
       <SidebarProvider className="min-w-0">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center justify-between gap-4 px-4">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 bg-background px-4">
             <div className="flex min-w-0 items-center gap-2">
               <SidebarTrigger className="-ml-1" />
               <Separator
@@ -110,10 +113,16 @@ function AppShellContent() {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize right sidebar"
-        onMouseDown={startRightSidebarResize}
+        tabIndex={isRightSidebarOpen ? 0 : -1}
+        aria-valuemin={RIGHT_SIDEBAR_MIN_WIDTH}
+        aria-valuemax={RIGHT_SIDEBAR_MAX_WIDTH}
+        aria-valuenow={Math.round(rightSidebarWidth)}
+        onPointerDown={startRightSidebarResize}
+        onKeyDown={handleRightSidebarResizeKeyDown}
         onDoubleClick={() => setRightSidebarWidth(RIGHT_SIDEBAR_DEFAULT_WIDTH)}
+        style={{ right: `${rightSidebarWidth}px` }}
         className={cn(
-          "relative hidden w-1 shrink-0 cursor-col-resize bg-sidebar md:flex",
+          "fixed inset-y-0 z-20 hidden w-2 translate-x-1/2 touch-none cursor-col-resize bg-transparent focus-visible:outline-2 focus-visible:outline-ring md:block",
           isRightSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
       />
@@ -122,6 +131,7 @@ function AppShellContent() {
         defaultOpen
         open={isRightSidebarOpen}
         onOpenChange={setIsRightSidebarOpen}
+        persistCookie={false}
         className="w-auto"
         style={
           {

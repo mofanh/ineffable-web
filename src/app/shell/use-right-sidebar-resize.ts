@@ -1,8 +1,38 @@
 import * as React from "react"
 
 export const RIGHT_SIDEBAR_DEFAULT_WIDTH = 384
-const RIGHT_SIDEBAR_MIN_WIDTH = 300
-const RIGHT_SIDEBAR_MAX_WIDTH = 640
+export const RIGHT_SIDEBAR_MIN_WIDTH = 300
+export const RIGHT_SIDEBAR_MAX_WIDTH = 640
+
+const RIGHT_SIDEBAR_OPEN_STORAGE_KEY = "ineffable.ui.right-sidebar.open"
+const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "ineffable.ui.right-sidebar.width"
+const RIGHT_SIDEBAR_MIN_REMAINING_WIDTH = 320
+
+function getRightSidebarMaxWidth(viewportWidth: number) {
+  return Math.max(
+    RIGHT_SIDEBAR_MIN_WIDTH,
+    Math.min(
+      RIGHT_SIDEBAR_MAX_WIDTH,
+      viewportWidth - RIGHT_SIDEBAR_MIN_REMAINING_WIDTH
+    )
+  )
+}
+
+function clampRightSidebarWidth(rawWidth: number, viewportWidth: number) {
+  return Math.min(
+    getRightSidebarMaxWidth(viewportWidth),
+    Math.max(RIGHT_SIDEBAR_MIN_WIDTH, rawWidth)
+  )
+}
+
+function readStoredWidth() {
+  const storedWidth = Number(
+    window.localStorage.getItem(RIGHT_SIDEBAR_WIDTH_STORAGE_KEY)
+  )
+  return Number.isFinite(storedWidth) && storedWidth > 0
+    ? storedWidth
+    : RIGHT_SIDEBAR_DEFAULT_WIDTH
+}
 
 export function useRightSidebarResize() {
   const [isRightSidebarOpen, setIsRightSidebarOpen] = React.useState(() => {
@@ -10,28 +40,54 @@ export function useRightSidebarResize() {
       return true
     }
 
-    return window.innerWidth >= 768
-  })
-  const [rightSidebarWidth, setRightSidebarWidth] = React.useState(
-    RIGHT_SIDEBAR_DEFAULT_WIDTH
-  )
-  const isResizingRightSidebarRef = React.useRef(false)
+    if (window.innerWidth < 768) {
+      return false
+    }
 
-  const clampRightSidebarWidth = React.useCallback((rawWidth: number) => {
-    const dynamicMax = Math.max(
-      RIGHT_SIDEBAR_MIN_WIDTH,
-      Math.min(RIGHT_SIDEBAR_MAX_WIDTH, window.innerWidth - 320)
-    )
-    return Math.min(dynamicMax, Math.max(RIGHT_SIDEBAR_MIN_WIDTH, rawWidth))
-  }, [])
+    return window.localStorage.getItem(RIGHT_SIDEBAR_OPEN_STORAGE_KEY) !== "false"
+  })
+  const [rightSidebarWidth, setRightSidebarWidthState] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return RIGHT_SIDEBAR_DEFAULT_WIDTH
+    }
+
+    return clampRightSidebarWidth(readStoredWidth(), window.innerWidth)
+  })
+  const resizingPointerIdRef = React.useRef<number | null>(null)
+
+  const setRightSidebarWidth = React.useCallback(
+    (value: React.SetStateAction<number>) => {
+      setRightSidebarWidthState((currentWidth) => {
+        const requestedWidth =
+          typeof value === "function" ? value(currentWidth) : value
+        return clampRightSidebarWidth(requestedWidth, window.innerWidth)
+      })
+    },
+    []
+  )
+
+  const setRightSidebarOpen = React.useCallback(
+    (value: React.SetStateAction<boolean>) => {
+      setIsRightSidebarOpen((currentOpen) => {
+        const nextOpen = typeof value === "function" ? value(currentOpen) : value
+        window.localStorage.setItem(
+          RIGHT_SIDEBAR_OPEN_STORAGE_KEY,
+          String(nextOpen)
+        )
+        return nextOpen
+      })
+    },
+    []
+  )
 
   const startRightSidebarResize = React.useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!isRightSidebarOpen) {
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!isRightSidebarOpen || event.button !== 0) {
         return
       }
 
-      isResizingRightSidebarRef.current = true
+      resizingPointerIdRef.current = event.pointerId
+      event.currentTarget.setPointerCapture(event.pointerId)
       document.body.style.cursor = "col-resize"
       document.body.style.userSelect = "none"
       event.preventDefault()
@@ -39,41 +95,91 @@ export function useRightSidebarResize() {
     [isRightSidebarOpen]
   )
 
-  React.useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!isResizingRightSidebarRef.current) {
-        return
+  const handleRightSidebarResizeKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const step = event.shiftKey ? 48 : 16
+      let nextWidth: number | null = null
+
+      if (event.key === "ArrowLeft") {
+        nextWidth = rightSidebarWidth + step
+      } else if (event.key === "ArrowRight") {
+        nextWidth = rightSidebarWidth - step
+      } else if (event.key === "Home") {
+        nextWidth = RIGHT_SIDEBAR_MIN_WIDTH
+      } else if (event.key === "End") {
+        nextWidth = getRightSidebarMaxWidth(window.innerWidth)
       }
 
-      const nextWidth = clampRightSidebarWidth(window.innerWidth - event.clientX)
-      setRightSidebarWidth(nextWidth)
+      if (nextWidth !== null) {
+        event.preventDefault()
+        setRightSidebarWidth(nextWidth)
+      }
+    },
+    [rightSidebarWidth, setRightSidebarWidth]
+  )
+
+  React.useEffect(() => {
+    const persistTimer = window.setTimeout(() => {
+      window.localStorage.setItem(
+        RIGHT_SIDEBAR_WIDTH_STORAGE_KEY,
+        String(rightSidebarWidth)
+      )
+    }, 150)
+
+    return () => window.clearTimeout(persistTimer)
+  }, [rightSidebarWidth])
+
+  React.useEffect(() => {
+    const handleWindowResize = () => {
+      setRightSidebarWidthState((currentWidth) =>
+        clampRightSidebarWidth(currentWidth, window.innerWidth)
+      )
     }
 
-    const stopResize = () => {
-      if (!isResizingRightSidebarRef.current) {
+    window.addEventListener("resize", handleWindowResize)
+    return () => window.removeEventListener("resize", handleWindowResize)
+  }, [])
+
+  React.useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      if (resizingPointerIdRef.current !== event.pointerId) {
         return
       }
 
-      isResizingRightSidebarRef.current = false
+      setRightSidebarWidth(window.innerWidth - event.clientX)
+    }
+
+    const stopResize = (event?: PointerEvent) => {
+      if (
+        resizingPointerIdRef.current === null ||
+        (event && resizingPointerIdRef.current !== event.pointerId)
+      ) {
+        return
+      }
+
+      resizingPointerIdRef.current = null
       document.body.style.removeProperty("cursor")
       document.body.style.removeProperty("user-select")
     }
 
-    window.addEventListener("mousemove", handleMouseMove)
-    window.addEventListener("mouseup", stopResize)
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", stopResize)
+    window.addEventListener("pointercancel", stopResize)
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove)
-      window.removeEventListener("mouseup", stopResize)
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", stopResize)
+      window.removeEventListener("pointercancel", stopResize)
       stopResize()
     }
-  }, [clampRightSidebarWidth])
+  }, [setRightSidebarWidth])
 
   return {
     isRightSidebarOpen,
     rightSidebarWidth,
-    setIsRightSidebarOpen,
+    setIsRightSidebarOpen: setRightSidebarOpen,
     setRightSidebarWidth,
     startRightSidebarResize,
+    handleRightSidebarResizeKeyDown,
   }
 }

@@ -170,8 +170,8 @@ export function ChatMessageList({
           }
 
           return (
-            <div key={entry.id} className="flex justify-start gap-3">
-              <div className="max-w-[92%] min-w-0 space-y-5 pb-1 text-foreground">
+            <div key={entry.id} className="flex w-full justify-start">
+              <div className="w-full min-w-0 space-y-5 pb-1 text-foreground">
                 <AgentPane pane={entry.pane} />
 
                 {entry.subagentOrder.length ? (
