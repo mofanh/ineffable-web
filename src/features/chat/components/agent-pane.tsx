@@ -35,8 +35,12 @@ function toolStatusLabel(status: ToolCallStatus) {
       return "等待中"
     case "running":
       return "执行中"
-    case "completed":
-      return "已完成"
+    case "succeeded":
+      return "成功"
+    case "failed":
+      return "失败"
+    case "cancelled":
+      return "已取消"
     default:
       return status
   }
@@ -99,6 +103,8 @@ function ThinkBlockView({ block }: { block: ThinkBlock }) {
 
 function ToolCallCard({ tool }: { tool: ToolCallView }) {
   const isRunning = tool.status === "running"
+  const isTerminal =
+    tool.status === "succeeded" || tool.status === "failed" || tool.status === "cancelled"
   const [open, setOpen] = React.useState(isRunning)
   const prevStatusRef = React.useRef<ToolCallStatus>(tool.status)
 
@@ -107,12 +113,12 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
 
     if (isRunning) {
       setOpen(true)
-    } else if (prevStatus === "running" && tool.status === "completed") {
+    } else if (prevStatus === "running" && isTerminal) {
       setOpen(false)
     }
 
     prevStatusRef.current = tool.status
-  }, [isRunning, tool.status])
+  }, [isRunning, isTerminal, tool.status])
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
@@ -140,7 +146,12 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
           <span className="ml-auto inline-flex items-center gap-1.5">
             <Badge
               variant="outline"
-              className="h-5 shrink-0 rounded-full border-black/10 bg-transparent px-1.5 text-[10px] text-foreground/65"
+              className={cn(
+                "h-5 shrink-0 rounded-full border-black/10 bg-transparent px-1.5 text-[10px] text-foreground/65",
+                tool.status === "failed" && "border-red-500/25 text-red-600",
+                tool.status === "succeeded" && "border-emerald-500/25 text-emerald-700",
+                tool.status === "cancelled" && "border-amber-500/25 text-amber-700"
+              )}
             >
               {toolStatusLabel(tool.status)}
             </Badge>

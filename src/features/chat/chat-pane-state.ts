@@ -7,7 +7,7 @@ import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 // 3. Once a think block is terminated, later reasoning must open a fresh think block
 //    instead of mutating the previous one.
 
-export type ToolCallStatus = "pending" | "running" | "completed"
+export type ToolCallStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled"
 
 export type ToolCallView = {
   id: string
@@ -72,6 +72,54 @@ function getMetadataValue(
 ) {
   const value = metadata?.[key]
   return typeof value === "string" ? value : ""
+}
+
+function getMetadataBoolean(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key]
+  return typeof value === "boolean" ? value : null
+}
+
+function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
+  const metadataStatus =
+    getMetadataValue(event.metadata, "status") ||
+    getMetadataValue(event.metadata, "tool_status") ||
+    getMetadataValue(event.metadata, "result_status")
+  const normalizedStatus = metadataStatus.toLowerCase()
+  if (normalizedStatus === "cancelled" || normalizedStatus === "canceled") {
+    return "cancelled"
+  }
+  if (
+    normalizedStatus === "failed" ||
+    normalizedStatus === "error" ||
+    normalizedStatus === "denied" ||
+    normalizedStatus === "unsupported"
+  ) {
+    return "failed"
+  }
+  if (
+    normalizedStatus === "succeeded" ||
+    normalizedStatus === "success" ||
+    normalizedStatus === "completed"
+  ) {
+    return "succeeded"
+  }
+
+  const success = getMetadataBoolean(event.metadata, "success")
+  if (success === true) {
+    return "succeeded"
+  }
+  if (success === false) {
+    return "failed"
+  }
+
+  const output = (event.content ?? "").trim().toLowerCase()
+  if (output.startsWith("error:") || output.includes("\"success\":false")) {
+    return "failed"
+  }
+  return "succeeded"
 }
 
 function getLastBlock(pane: AgentPaneState) {
@@ -470,11 +518,11 @@ export function buildToolView(
       getMetadataValue(event.metadata, "arguments_delta") || event.content || ""
     )
   } else if (event.event === "tool_call_done") {
-    nextTool.status = "completed"
+    nextTool.status = "running"
     nextTool.input =
       getMetadataValue(event.metadata, "full_arguments") || nextTool.input || event.content || ""
   } else if (event.event === "tool_result") {
-    nextTool.status = "completed"
+    nextTool.status = statusFromToolResult(event)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")
   }
 
