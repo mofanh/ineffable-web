@@ -888,7 +888,6 @@ export function createConversation(
 
 export function listConversations(
   accessToken: string,
-  workspaceId: string,
   options?: { limit?: number; offset?: number }
 ) {
   const params = new URLSearchParams()
@@ -905,7 +904,6 @@ export function listConversations(
     `/gateway/v1/conversations/list${suffix}`,
     {
       accessToken,
-      workspaceId,
     }
   )
 }

@@ -170,18 +170,17 @@ export function AppSessionProvider({
   }, [])
 
   const refreshConversations = React.useCallback(
-    async (workspaceIdOverride?: string | null, tokenOverride?: string | null) => {
+    async (_workspaceIdOverride?: string | null, tokenOverride?: string | null) => {
       const token = tokenOverride ?? accessToken
-      const workspaceId = workspaceIdOverride ?? currentWorkspaceId
 
-      if (!token || !workspaceId) {
+      if (!token) {
         setConversations([])
         setCurrentConversationId(null)
         writeStorage(STORAGE_KEYS.conversationId, null)
         return
       }
 
-      const response = await listConversations(token, workspaceId, {
+      const response = await listConversations(token, {
         limit: 100,
         offset: 0,
       })
@@ -196,7 +195,7 @@ export function AppSessionProvider({
         return nextId
       })
     },
-    [accessToken, currentWorkspaceId]
+    [accessToken]
   )
 
   const hydrateWithToken = React.useCallback(
@@ -305,9 +304,8 @@ export function AppSessionProvider({
     async (workspaceId: string) => {
       setCurrentWorkspaceId(workspaceId)
       writeStorage(STORAGE_KEYS.workspaceId, workspaceId)
-      await refreshConversations(workspaceId)
     },
-    [refreshConversations]
+    []
   )
 
   const createConversationForWorkspace = React.useCallback(
