@@ -23,7 +23,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
@@ -89,6 +88,8 @@ import {
   SettingsIcon,
   SparklesIcon,
   Trash2Icon,
+  UserPlusIcon,
+  UsersIcon,
   ZapIcon,
 } from "lucide-react"
 
@@ -132,6 +133,79 @@ type WorkspaceObjectAction =
   | "move"
   | "export"
   | "delete"
+
+type SpaceSectionAction =
+  | "create-team"
+  | "invite-members"
+  | "manage-members"
+  | "copy-link"
+  | "open-new-tab"
+  | "rename"
+  | "export"
+  | "delete"
+
+function SpaceSectionMenu({
+  title,
+  onAction,
+}: {
+  title: string
+  onAction: (action: SpaceSectionAction) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${title} actions`}
+          className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <MoreHorizontalIcon className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-60 rounded-lg p-1">
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("copy-link")}>
+          <LinkIcon />
+          <span>Copy Link</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("open-new-tab")}>
+          <ExternalLinkIcon />
+          <span>Open in New Tab</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("create-team")}>
+          <Building2Icon />
+          <span>Create Team Space</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("invite-members")}>
+          <UserPlusIcon />
+          <span>Invite Members</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("manage-members")}>
+          <UsersIcon />
+          <span>Manage Members</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("rename")}>
+          <PencilIcon />
+          <span>Rename</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("export")}>
+          <DownloadIcon />
+          <span>Export</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="gap-2 rounded-md text-destructive focus:text-destructive"
+          onClick={() => onAction("delete")}
+        >
+          <Trash2Icon />
+          <span>Delete</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 function WorkspaceObjectMenu({
   item,
@@ -295,6 +369,7 @@ function SpaceSection({
   isLoading,
   error,
   canCreate,
+  actionMenu,
   selectedEntryId,
   onSelectEntry,
   onOpenEntry,
@@ -307,6 +382,7 @@ function SpaceSection({
   isLoading?: boolean
   error?: string | null
   canCreate?: boolean
+  actionMenu?: React.ReactNode
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
   onOpenEntry: (item: SidebarEntry) => void
@@ -315,28 +391,35 @@ function SpaceSection({
 }) {
   return (
     <SidebarGroup className="gap-2">
-      <SidebarGroupLabel className="h-auto px-2 py-1 text-sm font-normal tracking-[0.12em] text-sidebar-foreground/50">
-        {title}
-      </SidebarGroupLabel>
-      {canCreate ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarGroupAction aria-label={`Create in ${title}`}>
-              <PlusIcon />
-            </SidebarGroupAction>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start">
-            <DropdownMenuItem onClick={() => onCreate("file")}>
-              <FilePlusIcon />
-              <span>New File</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onCreate("folder")}>
-              <FolderPlusIcon />
-              <span>New Folder</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
+      <div className="flex h-8 items-center gap-1 px-2">
+        <SidebarGroupLabel className="h-auto min-w-0 flex-1 px-0 py-1 text-sm font-normal tracking-[0.12em] text-sidebar-foreground/50">
+          {title}
+        </SidebarGroupLabel>
+        {actionMenu}
+        {canCreate ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Create in ${title}`}
+                className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              >
+                <PlusIcon className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start">
+              <DropdownMenuItem onClick={() => onCreate("file")}>
+                <FilePlusIcon />
+                <span>New File</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCreate("folder")}>
+                <FolderPlusIcon />
+                <span>New Folder</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
           {entries.length ? (
@@ -1085,6 +1168,42 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     ]
   )
 
+  const handleTeamSpaceAction = React.useCallback(
+    (action: SpaceSectionAction) => {
+      const selectedTeam =
+        currentWorkspace && getWorkspaceType(currentWorkspace) === "team"
+          ? currentWorkspace
+          : teamWorkspaces[0]
+
+      if (action === "copy-link") {
+        if (!selectedTeam) {
+          window.alert("No team space available.")
+          return
+        }
+        void navigator.clipboard?.writeText(
+          `${window.location.origin}?workspace=${selectedTeam.id}`
+        )
+        return
+      }
+
+      if (action === "open-new-tab") {
+        if (!selectedTeam) {
+          window.alert("No team space available.")
+          return
+        }
+        window.open(
+          `${window.location.origin}?workspace=${selectedTeam.id}`,
+          "_blank",
+          "noopener,noreferrer"
+        )
+        return
+      }
+
+      window.alert("Team Space actions are coming next.")
+    },
+    [currentWorkspace, teamWorkspaces]
+  )
+
   const openEntry = React.useCallback(
     (item: SidebarEntry) => {
       if (item.kind === "folder") {
@@ -1143,6 +1262,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
           error={treeError}
           canCreate={Boolean(teamWorkspaces.length)}
+          actionMenu={
+            <SpaceSectionMenu title="Team Spaces" onAction={handleTeamSpaceAction} />
+          }
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
           onOpenEntry={openEntry}
