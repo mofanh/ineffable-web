@@ -18,8 +18,10 @@ import {
   useRightSidebarResize,
 } from "@/app/shell/use-right-sidebar-resize"
 import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
+import { useAppSession } from "@/features/auth/app-session"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
+import type { BreadcrumbEntry } from "@/routes/navigation"
 import { Fragment } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties } from "react"
@@ -35,8 +37,12 @@ export function AppShell() {
 
 function AppShellContent() {
   const { pathname } = useLocation()
+  const { currentWorkspace, workspaces } = useAppSession()
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
-  const breadcrumbs = routeMeta?.breadcrumbs ?? [{ label: "World 控制台" }]
+  const breadcrumbs =
+    getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces) ??
+    routeMeta?.breadcrumbs ??
+    [{ label: "World 控制台" }]
   const { headerContent } = useAppHeader()
   const {
     isRightSidebarOpen,
@@ -147,3 +153,35 @@ function AppShellContent() {
 }
 
 export default AppShell
+
+function getWorkspaceBreadcrumbs(
+  pathname: string,
+  currentWorkspace: ReturnType<typeof useAppSession>["currentWorkspace"],
+  workspaces: ReturnType<typeof useAppSession>["workspaces"]
+): BreadcrumbEntry[] | null {
+  if (pathname === "/team-spaces/new") {
+    return [{ label: "Team Spaces" }, { label: "Create Workspace" }]
+  }
+
+  const membersMatch = pathname.match(/^\/team-spaces\/([^/]+)\/members$/)
+  if (membersMatch) {
+    const workspaceId = decodeURIComponent(membersMatch[1])
+    const workspace =
+      workspaces.find((candidate) => candidate.id === workspaceId) ??
+      (currentWorkspace?.id === workspaceId ? currentWorkspace : null)
+    return [
+      { label: "Team Spaces" },
+      {
+        label: workspace?.name || "Team Workspace",
+        path: `/team-spaces/${workspaceId}/members`,
+      },
+      { label: "Members" },
+    ]
+  }
+
+  if (pathname.startsWith("/workspace-invitations/")) {
+    return [{ label: "Team Spaces" }, { label: "Invitation" }]
+  }
+
+  return null
+}
