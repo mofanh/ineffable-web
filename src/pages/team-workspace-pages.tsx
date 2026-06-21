@@ -54,37 +54,26 @@ function initials(value: string) {
 }
 
 function PageShell({
-  eyebrow,
   title,
   description,
   children,
 }: {
-  eyebrow: string
   title: string
   description: string
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-full flex-col bg-background">
-      <header className="flex h-16 shrink-0 items-center border-b border-border px-6">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="rounded bg-muted px-2 py-0.5">Team Space</span>
-          <span>/</span>
-          <span className="font-medium text-foreground">{eyebrow}</span>
+    <main className="flex min-h-full flex-col overflow-y-auto bg-background px-6 py-8">
+      <div className="mx-auto w-full max-w-5xl space-y-8">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
         </div>
-      </header>
-      <main className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="mx-auto w-full max-w-5xl space-y-8">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
-          </div>
-          {children}
-        </div>
-      </main>
-    </div>
+        {children}
+      </div>
+    </main>
   )
 }
 
@@ -179,7 +168,6 @@ export function CreateTeamWorkspacePage() {
 
   return (
     <PageShell
-      eyebrow="Create Workspace"
       title="Create Team Workspace"
       description="Initialize a shared environment for collaborators, team memory, workspace artifacts, and future AI teammate configuration."
     >
@@ -367,7 +355,6 @@ export function TeamWorkspaceMembersPage() {
 
   return (
     <PageShell
-      eyebrow="Members"
       title="Team Workspace Members"
       description="Manage access for collaborators and keep pending invitations visible while Team Workspace work is shared across users."
     >
@@ -624,7 +611,6 @@ export function AcceptWorkspaceInvitationPage() {
 
   return (
     <PageShell
-      eyebrow="Invitation"
       title="Incoming Invitation"
       description="Review and accept access to a shared Team Workspace. Your agent will use this workspace context after acceptance."
     >
