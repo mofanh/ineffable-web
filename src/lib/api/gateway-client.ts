@@ -40,6 +40,31 @@ export type WorkspaceObject = {
   updated_at: string
 }
 
+export type WorkspaceMembership = {
+  id: string
+  workspace_id: string
+  user_id: string
+  role: "owner" | "admin" | "member" | "viewer" | string
+  status: "active" | "invited" | "removed" | string
+  joined_at: string
+  invited_by?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type WorkspaceInvitation = {
+  id: string
+  workspace_id: string
+  email: string
+  role: "owner" | "admin" | "member" | "viewer" | string
+  status: "pending" | "accepted" | "expired" | "revoked" | string
+  invited_by: string
+  accepted_by?: string | null
+  expires_at: string
+  created_at: string
+  updated_at: string
+}
+
 export type WorkspaceTreeResponse = {
   workspace_id: string
   user_id: string
@@ -573,15 +598,115 @@ export function createWorkspace(
     settings_json?: Record<string, unknown>
   }
 ) {
-  return requestJson<{ workspace: Workspace }>("/gateway/v1/workspaces/create", {
+  return requestJson<{ workspace: Workspace; membership?: WorkspaceMembership }>(
+    "/gateway/v1/workspaces/create",
+    {
     method: "POST",
     accessToken,
     body: payload,
-  })
+    }
+  )
 }
 
 export function listWorkspaces(accessToken: string) {
   return requestJson<{ workspaces: Workspace[] }>("/gateway/v1/workspaces/list", {
+    accessToken,
+  })
+}
+
+export function listWorkspaceMembers(accessToken: string, workspaceId: string) {
+  return requestJson<{ members: WorkspaceMembership[] }>(
+    `/gateway/v1/workspaces/${workspaceId}/members`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function updateWorkspaceMemberRole(
+  accessToken: string,
+  workspaceId: string,
+  userId: string,
+  role: string
+) {
+  return requestJson<{ membership: WorkspaceMembership }>(
+    `/gateway/v1/workspaces/${workspaceId}/members/${userId}`,
+    {
+      method: "PATCH",
+      accessToken,
+      workspaceId,
+      body: { role },
+    }
+  )
+}
+
+export function removeWorkspaceMember(
+  accessToken: string,
+  workspaceId: string,
+  userId: string
+) {
+  return requestJson<{ membership: WorkspaceMembership }>(
+    `/gateway/v1/workspaces/${workspaceId}/members/${userId}`,
+    {
+      method: "DELETE",
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function inviteWorkspaceMember(
+  accessToken: string,
+  workspaceId: string,
+  payload: { email: string; role: string; invite_base_url?: string }
+) {
+  return requestJson<{
+    invitation: WorkspaceInvitation
+    invite_token: string
+    invite_url: string
+    email_receipt_provider?: string | null
+    email_error?: string | null
+  }>(`/gateway/v1/workspaces/${workspaceId}/invitations`, {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: payload,
+  })
+}
+
+export function listWorkspaceInvitations(accessToken: string, workspaceId: string) {
+  return requestJson<{ invitations: WorkspaceInvitation[] }>(
+    `/gateway/v1/workspaces/${workspaceId}/invitations`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function revokeWorkspaceInvitation(
+  accessToken: string,
+  workspaceId: string,
+  invitationId: string
+) {
+  return requestJson<{ invitation: WorkspaceInvitation }>(
+    `/gateway/v1/workspaces/${workspaceId}/invitations/${invitationId}`,
+    {
+      method: "DELETE",
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function acceptWorkspaceInvitation(accessToken: string, token: string) {
+  return requestJson<{
+    workspace: Workspace
+    membership: WorkspaceMembership
+    invitation: WorkspaceInvitation
+  }>(`/gateway/v1/workspace-invitations/${encodeURIComponent(token)}/accept`, {
+    method: "POST",
     accessToken,
   })
 }

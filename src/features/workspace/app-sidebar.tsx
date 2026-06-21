@@ -1199,9 +1199,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
+      if (action === "create-team") {
+        navigate("/team-spaces/new")
+        return
+      }
+
+      if (action === "invite-members" || action === "manage-members") {
+        if (!selectedTeam) {
+          navigate("/team-spaces/new")
+          return
+        }
+        navigate(`/team-spaces/${selectedTeam.id}/members`)
+        return
+      }
+
       window.alert("Team Space actions are coming next.")
     },
-    [currentWorkspace, teamWorkspaces]
+    [currentWorkspace, navigate, teamWorkspaces]
   )
 
   const openEntry = React.useCallback(

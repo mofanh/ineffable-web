@@ -44,6 +44,11 @@ import {
   SettingsTeamPage,
 } from "@/pages/settings-pages"
 import { FeedbackPage, SupportPage } from "@/pages/support-pages"
+import {
+  AcceptWorkspaceInvitationPage,
+  CreateTeamWorkspacePage,
+  TeamWorkspaceMembersPage,
+} from "@/pages/team-workspace-pages"
 import { WorkspaceObjectEditorPage } from "@/pages/workspace-object-editor-page"
 import { defaultPath } from "@/routes/navigation"
 
@@ -125,6 +130,22 @@ export const router = createBrowserRouter([
       {
         path: "workspace/:workspaceId/objects/:objectId",
         element: <WorkspaceObjectEditorPage />,
+      },
+      {
+        path: "team-spaces/new",
+        element: <CreateTeamWorkspacePage />,
+      },
+      {
+        path: "team-spaces/:workspaceId/members",
+        element: <TeamWorkspaceMembersPage />,
+      },
+      {
+        path: "workspace-invitations/:token/accept",
+        element: <AcceptWorkspaceInvitationPage />,
+      },
+      {
+        path: "workspace-invitations/:token",
+        element: <AcceptWorkspaceInvitationPage />,
       },
       {
         path: "*",
