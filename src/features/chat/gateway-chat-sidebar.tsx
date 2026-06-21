@@ -141,13 +141,12 @@ export function GatewayChatSidebar() {
 
   const refreshPendingInputsForConversation = React.useCallback(
     async (conversationId: string) => {
-      if (!conversationId || !accessToken || !currentWorkspace) {
+      if (!conversationId || !accessToken) {
         return
       }
 
       const res = await getPendingInputs(
         accessToken,
-        currentWorkspace.id,
         conversationId
       )
       const dbItems = res.pending_inputs.filter((item) => item.status === "queued")
@@ -159,7 +158,7 @@ export function GatewayChatSidebar() {
         }))
       )
     },
-    [accessToken, currentWorkspace]
+    [accessToken]
   )
 
   React.useEffect(() => {
@@ -231,7 +230,7 @@ export function GatewayChatSidebar() {
 
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
-    if (!currentConversationId || !accessToken || !currentWorkspace) {
+    if (!currentConversationId || !accessToken) {
       return
     }
 
@@ -250,7 +249,6 @@ export function GatewayChatSidebar() {
   }, [
     accessToken,
     currentConversationId,
-    currentWorkspace,
     refreshPendingInputsForConversation,
   ])
 
@@ -351,10 +349,6 @@ export function GatewayChatSidebar() {
         return
       }
 
-      if (!currentWorkspace?.id) {
-        return
-      }
-
       const conversationId =
         overrides?.conversationId ?? activeStreamConversationIdRef.current
       const status = streamStatusRef.current
@@ -377,12 +371,11 @@ export function GatewayChatSidebar() {
 
       writePendingConversationResumeState({
         conversationId,
-        workspaceId: currentWorkspace.id,
         runId: overrides?.runId ?? activeRunIdRef.current,
         afterSeq,
       })
     },
-    [currentWorkspace]
+    []
   )
 
   const setConversationLastSeq = React.useCallback(
@@ -411,7 +404,7 @@ export function GatewayChatSidebar() {
 
   const primeConversationCursor = React.useCallback(
     async (conversationId: string) => {
-      if (!accessToken || !currentWorkspace || !conversationId) {
+      if (!accessToken || !conversationId) {
         return
       }
 
@@ -421,7 +414,6 @@ export function GatewayChatSidebar() {
 
       const response = await getConversationEvents(
         accessToken,
-        currentWorkspace.id,
         conversationId,
         {
           afterSeq: Number.MAX_SAFE_INTEGER,
@@ -431,12 +423,12 @@ export function GatewayChatSidebar() {
 
       setConversationLastSeq(conversationId, response.next_seq ?? 0)
     },
-    [accessToken, currentWorkspace, setConversationLastSeq]
+    [accessToken, setConversationLastSeq]
   )
 
   const syncConversationMessages = React.useCallback(
     async (conversationId: string) => {
-      if (!accessToken || !currentWorkspace) {
+      if (!accessToken) {
         setEntries([])
         setHydratedConversationId(null)
         return
@@ -447,7 +439,6 @@ export function GatewayChatSidebar() {
       try {
         const response = await getConversationMessages(
           accessToken,
-          currentWorkspace.id,
           conversationId
         )
         setEntries(mapConversationMessagesToEntries(response.messages))
@@ -461,7 +452,7 @@ export function GatewayChatSidebar() {
         setIsLoadingMessages(false)
       }
     },
-    [accessToken, currentWorkspace, setConversationLastSeq]
+    [accessToken, setConversationLastSeq]
   )
 
   React.useEffect(() => {
@@ -990,7 +981,7 @@ export function GatewayChatSidebar() {
 
   const recoverConversationEvents = React.useEffectEvent(
     async (conversationId: string, keepPolling = true) => {
-      if (!accessToken || !currentWorkspace || !conversationId) {
+      if (!accessToken || !conversationId) {
         return
       }
 
@@ -1016,7 +1007,6 @@ export function GatewayChatSidebar() {
         const afterSeq = conversationSeqRef.current.get(conversationId)
         const response = await getConversationEvents(
           accessToken,
-          currentWorkspace.id,
           conversationId,
           {
             afterSeq,
@@ -1064,7 +1054,7 @@ export function GatewayChatSidebar() {
       runId?: string | null,
       afterSeq?: number | null
     ) => {
-      if (!accessToken || !currentWorkspace || !conversationId) {
+      if (!accessToken || !conversationId) {
         return
       }
 
@@ -1088,7 +1078,6 @@ export function GatewayChatSidebar() {
       try {
         await subscribeConversationEvents(
           accessToken,
-          currentWorkspace.id,
           conversationId,
           {
             runId,
@@ -1240,7 +1229,7 @@ export function GatewayChatSidebar() {
   }, [])
 
   React.useEffect(() => {
-    if (!accessToken || !currentWorkspace || !currentConversationId) {
+    if (!accessToken || !currentConversationId) {
       return
     }
 
@@ -1258,9 +1247,7 @@ export function GatewayChatSidebar() {
 
     const pending = readPendingConversationResumeState()
     const pendingMatches =
-      pending &&
-      pending.workspaceId === currentWorkspace.id &&
-      pending.conversationId === currentConversationId
+      pending && pending.conversationId === currentConversationId
         ? pending
         : null
     const liveRunId = selectedLiveRun?.id ?? null
@@ -1290,7 +1277,6 @@ export function GatewayChatSidebar() {
   }, [
     accessToken,
     currentConversationId,
-    currentWorkspace,
     hydratedConversationId,
     selectedConversation?.current_run_id,
     selectedLiveRun?.id,
@@ -1320,7 +1306,7 @@ export function GatewayChatSidebar() {
     const conversationId =
       activeStreamConversationIdRef.current ?? currentConversationIdRef.current
 
-    if (!conversationId || !accessToken || !currentWorkspace) {
+    if (!conversationId || !accessToken) {
       abortRef.current?.abort()
       return
     }
@@ -1328,7 +1314,7 @@ export function GatewayChatSidebar() {
     setError(null)
 
     try {
-      await stopConversationRun(accessToken, currentWorkspace.id, conversationId)
+      await stopConversationRun(accessToken, conversationId)
     } catch (stopError) {
       const message =
         stopError instanceof Error ? stopError.message : "停止当前会话运行失败。"
@@ -1412,7 +1398,7 @@ export function GatewayChatSidebar() {
 
   // Core send flow: shared by normal send and guided injection fallback.
   async function sendContentToApi(content: string, mode?: "guided") {
-    if (!accessToken || !currentWorkspace || !content.trim()) {
+    if (!accessToken || !content.trim()) {
       return
     }
     const sandboxPayload = selectedSandboxEnvironmentId
@@ -1451,7 +1437,6 @@ export function GatewayChatSidebar() {
         let deliveredInline = false
         await streamConversationSend(
           accessToken,
-          currentWorkspace.id,
           {
             conversation_id: targetConversationId,
             content,
@@ -1581,7 +1566,6 @@ export function GatewayChatSidebar() {
       let queued = false
       await streamConversationSend(
         accessToken,
-        currentWorkspace.id,
         {
           conversation_id: targetConversationId,
           content,
@@ -1675,7 +1659,7 @@ export function GatewayChatSidebar() {
 
   async function handleSend() {
     const content = composer.trim()
-    if (!content || !accessToken || !currentWorkspace) {
+    if (!content || !accessToken) {
       return
     }
 
@@ -1698,12 +1682,11 @@ export function GatewayChatSidebar() {
     }
 
     const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
-    if (dbId && accessToken && currentWorkspace && currentConversationId) {
+    if (dbId && accessToken && currentConversationId) {
       const guidedEntryId = beginGuidedUserTurn(item.content)
       setPreInputQueue((prev) => prev.filter((queueItem) => queueItem.id !== id))
       void promotePendingInput(
         accessToken,
-        currentWorkspace.id,
         currentConversationId,
         dbId
       ).catch((promoteError) => {
@@ -1735,7 +1718,7 @@ export function GatewayChatSidebar() {
     }
 
     const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
-    if (dbId && accessToken && currentWorkspace && currentConversationId) {
+    if (dbId && accessToken && currentConversationId) {
       setPreInputQueue((prev) =>
         prev.map((queueItem) =>
           queueItem.id === id ? { ...queueItem, status: "deleting" } : queueItem
@@ -1743,7 +1726,6 @@ export function GatewayChatSidebar() {
       )
       void deletePendingInput(
         accessToken,
-        currentWorkspace.id,
         currentConversationId,
         dbId
       )

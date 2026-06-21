@@ -1,6 +1,5 @@
 export type PendingConversationResumeState = {
   conversationId: string
-  workspaceId: string
   runId?: string | null
   afterSeq?: number | null
 }
@@ -22,16 +21,13 @@ export function readPendingConversationResumeState(): PendingConversationResumeS
     if (
       !parsed ||
       typeof parsed.conversationId !== "string" ||
-      !parsed.conversationId.trim() ||
-      typeof parsed.workspaceId !== "string" ||
-      !parsed.workspaceId.trim()
+      !parsed.conversationId.trim()
     ) {
       return null
     }
 
     return {
       conversationId: parsed.conversationId,
-      workspaceId: parsed.workspaceId,
       runId: typeof parsed.runId === "string" ? parsed.runId : null,
       afterSeq:
         typeof parsed.afterSeq === "number" && Number.isFinite(parsed.afterSeq)

@@ -89,7 +89,6 @@ export type WorkspaceObjectContentResponse = {
 
 export type Conversation = {
   id: string
-  workspace_id: string
   created_by: string
   title: string
   visibility: string
@@ -875,13 +874,11 @@ export function deleteWorkspaceObject(
 
 export function createConversation(
   accessToken: string,
-  workspaceId: string,
   payload: { title: string }
 ) {
   return requestJson<Conversation>("/gateway/v1/conversations/create", {
     method: "POST",
     accessToken,
-    workspaceId,
     body: payload,
   })
 }
@@ -910,7 +907,6 @@ export function listConversations(
 
 export function getConversation(
   accessToken: string,
-  workspaceId: string,
   conversationId: string
 ) {
   const params = new URLSearchParams({
@@ -921,14 +917,12 @@ export function getConversation(
     `/gateway/v1/conversations/get?${params.toString()}`,
     {
       accessToken,
-      workspaceId,
     }
   )
 }
 
 export function getConversationMessages(
   accessToken: string,
-  workspaceId: string,
   conversationId: string
 ) {
   const params = new URLSearchParams({
@@ -939,7 +933,6 @@ export function getConversationMessages(
     `/gateway/v1/conversations/messages?${params.toString()}`,
     {
       accessToken,
-      workspaceId,
     }
   )
 }
@@ -1216,7 +1209,6 @@ export function resumeRunWithApproval(
 
 export async function getConversationEvents(
   accessToken: string,
-  workspaceId: string,
   conversationId: string,
   options?: {
     afterSeq?: number
@@ -1238,7 +1230,6 @@ export async function getConversationEvents(
     next_seq?: number | null
   }>(`/gateway/v1/conversations/events?${params.toString()}`, {
     accessToken,
-    workspaceId,
   })
 
   return {
@@ -1251,7 +1242,6 @@ export async function getConversationEvents(
 
 export async function subscribeConversationEvents(
   accessToken: string,
-  workspaceId: string,
   conversationId: string,
   options: {
     runId?: string | null
@@ -1276,7 +1266,6 @@ export async function subscribeConversationEvents(
       method: "GET",
       headers: buildHeaders({
         accessToken,
-        workspaceId,
         accept: "text/event-stream, application/json",
       }),
       signal: options.signal,
@@ -1307,7 +1296,6 @@ export async function subscribeConversationEvents(
 
 export async function streamConversationSend(
   accessToken: string,
-  workspaceId: string,
   payload: {
     conversation_id: string
     content: string
@@ -1328,7 +1316,6 @@ export async function streamConversationSend(
     headers: {
       ...buildHeaders({
         accessToken,
-        workspaceId,
         accept: "text/event-stream, application/json",
       }),
       "Content-Type": "application/json",
@@ -1361,7 +1348,6 @@ export async function streamConversationSend(
 
 export function stopConversationRun(
   accessToken: string,
-  workspaceId: string,
   conversationId: string
 ) {
   return requestJson<{
@@ -1372,7 +1358,6 @@ export function stopConversationRun(
   }>("/gateway/v1/conversations/stop", {
     method: "POST",
     accessToken,
-    workspaceId,
     body: {
       conversation_id: conversationId,
     },
@@ -1395,21 +1380,18 @@ export type PendingInputItem = {
 
 export function getPendingInputs(
   accessToken: string,
-  workspaceId: string,
   conversationId: string
 ) {
   return requestJson<{ pending_inputs: PendingInputItem[] }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs`,
     {
       accessToken,
-      workspaceId,
     }
   )
 }
 
 export function promotePendingInput(
   accessToken: string,
-  workspaceId: string,
   conversationId: string,
   pendingId: number
 ) {
@@ -1418,14 +1400,12 @@ export function promotePendingInput(
     {
       method: "PATCH",
       accessToken,
-      workspaceId,
     }
   )
 }
 
 export function deletePendingInput(
   accessToken: string,
-  workspaceId: string,
   conversationId: string,
   pendingId: number
 ) {
@@ -1434,7 +1414,6 @@ export function deletePendingInput(
     {
       method: "DELETE",
       accessToken,
-      workspaceId,
     }
   )
 }

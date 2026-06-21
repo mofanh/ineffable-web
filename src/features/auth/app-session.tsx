@@ -310,11 +310,11 @@ export function AppSessionProvider({
 
   const createConversationForWorkspace = React.useCallback(
     async (title: string) => {
-      if (!accessToken || !currentWorkspaceId) {
-        throw new Error("当前未绑定工作区。")
+      if (!accessToken) {
+        throw new Error("当前未登录。")
       }
 
-      const conversation = await createConversation(accessToken, currentWorkspaceId, {
+      const conversation = await createConversation(accessToken, {
         title,
       })
 
@@ -326,7 +326,7 @@ export function AppSessionProvider({
       writeStorage(STORAGE_KEYS.conversationId, conversation.id)
       return conversation
     },
-    [accessToken, currentWorkspaceId]
+    [accessToken]
   )
 
   const selectConversation = React.useCallback((conversationId: string | null) => {
