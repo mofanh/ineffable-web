@@ -163,6 +163,10 @@ function getWorkspaceBreadcrumbs(
     return [{ label: "Team Spaces" }, { label: "Create Workspace" }]
   }
 
+  if (pathname === "/notifications") {
+    return [{ label: "Notifications" }]
+  }
+
   const membersMatch = pathname.match(/^\/team-spaces\/([^/]+)\/members$/)
   if (membersMatch) {
     const workspaceId = decodeURIComponent(membersMatch[1])

@@ -65,6 +65,11 @@ export type WorkspaceInvitation = {
   updated_at: string
 }
 
+export type IncomingWorkspaceInvitation = {
+  invitation: WorkspaceInvitation
+  workspace: Workspace
+}
+
 export type WorkspaceTreeResponse = {
   workspace_id: string
   user_id: string
@@ -684,6 +689,15 @@ export function listWorkspaceInvitations(accessToken: string, workspaceId: strin
   )
 }
 
+export function listIncomingWorkspaceInvitations(accessToken: string) {
+  return requestJson<{ invitations: IncomingWorkspaceInvitation[] }>(
+    "/gateway/v1/workspace-invitations/incoming",
+    {
+      accessToken,
+    }
+  )
+}
+
 export function revokeWorkspaceInvitation(
   accessToken: string,
   workspaceId: string,
@@ -708,6 +722,23 @@ export function acceptWorkspaceInvitation(accessToken: string, token: string) {
     method: "POST",
     accessToken,
   })
+}
+
+export function acceptWorkspaceInvitationById(
+  accessToken: string,
+  invitationId: string
+) {
+  return requestJson<{
+    workspace: Workspace
+    membership: WorkspaceMembership
+    invitation: WorkspaceInvitation
+  }>(
+    `/gateway/v1/workspace-invitations/${encodeURIComponent(invitationId)}/accept-by-id`,
+    {
+      method: "POST",
+      accessToken,
+    }
+  )
 }
 
 export function listWorkspaceTree(accessToken: string, workspaceId: string) {

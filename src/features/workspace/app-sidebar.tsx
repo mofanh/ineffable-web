@@ -43,6 +43,7 @@ import {
   createWorkspaceFolder,
   deleteWorkspaceObject,
   getWorkspaceObjectContent,
+  listIncomingWorkspaceInvitations,
   listWorkspaceTree,
   renameMoveWorkspaceObject,
   type Workspace,
@@ -66,8 +67,6 @@ import {
   BellIcon,
   BotIcon,
   BrainIcon,
-  Building2Icon,
-  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -144,68 +143,11 @@ type SpaceSectionAction =
   | "export"
   | "delete"
 
-function SpaceSectionMenu({
-  title,
-  onAction,
-}: {
-  title: string
-  onAction: (action: SpaceSectionAction) => void
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`${title} actions`}
-          className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <MoreHorizontalIcon className="size-4" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="start" className="w-60 rounded-lg p-1">
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("copy-link")}>
-          <LinkIcon />
-          <span>Copy Link</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("open-new-tab")}>
-          <ExternalLinkIcon />
-          <span>Open in New Tab</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("create-team")}>
-          <Building2Icon />
-          <span>Create Team Space</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("invite-members")}>
-          <UserPlusIcon />
-          <span>Invite Members</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("manage-members")}>
-          <UsersIcon />
-          <span>Manage Members</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("rename")}>
-          <PencilIcon />
-          <span>Rename</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 rounded-md" onClick={() => onAction("export")}>
-          <DownloadIcon />
-          <span>Export</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="gap-2 rounded-md text-destructive focus:text-destructive"
-          onClick={() => onAction("delete")}
-        >
-          <Trash2Icon />
-          <span>Delete</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
+type TeamWorkspaceAction =
+  | "copy-link"
+  | "open-new-tab"
+  | "invite-members"
+  | "manage-members"
 
 function WorkspaceObjectMenu({
   item,
@@ -289,18 +231,63 @@ function WorkspaceObjectMenu({
   )
 }
 
+function TeamWorkspaceMenu({
+  item,
+  onAction,
+}: {
+  item: SidebarEntry
+  onAction: (action: TeamWorkspaceAction, item: SidebarEntry) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuAction
+          showOnHover
+          aria-label={`${item.title} actions`}
+          onClick={(event) => {
+            event.stopPropagation()
+          }}
+        >
+          <MoreHorizontalIcon />
+        </SidebarMenuAction>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-56">
+        <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
+          <LinkIcon />
+          <span>Copy Link</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onAction("open-new-tab", item)}>
+          <ExternalLinkIcon />
+          <span>Open in New Tab</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onAction("invite-members", item)}>
+          <UserPlusIcon />
+          <span>Invite Members</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onAction("manage-members", item)}>
+          <UsersIcon />
+          <span>Manage Members</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function SidebarEntryButton({
   item,
   selectedEntryId,
   onSelectEntry,
   onOpenEntry,
   onAction,
+  onTeamAction,
 }: {
   item: SidebarEntry
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
   onOpenEntry: (item: SidebarEntry) => void
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
+  onTeamAction?: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
   const depthClass =
     item.depth === 2 ? "pl-12" : item.depth === 1 ? "pl-7" : undefined
@@ -320,7 +307,9 @@ function SidebarEntryButton({
         <EntryIcon item={item} />
         <span>{item.title}</span>
       </SidebarMenuButton>
-      {item.workspaceId ? (
+      {item.isWorkspaceRoot && item.accent === "team" && onTeamAction ? (
+        <TeamWorkspaceMenu item={item} onAction={onTeamAction} />
+      ) : item.workspaceId ? (
         <WorkspaceObjectMenu item={item} onAction={onAction} />
       ) : null}
     </SidebarMenuItem>
@@ -370,11 +359,14 @@ function SpaceSection({
   error,
   canCreate,
   actionMenu,
+  createMode = "object",
   selectedEntryId,
   onSelectEntry,
   onOpenEntry,
   onCreate,
+  onCreateTeam,
   onAction,
+  onTeamAction,
 }: {
   title: string
   entries: SidebarEntry[]
@@ -383,11 +375,14 @@ function SpaceSection({
   error?: string | null
   canCreate?: boolean
   actionMenu?: React.ReactNode
+  createMode?: "object" | "team"
   selectedEntryId: string
   onSelectEntry: (entryId: string) => void
   onOpenEntry: (item: SidebarEntry) => void
   onCreate: (kind: "file" | "folder") => void
+  onCreateTeam?: () => void
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
+  onTeamAction?: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
   return (
     <SidebarGroup className="gap-2">
@@ -396,7 +391,16 @@ function SpaceSection({
           {title}
         </SidebarGroupLabel>
         {actionMenu}
-        {canCreate ? (
+        {canCreate && createMode === "team" ? (
+          <button
+            type="button"
+            aria-label={`Create ${title}`}
+            className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            onClick={onCreateTeam}
+          >
+            <PlusIcon className="size-4" />
+          </button>
+        ) : canCreate ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -431,6 +435,7 @@ function SpaceSection({
                 onSelectEntry={onSelectEntry}
                 onOpenEntry={onOpenEntry}
                 onAction={onAction}
+                onTeamAction={onTeamAction}
               />
             ))
           ) : (
@@ -446,38 +451,9 @@ function SpaceSection({
   )
 }
 
-function WorkspaceMenuItem({
-  title,
-  description,
-  active,
-  onSelect,
-}: {
-  title: string
-  description?: string
-  active?: boolean
-  onSelect?: () => void
-}) {
-  return (
-    <DropdownMenuItem className="items-start gap-2 py-2" onClick={onSelect}>
-      <Building2Icon className="mt-0.5 text-muted-foreground" />
-      <div className="grid min-w-0 flex-1 gap-0.5">
-        <span className="truncate font-medium">{title}</span>
-        {description ? (
-          <span className="truncate text-xs text-muted-foreground">
-            {description}
-          </span>
-        ) : null}
-      </div>
-      {active ? <CheckIcon className="mt-0.5 text-muted-foreground" /> : null}
-    </DropdownMenuItem>
-  )
-}
-
 function WorkspaceAccountSwitcher({
   user,
-  workspaces,
-  currentWorkspace,
-  onSelectWorkspace,
+  pendingInvitationCount,
   onLogout,
 }: {
   user: {
@@ -485,9 +461,7 @@ function WorkspaceAccountSwitcher({
     email: string
     avatar: string
   }
-  workspaces: Workspace[]
-  currentWorkspace: Workspace | null
-  onSelectWorkspace: (workspaceId: string) => void
+  pendingInvitationCount: number
   onLogout?: () => void
 }) {
   const { isMobile } = useSidebar()
@@ -497,17 +471,6 @@ function WorkspaceAccountSwitcher({
     .join("")
     .slice(0, 2)
     .toUpperCase()
-  const personalWorkspaces = workspaces.filter(
-    (workspace) => getWorkspaceType(workspace) === "personal"
-  )
-  const teamWorkspaces = workspaces.filter(
-    (workspace) => getWorkspaceType(workspace) === "team"
-  )
-  const workspaceDescription = (workspace: Workspace) =>
-    getWorkspaceType(workspace) === "personal"
-      ? "Private workspace"
-      : "Team workspace"
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -546,65 +509,6 @@ function WorkspaceAccountSwitcher({
             </div>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Current Workspace</DropdownMenuLabel>
-        {currentWorkspace ? (
-          <WorkspaceMenuItem
-            title={currentWorkspace.name}
-            description={workspaceDescription(currentWorkspace)}
-            active
-          />
-        ) : (
-          <DropdownMenuItem disabled className="text-muted-foreground">
-            No workspace selected
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Switch Workspace</DropdownMenuLabel>
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 pb-0 pt-1 text-[11px] uppercase tracking-normal">
-            Personal
-          </DropdownMenuLabel>
-          {personalWorkspaces.length ? (
-            personalWorkspaces.map((workspace) => (
-              <WorkspaceMenuItem
-                key={workspace.id}
-                title={workspace.name}
-                description={workspaceDescription(workspace)}
-                active={currentWorkspace?.id === workspace.id}
-                onSelect={() => onSelectWorkspace(workspace.id)}
-              />
-            ))
-          ) : (
-            <DropdownMenuItem disabled className="text-muted-foreground">
-              No personal space
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuLabel className="px-2 pb-0 pt-1 text-[11px] uppercase tracking-normal">
-            Team
-          </DropdownMenuLabel>
-          {teamWorkspaces.length ? (
-            teamWorkspaces.map((workspace) => (
-              <WorkspaceMenuItem
-                key={workspace.id}
-                title={workspace.name}
-                description={workspaceDescription(workspace)}
-                active={currentWorkspace?.id === workspace.id}
-                onSelect={() => onSelectWorkspace(workspace.id)}
-              />
-            ))
-          ) : (
-            <DropdownMenuItem disabled className="text-muted-foreground">
-              No team spaces
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <PlusIcon />
-          <span>Create Workspace</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem>
           <PackageIcon />
           <span>Integrations</span>
@@ -635,9 +539,14 @@ function WorkspaceAccountSwitcher({
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link to="/settings/general">
+            <Link to="/notifications">
               <BellIcon />
               <span>Notifications</span>
+              {pendingInvitationCount > 0 ? (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                  {pendingInvitationCount > 99 ? "99+" : pendingInvitationCount}
+                </span>
+              ) : null}
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
@@ -674,7 +583,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     currentUser,
     currentWorkspace,
     logout,
-    selectWorkspace,
     workspaces,
   } = useAppSession()
   const location = useLocation()
@@ -686,6 +594,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   )
   const [isTreeLoading, setIsTreeLoading] = React.useState(false)
   const [treeError, setTreeError] = React.useState<string | null>(null)
+  const [pendingInvitationCount, setPendingInvitationCount] = React.useState(0)
 
   React.useEffect(() => {
     const match = location.pathname.match(/^\/workspace\/[^/]+\/objects\/([^/]+)/)
@@ -765,6 +674,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       cancelled = true
     }
   }, [accessToken, refreshWorkspaceTrees, workspaces])
+
+  React.useEffect(() => {
+    if (!accessToken) {
+      setPendingInvitationCount(0)
+      return
+    }
+
+    let cancelled = false
+
+    void listIncomingWorkspaceInvitations(accessToken)
+      .then((response) => {
+        if (!cancelled) {
+          setPendingInvitationCount(response.invitations.length)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPendingInvitationCount(0)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, workspaces])
 
   React.useEffect(() => {
     const handleWorkspaceObjectsChanged = (event: Event) => {
@@ -1169,11 +1103,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   )
 
   const handleTeamSpaceAction = React.useCallback(
-    (action: SpaceSectionAction) => {
-      const selectedTeam =
-        currentWorkspace && getWorkspaceType(currentWorkspace) === "team"
-          ? currentWorkspace
-          : teamWorkspaces[0]
+    (action: SpaceSectionAction, workspaceId?: string) => {
+      let selectedTeam = workspaceId
+        ? teamWorkspaces.find((workspace) => workspace.id === workspaceId)
+        : undefined
+      if (!selectedTeam && currentWorkspace && getWorkspaceType(currentWorkspace) === "team") {
+        selectedTeam = currentWorkspace
+      }
+      selectedTeam ??= teamWorkspaces[0]
 
       if (action === "copy-link") {
         if (!selectedTeam) {
@@ -1216,6 +1153,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       window.alert("Team Space actions are coming next.")
     },
     [currentWorkspace, navigate, teamWorkspaces]
+  )
+
+  const handleTeamWorkspaceAction = React.useCallback(
+    (action: TeamWorkspaceAction, item: SidebarEntry) => {
+      handleTeamSpaceAction(action, item.workspaceId)
+    },
+    [handleTeamSpaceAction]
   )
 
   const openEntry = React.useCallback(
@@ -1275,13 +1219,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           emptyLabel="No team spaces"
           isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
           error={treeError}
-          canCreate={Boolean(teamWorkspaces.length)}
-          actionMenu={
-            <SpaceSectionMenu title="Team Spaces" onAction={handleTeamSpaceAction} />
-          }
+          canCreate
+          createMode="team"
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
           onOpenEntry={openEntry}
+          onCreateTeam={() => navigate("/team-spaces/new")}
           onCreate={(kind) => {
             const workspace = getSectionWorkspace(teamWorkspaces)
             if (!workspace) {
@@ -1291,6 +1234,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             void createObject({ workspace, kind })
           }}
           onAction={handleObjectAction}
+          onTeamAction={handleTeamWorkspaceAction}
         />
         <SpaceSection
           title="Personal Space"
@@ -1324,11 +1268,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 email: currentUser?.email || "未登录",
                 avatar: currentUser?.avatar_url || "",
               }}
-              workspaces={workspaces}
-              currentWorkspace={currentWorkspace}
-              onSelectWorkspace={(workspaceId) => {
-                void selectWorkspace(workspaceId)
-              }}
+              pendingInvitationCount={pendingInvitationCount}
               onLogout={() => {
                 void logout()
               }}

@@ -1,5 +1,6 @@
 export {
   acceptWorkspaceInvitation,
+  acceptWorkspaceInvitationById,
   createWorkspace,
   createWorkspaceFile,
   createWorkspaceFolder,
@@ -7,6 +8,7 @@ export {
   getWorkspaceObjectContent,
   getWorkspaceObjectVersionContent,
   inviteWorkspaceMember,
+  listIncomingWorkspaceInvitations,
   listWorkspaceInvitations,
   listWorkspaceMembers,
   listWorkspaceObjectVersions,
@@ -19,6 +21,7 @@ export {
   updateWorkspaceMemberRole,
   updateWorkspaceObjectContent,
   type Workspace,
+  type IncomingWorkspaceInvitation,
   type WorkspaceInvitation,
   type WorkspaceMembership,
   type WorkspaceObject,

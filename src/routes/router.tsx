@@ -48,6 +48,7 @@ import {
   AcceptWorkspaceInvitationPage,
   CreateTeamWorkspacePage,
   TeamWorkspaceMembersPage,
+  WorkspaceNotificationsPage,
 } from "@/pages/team-workspace-pages"
 import { WorkspaceObjectEditorPage } from "@/pages/workspace-object-editor-page"
 import { defaultPath } from "@/routes/navigation"
@@ -70,6 +71,7 @@ const routeElements: Record<string, React.ReactElement> = {
   "/models/genesis": <GenesisPage />,
   "/models/explorer": <ExplorerPage />,
   "/models/quantum": <QuantumPage />,
+  "/notifications": <WorkspaceNotificationsPage />,
   "/docs": <DocsCenterPage />,
   "/docs/introduction": <DocsIntroductionPage />,
   "/docs/get-started": <DocsGetStartedPage />,
