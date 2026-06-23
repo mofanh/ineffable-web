@@ -47,7 +47,10 @@ type ConversationSessionContextValue = {
   conversations: Conversation[]
   currentConversationId: string | null
   refreshConversations: () => Promise<void>
-  createConversation: (title: string) => Promise<Conversation>
+  createConversation: (
+    title: string,
+    options?: { agent_profile_id?: string | null }
+  ) => Promise<Conversation>
   selectConversation: (conversationId: string | null) => void
 }
 
@@ -309,13 +312,14 @@ export function AppSessionProvider({
   )
 
   const createConversationForWorkspace = React.useCallback(
-    async (title: string) => {
+    async (title: string, options?: { agent_profile_id?: string | null }) => {
       if (!accessToken) {
         throw new Error("当前未登录。")
       }
 
       const conversation = await createConversation(accessToken, {
         title,
+        agent_profile_id: options?.agent_profile_id,
       })
 
       setConversations((current) => {

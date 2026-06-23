@@ -1077,7 +1077,7 @@ export function replaceAgentProfileRules(
 
 export function createConversation(
   accessToken: string,
-  payload: { title: string }
+  payload: { title: string; agent_profile_id?: string | null }
 ) {
   return requestJson<Conversation>("/gateway/v1/conversations/create", {
     method: "POST",

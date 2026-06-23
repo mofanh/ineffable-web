@@ -80,6 +80,10 @@ import {
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/features/chat/api/chat-api"
+import {
+  listAgentProfiles,
+  type AgentProfile,
+} from "@/lib/api/gateway-client"
 import type {
   GatewayChatFinalResult,
   GatewayChatStreamEnvelope,
@@ -120,6 +124,8 @@ export function GatewayChatSidebar() {
     { environmentId: string; label: string; status: string }[]
   >([])
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
+  const [agentProfiles, setAgentProfiles] = React.useState<AgentProfile[]>([])
+  const [selectedAgentProfileId, setSelectedAgentProfileId] = React.useState("default")
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
@@ -169,6 +175,32 @@ export function GatewayChatSidebar() {
       }
     }
   }, [])
+
+  React.useEffect(() => {
+    if (!accessToken) {
+      setAgentProfiles([])
+      return
+    }
+    let cancelled = false
+    void listAgentProfiles(accessToken)
+      .then((response) => {
+        if (cancelled) {
+          return
+        }
+        setAgentProfiles(response.profiles)
+        if (!response.profiles.some((profile) => profile.id === selectedAgentProfileId)) {
+          setSelectedAgentProfileId(response.profiles[0]?.id ?? "default")
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAgentProfiles([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, selectedAgentProfileId])
 
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
@@ -275,6 +307,10 @@ export function GatewayChatSidebar() {
   const isSending = streamStatus === "streaming" || streamStatus === "recovering"
   const selectedConversationTitle =
     selectedConversation?.title || "梳理前端用户与会话管理接入需求"
+  const activeAgentProfileId =
+    selectedConversation?.agent_profile_id || selectedAgentProfileId || "default"
+  const activeAgentProfile =
+    agentProfiles.find((profile) => profile.id === activeAgentProfileId) ?? null
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {
@@ -1508,7 +1544,9 @@ export function GatewayChatSidebar() {
 
     let targetConversationId = currentConversationId
     if (!targetConversationId) {
-      const createdConversation = await createConversation(buildConversationTitle(content))
+      const createdConversation = await createConversation(buildConversationTitle(content), {
+        agent_profile_id: selectedAgentProfileId || "default",
+      })
       targetConversationId = createdConversation.id
       skipNextConversationSyncRef.current = targetConversationId
       if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
@@ -1775,6 +1813,37 @@ export function GatewayChatSidebar() {
         onStartNewChat={startNewChat}
         onCollapseSidebar={toggleSidebar}
       />
+
+      <div className="border-sidebar-border bg-sidebar/50 border-b px-3 py-2">
+        <label className="text-sidebar-foreground/70 mb-1 block text-xs font-medium">
+          AI Teammate
+        </label>
+        <select
+          className="border-sidebar-border bg-background text-foreground h-8 w-full rounded-md border px-2 text-sm disabled:opacity-70"
+          value={activeAgentProfileId}
+          disabled={Boolean(currentConversationId)}
+          onChange={(event) => setSelectedAgentProfileId(event.target.value)}
+          title={
+            currentConversationId
+              ? "当前会话已绑定 AI Teammate，切换请新建会话。"
+              : "选择新会话使用的 AI Teammate。"
+          }
+        >
+          {(agentProfiles.length > 0
+            ? agentProfiles
+            : [{ id: "default", name: "Default Agent" } as AgentProfile]
+          ).map((profile) => (
+            <option key={profile.id} value={profile.id}>
+              {profile.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-sidebar-foreground/50 mt-1 text-xs">
+          {currentConversationId
+            ? `当前会话绑定：${activeAgentProfile?.name ?? activeAgentProfileId}`
+            : "将在创建新会话时绑定。"}
+        </p>
+      </div>
 
       <SidebarContent className="bg-sidebar/50">
         <ChatMessageList
