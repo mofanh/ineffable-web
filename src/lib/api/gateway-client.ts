@@ -996,6 +996,61 @@ export function listAgentRules(accessToken: string) {
   })
 }
 
+export function createAgentRule(
+  accessToken: string,
+  payload: {
+    name: string
+    kind: AgentRuleKind
+    content: string
+    enabled?: boolean
+  }
+) {
+  return requestJson<{ rule: AgentRule }>("/gateway/v1/agent-rules", {
+    method: "POST",
+    accessToken,
+    body: payload,
+  })
+}
+
+export function getAgentRule(accessToken: string, ruleId: string) {
+  return requestJson<{ rule: AgentRule }>(
+    `/gateway/v1/agent-rules/${encodeURIComponent(ruleId)}`,
+    {
+      accessToken,
+    }
+  )
+}
+
+export function updateAgentRule(
+  accessToken: string,
+  ruleId: string,
+  payload: {
+    name?: string
+    kind?: AgentRuleKind
+    content?: string
+    enabled?: boolean
+  }
+) {
+  return requestJson<{ rule: AgentRule }>(
+    `/gateway/v1/agent-rules/${encodeURIComponent(ruleId)}`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: payload,
+    }
+  )
+}
+
+export function deleteAgentRule(accessToken: string, ruleId: string) {
+  return requestJson<{ rule: AgentRule }>(
+    `/gateway/v1/agent-rules/${encodeURIComponent(ruleId)}`,
+    {
+      method: "DELETE",
+      accessToken,
+    }
+  )
+}
+
 export function getAgentProfileRules(accessToken: string, profileId: string) {
   return requestJson<{ rules: AgentRule[] }>(
     `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/rules`,

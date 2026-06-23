@@ -9,15 +9,19 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   createAgentProfile,
+  createAgentRule,
   deleteAgentProfile,
+  deleteAgentRule,
   getAgentProfile,
   getAgentProfileRules,
   listAgentProfiles,
   listAgentRules,
   replaceAgentProfileRules,
   updateAgentProfile,
+  updateAgentRule,
   type AgentProfile,
   type AgentRule,
+  type AgentRuleKind,
 } from "@/lib/api/gateway-client"
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
 
@@ -413,21 +417,261 @@ export function AiTeammateDetailPage() {
 }
 
 export function AgentResourcesPage() {
+  const accessToken = useAccessToken()
+  const [rules, setRules] = React.useState<AgentRule[]>([])
+  const [editingRule, setEditingRule] = React.useState<AgentRule | null>(null)
+  const [form, setForm] = React.useState<{
+    name: string
+    kind: AgentRuleKind
+    content: string
+    enabled: boolean
+  }>({
+    name: "",
+    kind: "behavior",
+    content: "",
+    enabled: true,
+  })
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+
+  const reload = React.useCallback(async () => {
+    setError(null)
+    try {
+      const response = await listAgentRules(accessToken)
+      setRules(response.rules)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to load rules")
+    }
+  }, [accessToken])
+
+  React.useEffect(() => {
+    void reload()
+  }, [reload])
+
+  function startEdit(rule: AgentRule) {
+    setEditingRule(rule)
+    setForm({
+      name: rule.name || "",
+      kind: rule.kind,
+      content: rule.content,
+      enabled: rule.enabled,
+    })
+  }
+
+  function resetForm() {
+    setEditingRule(null)
+    setForm({
+      name: "",
+      kind: "behavior",
+      content: "",
+      enabled: true,
+    })
+  }
+
+  async function handleSaveRule(event: React.FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      if (editingRule) {
+        await updateAgentRule(accessToken, editingRule.id, form)
+      } else {
+        await createAgentRule(accessToken, form)
+      }
+      resetForm()
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to save rule")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleToggleRule(rule: AgentRule, enabled: boolean) {
+    setSaving(true)
+    setError(null)
+    try {
+      await updateAgentRule(accessToken, rule.id, { enabled })
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to update rule")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleArchiveRule(rule: AgentRule) {
+    setSaving(true)
+    setError(null)
+    try {
+      await deleteAgentRule(accessToken, rule.id)
+      if (editingRule?.id === rule.id) {
+        resetForm()
+      }
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to archive rule")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <ModuleDashboardPage
       title="Skills, Rules, Memory"
       subtitle="用户个人智能体资产库。"
       metrics={productMetrics({
-        label: "当前优先级",
-        value: "Rules",
-        detail: "下一阶段接入 rules CRUD",
+        label: "Rules",
+        value: String(rules.length),
+        detail: "当前个人 rules 数量",
       })}
       highlights={[
         "Skills / Rules / Memory 是个人资产库。",
         "AI Teammate 从这里选择资产并编译进运行上下文。",
         "第一版先落地 Rules，Skills 和 Memory 后续补齐。",
       ]}
-    />
+    >
+      <ErrorNotice message={error} />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Rules</CardTitle>
+            <CardDescription>创建和维护个人智能体规则。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rules.map((rule) => (
+              <div
+                key={rule.id}
+                className="border-border bg-background rounded-lg border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{rule.name || rule.kind}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {rule.kind} · rev {rule.revision}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={rule.enabled}
+                    disabled={saving}
+                    onCheckedChange={(checked) => void handleToggleRule(rule, checked)}
+                  />
+                </div>
+                <p className="text-muted-foreground mt-3 line-clamp-4 text-sm leading-6">
+                  {rule.content}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startEdit(rule)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => void handleArchiveRule(rule)}
+                  >
+                    Archive
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {rules.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No rules yet.</p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {editingRule ? "Edit rule" : "Create rule"}
+            </CardTitle>
+            <CardDescription>
+              Rules 会被 AI Teammate 绑定后注入 prompt。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-3" onSubmit={handleSaveRule}>
+              <Input
+                placeholder="Rule name"
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, name: event.target.value }))
+                }
+                required
+              />
+              <select
+                className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.kind}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    kind: event.target.value as AgentRuleKind,
+                  }))
+                }
+              >
+                <option value="behavior">behavior</option>
+                <option value="system">system</option>
+                <option value="tool">tool</option>
+              </select>
+              <Textarea
+                placeholder="Rule content"
+                value={form.content}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    content: event.target.value,
+                  }))
+                }
+                rows={8}
+                required
+              />
+              <label className="flex items-center justify-between rounded-lg border p-3 text-sm">
+                Enabled
+                <Switch
+                  checked={form.enabled}
+                  onCheckedChange={(checked) =>
+                    setForm((current) => ({ ...current, enabled: checked }))
+                  }
+                />
+              </label>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Saving..." : editingRule ? "Save rule" : "Create rule"}
+                </Button>
+                {editingRule ? (
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Skills</CardTitle>
+            <CardDescription>后续阶段接入 skill catalog 和绑定。</CardDescription>
+          </CardHeader>
+        </Card>
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Memory</CardTitle>
+            <CardDescription>后续阶段接入显式个人 memory。</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    </ModuleDashboardPage>
   )
 }
 
