@@ -93,9 +93,14 @@ import {
 } from "lucide-react"
 
 const primaryNavItems = [
-  { id: "ai-teammates", title: "AI Teammates", icon: BotIcon },
-  { id: "automation", title: "Automation", icon: ZapIcon },
-  { id: "skills-rules-memory", title: "Skills, Rules, Memory", icon: BrainIcon },
+  { id: "ai-teammates", title: "AI Teammates", icon: BotIcon, path: "/ai-teammates" },
+  { id: "automation", title: "Automation", icon: ZapIcon, path: "/automation" },
+  {
+    id: "skills-rules-memory",
+    title: "Skills, Rules, Memory",
+    icon: BrainIcon,
+    path: "/agent-resources?tab=rules",
+  },
 ]
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
@@ -317,27 +322,35 @@ function SidebarEntryButton({
 }
 
 function PrimaryNav({
-  selectedEntryId,
   onSelectEntry,
 }: {
-  selectedEntryId: string
   onSelectEntry: (entryId: string) => void
 }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+
   return (
     <SidebarGroup className="pt-1">
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
           {primaryNavItems.map((item) => {
             const Icon = item.icon
+            const isActive =
+              location.pathname === item.path.split("?")[0] ||
+              (item.id === "ai-teammates" &&
+                location.pathname.startsWith("/ai-teammates/"))
 
             return (
               <SidebarMenuItem key={item.id}>
                 <SidebarMenuButton
                   type="button"
                   size="lg"
-                  isActive={selectedEntryId === item.id}
+                  isActive={isActive}
                   tooltip={item.title}
-                  onClick={() => onSelectEntry(item.id)}
+                  onClick={() => {
+                    onSelectEntry(item.id)
+                    navigate(item.path)
+                  }}
                 >
                   <Icon className="text-sidebar-foreground/70" />
                   <span>{item.title}</span>
@@ -1209,7 +1222,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent className="px-0">
         <PrimaryNav
-          selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
         />
         <SidebarSeparator />
