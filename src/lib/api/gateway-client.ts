@@ -118,6 +118,12 @@ export type AgentRule = {
   revision: number
 }
 
+export type AgentSkillRef = {
+  name: string
+  source?: string | null
+  enabled: boolean
+}
+
 export type AgentProfile = {
   id: string
   owner_user_id: string
@@ -127,7 +133,7 @@ export type AgentProfile = {
   status: "draft" | "active" | "archived" | string
   revision: number
   default_model?: string | null
-  skills?: unknown[]
+  skills?: AgentSkillRef[]
   rules?: AgentRule[]
   memory_scopes?: unknown[]
 }
@@ -990,6 +996,21 @@ export function deleteAgentProfile(accessToken: string, profileId: string) {
   )
 }
 
+export function listSkillsCatalog(accessToken: string) {
+  return requestJson<{ skills: AgentSkillRef[] }>("/gateway/v1/skills/catalog", {
+    accessToken,
+  })
+}
+
+export function getSkillDetail(accessToken: string, skillId: string) {
+  return requestJson<{ skill: AgentSkillRef }>(
+    `/gateway/v1/skills/${encodeURIComponent(skillId)}`,
+    {
+      accessToken,
+    }
+  )
+}
+
 export function listAgentRules(accessToken: string) {
   return requestJson<{ rules: AgentRule[] }>("/gateway/v1/agent-rules", {
     accessToken,
@@ -1071,6 +1092,35 @@ export function replaceAgentProfileRules(
       method: "PUT",
       accessToken,
       body: { rules },
+    }
+  )
+}
+
+export function getAgentProfileSkills(accessToken: string, profileId: string) {
+  return requestJson<{ skills: AgentSkillRef[] }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/skills`,
+    {
+      accessToken,
+    }
+  )
+}
+
+export function replaceAgentProfileSkills(
+  accessToken: string,
+  profileId: string,
+  skills: Array<{
+    name: string
+    source?: string | null
+    enabled?: boolean
+    sort_order?: number
+  }>
+) {
+  return requestJson<{ skills: AgentSkillRef[] }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/skills`,
+    {
+      method: "PUT",
+      accessToken,
+      body: { skills },
     }
   )
 }

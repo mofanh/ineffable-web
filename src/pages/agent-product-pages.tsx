@@ -14,14 +14,18 @@ import {
   deleteAgentRule,
   getAgentProfile,
   getAgentProfileRules,
+  getAgentProfileSkills,
   listAgentProfiles,
   listAgentRules,
+  listSkillsCatalog,
   replaceAgentProfileRules,
+  replaceAgentProfileSkills,
   updateAgentProfile,
   updateAgentRule,
   type AgentProfile,
   type AgentRule,
   type AgentRuleKind,
+  type AgentSkillRef,
 } from "@/lib/api/gateway-client"
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
 
@@ -211,7 +215,10 @@ export function AiTeammateDetailPage() {
   const { profileId = "default" } = useParams()
   const [profile, setProfile] = React.useState<AgentProfile | null>(null)
   const [rules, setRules] = React.useState<AgentRule[]>([])
+  const [skillCatalog, setSkillCatalog] = React.useState<AgentSkillRef[]>([])
   const [boundRuleIds, setBoundRuleIds] = React.useState<Set<string>>(new Set())
+  const [boundSkills, setBoundSkills] = React.useState<AgentSkillRef[]>([])
+  const [skillName, setSkillName] = React.useState("")
   const [form, setForm] = React.useState({
     name: "",
     description: "",
@@ -224,14 +231,19 @@ export function AiTeammateDetailPage() {
   const reload = React.useCallback(async () => {
     setError(null)
     try {
-      const [profileResponse, rulesResponse, bindingsResponse] = await Promise.all([
-        getAgentProfile(accessToken, profileId),
-        listAgentRules(accessToken),
-        getAgentProfileRules(accessToken, profileId),
-      ])
+      const [profileResponse, rulesResponse, bindingsResponse, skillsResponse, catalogResponse] =
+        await Promise.all([
+          getAgentProfile(accessToken, profileId),
+          listAgentRules(accessToken),
+          getAgentProfileRules(accessToken, profileId),
+          getAgentProfileSkills(accessToken, profileId),
+          listSkillsCatalog(accessToken),
+        ])
       setProfile(profileResponse.profile)
       setRules(rulesResponse.rules)
       setBoundRuleIds(new Set(bindingsResponse.rules.map((rule) => rule.id)))
+      setBoundSkills(skillsResponse.skills)
+      setSkillCatalog(catalogResponse.skills)
       setForm({
         name: profileResponse.profile.name,
         description: profileResponse.profile.description || "",
@@ -278,6 +290,38 @@ export function AiTeammateDetailPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleSaveSkills(nextSkills = boundSkills) {
+    setSaving(true)
+    setError(null)
+    try {
+      await replaceAgentProfileSkills(
+        accessToken,
+        profileId,
+        nextSkills.map((skill, index) => ({
+          name: skill.name,
+          source: skill.source,
+          enabled: skill.enabled,
+          sort_order: index,
+        }))
+      )
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to bind skills")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleAddSkill(event: React.FormEvent) {
+    event.preventDefault()
+    const name = skillName.trim()
+    if (!name || boundSkills.some((skill) => skill.name === name)) {
+      return
+    }
+    setBoundSkills((current) => [...current, { name, enabled: true }])
+    setSkillName("")
   }
 
   async function handleArchive() {
@@ -412,6 +456,84 @@ export function AiTeammateDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-muted/50">
+        <CardHeader>
+          <CardTitle className="text-base">Skills</CardTitle>
+          <CardDescription>
+            绑定后会进入 teammate 的 skill allowlist。当前 catalog 可为空，可手动输入 skill name。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <form className="flex gap-2" onSubmit={handleAddSkill}>
+            <Input
+              list="agent-skill-catalog"
+              placeholder="Skill name, e.g. deploy"
+              value={skillName}
+              disabled={isDefault}
+              onChange={(event) => setSkillName(event.target.value)}
+            />
+            <datalist id="agent-skill-catalog">
+              {skillCatalog.map((skill) => (
+                <option key={skill.name} value={skill.name} />
+              ))}
+            </datalist>
+            <Button type="submit" disabled={isDefault || !skillName.trim()}>
+              Add
+            </Button>
+          </form>
+          {boundSkills.map((skill) => (
+            <div
+              key={`${skill.source ?? "local"}:${skill.name}`}
+              className="border-border bg-background flex items-center justify-between gap-3 rounded-lg border p-3"
+            >
+              <div>
+                <p className="text-sm font-medium">{skill.name}</p>
+                <p className="text-muted-foreground text-xs">
+                  {skill.source || "local/user"} · {skill.enabled ? "enabled" : "disabled"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={skill.enabled}
+                  disabled={isDefault}
+                  onCheckedChange={(checked) => {
+                    setBoundSkills((current) =>
+                      current.map((item) =>
+                        item.name === skill.name ? { ...item, enabled: checked } : item
+                      )
+                    )
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isDefault}
+                  onClick={() => {
+                    setBoundSkills((current) =>
+                      current.filter((item) => item.name !== skill.name)
+                    )
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))}
+          {boundSkills.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No skills bound.</p>
+          ) : null}
+          <Button
+            disabled={saving || isDefault}
+            onClick={() => {
+              void handleSaveSkills()
+            }}
+          >
+            Save skills
+          </Button>
+        </CardContent>
+      </Card>
     </ModuleDashboardPage>
   )
 }
@@ -419,6 +541,7 @@ export function AiTeammateDetailPage() {
 export function AgentResourcesPage() {
   const accessToken = useAccessToken()
   const [rules, setRules] = React.useState<AgentRule[]>([])
+  const [resourceSkillCatalog, setResourceSkillCatalog] = React.useState<AgentSkillRef[]>([])
   const [editingRule, setEditingRule] = React.useState<AgentRule | null>(null)
   const [form, setForm] = React.useState<{
     name: string
@@ -437,10 +560,14 @@ export function AgentResourcesPage() {
   const reload = React.useCallback(async () => {
     setError(null)
     try {
-      const response = await listAgentRules(accessToken)
-      setRules(response.rules)
+      const [rulesResponse, skillsResponse] = await Promise.all([
+        listAgentRules(accessToken),
+        listSkillsCatalog(accessToken),
+      ])
+      setRules(rulesResponse.rules)
+      setResourceSkillCatalog(skillsResponse.skills)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to load rules")
+      setError(err instanceof Error ? err.message : "failed to load resources")
     }
   }, [accessToken])
 
@@ -661,8 +788,26 @@ export function AgentResourcesPage() {
         <Card className="bg-muted/50">
           <CardHeader>
             <CardTitle className="text-base">Skills</CardTitle>
-            <CardDescription>后续阶段接入 skill catalog 和绑定。</CardDescription>
+            <CardDescription>当前可发现的 skill catalog。</CardDescription>
           </CardHeader>
+          <CardContent className="space-y-2">
+            {resourceSkillCatalog.map((skill) => (
+              <div
+                key={skill.name}
+                className="border-border bg-background rounded-lg border p-3"
+              >
+                <p className="text-sm font-medium">{skill.name}</p>
+                <p className="text-muted-foreground text-xs">
+                  {skill.source || "local/user"} · {skill.enabled ? "enabled" : "disabled"}
+                </p>
+              </div>
+            ))}
+            {resourceSkillCatalog.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Skill catalog is not connected to agentic runtime yet.
+              </p>
+            ) : null}
+          </CardContent>
         </Card>
         <Card className="bg-muted/50">
           <CardHeader>
