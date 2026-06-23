@@ -9,23 +9,30 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   createAgentProfile,
+  createMemoryEntry,
   createAgentRule,
   deleteAgentProfile,
+  deleteMemoryEntry,
   deleteAgentRule,
   getAgentProfile,
+  getAgentProfileMemory,
   getAgentProfileRules,
   getAgentProfileSkills,
   listAgentProfiles,
   listAgentRules,
+  listMemoryEntries,
   listSkillsCatalog,
+  replaceAgentProfileMemory,
   replaceAgentProfileRules,
   replaceAgentProfileSkills,
   updateAgentProfile,
+  updateMemoryEntry,
   updateAgentRule,
   type AgentProfile,
   type AgentRule,
   type AgentRuleKind,
   type AgentSkillRef,
+  type MemoryEntry,
 } from "@/lib/api/gateway-client"
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
 
@@ -215,8 +222,10 @@ export function AiTeammateDetailPage() {
   const { profileId = "default" } = useParams()
   const [profile, setProfile] = React.useState<AgentProfile | null>(null)
   const [rules, setRules] = React.useState<AgentRule[]>([])
+  const [memoryEntries, setMemoryEntries] = React.useState<MemoryEntry[]>([])
   const [skillCatalog, setSkillCatalog] = React.useState<AgentSkillRef[]>([])
   const [boundRuleIds, setBoundRuleIds] = React.useState<Set<string>>(new Set())
+  const [boundMemoryIds, setBoundMemoryIds] = React.useState<Set<string>>(new Set())
   const [boundSkills, setBoundSkills] = React.useState<AgentSkillRef[]>([])
   const [skillName, setSkillName] = React.useState("")
   const [form, setForm] = React.useState({
@@ -231,17 +240,29 @@ export function AiTeammateDetailPage() {
   const reload = React.useCallback(async () => {
     setError(null)
     try {
-      const [profileResponse, rulesResponse, bindingsResponse, skillsResponse, catalogResponse] =
+      const [
+        profileResponse,
+        rulesResponse,
+        bindingsResponse,
+        skillsResponse,
+        catalogResponse,
+        memoryResponse,
+        profileMemoryResponse,
+      ] =
         await Promise.all([
           getAgentProfile(accessToken, profileId),
           listAgentRules(accessToken),
           getAgentProfileRules(accessToken, profileId),
           getAgentProfileSkills(accessToken, profileId),
           listSkillsCatalog(accessToken),
+          listMemoryEntries(accessToken),
+          getAgentProfileMemory(accessToken, profileId),
         ])
       setProfile(profileResponse.profile)
       setRules(rulesResponse.rules)
+      setMemoryEntries(memoryResponse.memory)
       setBoundRuleIds(new Set(bindingsResponse.rules.map((rule) => rule.id)))
+      setBoundMemoryIds(new Set(profileMemoryResponse.memory.map((entry) => entry.id)))
       setBoundSkills(skillsResponse.skills)
       setSkillCatalog(catalogResponse.skills)
       setForm({
@@ -287,6 +308,26 @@ export function AiTeammateDetailPage() {
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to bind rules")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSaveMemory() {
+    setSaving(true)
+    setError(null)
+    try {
+      const selected = memoryEntries
+        .filter((entry) => boundMemoryIds.has(entry.id))
+        .map((entry, index) => ({
+          memory_entry_id: entry.id,
+          enabled: true,
+          sort_order: index,
+        }))
+      await replaceAgentProfileMemory(accessToken, profileId, selected)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to bind memory")
     } finally {
       setSaving(false)
     }
@@ -459,6 +500,56 @@ export function AiTeammateDetailPage() {
 
       <Card className="bg-muted/50">
         <CardHeader>
+          <CardTitle className="text-base">Memory</CardTitle>
+          <CardDescription>绑定显式个人 memory，运行时会作为 teammate context 注入。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {memoryEntries.map((entry) => (
+            <label
+              key={entry.id}
+              className="border-border bg-background flex items-start justify-between gap-3 rounded-lg border p-3"
+            >
+              <span>
+                <span className="block text-sm font-medium">{entry.title}</span>
+                <span className="text-muted-foreground mt-1 line-clamp-3 block text-sm">
+                  {entry.content}
+                </span>
+                {entry.tags.length > 0 ? (
+                  <span className="text-muted-foreground mt-2 block text-xs">
+                    {entry.tags.join(", ")}
+                  </span>
+                ) : null}
+              </span>
+              <Switch
+                checked={boundMemoryIds.has(entry.id)}
+                disabled={isDefault}
+                onCheckedChange={(checked) => {
+                  setBoundMemoryIds((current) => {
+                    const next = new Set(current)
+                    if (checked) {
+                      next.add(entry.id)
+                    } else {
+                      next.delete(entry.id)
+                    }
+                    return next
+                  })
+                }}
+              />
+            </label>
+          ))}
+          {memoryEntries.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No memory yet. Create memory from Skills, Rules, Memory.
+            </p>
+          ) : null}
+          <Button disabled={saving || isDefault} onClick={handleSaveMemory}>
+            Save memory
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-muted/50">
+        <CardHeader>
           <CardTitle className="text-base">Skills</CardTitle>
           <CardDescription>
             绑定后会进入 teammate 的 skill allowlist。当前 catalog 可为空，可手动输入 skill name。
@@ -541,8 +632,10 @@ export function AiTeammateDetailPage() {
 export function AgentResourcesPage() {
   const accessToken = useAccessToken()
   const [rules, setRules] = React.useState<AgentRule[]>([])
+  const [memoryEntries, setMemoryEntries] = React.useState<MemoryEntry[]>([])
   const [resourceSkillCatalog, setResourceSkillCatalog] = React.useState<AgentSkillRef[]>([])
   const [editingRule, setEditingRule] = React.useState<AgentRule | null>(null)
+  const [editingMemory, setEditingMemory] = React.useState<MemoryEntry | null>(null)
   const [form, setForm] = React.useState<{
     name: string
     kind: AgentRuleKind
@@ -554,18 +647,26 @@ export function AgentResourcesPage() {
     content: "",
     enabled: true,
   })
+  const [memoryForm, setMemoryForm] = React.useState({
+    title: "",
+    content: "",
+    tags: "",
+    enabled: true,
+  })
   const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
   const reload = React.useCallback(async () => {
     setError(null)
     try {
-      const [rulesResponse, skillsResponse] = await Promise.all([
+      const [rulesResponse, skillsResponse, memoryResponse] = await Promise.all([
         listAgentRules(accessToken),
         listSkillsCatalog(accessToken),
+        listMemoryEntries(accessToken),
       ])
       setRules(rulesResponse.rules)
       setResourceSkillCatalog(skillsResponse.skills)
+      setMemoryEntries(memoryResponse.memory)
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to load resources")
     }
@@ -591,6 +692,26 @@ export function AgentResourcesPage() {
       name: "",
       kind: "behavior",
       content: "",
+      enabled: true,
+    })
+  }
+
+  function startEditMemory(memory: MemoryEntry) {
+    setEditingMemory(memory)
+    setMemoryForm({
+      title: memory.title,
+      content: memory.content,
+      tags: memory.tags.join(", "),
+      enabled: memory.enabled,
+    })
+  }
+
+  function resetMemoryForm() {
+    setEditingMemory(null)
+    setMemoryForm({
+      title: "",
+      content: "",
+      tags: "",
       enabled: true,
     })
   }
@@ -643,19 +764,76 @@ export function AgentResourcesPage() {
     }
   }
 
+  async function handleSaveMemory(event: React.FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    const payload = {
+      title: memoryForm.title,
+      content: memoryForm.content,
+      tags: memoryForm.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      enabled: memoryForm.enabled,
+    }
+    try {
+      if (editingMemory) {
+        await updateMemoryEntry(accessToken, editingMemory.id, payload)
+      } else {
+        await createMemoryEntry(accessToken, payload)
+      }
+      resetMemoryForm()
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to save memory")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleToggleMemory(memory: MemoryEntry, enabled: boolean) {
+    setSaving(true)
+    setError(null)
+    try {
+      await updateMemoryEntry(accessToken, memory.id, { enabled })
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to update memory")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleArchiveMemory(memory: MemoryEntry) {
+    setSaving(true)
+    setError(null)
+    try {
+      await deleteMemoryEntry(accessToken, memory.id)
+      if (editingMemory?.id === memory.id) {
+        resetMemoryForm()
+      }
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to archive memory")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <ModuleDashboardPage
       title="Skills, Rules, Memory"
       subtitle="用户个人智能体资产库。"
       metrics={productMetrics({
-        label: "Rules",
-        value: String(rules.length),
-        detail: "当前个人 rules 数量",
+        label: "Assets",
+        value: String(rules.length + memoryEntries.length),
+        detail: "当前个人 rules + memory 数量",
       })}
       highlights={[
         "Skills / Rules / Memory 是个人资产库。",
         "AI Teammate 从这里选择资产并编译进运行上下文。",
-        "第一版先落地 Rules，Skills 和 Memory 后续补齐。",
+        "第一版 Memory 是显式记忆，不做自动长期记忆。",
       ]}
     >
       <ErrorNotice message={error} />
@@ -812,10 +990,120 @@ export function AgentResourcesPage() {
         <Card className="bg-muted/50">
           <CardHeader>
             <CardTitle className="text-base">Memory</CardTitle>
-            <CardDescription>后续阶段接入显式个人 memory。</CardDescription>
+            <CardDescription>创建和维护显式个人 memory。</CardDescription>
           </CardHeader>
+          <CardContent className="space-y-3">
+            {memoryEntries.map((memory) => (
+              <div
+                key={memory.id}
+                className="border-border bg-background rounded-lg border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{memory.title}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {memory.tags.length > 0 ? memory.tags.join(", ") : "no tags"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={memory.enabled}
+                    disabled={saving}
+                    onCheckedChange={(checked) =>
+                      void handleToggleMemory(memory, checked)
+                    }
+                  />
+                </div>
+                <p className="text-muted-foreground mt-3 line-clamp-4 text-sm leading-6">
+                  {memory.content}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startEditMemory(memory)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => void handleArchiveMemory(memory)}
+                  >
+                    Archive
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {memoryEntries.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No memory yet.</p>
+            ) : null}
+          </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-muted/50">
+        <CardHeader>
+          <CardTitle className="text-base">
+            {editingMemory ? "Edit memory" : "Create memory"}
+          </CardTitle>
+          <CardDescription>
+            Memory 被 AI Teammate 绑定后会作为显式上下文注入。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-3" onSubmit={handleSaveMemory}>
+            <Input
+              placeholder="Memory title"
+              value={memoryForm.title}
+              onChange={(event) =>
+                setMemoryForm((current) => ({ ...current, title: event.target.value }))
+              }
+              required
+            />
+            <Textarea
+              placeholder="Memory content"
+              value={memoryForm.content}
+              onChange={(event) =>
+                setMemoryForm((current) => ({
+                  ...current,
+                  content: event.target.value,
+                }))
+              }
+              rows={6}
+              required
+            />
+            <Input
+              placeholder="Tags, comma separated"
+              value={memoryForm.tags}
+              onChange={(event) =>
+                setMemoryForm((current) => ({ ...current, tags: event.target.value }))
+              }
+            />
+            <label className="flex items-center justify-between rounded-lg border p-3 text-sm">
+              Enabled
+              <Switch
+                checked={memoryForm.enabled}
+                onCheckedChange={(checked) =>
+                  setMemoryForm((current) => ({ ...current, enabled: checked }))
+                }
+              />
+            </label>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving..." : editingMemory ? "Save memory" : "Create memory"}
+              </Button>
+              {editingMemory ? (
+                <Button type="button" variant="outline" onClick={resetMemoryForm}>
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </ModuleDashboardPage>
   )
 }

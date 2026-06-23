@@ -124,6 +124,15 @@ export type AgentSkillRef = {
   enabled: boolean
 }
 
+export type MemoryEntry = {
+  id: string
+  user_id: string
+  title: string
+  content: string
+  tags: string[]
+  enabled: boolean
+}
+
 export type AgentProfile = {
   id: string
   owner_user_id: string
@@ -135,7 +144,7 @@ export type AgentProfile = {
   default_model?: string | null
   skills?: AgentSkillRef[]
   rules?: AgentRule[]
-  memory_scopes?: unknown[]
+  memory_scopes?: MemoryEntry[]
 }
 
 export type ConversationRunSummary = {
@@ -1072,6 +1081,58 @@ export function deleteAgentRule(accessToken: string, ruleId: string) {
   )
 }
 
+export function listMemoryEntries(accessToken: string) {
+  return requestJson<{ memory: MemoryEntry[] }>("/gateway/v1/memory-entries", {
+    accessToken,
+  })
+}
+
+export function createMemoryEntry(
+  accessToken: string,
+  payload: {
+    title: string
+    content: string
+    tags?: string[]
+    enabled?: boolean
+  }
+) {
+  return requestJson<{ memory_entry: MemoryEntry }>("/gateway/v1/memory-entries", {
+    method: "POST",
+    accessToken,
+    body: payload,
+  })
+}
+
+export function updateMemoryEntry(
+  accessToken: string,
+  memoryId: string,
+  payload: {
+    title?: string
+    content?: string
+    tags?: string[]
+    enabled?: boolean
+  }
+) {
+  return requestJson<{ memory_entry: MemoryEntry }>(
+    `/gateway/v1/memory-entries/${encodeURIComponent(memoryId)}`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: payload,
+    }
+  )
+}
+
+export function deleteMemoryEntry(accessToken: string, memoryId: string) {
+  return requestJson<{ memory_entry: MemoryEntry }>(
+    `/gateway/v1/memory-entries/${encodeURIComponent(memoryId)}`,
+    {
+      method: "DELETE",
+      accessToken,
+    }
+  )
+}
+
 export function getAgentProfileRules(accessToken: string, profileId: string) {
   return requestJson<{ rules: AgentRule[] }>(
     `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/rules`,
@@ -1121,6 +1182,34 @@ export function replaceAgentProfileSkills(
       method: "PUT",
       accessToken,
       body: { skills },
+    }
+  )
+}
+
+export function getAgentProfileMemory(accessToken: string, profileId: string) {
+  return requestJson<{ memory: MemoryEntry[] }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/memory`,
+    {
+      accessToken,
+    }
+  )
+}
+
+export function replaceAgentProfileMemory(
+  accessToken: string,
+  profileId: string,
+  memory: Array<{
+    memory_entry_id: string
+    enabled?: boolean
+    sort_order?: number
+  }>
+) {
+  return requestJson<{ memory: MemoryEntry[] }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/memory`,
+    {
+      method: "PUT",
+      accessToken,
+      body: { memory },
     }
   )
 }
