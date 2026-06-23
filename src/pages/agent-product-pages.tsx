@@ -1,4 +1,24 @@
+import * as React from "react"
+import { Link, useNavigate, useParams } from "react-router-dom"
+
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { useAppSession } from "@/features/auth/app-session"
+import {
+  createAgentProfile,
+  deleteAgentProfile,
+  getAgentProfile,
+  getAgentProfileRules,
+  listAgentProfiles,
+  listAgentRules,
+  replaceAgentProfileRules,
+  updateAgentProfile,
+  type AgentProfile,
+  type AgentRule,
+} from "@/lib/api/gateway-client"
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
 
 type ProductMetric = {
@@ -22,53 +42,373 @@ function productMetrics(primary: ProductMetric): [
     {
       label: "状态",
       value: "MVP",
-      detail: "当前阶段先接入路由",
+      detail: "当前阶段接入最小管理 UI",
     },
   ]
 }
 
+function useAccessToken() {
+  const { accessToken } = useAppSession()
+  if (!accessToken) {
+    throw new Error("auth required")
+  }
+  return accessToken
+}
+
+function ErrorNotice({ message }: { message: string | null }) {
+  if (!message) {
+    return null
+  }
+
+  return (
+    <Card className="border-destructive/30 bg-destructive/5">
+      <CardContent className="text-destructive pt-6 text-sm">{message}</CardContent>
+    </Card>
+  )
+}
+
 export function AiTeammatesPage() {
+  const accessToken = useAccessToken()
+  const navigate = useNavigate()
+  const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
+  const [name, setName] = React.useState("")
+  const [description, setDescription] = React.useState("")
+  const [systemPrompt, setSystemPrompt] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [saving, setSaving] = React.useState(false)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await listAgentProfiles(accessToken)
+      setProfiles(response.profiles)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to load teammates")
+    } finally {
+      setLoading(false)
+    }
+  }, [accessToken])
+
+  React.useEffect(() => {
+    void reload()
+  }, [reload])
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await createAgentProfile(accessToken, {
+        name,
+        description,
+        system_prompt: systemPrompt,
+      })
+      setName("")
+      setDescription("")
+      setSystemPrompt("")
+      await reload()
+      navigate(`/ai-teammates/${response.profile.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to create teammate")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <ModuleDashboardPage
       title="AI Teammates"
       subtitle="配置可运行的 Agent Profile，并绑定 Skills / Rules / Memory。"
       metrics={productMetrics({
-        label: "定位",
-        value: "Agent Profile",
-        detail: "把用户资产编译为运行上下文",
+        label: "Teammates",
+        value: String(profiles.length),
+        detail: loading ? "加载中" : "当前可用 profile 数量",
       })}
       highlights={[
         "AI Teammate 是运行配置，不是独立 runtime。",
-        "后续会在这里创建、编辑 teammate，并绑定 rules、skills 和 memory scope。",
+        "每个 teammate 会在运行时解析为 AgentProfileRuntimePlan。",
+        "第一版支持基础 prompt 编辑和 rules 绑定。",
       ]}
     >
-      <Card className="bg-muted/50">
-        <CardHeader>
-          <CardTitle className="text-base">第一阶段入口</CardTitle>
-          <CardDescription>页面路由已就绪，管理 UI 在后续阶段实现。</CardDescription>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm leading-6">
-          当前后端已支持 teammate/profile 与 rules 持久化；下一步会接入列表、创建和编辑体验。
-        </CardContent>
-      </Card>
+      <ErrorNotice message={error} />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Teammates</CardTitle>
+            <CardDescription>选择一个 teammate 进入详情编辑。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {profiles.map((profile) => (
+              <Link
+                key={profile.id}
+                to={`/ai-teammates/${profile.id}`}
+                className="border-border bg-background hover:bg-muted block rounded-lg border p-4 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{profile.name}</p>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                      {profile.description || "No description"}
+                    </p>
+                  </div>
+                  <span className="text-muted-foreground text-xs">
+                    rev {profile.revision}
+                  </span>
+                </div>
+              </Link>
+            ))}
+            {!loading && profiles.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No teammates yet.</p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Create teammate</CardTitle>
+            <CardDescription>创建一个个人 AI Teammate。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-3" onSubmit={handleCreate}>
+              <Input
+                placeholder="Name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+              <Input
+                placeholder="Description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+              <Textarea
+                placeholder="System prompt"
+                value={systemPrompt}
+                onChange={(event) => setSystemPrompt(event.target.value)}
+                rows={6}
+              />
+              <Button type="submit" disabled={saving}>
+                {saving ? "Creating..." : "Create"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </ModuleDashboardPage>
   )
 }
 
 export function AiTeammateDetailPage() {
+  const accessToken = useAccessToken()
+  const navigate = useNavigate()
+  const { profileId = "default" } = useParams()
+  const [profile, setProfile] = React.useState<AgentProfile | null>(null)
+  const [rules, setRules] = React.useState<AgentRule[]>([])
+  const [boundRuleIds, setBoundRuleIds] = React.useState<Set<string>>(new Set())
+  const [form, setForm] = React.useState({
+    name: "",
+    description: "",
+    system_prompt: "",
+  })
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const isDefault = profileId === "default"
+
+  const reload = React.useCallback(async () => {
+    setError(null)
+    try {
+      const [profileResponse, rulesResponse, bindingsResponse] = await Promise.all([
+        getAgentProfile(accessToken, profileId),
+        listAgentRules(accessToken),
+        getAgentProfileRules(accessToken, profileId),
+      ])
+      setProfile(profileResponse.profile)
+      setRules(rulesResponse.rules)
+      setBoundRuleIds(new Set(bindingsResponse.rules.map((rule) => rule.id)))
+      setForm({
+        name: profileResponse.profile.name,
+        description: profileResponse.profile.description || "",
+        system_prompt: profileResponse.profile.system_prompt || "",
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to load teammate")
+    }
+  }, [accessToken, profileId])
+
+  React.useEffect(() => {
+    void reload()
+  }, [reload])
+
+  async function handleSaveProfile(event: React.FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await updateAgentProfile(accessToken, profileId, form)
+      setProfile(response.profile)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to save teammate")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSaveRules() {
+    setSaving(true)
+    setError(null)
+    try {
+      const selected = rules
+        .filter((rule) => boundRuleIds.has(rule.id))
+        .map((rule, index) => ({
+          rule_id: rule.id,
+          enabled: true,
+          sort_order: index,
+        }))
+      await replaceAgentProfileRules(accessToken, profileId, selected)
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to bind rules")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleArchive() {
+    setSaving(true)
+    setError(null)
+    try {
+      await deleteAgentProfile(accessToken, profileId)
+      navigate("/ai-teammates")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to archive teammate")
+      setSaving(false)
+    }
+  }
+
   return (
     <ModuleDashboardPage
-      title="AI Teammate Detail"
+      title={profile?.name || "AI Teammate Detail"}
       subtitle="查看和编辑单个 Agent Profile。"
       metrics={productMetrics({
-        label: "状态",
-        value: "Placeholder",
-        detail: "详情 UI 后续实现",
+        label: "Revision",
+        value: String(profile?.revision ?? "-"),
+        detail: profile?.status || "loading",
       })}
       highlights={[
-        "详情页会承载基础 prompt、rules、skills、memory bindings。",
+        "Profile prompt 和绑定 rules 会进入 AgentProfileRuntimePlan。",
+        "保存 rules 后，后续用该 teammate 运行的 conversation 会注入这些 rules。",
+        "Default Agent 是隐式 profile，当前只读。",
       ]}
-    />
+    >
+      <ErrorNotice message={error} />
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Profile</CardTitle>
+            <CardDescription>基础身份和 system prompt。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-3" onSubmit={handleSaveProfile}>
+              <Input
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, name: event.target.value }))
+                }
+                disabled={isDefault}
+                required
+              />
+              <Input
+                value={form.description}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                disabled={isDefault}
+                placeholder="Description"
+              />
+              <Textarea
+                value={form.system_prompt}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    system_prompt: event.target.value,
+                  }))
+                }
+                disabled={isDefault}
+                placeholder="System prompt"
+                rows={10}
+              />
+              <div className="flex gap-2">
+                <Button type="submit" disabled={saving || isDefault}>
+                  {saving ? "Saving..." : "Save profile"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={saving || isDefault}
+                  onClick={handleArchive}
+                >
+                  Archive
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Rules</CardTitle>
+            <CardDescription>绑定已有个人 rules。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rules.map((rule) => (
+              <label
+                key={rule.id}
+                className="border-border bg-background flex items-start justify-between gap-3 rounded-lg border p-3"
+              >
+                <span>
+                  <span className="block text-sm font-medium">
+                    {rule.name || rule.kind}
+                  </span>
+                  <span className="text-muted-foreground mt-1 line-clamp-3 block text-sm">
+                    {rule.content}
+                  </span>
+                </span>
+                <Switch
+                  checked={boundRuleIds.has(rule.id)}
+                  disabled={isDefault}
+                  onCheckedChange={(checked) => {
+                    setBoundRuleIds((current) => {
+                      const next = new Set(current)
+                      if (checked) {
+                        next.add(rule.id)
+                      } else {
+                        next.delete(rule.id)
+                      }
+                      return next
+                    })
+                  }}
+                />
+              </label>
+            ))}
+            {rules.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No rules yet. Create rules from Skills, Rules, Memory in the next phase.
+              </p>
+            ) : null}
+            <Button disabled={saving || isDefault} onClick={handleSaveRules}>
+              Save rules
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </ModuleDashboardPage>
   )
 }
 
@@ -80,24 +420,14 @@ export function AgentResourcesPage() {
       metrics={productMetrics({
         label: "当前优先级",
         value: "Rules",
-        detail: "先打通 rules 资产管理与 teammate 绑定",
+        detail: "下一阶段接入 rules CRUD",
       })}
       highlights={[
         "Skills / Rules / Memory 是个人资产库。",
         "AI Teammate 从这里选择资产并编译进运行上下文。",
         "第一版先落地 Rules，Skills 和 Memory 后续补齐。",
       ]}
-    >
-      <Card className="bg-muted/50">
-        <CardHeader>
-          <CardTitle className="text-base">Rules tab 即将接入</CardTitle>
-          <CardDescription>当前为路由占位，后续阶段添加 CRUD UI。</CardDescription>
-        </CardHeader>
-        <CardContent className="text-muted-foreground text-sm leading-6">
-          后端已经提供 agent-rules API；前端管理页面会在后续阶段接入。
-        </CardContent>
-      </Card>
-    </ModuleDashboardPage>
+    />
   )
 }
 
@@ -115,13 +445,6 @@ export function AutomationPage() {
         "Automation 不绕过 agent 主链路。",
         "后续会绑定 target AI Teammate，并复用 gateway run。",
       ]}
-    >
-      <Card className="bg-muted/50">
-        <CardHeader>
-          <CardTitle className="text-base">Automation placeholder</CardTitle>
-          <CardDescription>主动触发能力在 teammate 主链路稳定后实现。</CardDescription>
-        </CardHeader>
-      </Card>
-    </ModuleDashboardPage>
+    />
   )
 }

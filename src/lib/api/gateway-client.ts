@@ -100,9 +100,36 @@ export type Conversation = {
   status: string
   last_message_at?: string | null
   current_run_id?: string | null
+  agent_profile_id?: string | null
+  agent_profile_revision?: number | null
   current_run?: ConversationRunSummary | null
   created_at: string
   updated_at: string
+}
+
+export type AgentRuleKind = "system" | "behavior" | "tool"
+
+export type AgentRule = {
+  id: string
+  name?: string | null
+  kind: AgentRuleKind
+  content: string
+  enabled: boolean
+  revision: number
+}
+
+export type AgentProfile = {
+  id: string
+  owner_user_id: string
+  name: string
+  description?: string | null
+  system_prompt?: string | null
+  status: "draft" | "active" | "archived" | string
+  revision: number
+  default_model?: string | null
+  skills?: unknown[]
+  rules?: AgentRule[]
+  memory_scopes?: unknown[]
 }
 
 export type ConversationRunSummary = {
@@ -441,7 +468,7 @@ function withRecoverableFlag(error: Error, recoverable: boolean) {
 async function requestJson<T>(
   path: string,
   options?: {
-    method?: "GET" | "POST" | "PATCH" | "DELETE"
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
     accessToken?: string | null
     workspaceId?: string | null
     body?: unknown
@@ -899,6 +926,96 @@ export function deleteWorkspaceObject(
       method: "DELETE",
       accessToken,
       workspaceId,
+    }
+  )
+}
+
+export function listAgentProfiles(accessToken: string) {
+  return requestJson<{ profiles: AgentProfile[] }>("/gateway/v1/agent-profiles", {
+    accessToken,
+  })
+}
+
+export function createAgentProfile(
+  accessToken: string,
+  payload: {
+    name: string
+    description?: string | null
+    system_prompt?: string | null
+  }
+) {
+  return requestJson<{ profile: AgentProfile }>("/gateway/v1/agent-profiles", {
+    method: "POST",
+    accessToken,
+    body: payload,
+  })
+}
+
+export function getAgentProfile(accessToken: string, profileId: string) {
+  return requestJson<{ profile: AgentProfile }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}`,
+    {
+      accessToken,
+    }
+  )
+}
+
+export function updateAgentProfile(
+  accessToken: string,
+  profileId: string,
+  payload: {
+    name?: string
+    description?: string | null
+    system_prompt?: string | null
+    status?: AgentProfile["status"]
+  }
+) {
+  return requestJson<{ profile: AgentProfile }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: payload,
+    }
+  )
+}
+
+export function deleteAgentProfile(accessToken: string, profileId: string) {
+  return requestJson<{ profile: AgentProfile }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}`,
+    {
+      method: "DELETE",
+      accessToken,
+    }
+  )
+}
+
+export function listAgentRules(accessToken: string) {
+  return requestJson<{ rules: AgentRule[] }>("/gateway/v1/agent-rules", {
+    accessToken,
+  })
+}
+
+export function getAgentProfileRules(accessToken: string, profileId: string) {
+  return requestJson<{ rules: AgentRule[] }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/rules`,
+    {
+      accessToken,
+    }
+  )
+}
+
+export function replaceAgentProfileRules(
+  accessToken: string,
+  profileId: string,
+  rules: Array<{ rule_id: string; enabled?: boolean; sort_order?: number }>
+) {
+  return requestJson<{ rules: AgentRule[] }>(
+    `/gateway/v1/agent-profiles/${encodeURIComponent(profileId)}/rules`,
+    {
+      method: "PUT",
+      accessToken,
+      body: { rules },
     }
   )
 }
