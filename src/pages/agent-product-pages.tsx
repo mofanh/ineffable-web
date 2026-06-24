@@ -22,6 +22,7 @@ import {
   getAgentProfileSkills,
   listAgentProfiles,
   listAgentRules,
+  listAutomationRuns,
   listAutomations,
   listMemoryEntries,
   listSkillsCatalog,
@@ -38,6 +39,7 @@ import {
   type AgentRuleKind,
   type AgentSkillRef,
   type Automation,
+  type AutomationRun,
   type MemoryEntry,
 } from "@/lib/api/gateway-client"
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
@@ -1118,6 +1120,7 @@ export function AutomationPage() {
   const accessToken = useAccessToken()
   const navigate = useNavigate()
   const [automations, setAutomations] = React.useState<Automation[]>([])
+  const [automationRuns, setAutomationRuns] = React.useState<Record<string, AutomationRun[]>>({})
   const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
   const [editingAutomation, setEditingAutomation] = React.useState<Automation | null>(null)
   const [form, setForm] = React.useState({
@@ -1139,6 +1142,13 @@ export function AutomationPage() {
       ])
       setAutomations(automationsResponse.automations)
       setProfiles(profilesResponse.profiles)
+      const runPairs = await Promise.all(
+        automationsResponse.automations.map(async (automation) => {
+          const runsResponse = await listAutomationRuns(accessToken, automation.id)
+          return [automation.id, runsResponse.runs] as const
+        })
+      )
+      setAutomationRuns(Object.fromEntries(runPairs))
       if (
         profilesResponse.profiles.length > 0 &&
         !profilesResponse.profiles.some((profile) => profile.id === form.agent_profile_id)
@@ -1219,6 +1229,21 @@ export function AutomationPage() {
     }
   }
 
+  async function handleToggleAutomation(automation: Automation) {
+    setSaving(true)
+    setError(null)
+    try {
+      await updateAutomation(accessToken, automation.id, {
+        status: automation.status === "active" ? "inactive" : "active",
+      })
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to update automation")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleRunAutomation(automation: Automation) {
     setSaving(true)
     setError(null)
@@ -1226,6 +1251,7 @@ export function AutomationPage() {
     try {
       const response = await runAutomation(accessToken, automation.id)
       setLastRunConversationId(response.conversation_id)
+      await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to run automation")
     } finally {
@@ -1289,6 +1315,29 @@ export function AutomationPage() {
                 <p className="text-muted-foreground mt-3 line-clamp-4 text-sm leading-6">
                   {automation.task_prompt}
                 </p>
+                {(automationRuns[automation.id] ?? []).slice(0, 3).length > 0 ? (
+                  <div className="mt-3 space-y-1 rounded-md border p-2 text-xs">
+                    {(automationRuns[automation.id] ?? []).slice(0, 3).map((run) => (
+                      <div
+                        key={run.id}
+                        className="text-muted-foreground flex items-center justify-between gap-2"
+                      >
+                        <span>{run.status}</span>
+                        {run.conversation_id ? (
+                          <button
+                            type="button"
+                            className="text-primary hover:underline"
+                            onClick={() => navigate(`/chat/${run.conversation_id}`)}
+                          >
+                            conversation
+                          </button>
+                        ) : (
+                          <span>{run.error || "no conversation"}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -1305,6 +1354,15 @@ export function AutomationPage() {
                     onClick={() => startEditAutomation(automation)}
                   >
                     Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => void handleToggleAutomation(automation)}
+                  >
+                    {automation.status === "active" ? "Disable" : "Enable"}
                   </Button>
                   <Button
                     type="button"

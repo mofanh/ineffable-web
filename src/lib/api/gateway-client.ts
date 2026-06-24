@@ -1300,6 +1300,15 @@ export function runAutomation(accessToken: string, automationId: string) {
   })
 }
 
+export function listAutomationRuns(accessToken: string, automationId: string) {
+  return requestJson<{ runs: AutomationRun[] }>(
+    `/gateway/v1/automations/${encodeURIComponent(automationId)}/runs`,
+    {
+      accessToken,
+    }
+  )
+}
+
 export function createConversation(
   accessToken: string,
   payload: { title: string; agent_profile_id?: string | null }
