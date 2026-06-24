@@ -30,6 +30,7 @@ import {
   replaceAgentProfileRules,
   replaceAgentProfileSkills,
   runAutomation,
+  tickDueAutomations,
   updateAgentProfile,
   updateAutomation,
   updateMemoryEntry,
@@ -1128,6 +1129,9 @@ export function AutomationPage() {
     description: "",
     agent_profile_id: "default",
     task_prompt: "",
+    trigger_kind: "manual",
+    once_run_at: "",
+    cron_interval_minutes: "60",
   })
   const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
@@ -1174,6 +1178,9 @@ export function AutomationPage() {
       description: "",
       agent_profile_id: profiles[0]?.id ?? "default",
       task_prompt: "",
+      trigger_kind: "manual",
+      once_run_at: "",
+      cron_interval_minutes: "60",
     })
   }
 
@@ -1184,7 +1191,26 @@ export function AutomationPage() {
       description: automation.description || "",
       agent_profile_id: automation.agent_profile_id,
       task_prompt: automation.task_prompt,
+      trigger_kind: automation.trigger_kind || "manual",
+      once_run_at:
+        typeof automation.trigger_spec?.run_at === "string"
+          ? automation.trigger_spec.run_at
+          : "",
+      cron_interval_minutes:
+        typeof automation.trigger_spec?.interval_minutes === "number"
+          ? String(automation.trigger_spec.interval_minutes)
+          : "60",
     })
+  }
+
+  function buildTriggerSpec() {
+    if (form.trigger_kind === "once") {
+      return { run_at: form.once_run_at }
+    }
+    if (form.trigger_kind === "cron") {
+      return { interval_minutes: Number(form.cron_interval_minutes) || 60 }
+    }
+    return {}
   }
 
   async function handleSaveAutomation(event: React.FormEvent) {
@@ -1196,7 +1222,8 @@ export function AutomationPage() {
       description: form.description,
       agent_profile_id: form.agent_profile_id,
       task_prompt: form.task_prompt,
-      trigger_kind: "manual",
+      trigger_kind: form.trigger_kind,
+      trigger_spec: buildTriggerSpec(),
     }
     try {
       if (editingAutomation) {
@@ -1259,6 +1286,24 @@ export function AutomationPage() {
     }
   }
 
+  async function handleTickDueAutomations() {
+    setSaving(true)
+    setError(null)
+    setLastRunConversationId(null)
+    try {
+      const response = await tickDueAutomations(accessToken)
+      const firstConversation = response.triggered[0]?.conversation_id
+      if (firstConversation) {
+        setLastRunConversationId(firstConversation)
+      }
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to trigger due automations")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <ModuleDashboardPage
       title="Automation"
@@ -1271,7 +1316,7 @@ export function AutomationPage() {
       highlights={[
         "Automation 不绕过 agent 主链路。",
         "Run now 会创建绑定目标 teammate 的 conversation。",
-        "第一版先做手动主动触发，scheduler 后续接入。",
+        "Once/Cron 会写入 next_run_at，Due tick 会触发到期任务。",
       ]}
     >
       <ErrorNotice message={error} />
@@ -1294,8 +1339,21 @@ export function AutomationPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
         <Card className="bg-muted/50">
           <CardHeader>
-            <CardTitle className="text-base">Automations</CardTitle>
-            <CardDescription>手动触发某个 AI Teammate 执行预设任务。</CardDescription>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Automations</CardTitle>
+                <CardDescription>手动或按计划触发某个 AI Teammate 执行预设任务。</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={saving}
+                onClick={() => void handleTickDueAutomations()}
+              >
+                Tick due
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {automations.map((automation) => (
@@ -1310,6 +1368,11 @@ export function AutomationPage() {
                       {automation.trigger_kind} · {automation.status} · teammate{" "}
                       {automation.agent_profile_id}
                     </p>
+                    {automation.next_run_at ? (
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        next: {new Date(automation.next_run_at).toLocaleString()}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <p className="text-muted-foreground mt-3 line-clamp-4 text-sm leading-6">
@@ -1437,6 +1500,48 @@ export function AutomationPage() {
                 rows={8}
                 required
               />
+              <select
+                className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.trigger_kind}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    trigger_kind: event.target.value,
+                  }))
+                }
+              >
+                <option value="manual">manual</option>
+                <option value="once">once</option>
+                <option value="cron">cron</option>
+              </select>
+              {form.trigger_kind === "once" ? (
+                <Input
+                  placeholder="Run at, RFC3339 e.g. 2026-06-24T12:00:00Z"
+                  value={form.once_run_at}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      once_run_at: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              ) : null}
+              {form.trigger_kind === "cron" ? (
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Interval minutes"
+                  value={form.cron_interval_minutes}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      cron_interval_minutes: event.target.value,
+                    }))
+                  }
+                  required
+                />
+              ) : null}
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving}>
                   {saving

@@ -155,7 +155,10 @@ export type Automation = {
   agent_profile_id: string
   task_prompt: string
   trigger_kind: string
+  trigger_spec: Record<string, unknown>
   status: string
+  next_run_at?: string | null
+  last_run_at?: string | null
 }
 
 export type AutomationRun = {
@@ -1248,6 +1251,7 @@ export function createAutomation(
     agent_profile_id: string
     task_prompt: string
     trigger_kind?: string | null
+    trigger_spec?: Record<string, unknown>
   }
 ) {
   return requestJson<{ automation: Automation }>("/gateway/v1/automations", {
@@ -1266,6 +1270,7 @@ export function updateAutomation(
     agent_profile_id?: string
     task_prompt?: string
     trigger_kind?: string | null
+    trigger_spec?: Record<string, unknown>
     status?: string
   }
 ) {
@@ -1307,6 +1312,20 @@ export function listAutomationRuns(accessToken: string, automationId: string) {
       accessToken,
     }
   )
+}
+
+export function tickDueAutomations(accessToken: string) {
+  return requestJson<{
+    triggered: Array<{
+      automation_run: AutomationRun
+      conversation_id: string
+      send_status: number
+    }>
+    failed: Array<{ automation_id: string; status: number }>
+  }>("/gateway/v1/automations/tick", {
+    method: "POST",
+    accessToken,
+  })
 }
 
 export function createConversation(
