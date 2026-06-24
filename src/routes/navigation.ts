@@ -162,6 +162,24 @@ routeMetaMap.set("/account", {
   breadcrumbs: [{ label: "账号" }],
 })
 
+routeMetaMap.set("/ai-teammates", {
+  path: "/ai-teammates",
+  title: "AI Teammates",
+  breadcrumbs: [{ label: "AI Teammates" }],
+})
+
+routeMetaMap.set("/agent-resources", {
+  path: "/agent-resources",
+  title: "Skills, Rules, Memory",
+  breadcrumbs: [{ label: "Skills, Rules, Memory" }],
+})
+
+routeMetaMap.set("/automation", {
+  path: "/automation",
+  title: "Automation",
+  breadcrumbs: [{ label: "Automation" }],
+})
+
 navigation.secondary.forEach((item) => {
   routeMetaMap.set(item.path, {
     path: item.path,
@@ -178,6 +196,17 @@ export function getRouteMeta(pathname: string) {
       path: pathname,
       title: "Workspace File",
       breadcrumbs: [{ label: "Workspace" }, { label: "File" }],
+    }
+  }
+
+  if (pathname.startsWith("/ai-teammates/")) {
+    return {
+      path: pathname,
+      title: "AI Teammate Detail",
+      breadcrumbs: [
+        { label: "AI Teammates", path: "/ai-teammates" },
+        { label: "Detail" },
+      ],
     }
   }
 
