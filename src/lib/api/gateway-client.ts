@@ -147,6 +147,26 @@ export type AgentProfile = {
   memory_scopes?: MemoryEntry[]
 }
 
+export type Automation = {
+  id: string
+  user_id: string
+  name: string
+  description?: string | null
+  agent_profile_id: string
+  task_prompt: string
+  trigger_kind: string
+  status: string
+}
+
+export type AutomationRun = {
+  id: string
+  automation_id: string
+  user_id: string
+  conversation_id?: string | null
+  status: string
+  error?: string | null
+}
+
 export type ConversationRunSummary = {
   id: string
   status: string
@@ -1212,6 +1232,72 @@ export function replaceAgentProfileMemory(
       body: { memory },
     }
   )
+}
+
+export function listAutomations(accessToken: string) {
+  return requestJson<{ automations: Automation[] }>("/gateway/v1/automations", {
+    accessToken,
+  })
+}
+
+export function createAutomation(
+  accessToken: string,
+  payload: {
+    name: string
+    description?: string | null
+    agent_profile_id: string
+    task_prompt: string
+    trigger_kind?: string | null
+  }
+) {
+  return requestJson<{ automation: Automation }>("/gateway/v1/automations", {
+    method: "POST",
+    accessToken,
+    body: payload,
+  })
+}
+
+export function updateAutomation(
+  accessToken: string,
+  automationId: string,
+  payload: {
+    name?: string
+    description?: string | null
+    agent_profile_id?: string
+    task_prompt?: string
+    trigger_kind?: string | null
+    status?: string
+  }
+) {
+  return requestJson<{ automation: Automation }>(
+    `/gateway/v1/automations/${encodeURIComponent(automationId)}`,
+    {
+      method: "PATCH",
+      accessToken,
+      body: payload,
+    }
+  )
+}
+
+export function deleteAutomation(accessToken: string, automationId: string) {
+  return requestJson<{ automation: Automation }>(
+    `/gateway/v1/automations/${encodeURIComponent(automationId)}`,
+    {
+      method: "DELETE",
+      accessToken,
+    }
+  )
+}
+
+export function runAutomation(accessToken: string, automationId: string) {
+  return requestJson<{
+    automation_run: AutomationRun
+    conversation_id: string
+    send_status: number
+  }>(`/gateway/v1/automations/${encodeURIComponent(automationId)}/run`, {
+    method: "POST",
+    accessToken,
+  })
 }
 
 export function createConversation(

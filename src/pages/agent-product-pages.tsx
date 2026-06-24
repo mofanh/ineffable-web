@@ -9,9 +9,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   createAgentProfile,
+  createAutomation,
   createMemoryEntry,
   createAgentRule,
   deleteAgentProfile,
+  deleteAutomation,
   deleteMemoryEntry,
   deleteAgentRule,
   getAgentProfile,
@@ -20,18 +22,22 @@ import {
   getAgentProfileSkills,
   listAgentProfiles,
   listAgentRules,
+  listAutomations,
   listMemoryEntries,
   listSkillsCatalog,
   replaceAgentProfileMemory,
   replaceAgentProfileRules,
   replaceAgentProfileSkills,
+  runAutomation,
   updateAgentProfile,
+  updateAutomation,
   updateMemoryEntry,
   updateAgentRule,
   type AgentProfile,
   type AgentRule,
   type AgentRuleKind,
   type AgentSkillRef,
+  type Automation,
   type MemoryEntry,
 } from "@/lib/api/gateway-client"
 import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
@@ -1109,19 +1115,288 @@ export function AgentResourcesPage() {
 }
 
 export function AutomationPage() {
+  const accessToken = useAccessToken()
+  const navigate = useNavigate()
+  const [automations, setAutomations] = React.useState<Automation[]>([])
+  const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
+  const [editingAutomation, setEditingAutomation] = React.useState<Automation | null>(null)
+  const [form, setForm] = React.useState({
+    name: "",
+    description: "",
+    agent_profile_id: "default",
+    task_prompt: "",
+  })
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [lastRunConversationId, setLastRunConversationId] = React.useState<string | null>(null)
+
+  const reload = React.useCallback(async () => {
+    setError(null)
+    try {
+      const [automationsResponse, profilesResponse] = await Promise.all([
+        listAutomations(accessToken),
+        listAgentProfiles(accessToken),
+      ])
+      setAutomations(automationsResponse.automations)
+      setProfiles(profilesResponse.profiles)
+      if (
+        profilesResponse.profiles.length > 0 &&
+        !profilesResponse.profiles.some((profile) => profile.id === form.agent_profile_id)
+      ) {
+        setForm((current) => ({
+          ...current,
+          agent_profile_id: profilesResponse.profiles[0]?.id ?? "default",
+        }))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to load automations")
+    }
+  }, [accessToken, form.agent_profile_id])
+
+  React.useEffect(() => {
+    void reload()
+  }, [reload])
+
+  function resetForm() {
+    setEditingAutomation(null)
+    setForm({
+      name: "",
+      description: "",
+      agent_profile_id: profiles[0]?.id ?? "default",
+      task_prompt: "",
+    })
+  }
+
+  function startEditAutomation(automation: Automation) {
+    setEditingAutomation(automation)
+    setForm({
+      name: automation.name,
+      description: automation.description || "",
+      agent_profile_id: automation.agent_profile_id,
+      task_prompt: automation.task_prompt,
+    })
+  }
+
+  async function handleSaveAutomation(event: React.FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    const payload = {
+      name: form.name,
+      description: form.description,
+      agent_profile_id: form.agent_profile_id,
+      task_prompt: form.task_prompt,
+      trigger_kind: "manual",
+    }
+    try {
+      if (editingAutomation) {
+        await updateAutomation(accessToken, editingAutomation.id, payload)
+      } else {
+        await createAutomation(accessToken, payload)
+      }
+      resetForm()
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to save automation")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleArchiveAutomation(automation: Automation) {
+    setSaving(true)
+    setError(null)
+    try {
+      await deleteAutomation(accessToken, automation.id)
+      if (editingAutomation?.id === automation.id) {
+        resetForm()
+      }
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to archive automation")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRunAutomation(automation: Automation) {
+    setSaving(true)
+    setError(null)
+    setLastRunConversationId(null)
+    try {
+      const response = await runAutomation(accessToken, automation.id)
+      setLastRunConversationId(response.conversation_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to run automation")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <ModuleDashboardPage
       title="Automation"
       subtitle="主动触发某个 AI Teammate 执行任务。"
       metrics={productMetrics({
-        label: "定位",
-        value: "主动触发",
-        detail: "trigger + target Agent Profile + task",
+        label: "Automations",
+        value: String(automations.length),
+        detail: "当前手动触发 automation 数量",
       })}
       highlights={[
         "Automation 不绕过 agent 主链路。",
-        "后续会绑定 target AI Teammate，并复用 gateway run。",
+        "Run now 会创建绑定目标 teammate 的 conversation。",
+        "第一版先做手动主动触发，scheduler 后续接入。",
       ]}
-    />
+    >
+      <ErrorNotice message={error} />
+
+      {lastRunConversationId ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-6 text-sm">
+            Automation triggered.{" "}
+            <Button
+              variant="link"
+              className="h-auto p-0"
+              onClick={() => navigate(`/chat/${lastRunConversationId}`)}
+            >
+              Open conversation
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">Automations</CardTitle>
+            <CardDescription>手动触发某个 AI Teammate 执行预设任务。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {automations.map((automation) => (
+              <div
+                key={automation.id}
+                className="border-border bg-background rounded-lg border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{automation.name}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {automation.trigger_kind} · {automation.status} · teammate{" "}
+                      {automation.agent_profile_id}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-muted-foreground mt-3 line-clamp-4 text-sm leading-6">
+                  {automation.task_prompt}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={saving || automation.status !== "active"}
+                    onClick={() => void handleRunAutomation(automation)}
+                  >
+                    Run now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startEditAutomation(automation)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => void handleArchiveAutomation(automation)}
+                  >
+                    Archive
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {automations.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No automations yet.</p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-base">
+              {editingAutomation ? "Edit automation" : "Create automation"}
+            </CardTitle>
+            <CardDescription>选择目标 AI Teammate 和主动触发任务。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-3" onSubmit={handleSaveAutomation}>
+              <Input
+                placeholder="Automation name"
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, name: event.target.value }))
+                }
+                required
+              />
+              <Input
+                placeholder="Description"
+                value={form.description}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+              <select
+                className="border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.agent_profile_id}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    agent_profile_id: event.target.value,
+                  }))
+                }
+              >
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
+              <Textarea
+                placeholder="Task prompt"
+                value={form.task_prompt}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    task_prompt: event.target.value,
+                  }))
+                }
+                rows={8}
+                required
+              />
+              <div className="flex gap-2">
+                <Button type="submit" disabled={saving}>
+                  {saving
+                    ? "Saving..."
+                    : editingAutomation
+                      ? "Save automation"
+                      : "Create automation"}
+                </Button>
+                {editingAutomation ? (
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </ModuleDashboardPage>
   )
 }
