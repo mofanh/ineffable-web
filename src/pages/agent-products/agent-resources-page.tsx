@@ -1,5 +1,6 @@
 import * as React from "react"
-import { Brain, Database, Edit3, Filter, MemoryStick, Plus, ShieldCheck, Terminal, Trash2 } from "lucide-react"
+import { Brain, Database, Edit3, Filter, MemoryStick, Plus, ShieldCheck, Terminal, Trash2, X } from "lucide-react"
+import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,6 +38,7 @@ export function AgentResourcesPage() {
   const [memoryEntries, setMemoryEntries] = React.useState<MemoryEntry[]>([])
   const [resourceSkillCatalog, setResourceSkillCatalog] = React.useState<AgentSkillRef[]>([])
   const [query, setQuery] = React.useState("")
+  const [activeDialog, setActiveDialog] = React.useState<"skill" | "rule" | "memory" | null>(null)
   const [editingRule, setEditingRule] = React.useState<AgentRule | null>(null)
   const [editingMemory, setEditingMemory] = React.useState<MemoryEntry | null>(null)
   const [ruleForm, setRuleForm] = React.useState<{
@@ -84,6 +86,12 @@ export function AgentResourcesPage() {
   function startEditRule(rule: AgentRule) {
     setEditingRule(rule)
     setRuleForm({ name: rule.name || "", kind: rule.kind, content: rule.content, enabled: rule.enabled })
+    setActiveDialog("rule")
+  }
+
+  function startCreateRule() {
+    resetRuleForm()
+    setActiveDialog("rule")
   }
 
   function resetRuleForm() {
@@ -99,11 +107,27 @@ export function AgentResourcesPage() {
       tags: memory.tags.join(", "),
       enabled: memory.enabled,
     })
+    setActiveDialog("memory")
+  }
+
+  function startCreateMemory() {
+    resetMemoryForm()
+    setActiveDialog("memory")
   }
 
   function resetMemoryForm() {
     setEditingMemory(null)
     setMemoryForm({ title: "", content: "", tags: "", enabled: true })
+  }
+
+  function closeRuleDialog() {
+    setActiveDialog(null)
+    resetRuleForm()
+  }
+
+  function closeMemoryDialog() {
+    setActiveDialog(null)
+    resetMemoryForm()
   }
 
   async function handleSaveRule(event: React.FormEvent) {
@@ -114,6 +138,7 @@ export function AgentResourcesPage() {
       if (editingRule) await updateAgentRule(accessToken, editingRule.id, ruleForm)
       else await createAgentRule(accessToken, ruleForm)
       resetRuleForm()
+      setActiveDialog(null)
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to save rule")
@@ -140,7 +165,10 @@ export function AgentResourcesPage() {
     setError(null)
     try {
       await deleteAgentRule(accessToken, rule.id)
-      if (editingRule?.id === rule.id) resetRuleForm()
+      if (editingRule?.id === rule.id) {
+        resetRuleForm()
+        setActiveDialog(null)
+      }
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to archive rule")
@@ -163,6 +191,7 @@ export function AgentResourcesPage() {
       if (editingMemory) await updateMemoryEntry(accessToken, editingMemory.id, payload)
       else await createMemoryEntry(accessToken, payload)
       resetMemoryForm()
+      setActiveDialog(null)
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to save memory")
@@ -189,7 +218,10 @@ export function AgentResourcesPage() {
     setError(null)
     try {
       await deleteMemoryEntry(accessToken, memory.id)
-      if (editingMemory?.id === memory.id) resetMemoryForm()
+      if (editingMemory?.id === memory.id) {
+        resetMemoryForm()
+        setActiveDialog(null)
+      }
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to archive memory")
@@ -226,12 +258,6 @@ export function AgentResourcesPage() {
           tone: "green",
         },
       ]}
-      headerActions={
-        <Button onClick={() => document.getElementById("asset-editors")?.scrollIntoView()}>
-          <Plus className="mr-2 size-4" />
-          Create New Asset
-        </Button>
-      }
     >
       <ErrorNotice message={error} />
 
@@ -244,7 +270,12 @@ export function AgentResourcesPage() {
       </div>
 
       <div className="space-y-6">
-        <WorkbenchCard title="Cognitive Skills" description="当前 gateway 可发现的 skill catalog。" icon={Brain}>
+        <WorkbenchCard
+          title="Cognitive Skills"
+          description="当前 gateway 可发现的 skill catalog。"
+          icon={Brain}
+          actions={<CreateIconButton label="Create skill" onClick={() => setActiveDialog("skill")} />}
+        >
           <div className="overflow-hidden rounded-md border border-border">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-muted/50 text-xs tracking-wider text-muted-foreground uppercase">
@@ -277,85 +308,164 @@ export function AgentResourcesPage() {
           ) : null}
         </WorkbenchCard>
 
-        <div className="grid gap-4 xl:grid-cols-2">
-          <WorkbenchCard title="Behavioral Rules" description="Prompt-level behavioral constraints。" icon={ShieldCheck}>
-            <div className="grid gap-3">
-              {filteredRules.map((rule) => (
-                <AssetCard
-                  key={rule.id}
-                  title={rule.name || rule.kind}
-                  detail={rule.content}
-                  icon={ShieldCheck}
-                  badge={rule.kind}
-                  enabled={rule.enabled}
-                  saving={saving}
-                  onToggle={(checked) => void handleToggleRule(rule, checked)}
-                  onEdit={() => startEditRule(rule)}
-                  onArchive={() => void handleArchiveRule(rule)}
-                />
-              ))}
-              {filteredRules.length === 0 ? <EmptyState title="No rules" detail="Create a rule from the editor below." /> : null}
-            </div>
-          </WorkbenchCard>
+        <WorkbenchCard
+          title="Behavioral Rules"
+          description="Prompt-level behavioral constraints。"
+          icon={ShieldCheck}
+          actions={<CreateIconButton label="Create rule" onClick={startCreateRule} />}
+        >
+          <div className="grid gap-3">
+            {filteredRules.map((rule) => (
+              <AssetCard
+                key={rule.id}
+                title={rule.name || rule.kind}
+                detail={rule.content}
+                icon={ShieldCheck}
+                badge={rule.kind}
+                enabled={rule.enabled}
+                saving={saving}
+                onToggle={(checked) => void handleToggleRule(rule, checked)}
+                onEdit={() => startEditRule(rule)}
+                onArchive={() => void handleArchiveRule(rule)}
+              />
+            ))}
+            {filteredRules.length === 0 ? <EmptyState title="No rules" detail="Create a rule with the plus button." /> : null}
+          </div>
+        </WorkbenchCard>
 
-          <WorkbenchCard title="Memory Objects" description="显式个人 memory，不做自动长期记忆。" icon={MemoryStick}>
-            <div className="grid gap-3">
-              {filteredMemory.map((memory) => (
-                <AssetCard
-                  key={memory.id}
-                  title={memory.title}
-                  detail={memory.content}
-                  icon={MemoryStick}
-                  badge={memory.tags.join(", ") || "memory"}
-                  enabled={memory.enabled}
-                  saving={saving}
-                  onToggle={(checked) => void handleToggleMemory(memory, checked)}
-                  onEdit={() => startEditMemory(memory)}
-                  onArchive={() => void handleArchiveMemory(memory)}
-                />
-              ))}
-              {filteredMemory.length === 0 ? <EmptyState title="No memory" detail="Create explicit memory from the editor below." /> : null}
-            </div>
-          </WorkbenchCard>
-        </div>
-
-        <div id="asset-editors" className="grid gap-4 xl:grid-cols-2">
-          <WorkbenchCard title={editingRule ? "Edit rule" : "Create rule"} description="Rules 被 AI Teammate 绑定后进入 prompt。" icon={Edit3}>
-            <form className="space-y-3" onSubmit={handleSaveRule}>
-              <Input placeholder="Rule name" value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} required />
-              <select
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                value={ruleForm.kind}
-                onChange={(event) => setRuleForm((current) => ({ ...current, kind: event.target.value as AgentRuleKind }))}
-              >
-                <option value="behavior">behavior</option>
-                <option value="system">system</option>
-                <option value="tool">tool</option>
-              </select>
-              <Textarea placeholder="Rule content" value={ruleForm.content} onChange={(event) => setRuleForm((current) => ({ ...current, content: event.target.value }))} rows={8} required />
-              <SwitchLine label="Enabled" checked={ruleForm.enabled} onCheckedChange={(checked) => setRuleForm((current) => ({ ...current, enabled: checked }))} />
-              <div className="flex gap-2">
-                <Button type="submit" disabled={saving}>{editingRule ? "Save rule" : "Create rule"}</Button>
-                {editingRule ? <Button type="button" variant="outline" onClick={resetRuleForm}>Cancel</Button> : null}
-              </div>
-            </form>
-          </WorkbenchCard>
-
-          <WorkbenchCard title={editingMemory ? "Edit memory" : "Create memory"} description="Memory 被 AI Teammate 绑定后作为显式上下文注入。" icon={MemoryStick}>
-            <form className="space-y-3" onSubmit={handleSaveMemory}>
-              <Input placeholder="Memory title" value={memoryForm.title} onChange={(event) => setMemoryForm((current) => ({ ...current, title: event.target.value }))} required />
-              <Textarea placeholder="Memory content" value={memoryForm.content} onChange={(event) => setMemoryForm((current) => ({ ...current, content: event.target.value }))} rows={8} required />
-              <Input placeholder="Tags, comma separated" value={memoryForm.tags} onChange={(event) => setMemoryForm((current) => ({ ...current, tags: event.target.value }))} />
-              <SwitchLine label="Enabled" checked={memoryForm.enabled} onCheckedChange={(checked) => setMemoryForm((current) => ({ ...current, enabled: checked }))} />
-              <div className="flex gap-2">
-                <Button type="submit" disabled={saving}>{editingMemory ? "Save memory" : "Create memory"}</Button>
-                {editingMemory ? <Button type="button" variant="outline" onClick={resetMemoryForm}>Cancel</Button> : null}
-              </div>
-            </form>
-          </WorkbenchCard>
-        </div>
+        <WorkbenchCard
+          title="Memory Objects"
+          description="显式个人 memory，不做自动长期记忆。"
+          icon={MemoryStick}
+          actions={<CreateIconButton label="Create memory" onClick={startCreateMemory} />}
+        >
+          <div className="grid gap-3">
+            {filteredMemory.map((memory) => (
+              <AssetCard
+                key={memory.id}
+                title={memory.title}
+                detail={memory.content}
+                icon={MemoryStick}
+                badge={memory.tags.join(", ") || "memory"}
+                enabled={memory.enabled}
+                saving={saving}
+                onToggle={(checked) => void handleToggleMemory(memory, checked)}
+                onEdit={() => startEditMemory(memory)}
+                onArchive={() => void handleArchiveMemory(memory)}
+              />
+            ))}
+            {filteredMemory.length === 0 ? <EmptyState title="No memory" detail="Create explicit memory with the plus button." /> : null}
+          </div>
+        </WorkbenchCard>
       </div>
+
+      <ResourceDialog
+        open={activeDialog === "skill"}
+        title="Create skill"
+        description="Skill catalog is read from the gateway runtime."
+        onOpenChange={(open) => setActiveDialog(open ? "skill" : null)}
+      >
+        <EmptyState
+          title="Skill creation is not available here"
+          detail="The current gateway client only exposes skill catalog and detail APIs. Add a create-skill API before wiring this form."
+        />
+      </ResourceDialog>
+
+      <ResourceDialog
+        open={activeDialog === "rule"}
+        title={editingRule ? "Edit rule" : "Create rule"}
+        description="Rules 被 AI Teammate 绑定后进入 prompt。"
+        onOpenChange={(open) => {
+          if (open) setActiveDialog("rule")
+          else closeRuleDialog()
+        }}
+      >
+        <form className="space-y-3" onSubmit={handleSaveRule}>
+          <Input placeholder="Rule name" value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} required />
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            value={ruleForm.kind}
+            onChange={(event) => setRuleForm((current) => ({ ...current, kind: event.target.value as AgentRuleKind }))}
+          >
+            <option value="behavior">behavior</option>
+            <option value="system">system</option>
+            <option value="tool">tool</option>
+          </select>
+          <Textarea placeholder="Rule content" value={ruleForm.content} onChange={(event) => setRuleForm((current) => ({ ...current, content: event.target.value }))} rows={8} required />
+          <SwitchLine label="Enabled" checked={ruleForm.enabled} onCheckedChange={(checked) => setRuleForm((current) => ({ ...current, enabled: checked }))} />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>{editingRule ? "Save rule" : "Create rule"}</Button>
+            <Button type="button" variant="outline" onClick={closeRuleDialog}>Cancel</Button>
+          </div>
+        </form>
+      </ResourceDialog>
+
+      <ResourceDialog
+        open={activeDialog === "memory"}
+        title={editingMemory ? "Edit memory" : "Create memory"}
+        description="Memory 被 AI Teammate 绑定后作为显式上下文注入。"
+        onOpenChange={(open) => {
+          if (open) setActiveDialog("memory")
+          else closeMemoryDialog()
+        }}
+      >
+        <form className="space-y-3" onSubmit={handleSaveMemory}>
+          <Input placeholder="Memory title" value={memoryForm.title} onChange={(event) => setMemoryForm((current) => ({ ...current, title: event.target.value }))} required />
+          <Textarea placeholder="Memory content" value={memoryForm.content} onChange={(event) => setMemoryForm((current) => ({ ...current, content: event.target.value }))} rows={8} required />
+          <Input placeholder="Tags, comma separated" value={memoryForm.tags} onChange={(event) => setMemoryForm((current) => ({ ...current, tags: event.target.value }))} />
+          <SwitchLine label="Enabled" checked={memoryForm.enabled} onCheckedChange={(checked) => setMemoryForm((current) => ({ ...current, enabled: checked }))} />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>{editingMemory ? "Save memory" : "Create memory"}</Button>
+            <Button type="button" variant="outline" onClick={closeMemoryDialog}>Cancel</Button>
+          </div>
+        </form>
+      </ResourceDialog>
     </AgentProductPage>
+  )
+}
+
+function CreateIconButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button type="button" variant="outline" size="icon-sm" aria-label={label} title={label} onClick={onClick}>
+      <Plus className="size-4" />
+    </Button>
+  )
+}
+
+function ResourceDialog({
+  open,
+  title,
+  description,
+  children,
+  onOpenChange,
+}: {
+  open: boolean
+  title: string
+  description: string
+  children: React.ReactNode
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
+        <DialogPrimitive.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border border-border p-5 shadow-lg duration-100 outline-none">
+          <div className="pr-8">
+            <DialogPrimitive.Title className="text-base font-medium">{title}</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="text-muted-foreground mt-1 text-sm">
+              {description}
+            </DialogPrimitive.Description>
+          </div>
+          {children}
+          <DialogPrimitive.Close asChild>
+            <Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4">
+              <X className="size-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }
 

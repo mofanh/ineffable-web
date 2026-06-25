@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
-import { Clock3, Edit3, History, Play, Plus, Settings2, Zap } from "lucide-react"
+import { Clock3, Edit3, History, Play, Plus, X, Zap } from "lucide-react"
+import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ export function AutomationPage() {
   const [automationRuns, setAutomationRuns] = React.useState<Record<string, AutomationRun[]>>({})
   const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
   const [editingAutomation, setEditingAutomation] = React.useState<Automation | null>(null)
+  const [automationDialogOpen, setAutomationDialogOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [form, setForm] = React.useState({
     name: "",
@@ -101,6 +103,16 @@ export function AutomationPage() {
     })
   }
 
+  function closeAutomationDialog() {
+    setAutomationDialogOpen(false)
+    resetForm()
+  }
+
+  function startCreateAutomation() {
+    resetForm()
+    setAutomationDialogOpen(true)
+  }
+
   function startEditAutomation(automation: Automation) {
     setEditingAutomation(automation)
     setForm({
@@ -116,6 +128,7 @@ export function AutomationPage() {
           ? String(automation.trigger_spec.interval_minutes)
           : "60",
     })
+    setAutomationDialogOpen(true)
   }
 
   function buildTriggerSpec() {
@@ -139,7 +152,7 @@ export function AutomationPage() {
     try {
       if (editingAutomation) await updateAutomation(accessToken, editingAutomation.id, payload)
       else await createAutomation(accessToken, payload)
-      resetForm()
+      closeAutomationDialog()
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to save automation")
@@ -153,7 +166,7 @@ export function AutomationPage() {
     setError(null)
     try {
       await deleteAutomation(accessToken, automation.id)
-      if (editingAutomation?.id === automation.id) resetForm()
+      if (editingAutomation?.id === automation.id) closeAutomationDialog()
       await reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to archive automation")
@@ -242,7 +255,7 @@ export function AutomationPage() {
             <Clock3 className="mr-2 size-4" />
             Tick due
           </Button>
-          <Button onClick={() => document.getElementById("automation-editor")?.scrollIntoView()}>
+          <Button onClick={startCreateAutomation}>
             <Plus className="mr-2 size-4" />
             New Automation
           </Button>
@@ -260,99 +273,139 @@ export function AutomationPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
-        <WorkbenchCard
-          title="Trigger Inventory"
-          description="Run now、once 和 cron 都进入同一 conversation send 主链路。"
-          icon={Zap}
-          actions={<div className="hidden min-w-72 md:block"><SearchBar value={query} onChange={setQuery} placeholder="Search automations..." /></div>}
-        >
-          <div className="space-y-3 md:hidden">
-            <SearchBar value={query} onChange={setQuery} placeholder="Search automations..." />
-          </div>
-          <div className="mt-3 grid gap-3">
-            {filteredAutomations.map((automation) => (
-              <div key={automation.id} className="rounded-md border border-border bg-background/60 p-4 transition-colors hover:bg-muted/60">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{automation.name}</p>
-                      <StatusBadge status={automation.status} />
-                    </div>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      {automation.trigger_kind} · teammate {automation.agent_profile_id}
-                    </p>
-                    {automation.next_run_at ? (
-                      <p className="text-muted-foreground mt-1 text-xs">next: {new Date(automation.next_run_at).toLocaleString()}</p>
-                    ) : null}
+      <WorkbenchCard
+        title="Trigger Inventory"
+        description="Run now、once 和 cron 都进入同一 conversation send 主链路。"
+        icon={Zap}
+        actions={<div className="hidden min-w-72 md:block"><SearchBar value={query} onChange={setQuery} placeholder="Search automations..." /></div>}
+      >
+        <div className="space-y-3 md:hidden">
+          <SearchBar value={query} onChange={setQuery} placeholder="Search automations..." />
+        </div>
+        <div className="mt-3 grid gap-3">
+          {filteredAutomations.map((automation) => (
+            <div key={automation.id} className="rounded-md border border-border bg-background/60 p-4 transition-colors hover:bg-muted/60">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{automation.name}</p>
+                    <StatusBadge status={automation.status} />
                   </div>
-                  <Badge variant="outline">{automation.trigger_kind}</Badge>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    {automation.trigger_kind} · teammate {automation.agent_profile_id}
+                  </p>
+                  {automation.next_run_at ? (
+                    <p className="text-muted-foreground mt-1 text-xs">next: {new Date(automation.next_run_at).toLocaleString()}</p>
+                  ) : null}
                 </div>
-                <p className="text-muted-foreground mt-3 line-clamp-3 text-sm leading-6">{automation.task_prompt}</p>
-                {(automationRuns[automation.id] ?? []).slice(0, 3).length > 0 ? (
-                  <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-2 text-xs">
-                    {(automationRuns[automation.id] ?? []).slice(0, 3).map((run) => (
-                      <div key={run.id} className="text-muted-foreground flex items-center justify-between gap-2">
-                        <span>{run.status}</span>
-                        {run.conversation_id ? (
-                          <button type="button" className="text-primary hover:underline" onClick={() => navigate(`/chat/${run.conversation_id}`)}>
-                            conversation
-                          </button>
-                        ) : (
-                          <span>{run.error || "no conversation"}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" disabled={saving || automation.status !== "active"} onClick={() => void handleRunAutomation(automation)}>
-                    <Play className="mr-2 size-3.5" />
-                    Run now
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => startEditAutomation(automation)}>
-                    <Edit3 className="mr-2 size-3.5" />
-                    Edit
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={saving} onClick={() => void handleToggleAutomation(automation)}>
-                    {automation.status === "active" ? "Disable" : "Enable"}
-                  </Button>
-                  <Button variant="destructive" size="sm" disabled={saving} onClick={() => void handleArchiveAutomation(automation)}>
-                    Archive
-                  </Button>
-                </div>
+                <Badge variant="outline">{automation.trigger_kind}</Badge>
               </div>
-            ))}
-            {filteredAutomations.length === 0 ? <EmptyState title="No automations" detail="Create an automation with the editor on the right." /> : null}
-          </div>
-        </WorkbenchCard>
-
-        <WorkbenchCard title={editingAutomation ? "Edit automation" : "Create automation"} description="选择 target teammate、task prompt 和 trigger。" icon={Settings2}>
-          <form id="automation-editor" className="space-y-3" onSubmit={handleSaveAutomation}>
-            <Input placeholder="Automation name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
-            <Input placeholder="Description" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
-            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.agent_profile_id} onChange={(event) => setForm((current) => ({ ...current, agent_profile_id: event.target.value }))}>
-              {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-            </select>
-            <Textarea placeholder="Task prompt" value={form.task_prompt} onChange={(event) => setForm((current) => ({ ...current, task_prompt: event.target.value }))} rows={8} required />
-            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.trigger_kind} onChange={(event) => setForm((current) => ({ ...current, trigger_kind: event.target.value }))}>
-              <option value="manual">manual</option>
-              <option value="once">once</option>
-              <option value="cron">cron</option>
-            </select>
-            {form.trigger_kind === "once" ? (
-              <Input placeholder="Run at, RFC3339 e.g. 2026-06-24T12:00:00Z" value={form.once_run_at} onChange={(event) => setForm((current) => ({ ...current, once_run_at: event.target.value }))} required />
-            ) : null}
-            {form.trigger_kind === "cron" ? (
-              <Input type="number" min="1" placeholder="Interval minutes" value={form.cron_interval_minutes} onChange={(event) => setForm((current) => ({ ...current, cron_interval_minutes: event.target.value }))} required />
-            ) : null}
-            <div className="flex gap-2">
-              <Button type="submit" disabled={saving}>{editingAutomation ? "Save automation" : "Create automation"}</Button>
-              {editingAutomation ? <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button> : null}
+              <p className="text-muted-foreground mt-3 line-clamp-3 text-sm leading-6">{automation.task_prompt}</p>
+              {(automationRuns[automation.id] ?? []).slice(0, 3).length > 0 ? (
+                <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-2 text-xs">
+                  {(automationRuns[automation.id] ?? []).slice(0, 3).map((run) => (
+                    <div key={run.id} className="text-muted-foreground flex items-center justify-between gap-2">
+                      <span>{run.status}</span>
+                      {run.conversation_id ? (
+                        <button type="button" className="text-primary hover:underline" onClick={() => navigate(`/chat/${run.conversation_id}`)}>
+                          conversation
+                        </button>
+                      ) : (
+                        <span>{run.error || "no conversation"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" disabled={saving || automation.status !== "active"} onClick={() => void handleRunAutomation(automation)}>
+                  <Play className="mr-2 size-3.5" />
+                  Run now
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => startEditAutomation(automation)}>
+                  <Edit3 className="mr-2 size-3.5" />
+                  Edit
+                </Button>
+                <Button variant="outline" size="sm" disabled={saving} onClick={() => void handleToggleAutomation(automation)}>
+                  {automation.status === "active" ? "Disable" : "Enable"}
+                </Button>
+                <Button variant="destructive" size="sm" disabled={saving} onClick={() => void handleArchiveAutomation(automation)}>
+                  Archive
+                </Button>
+              </div>
             </div>
-          </form>
-        </WorkbenchCard>
-      </div>
+          ))}
+          {filteredAutomations.length === 0 ? <EmptyState title="No automations" detail="Create an automation with the New Automation button." /> : null}
+        </div>
+      </WorkbenchCard>
+
+      <AutomationDialog
+        open={automationDialogOpen}
+        title={editingAutomation ? "Edit automation" : "Create automation"}
+        onOpenChange={(open) => {
+          if (open) setAutomationDialogOpen(true)
+          else closeAutomationDialog()
+        }}
+      >
+        <form className="space-y-3" onSubmit={handleSaveAutomation}>
+          <Input placeholder="Automation name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
+          <Input placeholder="Description" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+          <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.agent_profile_id} onChange={(event) => setForm((current) => ({ ...current, agent_profile_id: event.target.value }))}>
+            {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+          </select>
+          <Textarea placeholder="Task prompt" value={form.task_prompt} onChange={(event) => setForm((current) => ({ ...current, task_prompt: event.target.value }))} rows={8} required />
+          <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.trigger_kind} onChange={(event) => setForm((current) => ({ ...current, trigger_kind: event.target.value }))}>
+            <option value="manual">manual</option>
+            <option value="once">once</option>
+            <option value="cron">cron</option>
+          </select>
+          {form.trigger_kind === "once" ? (
+            <Input placeholder="Run at, RFC3339 e.g. 2026-06-24T12:00:00Z" value={form.once_run_at} onChange={(event) => setForm((current) => ({ ...current, once_run_at: event.target.value }))} required />
+          ) : null}
+          {form.trigger_kind === "cron" ? (
+            <Input type="number" min="1" placeholder="Interval minutes" value={form.cron_interval_minutes} onChange={(event) => setForm((current) => ({ ...current, cron_interval_minutes: event.target.value }))} required />
+          ) : null}
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>{editingAutomation ? "Save automation" : "Create automation"}</Button>
+            <Button type="button" variant="outline" onClick={closeAutomationDialog}>Cancel</Button>
+          </div>
+        </form>
+      </AutomationDialog>
     </AgentProductPage>
+  )
+}
+
+function AutomationDialog({
+  open,
+  title,
+  children,
+  onOpenChange,
+}: {
+  open: boolean
+  title: string
+  children: React.ReactNode
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
+        <DialogPrimitive.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border border-border p-5 shadow-lg duration-100 outline-none">
+          <div className="pr-8">
+            <DialogPrimitive.Title className="text-base font-medium">{title}</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="text-muted-foreground mt-1 text-sm">
+              选择 target teammate、task prompt 和 trigger。
+            </DialogPrimitive.Description>
+          </div>
+          {children}
+          <DialogPrimitive.Close asChild>
+            <Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4">
+              <X className="size-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }

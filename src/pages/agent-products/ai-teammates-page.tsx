@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Bot, Brain, Database, History, Plus, Route, ShieldCheck, Sparkles } from "lucide-react"
+import { Bot, Brain, Database, History, Plus, Route, ShieldCheck, Sparkles, X } from "lucide-react"
+import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,7 @@ export function AiTeammatesPage() {
   const navigate = useNavigate()
   const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
   const [query, setQuery] = React.useState("")
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [systemPrompt, setSystemPrompt] = React.useState("")
@@ -78,6 +80,12 @@ export function AiTeammatesPage() {
     `${profile.name} ${profile.description ?? ""}`.toLowerCase().includes(query.toLowerCase())
   )
 
+  function resetCreateForm() {
+    setName("")
+    setDescription("")
+    setSystemPrompt("")
+  }
+
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault()
     setSaving(true)
@@ -88,9 +96,8 @@ export function AiTeammatesPage() {
         description,
         system_prompt: systemPrompt,
       })
-      setName("")
-      setDescription("")
-      setSystemPrompt("")
+      resetCreateForm()
+      setCreateDialogOpen(false)
       await reload()
       navigate(`/ai-teammates/${response.profile.id}`)
     } catch (err) {
@@ -129,7 +136,7 @@ export function AiTeammatesPage() {
         },
       ]}
       headerActions={
-        <Button onClick={() => document.getElementById("create-teammate-form")?.scrollIntoView()}>
+        <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-2 size-4" />
           New Profile
         </Button>
@@ -137,72 +144,114 @@ export function AiTeammatesPage() {
     >
       <ErrorNotice message={error} />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <WorkbenchCard
-          title="Profile Catalog"
-          description="选择 teammate 进入详情，绑定技能、规则和记忆。"
-          icon={Bot}
-          actions={
-            <div className="hidden min-w-72 md:block">
-              <SearchBar value={query} onChange={setQuery} placeholder="Search teammates..." />
-            </div>
-          }
-        >
-          <div className="space-y-3 md:hidden">
+      <WorkbenchCard
+        title="Profile Catalog"
+        description="选择 teammate 进入详情，绑定技能、规则和记忆。"
+        icon={Bot}
+        actions={
+          <div className="hidden min-w-72 md:block">
             <SearchBar value={query} onChange={setQuery} placeholder="Search teammates..." />
           </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            {filteredProfiles.map((profile) => (
-              <Link
-                key={profile.id}
-                to={`/ai-teammates/${profile.id}`}
-                className="group block rounded-md border border-border bg-background/60 p-4 transition-colors hover:bg-muted/60"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
-                      <Bot className="size-5 text-indigo-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{profile.name}</p>
-                      <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
-                        {profile.description || "No description"}
-                      </p>
-                    </div>
+        }
+      >
+        <div className="space-y-3 md:hidden">
+          <SearchBar value={query} onChange={setQuery} placeholder="Search teammates..." />
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {filteredProfiles.map((profile) => (
+            <Link
+              key={profile.id}
+              to={`/ai-teammates/${profile.id}`}
+              className="group block rounded-md border border-border bg-background/60 p-4 transition-colors hover:bg-muted/60"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
+                    <Bot className="size-5 text-indigo-500" />
                   </div>
-                  <StatusBadge status={profile.status} />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{profile.name}</p>
+                    <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+                      {profile.description || "No description"}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-muted-foreground mt-4 flex items-center justify-between text-xs">
-                  <span>rev {profile.revision}</span>
-                  <span className="group-hover:text-foreground">Open profile →</span>
-                </div>
-              </Link>
-            ))}
+                <StatusBadge status={profile.status} />
+              </div>
+              <div className="text-muted-foreground mt-4 flex items-center justify-between text-xs">
+                <span>rev {profile.revision}</span>
+                <span className="group-hover:text-foreground">Open profile →</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+        {!loading && filteredProfiles.length === 0 ? (
+          <div className="mt-3">
+            <EmptyState title="No teammates found" detail="Create a profile or adjust search." />
           </div>
-          {!loading && filteredProfiles.length === 0 ? (
-            <div className="mt-3">
-              <EmptyState title="No teammates found" detail="Create a profile or adjust search." />
-            </div>
-          ) : null}
-        </WorkbenchCard>
+        ) : null}
+      </WorkbenchCard>
 
-        <WorkbenchCard title="Create teammate" description="定义一个个人 Agent Profile。" icon={Plus}>
-          <form id="create-teammate-form" className="space-y-3" onSubmit={handleCreate}>
-            <Input placeholder="Name" value={name} onChange={(event) => setName(event.target.value)} required />
-            <Input placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
-            <Textarea
-              placeholder="System prompt"
-              value={systemPrompt}
-              onChange={(event) => setSystemPrompt(event.target.value)}
-              rows={8}
-            />
-            <Button className="w-full" type="submit" disabled={saving}>
+      <CreateTeammateDialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open)
+          if (!open) resetCreateForm()
+        }}
+      >
+        <form className="space-y-3" onSubmit={handleCreate}>
+          <Input placeholder="Name" value={name} onChange={(event) => setName(event.target.value)} required />
+          <Input placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
+          <Textarea
+            placeholder="System prompt"
+            value={systemPrompt}
+            onChange={(event) => setSystemPrompt(event.target.value)}
+            rows={8}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" disabled={saving}>
               {saving ? "Creating..." : "Create profile"}
             </Button>
-          </form>
-        </WorkbenchCard>
-      </div>
+            <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </CreateTeammateDialog>
     </AgentProductPage>
+  )
+}
+
+function CreateTeammateDialog({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: React.ReactNode
+}) {
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
+        <DialogPrimitive.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border border-border p-5 shadow-lg duration-100 outline-none">
+          <div className="pr-8">
+            <DialogPrimitive.Title className="text-base font-medium">Create teammate</DialogPrimitive.Title>
+            <DialogPrimitive.Description className="text-muted-foreground mt-1 text-sm">
+              定义一个个人 Agent Profile。
+            </DialogPrimitive.Description>
+          </div>
+          {children}
+          <DialogPrimitive.Close asChild>
+            <Button type="button" variant="ghost" size="icon-sm" className="absolute top-4 right-4">
+              <X className="size-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }
 
@@ -390,50 +439,48 @@ export function AiTeammateDetailPage() {
     >
       <ErrorNotice message={error} />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
-        <div className="space-y-4">
-          <WorkbenchCard title="Profile Runtime Identity" description="基础身份和 system prompt。" icon={Bot}>
-            <form className="space-y-3" onSubmit={handleSaveProfile}>
-              <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} disabled={isDefault} required />
-              <Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} disabled={isDefault} placeholder="Description" />
-              <Textarea value={form.system_prompt} onChange={(event) => setForm((current) => ({ ...current, system_prompt: event.target.value }))} disabled={isDefault} placeholder="System prompt" rows={10} />
-              <div className="flex gap-2">
-                <Button type="submit" disabled={saving || isDefault}>Save profile</Button>
-                <Button type="button" variant="destructive" disabled={saving || isDefault} onClick={handleArchive}>Archive</Button>
-              </div>
-            </form>
-          </WorkbenchCard>
+      <div className="space-y-6">
+        <WorkbenchCard title="Profile Runtime Identity" description="基础身份和 system prompt。" icon={Bot}>
+          <form className="space-y-3" onSubmit={handleSaveProfile}>
+            <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} disabled={isDefault} required />
+            <Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} disabled={isDefault} placeholder="Description" />
+            <Textarea value={form.system_prompt} onChange={(event) => setForm((current) => ({ ...current, system_prompt: event.target.value }))} disabled={isDefault} placeholder="System prompt" rows={10} />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={saving || isDefault}>Save profile</Button>
+              <Button type="button" variant="destructive" disabled={saving || isDefault} onClick={handleArchive}>Archive</Button>
+            </div>
+          </form>
+        </WorkbenchCard>
 
-          <BindingSection title="Behavioral Rules" description="绑定后按 sort_order 注入 prompt。" icon={ShieldCheck} count={boundRuleIds.size} onSave={handleSaveRules} disabled={saving || isDefault}>
-            {rules.map((rule) => (
-              <ToggleRow
-                key={rule.id}
-                title={rule.name || rule.kind}
-                detail={rule.content}
-                checked={boundRuleIds.has(rule.id)}
-                disabled={isDefault}
-                badge={rule.kind}
-                onCheckedChange={(checked) => setBoundRuleIds((current) => toggleSet(current, rule.id, checked))}
-              />
-            ))}
-            {rules.length === 0 ? <EmptyState title="No rules" detail="Create rules from Skills, Rules, Memory." /> : null}
-          </BindingSection>
+        <BindingSection title="Behavioral Rules" description="绑定后按 sort_order 注入 prompt。" icon={ShieldCheck} count={boundRuleIds.size} onSave={handleSaveRules} disabled={saving || isDefault}>
+          {rules.map((rule) => (
+            <ToggleRow
+              key={rule.id}
+              title={rule.name || rule.kind}
+              detail={rule.content}
+              checked={boundRuleIds.has(rule.id)}
+              disabled={isDefault}
+              badge={rule.kind}
+              onCheckedChange={(checked) => setBoundRuleIds((current) => toggleSet(current, rule.id, checked))}
+            />
+          ))}
+          {rules.length === 0 ? <EmptyState title="No rules" detail="Create rules from Skills, Rules, Memory." /> : null}
+        </BindingSection>
 
-          <BindingSection title="Explicit Memory" description="少量显式 memory 会作为 dynamic context 注入。" icon={Database} count={boundMemoryIds.size} onSave={handleSaveMemory} disabled={saving || isDefault}>
-            {memoryEntries.map((entry) => (
-              <ToggleRow
-                key={entry.id}
-                title={entry.title}
-                detail={entry.content}
-                checked={boundMemoryIds.has(entry.id)}
-                disabled={isDefault}
-                badge={entry.tags.slice(0, 2).join(", ") || "memory"}
-                onCheckedChange={(checked) => setBoundMemoryIds((current) => toggleSet(current, entry.id, checked))}
-              />
-            ))}
-            {memoryEntries.length === 0 ? <EmptyState title="No memory" detail="Create memory from the asset library." /> : null}
-          </BindingSection>
-        </div>
+        <BindingSection title="Explicit Memory" description="少量显式 memory 会作为 dynamic context 注入。" icon={Database} count={boundMemoryIds.size} onSave={handleSaveMemory} disabled={saving || isDefault}>
+          {memoryEntries.map((entry) => (
+            <ToggleRow
+              key={entry.id}
+              title={entry.title}
+              detail={entry.content}
+              checked={boundMemoryIds.has(entry.id)}
+              disabled={isDefault}
+              badge={entry.tags.slice(0, 2).join(", ") || "memory"}
+              onCheckedChange={(checked) => setBoundMemoryIds((current) => toggleSet(current, entry.id, checked))}
+            />
+          ))}
+          {memoryEntries.length === 0 ? <EmptyState title="No memory" detail="Create memory from the asset library." /> : null}
+        </BindingSection>
 
         <WorkbenchCard title="Skill Allowlist" description="自定义 teammate 只激活绑定的 skill。" icon={Brain}>
           <form className="flex gap-2" onSubmit={handleAddSkill}>
