@@ -16,6 +16,7 @@ import {
 } from "@/features/chat/chat-pane-state"
 import {
   ChatComposer,
+  type AgentDescriptorOption,
   type PreInputQueueItem,
 } from "@/features/chat/components/chat-composer"
 import { ChatMessageList } from "@/features/chat/components/chat-message-list"
@@ -80,10 +81,7 @@ import {
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/features/chat/api/chat-api"
-import {
-  listAgentProfiles,
-  type AgentProfile,
-} from "@/lib/api/gateway-client"
+import { listWorkspaceTree } from "@/features/workspace/api/workspace-api"
 import type {
   GatewayChatFinalResult,
   GatewayChatStreamEnvelope,
@@ -107,6 +105,7 @@ export function GatewayChatSidebar() {
   const {
     accessToken,
     currentWorkspace,
+    workspaces,
     conversations,
     currentConversationId,
     createConversation,
@@ -124,8 +123,11 @@ export function GatewayChatSidebar() {
     { environmentId: string; label: string; status: string }[]
   >([])
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
-  const [agentProfiles, setAgentProfiles] = React.useState<AgentProfile[]>([])
-  const [selectedAgentProfileId, setSelectedAgentProfileId] = React.useState("default")
+  const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
+    AgentDescriptorOption[]
+  >([])
+  const [selectedAgentWorkspaceId, setSelectedAgentWorkspaceId] = React.useState("")
+  const [selectedAgentPath, setSelectedAgentPath] = React.useState("")
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
@@ -175,32 +177,6 @@ export function GatewayChatSidebar() {
       }
     }
   }, [])
-
-  React.useEffect(() => {
-    if (!accessToken) {
-      setAgentProfiles([])
-      return
-    }
-    let cancelled = false
-    void listAgentProfiles(accessToken)
-      .then((response) => {
-        if (cancelled) {
-          return
-        }
-        setAgentProfiles(response.profiles)
-        if (!response.profiles.some((profile) => profile.id === selectedAgentProfileId)) {
-          setSelectedAgentProfileId(response.profiles[0]?.id ?? "default")
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAgentProfiles([])
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken, selectedAgentProfileId])
 
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
@@ -260,6 +236,54 @@ export function GatewayChatSidebar() {
     }
   }, [accessToken, currentWorkspace])
 
+  React.useEffect(() => {
+    if (!accessToken || !workspaces.length) {
+      setAgentDescriptorOptions([])
+      return
+    }
+
+    let cancelled = false
+    Promise.all(
+      workspaces.map(async (workspace) => {
+        const tree = await listWorkspaceTree(accessToken, workspace.id)
+        return tree.objects
+          .filter(
+            (object) =>
+              object.kind === "file" &&
+              object.path.startsWith("system/agents/") &&
+              object.path.endsWith(".md") &&
+              !object.path.includes("..") &&
+              !object.path.includes("\\")
+          )
+          .map((object) => ({
+            workspaceId: workspace.id,
+            path: object.path,
+            label: object.name || object.path,
+          }))
+      })
+    )
+      .then((groups) => {
+        if (!cancelled) {
+          setAgentDescriptorOptions(groups.flat())
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAgentDescriptorOptions([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, workspaces])
+
+  React.useEffect(() => {
+    if (!selectedAgentWorkspaceId && currentWorkspace?.id) {
+      setSelectedAgentWorkspaceId(currentWorkspace.id)
+    }
+  }, [currentWorkspace?.id, selectedAgentWorkspaceId])
+
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
     if (!currentConversationId || !accessToken) {
@@ -306,11 +330,7 @@ export function GatewayChatSidebar() {
   const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
   const isSending = streamStatus === "streaming" || streamStatus === "recovering"
   const selectedConversationTitle =
-    selectedConversation?.title || "梳理前端用户与会话管理接入需求"
-  const activeAgentProfileId =
-    selectedConversation?.agent_profile_id || selectedAgentProfileId || "default"
-  const activeAgentProfile =
-    agentProfiles.find((profile) => profile.id === activeAgentProfileId) ?? null
+    selectedConversation?.title || "New Chat"
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {
@@ -1545,7 +1565,7 @@ export function GatewayChatSidebar() {
     let targetConversationId = currentConversationId
     if (!targetConversationId) {
       const createdConversation = await createConversation(buildConversationTitle(content), {
-        agent_profile_id: selectedAgentProfileId || "default",
+        agent_profile_id: "default",
       })
       targetConversationId = createdConversation.id
       skipNextConversationSyncRef.current = targetConversationId
@@ -1706,6 +1726,22 @@ export function GatewayChatSidebar() {
     await sendContentToApi(content)
   }
 
+  function handleAgentWorkspaceChange(value: string) {
+    setSelectedAgentWorkspaceId(value)
+    setSelectedAgentPath("")
+  }
+
+  function handleInsertAgentDescriptor() {
+    if (!selectedAgentWorkspaceId || !selectedAgentPath) {
+      return
+    }
+    const mention = `@agent(${selectedAgentWorkspaceId}:${selectedAgentPath})`
+    setComposer((current) => {
+      const trimmedEnd = current.replace(/\s+$/, "")
+      return trimmedEnd ? `${trimmedEnd}\n${mention} ` : `${mention} `
+    })
+  }
+
   function handleSandboxEnvironmentChange(value: string) {
     setSelectedSandboxEnvironmentId(value)
     if (typeof window !== "undefined") {
@@ -1801,10 +1837,12 @@ export function GatewayChatSidebar() {
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
+        selectedConversationAgentProfileId={selectedConversation?.agent_profile_id ?? null}
         conversations={conversations.map((conversation) => ({
           id: conversation.id,
           title: conversation.title || "未命名会话",
           updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
+          agentProfileId: conversation.agent_profile_id ?? null,
         }))}
         onSelectConversation={selectConversation}
         onRefreshConversations={() => {
@@ -1813,37 +1851,6 @@ export function GatewayChatSidebar() {
         onStartNewChat={startNewChat}
         onCollapseSidebar={toggleSidebar}
       />
-
-      <div className="border-sidebar-border bg-sidebar/50 border-b px-3 py-2">
-        <label className="text-sidebar-foreground/70 mb-1 block text-xs font-medium">
-          AI Teammate
-        </label>
-        <select
-          className="border-sidebar-border bg-background text-foreground h-8 w-full rounded-md border px-2 text-sm disabled:opacity-70"
-          value={activeAgentProfileId}
-          disabled={Boolean(currentConversationId)}
-          onChange={(event) => setSelectedAgentProfileId(event.target.value)}
-          title={
-            currentConversationId
-              ? "当前会话已绑定 AI Teammate，切换请新建会话。"
-              : "选择新会话使用的 AI Teammate。"
-          }
-        >
-          {(agentProfiles.length > 0
-            ? agentProfiles
-            : [{ id: "default", name: "Default Agent" } as AgentProfile]
-          ).map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}
-            </option>
-          ))}
-        </select>
-        <p className="text-sidebar-foreground/50 mt-1 text-xs">
-          {currentConversationId
-            ? `当前会话绑定：${activeAgentProfile?.name ?? activeAgentProfileId}`
-            : "将在创建新会话时绑定。"}
-        </p>
-      </div>
 
       <SidebarContent className="bg-sidebar/50">
         <ChatMessageList
@@ -1870,10 +1877,20 @@ export function GatewayChatSidebar() {
         error={error}
         isSending={isSending}
         preInputQueue={preInputQueue}
+        workspaceOptions={workspaces.map((workspace) => ({
+          id: workspace.id,
+          name: workspace.name,
+        }))}
+        agentDescriptorOptions={agentDescriptorOptions}
+        selectedAgentWorkspaceId={selectedAgentWorkspaceId}
+        selectedAgentPath={selectedAgentPath}
         sandboxOptions={sandboxOptions}
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
+        onAgentWorkspaceChange={handleAgentWorkspaceChange}
+        onAgentPathChange={setSelectedAgentPath}
+        onInsertAgentDescriptor={handleInsertAgentDescriptor}
         onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
         onSend={() => {
           void handleSend()

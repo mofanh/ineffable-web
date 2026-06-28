@@ -18,6 +18,7 @@ import { SidebarFooter } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
+  BotIcon,
   GripVerticalIcon,
   SendHorizontalIcon,
   XIcon,
@@ -29,15 +30,33 @@ export type PreInputQueueItem = {
   status?: "pending" | "queued" | "promoting" | "deleting"
 }
 
+export type AgentWorkspaceOption = {
+  id: string
+  name: string
+}
+
+export type AgentDescriptorOption = {
+  workspaceId: string
+  path: string
+  label: string
+}
+
 type ChatComposerProps = {
   composer: string
   error: string | null
   isSending: boolean
   preInputQueue: PreInputQueueItem[]
+  workspaceOptions: AgentWorkspaceOption[]
+  agentDescriptorOptions: AgentDescriptorOption[]
+  selectedAgentWorkspaceId: string
+  selectedAgentPath: string
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   selectedSandboxEnvironmentId: string
   onComposerChange: (value: string) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onAgentWorkspaceChange: (value: string) => void
+  onAgentPathChange: (value: string) => void
+  onInsertAgentDescriptor: () => void
   onSandboxEnvironmentChange: (value: string) => void
   onSend: () => void
   onStop: () => void
@@ -50,10 +69,17 @@ export function ChatComposer({
   error,
   isSending,
   preInputQueue,
+  workspaceOptions,
+  agentDescriptorOptions,
+  selectedAgentWorkspaceId,
+  selectedAgentPath,
   sandboxOptions,
   selectedSandboxEnvironmentId,
   onComposerChange,
   onComposerKeyDown,
+  onAgentWorkspaceChange,
+  onAgentPathChange,
+  onInsertAgentDescriptor,
   onSandboxEnvironmentChange,
   onSend,
   onStop,
@@ -62,6 +88,9 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
     status === "pending" || status === "promoting" || status === "deleting"
+  const workspaceAgentOptions = agentDescriptorOptions.filter(
+    (option) => option.workspaceId === selectedAgentWorkspaceId
+  )
 
   return (
     <SidebarFooter className="p-2">
@@ -127,6 +156,69 @@ export function ChatComposer({
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
         <InputGroup className="h-auto overflow-hidden rounded-2xl border border-sidebar-border bg-background shadow-xs">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-sidebar-border bg-sidebar-accent/10 px-2 py-1.5">
+            <BotIcon className="size-3.5 text-muted-foreground" />
+            <Select
+              value={selectedAgentWorkspaceId || "__none__"}
+              onValueChange={(value) =>
+                onAgentWorkspaceChange(value === "__none__" ? "" : value)
+              }
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-7 w-[150px] max-w-full rounded-md bg-background text-xs"
+              >
+                <SelectValue placeholder="Workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Workspace</SelectItem>
+                {workspaceOptions.map((workspace) => (
+                  <SelectItem key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedAgentPath || "__none__"}
+              onValueChange={(value) =>
+                onAgentPathChange(value === "__none__" ? "" : value)
+              }
+              disabled={!selectedAgentWorkspaceId}
+            >
+              <SelectTrigger
+                size="sm"
+                className="h-7 w-[190px] max-w-full rounded-md bg-background text-xs"
+              >
+                <SelectValue placeholder="Agent file" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">
+                  {selectedAgentWorkspaceId ? "Agent file" : "Select workspace"}
+                </SelectItem>
+                {workspaceAgentOptions.map((agent) => (
+                  <SelectItem key={`${agent.workspaceId}:${agent.path}`} value={agent.path}>
+                    {agent.label}
+                  </SelectItem>
+                ))}
+                {selectedAgentWorkspaceId && workspaceAgentOptions.length === 0 ? (
+                  <SelectItem value="__empty__" disabled>
+                    Create system/agents/*.md in workspace files
+                  </SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              disabled={!selectedAgentWorkspaceId || !selectedAgentPath}
+              onClick={onInsertAgentDescriptor}
+            >
+              插入 Agent
+            </Button>
+          </div>
           <InputGroupTextarea
             aria-label="Chat message"
             placeholder={
