@@ -7,12 +7,7 @@ import {
 } from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
 import { AccountPage } from "@/pages/account-pages"
-import {
-  AgentResourcesPage,
-  AiTeammateDetailPage,
-  AiTeammatesPage,
-  AutomationPage,
-} from "@/pages/agent-product-pages"
+import { AutomationPage } from "@/pages/agent-product-pages"
 import { LoginPage, RegisterPage } from "@/pages/auth-pages"
 import {
   ApiDebugPage,
@@ -66,9 +61,6 @@ function PrototypeWorkbenchRedirect() {
 
 const routeElements: Record<string, React.ReactElement> = {
   "/account": <AccountPage />,
-  "/ai-teammates": <AiTeammatesPage />,
-  "/ai-teammates/:profileId": <AiTeammateDetailPage />,
-  "/agent-resources": <AgentResourcesPage />,
   "/automation": <AutomationPage />,
   "/console/world": <ConsoleWorldHomePage />,
   "/console/world/collaboration": <CollaborationOverviewPage />,

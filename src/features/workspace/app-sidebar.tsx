@@ -65,8 +65,6 @@ import {
 import {
   BadgeCheckIcon,
   BellIcon,
-  BotIcon,
-  BrainIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -93,14 +91,7 @@ import {
 } from "lucide-react"
 
 const primaryNavItems = [
-  { id: "ai-teammates", title: "AI Teammates", icon: BotIcon, path: "/ai-teammates" },
   { id: "automation", title: "Automation", icon: ZapIcon, path: "/automation" },
-  {
-    id: "skills-rules-memory",
-    title: "Skills, Rules, Memory",
-    icon: BrainIcon,
-    path: "/agent-resources?tab=rules",
-  },
 ]
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
@@ -335,10 +326,7 @@ function PrimaryNav({
         <SidebarMenu className="gap-1">
           {primaryNavItems.map((item) => {
             const Icon = item.icon
-            const isActive =
-              location.pathname === item.path.split("?")[0] ||
-              (item.id === "ai-teammates" &&
-                location.pathname.startsWith("/ai-teammates/"))
+            const isActive = location.pathname === item.path.split("?")[0]
 
             return (
               <SidebarMenuItem key={item.id}>
@@ -600,7 +588,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   } = useAppSession()
   const location = useLocation()
   const navigate = useNavigate()
-  const [selectedEntryId, setSelectedEntryId] = React.useState("skills-rules-memory")
+  const [selectedEntryId, setSelectedEntryId] = React.useState("automation")
   const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
   const [collapsedEntryIds, setCollapsedEntryIds] = React.useState<Set<string>>(
     () => new Set()
@@ -1095,7 +1083,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }
 
           await deleteWorkspaceObject(accessToken, item.workspaceId, item.object.id)
-          setSelectedEntryId("skills-rules-memory")
+          setSelectedEntryId("automation")
           await refreshWorkspaceTrees({
             workspaceIds: [item.workspaceId],
             showLoading: false,
