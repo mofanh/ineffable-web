@@ -126,8 +126,6 @@ export function GatewayChatSidebar() {
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
     AgentDescriptorOption[]
   >([])
-  const [selectedAgentWorkspaceId, setSelectedAgentWorkspaceId] = React.useState("")
-  const [selectedAgentPath, setSelectedAgentPath] = React.useState("")
 
   const abortRef = React.useRef<AbortController | null>(null)
   const assistantEntryIdRef = React.useRef<string | null>(null)
@@ -257,6 +255,7 @@ export function GatewayChatSidebar() {
           )
           .map((object) => ({
             workspaceId: workspace.id,
+            workspaceName: workspace.name,
             path: object.path,
             label: object.name || object.path,
           }))
@@ -277,12 +276,6 @@ export function GatewayChatSidebar() {
       cancelled = true
     }
   }, [accessToken, workspaces])
-
-  React.useEffect(() => {
-    if (!selectedAgentWorkspaceId && currentWorkspace?.id) {
-      setSelectedAgentWorkspaceId(currentWorkspace.id)
-    }
-  }, [currentWorkspace?.id, selectedAgentWorkspaceId])
 
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
@@ -1726,22 +1719,6 @@ export function GatewayChatSidebar() {
     await sendContentToApi(content)
   }
 
-  function handleAgentWorkspaceChange(value: string) {
-    setSelectedAgentWorkspaceId(value)
-    setSelectedAgentPath("")
-  }
-
-  function handleInsertAgentDescriptor() {
-    if (!selectedAgentWorkspaceId || !selectedAgentPath) {
-      return
-    }
-    const mention = `@agent(${selectedAgentWorkspaceId}:${selectedAgentPath})`
-    setComposer((current) => {
-      const trimmedEnd = current.replace(/\s+$/, "")
-      return trimmedEnd ? `${trimmedEnd}\n${mention} ` : `${mention} `
-    })
-  }
-
   function handleSandboxEnvironmentChange(value: string) {
     setSelectedSandboxEnvironmentId(value)
     if (typeof window !== "undefined") {
@@ -1877,20 +1854,11 @@ export function GatewayChatSidebar() {
         error={error}
         isSending={isSending}
         preInputQueue={preInputQueue}
-        workspaceOptions={workspaces.map((workspace) => ({
-          id: workspace.id,
-          name: workspace.name,
-        }))}
         agentDescriptorOptions={agentDescriptorOptions}
-        selectedAgentWorkspaceId={selectedAgentWorkspaceId}
-        selectedAgentPath={selectedAgentPath}
         sandboxOptions={sandboxOptions}
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
-        onAgentWorkspaceChange={handleAgentWorkspaceChange}
-        onAgentPathChange={setSelectedAgentPath}
-        onInsertAgentDescriptor={handleInsertAgentDescriptor}
         onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
         onSend={() => {
           void handleSend()

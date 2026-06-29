@@ -18,7 +18,8 @@ import { SidebarFooter } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
-  BotIcon,
+  AtSignIcon,
+  FileTextIcon,
   GripVerticalIcon,
   SendHorizontalIcon,
   XIcon,
@@ -30,13 +31,9 @@ export type PreInputQueueItem = {
   status?: "pending" | "queued" | "promoting" | "deleting"
 }
 
-export type AgentWorkspaceOption = {
-  id: string
-  name: string
-}
-
 export type AgentDescriptorOption = {
   workspaceId: string
+  workspaceName: string
   path: string
   label: string
 }
@@ -46,17 +43,11 @@ type ChatComposerProps = {
   error: string | null
   isSending: boolean
   preInputQueue: PreInputQueueItem[]
-  workspaceOptions: AgentWorkspaceOption[]
   agentDescriptorOptions: AgentDescriptorOption[]
-  selectedAgentWorkspaceId: string
-  selectedAgentPath: string
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   selectedSandboxEnvironmentId: string
   onComposerChange: (value: string) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  onAgentWorkspaceChange: (value: string) => void
-  onAgentPathChange: (value: string) => void
-  onInsertAgentDescriptor: () => void
   onSandboxEnvironmentChange: (value: string) => void
   onSend: () => void
   onStop: () => void
@@ -69,28 +60,106 @@ export function ChatComposer({
   error,
   isSending,
   preInputQueue,
-  workspaceOptions,
   agentDescriptorOptions,
-  selectedAgentWorkspaceId,
-  selectedAgentPath,
   sandboxOptions,
   selectedSandboxEnvironmentId,
   onComposerChange,
   onComposerKeyDown,
-  onAgentWorkspaceChange,
-  onAgentPathChange,
-  onInsertAgentDescriptor,
   onSandboxEnvironmentChange,
   onSend,
   onStop,
   onPromoteToGuided,
   onDeleteFromQueue,
 }: ChatComposerProps) {
+  const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
+
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
     status === "pending" || status === "promoting" || status === "deleting"
-  const workspaceAgentOptions = agentDescriptorOptions.filter(
-    (option) => option.workspaceId === selectedAgentWorkspaceId
-  )
+  const agentTrigger = React.useMemo(() => {
+    const match = composer.match(/(^|\s)@([^\s@]*)$/)
+    if (!match || match.index == null) {
+      return null
+    }
+
+    return {
+      query: match[2].toLowerCase(),
+      start: match.index + match[1].length,
+    }
+  }, [composer])
+  const filteredAgentOptions = React.useMemo(() => {
+    if (!agentTrigger?.query) {
+      return agentDescriptorOptions
+    }
+
+    return agentDescriptorOptions.filter((option) => {
+      const haystack = `${option.workspaceName} ${option.label} ${option.path}`.toLowerCase()
+      return haystack.includes(agentTrigger.query)
+    })
+  }, [agentDescriptorOptions, agentTrigger])
+  const groupedAgentOptions = filteredAgentOptions.reduce<
+    { workspaceId: string; workspaceName: string; options: AgentDescriptorOption[] }[]
+  >((groups, option) => {
+    const group = groups.find((item) => item.workspaceId === option.workspaceId)
+    if (group) {
+      group.options.push(option)
+      return groups
+    }
+
+    groups.push({
+      workspaceId: option.workspaceId,
+      workspaceName: option.workspaceName,
+      options: [option],
+    })
+    return groups
+  }, [])
+  const shouldShowAgentMenu = isAgentMenuOpen && Boolean(agentTrigger)
+  const hasAgentFiles = agentDescriptorOptions.length > 0
+  const hasFilteredAgentFiles = filteredAgentOptions.length > 0
+  const agentMenuHint = hasAgentFiles
+    ? "输入以搜索 Agent 文件"
+    : "在 workspace 文件中创建 system/agents/*.md 后可引用"
+
+  function handleComposerValueChange(value: string) {
+    onComposerChange(value)
+    setIsAgentMenuOpen(/(^|\s)@([^\s@]*)$/.test(value))
+  }
+
+  function insertAgentDescriptor(option: AgentDescriptorOption) {
+    const mention = `@agent(${option.workspaceId}:${option.path})`
+    if (!agentTrigger) {
+      const trimmedEnd = composer.replace(/\s+$/, "")
+      onComposerChange(trimmedEnd ? `${trimmedEnd}\n${mention} ` : `${mention} `)
+      setIsAgentMenuOpen(false)
+      return
+    }
+
+    onComposerChange(`${composer.slice(0, agentTrigger.start)}${mention} `)
+    setIsAgentMenuOpen(false)
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Escape" && shouldShowAgentMenu) {
+      event.preventDefault()
+      setIsAgentMenuOpen(false)
+      return
+    }
+
+    onComposerKeyDown(event)
+  }
+
+  function handleAgentOptionMouseDown(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+  }
+
+  function handleComposerFocus() {
+    if (agentTrigger) {
+      setIsAgentMenuOpen(true)
+    }
+  }
+
+  function handleComposerBlur() {
+    window.setTimeout(() => setIsAgentMenuOpen(false), 120)
+  }
 
   return (
     <SidebarFooter className="p-2">
@@ -155,70 +224,63 @@ export function ChatComposer({
       >
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
-        <InputGroup className="h-auto overflow-hidden rounded-2xl border border-sidebar-border bg-background shadow-xs">
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-sidebar-border bg-sidebar-accent/10 px-2 py-1.5">
-            <BotIcon className="size-3.5 text-muted-foreground" />
-            <Select
-              value={selectedAgentWorkspaceId || "__none__"}
-              onValueChange={(value) =>
-                onAgentWorkspaceChange(value === "__none__" ? "" : value)
-              }
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-7 w-[150px] max-w-full rounded-md bg-background text-xs"
-              >
-                <SelectValue placeholder="Workspace" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Workspace</SelectItem>
-                {workspaceOptions.map((workspace) => (
-                  <SelectItem key={workspace.id} value={workspace.id}>
-                    {workspace.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={selectedAgentPath || "__none__"}
-              onValueChange={(value) =>
-                onAgentPathChange(value === "__none__" ? "" : value)
-              }
-              disabled={!selectedAgentWorkspaceId}
-            >
-              <SelectTrigger
-                size="sm"
-                className="h-7 w-[190px] max-w-full rounded-md bg-background text-xs"
-              >
-                <SelectValue placeholder="Agent file" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">
-                  {selectedAgentWorkspaceId ? "Agent file" : "Select workspace"}
-                </SelectItem>
-                {workspaceAgentOptions.map((agent) => (
-                  <SelectItem key={`${agent.workspaceId}:${agent.path}`} value={agent.path}>
-                    {agent.label}
-                  </SelectItem>
-                ))}
-                {selectedAgentWorkspaceId && workspaceAgentOptions.length === 0 ? (
-                  <SelectItem value="__empty__" disabled>
-                    Create system/agents/*.md in workspace files
-                  </SelectItem>
-                ) : null}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 text-xs"
-              disabled={!selectedAgentWorkspaceId || !selectedAgentPath}
-              onClick={onInsertAgentDescriptor}
-            >
-              插入 Agent
-            </Button>
+        {shouldShowAgentMenu ? (
+          <div className="overflow-hidden rounded-2xl border border-sidebar-border bg-popover text-popover-foreground shadow-lg">
+            <div className="px-3.5 py-2 text-sm font-medium">添加</div>
+            <div className="space-y-1 px-2 pb-2">
+              <div className="flex items-center gap-2 rounded-xl bg-sidebar-accent/60 px-2.5 py-2 text-sm">
+                <AtSignIcon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="shrink-0 font-medium">Agent 描述文件</span>
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {agentMenuHint}
+                </span>
+              </div>
+
+              <div className="px-1 pt-1 text-xs font-medium text-muted-foreground">
+                Agent 文件
+              </div>
+
+              <div className="max-h-64 overflow-y-auto">
+                {hasFilteredAgentFiles ? (
+                  groupedAgentOptions.map((group) => (
+                    <div key={group.workspaceId} className="py-1">
+                      <div className="px-2 py-1 text-[11px] font-medium uppercase text-muted-foreground">
+                        {group.workspaceName}
+                      </div>
+                      {group.options.map((option) => (
+                        <button
+                          key={`${option.workspaceId}:${option.path}`}
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none"
+                          onMouseDown={handleAgentOptionMouseDown}
+                          onClick={() => insertAgentDescriptor(option)}
+                        >
+                          <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">
+                              {option.label}
+                            </span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {option.path}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-4 text-sm text-muted-foreground">
+                    {hasAgentFiles
+                      ? "没有匹配的 Agent 文件"
+                      : "暂无可引用的 Agent 文件"}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+        ) : null}
+
+        <InputGroup className="h-auto overflow-hidden rounded-2xl border border-sidebar-border bg-background shadow-xs">
           <InputGroupTextarea
             aria-label="Chat message"
             placeholder={
@@ -228,8 +290,10 @@ export function ChatComposer({
             }
             rows={2}
             value={composer}
-            onChange={(event) => onComposerChange(event.target.value)}
-            onKeyDown={onComposerKeyDown}
+            onChange={(event) => handleComposerValueChange(event.target.value)}
+            onFocus={handleComposerFocus}
+            onBlur={handleComposerBlur}
+            onKeyDown={handleComposerKeyDown}
             className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
           />
           <InputGroupAddon
