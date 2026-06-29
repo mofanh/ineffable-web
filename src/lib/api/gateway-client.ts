@@ -150,10 +150,10 @@ export type AgentProfile = {
 export type Automation = {
   id: string
   user_id: string
+  conversation_id: string
   name: string
   description?: string | null
-  agent_profile_id: string
-  task_prompt: string
+  message: string
   trigger_kind: string
   trigger_spec: Record<string, unknown>
   status: string
@@ -1246,10 +1246,10 @@ export function listAutomations(accessToken: string) {
 export function createAutomation(
   accessToken: string,
   payload: {
+    conversation_id: string
     name: string
     description?: string | null
-    agent_profile_id: string
-    task_prompt: string
+    message: string
     trigger_kind?: string | null
     trigger_spec?: Record<string, unknown>
   }
@@ -1265,10 +1265,10 @@ export function updateAutomation(
   accessToken: string,
   automationId: string,
   payload: {
+    conversation_id?: string
     name?: string
     description?: string | null
-    agent_profile_id?: string
-    task_prompt?: string
+    message?: string
     trigger_kind?: string | null
     trigger_spec?: Record<string, unknown>
     status?: string

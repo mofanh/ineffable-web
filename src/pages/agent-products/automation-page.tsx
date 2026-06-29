@@ -1,28 +1,125 @@
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
-import { Clock3, Edit3, History, Play, Plus, X, Zap } from "lucide-react"
-import { Dialog as DialogPrimitive } from "radix-ui"
+import { CalendarClock, Clock3, Edit3, History, Play, Plus, X, Zap } from "lucide-react"
+import { DayPicker } from "react-day-picker"
+import { Dialog as DialogPrimitive, Popover as PopoverPrimitive } from "radix-ui"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   createAutomation,
   deleteAutomation,
-  listAgentProfiles,
   listAutomationRuns,
   listAutomations,
   runAutomation,
   tickDueAutomations,
   updateAutomation,
-  type AgentProfile,
   type Automation,
   type AutomationRun,
 } from "@/lib/api/gateway-client"
 
 import { AgentProductPage, EmptyState, ErrorNotice, SearchBar, StatusBadge, WorkbenchCard } from "./shared"
+
+const CRON_INTERVAL_OPTIONS = [
+  { value: "15", label: "Every 15 minutes" },
+  { value: "30", label: "Every 30 minutes" },
+  { value: "60", label: "Hourly" },
+  { value: "180", label: "Every 3 hours" },
+  { value: "360", label: "Every 6 hours" },
+  { value: "720", label: "Every 12 hours" },
+  { value: "1440", label: "Daily" },
+  { value: "custom", label: "Custom minutes" },
+]
+
+const CRON_INTERVAL_VALUES = new Set(CRON_INTERVAL_OPTIONS.map((option) => option.value))
+
+function padNumber(value: number) {
+  return String(value).padStart(2, "0")
+}
+
+function clampTimePart(value: number, max: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(max, Math.max(0, Math.trunc(value)))
+}
+
+function normalizeTimeValue(timeValue: string) {
+  const [rawHour = "0", rawMinute = "0", rawSecond = "0"] = timeValue.split(":")
+  const hour = clampTimePart(Number(rawHour), 23)
+  const minute = clampTimePart(Number(rawMinute), 59)
+  const second = clampTimePart(Number(rawSecond), 59)
+  return `${padNumber(hour)}:${padNumber(minute)}:${padNumber(second)}`
+}
+
+function updateTimePart(timeValue: string, part: "hour" | "minute" | "second", value: string) {
+  const [hour, minute, second] = normalizeTimeValue(timeValue).split(":")
+  const nextValue = Number(value)
+  const next = {
+    hour,
+    minute,
+    second,
+    [part]: padNumber(clampTimePart(nextValue, part === "hour" ? 23 : 59)),
+  }
+  return `${next.hour}:${next.minute}:${next.second}`
+}
+
+function defaultOnceDateTime() {
+  const date = new Date()
+  date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15, 0, 0)
+  if (date.getTime() <= Date.now()) {
+    date.setMinutes(date.getMinutes() + 15)
+  }
+  return {
+    once_date: `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`,
+    once_time: `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:00`,
+  }
+}
+
+function parseOnceRunAt(runAt: unknown) {
+  if (typeof runAt !== "string") return defaultOnceDateTime()
+  const date = new Date(runAt)
+  if (Number.isNaN(date.getTime())) return defaultOnceDateTime()
+  return {
+    once_date: `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`,
+    once_time: `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`,
+  }
+}
+
+function buildOnceRunAt(dateValue: string, timeValue: string) {
+  const date = new Date(`${dateValue}T${normalizeTimeValue(timeValue)}`)
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString()
+}
+
+function parseLocalDate(dateValue: string) {
+  const [year, month, day] = dateValue.split("-").map(Number)
+  if (!year || !month || !day) return undefined
+  const date = new Date(year, month - 1, day)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+function formatLocalDateValue(date: Date) {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`
+}
+
+function formatDateTimeLabel(dateValue: string, timeValue: string) {
+  const date = parseLocalDate(dateValue)
+  if (!date) return "Select date and time"
+  const formattedDate = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date)
+  return `${formattedDate} · ${timeValue}`
+}
 
 function useAccessToken() {
   const { accessToken } = useAppSession()
@@ -32,20 +129,20 @@ function useAccessToken() {
 
 export function AutomationPage() {
   const accessToken = useAccessToken()
+  const { currentConversationId } = useAppSession()
   const navigate = useNavigate()
   const [automations, setAutomations] = React.useState<Automation[]>([])
   const [automationRuns, setAutomationRuns] = React.useState<Record<string, AutomationRun[]>>({})
-  const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
   const [editingAutomation, setEditingAutomation] = React.useState<Automation | null>(null)
   const [automationDialogOpen, setAutomationDialogOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [form, setForm] = React.useState({
     name: "",
     description: "",
-    agent_profile_id: "default",
-    task_prompt: "",
+    message: "",
     trigger_kind: "manual",
-    once_run_at: "",
+    ...defaultOnceDateTime(),
+    cron_interval_preset: "60",
     cron_interval_minutes: "60",
   })
   const [error, setError] = React.useState<string | null>(null)
@@ -55,12 +152,8 @@ export function AutomationPage() {
   const reload = React.useCallback(async () => {
     setError(null)
     try {
-      const [automationsResponse, profilesResponse] = await Promise.all([
-        listAutomations(accessToken),
-        listAgentProfiles(accessToken),
-      ])
+      const automationsResponse = await listAutomations(accessToken)
       setAutomations(automationsResponse.automations)
-      setProfiles(profilesResponse.profiles)
       const runPairs = await Promise.all(
         automationsResponse.automations.map(async (automation) => {
           const runsResponse = await listAutomationRuns(accessToken, automation.id)
@@ -68,26 +161,17 @@ export function AutomationPage() {
         })
       )
       setAutomationRuns(Object.fromEntries(runPairs))
-      if (
-        profilesResponse.profiles.length > 0 &&
-        !profilesResponse.profiles.some((profile) => profile.id === form.agent_profile_id)
-      ) {
-        setForm((current) => ({
-          ...current,
-          agent_profile_id: profilesResponse.profiles[0]?.id ?? "default",
-        }))
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to load automations")
     }
-  }, [accessToken, form.agent_profile_id])
+  }, [accessToken])
 
   React.useEffect(() => {
     void reload()
   }, [reload])
 
   const filteredAutomations = automations.filter((automation) =>
-    `${automation.name} ${automation.description ?? ""} ${automation.task_prompt}`.toLowerCase().includes(query.toLowerCase())
+    `${automation.name} ${automation.description ?? ""} ${automation.message}`.toLowerCase().includes(query.toLowerCase())
   )
 
   function resetForm() {
@@ -95,10 +179,10 @@ export function AutomationPage() {
     setForm({
       name: "",
       description: "",
-      agent_profile_id: profiles[0]?.id ?? "default",
-      task_prompt: "",
+      message: "",
       trigger_kind: "manual",
-      once_run_at: "",
+      ...defaultOnceDateTime(),
+      cron_interval_preset: "60",
       cron_interval_minutes: "60",
     })
   }
@@ -114,25 +198,26 @@ export function AutomationPage() {
   }
 
   function startEditAutomation(automation: Automation) {
+    const onceDateTime = parseOnceRunAt(automation.trigger_spec?.run_at)
+    const cronIntervalMinutes =
+      typeof automation.trigger_spec?.interval_minutes === "number"
+        ? String(automation.trigger_spec.interval_minutes)
+        : "60"
     setEditingAutomation(automation)
     setForm({
       name: automation.name,
       description: automation.description || "",
-      agent_profile_id: automation.agent_profile_id,
-      task_prompt: automation.task_prompt,
+      message: automation.message,
       trigger_kind: automation.trigger_kind || "manual",
-      once_run_at:
-        typeof automation.trigger_spec?.run_at === "string" ? automation.trigger_spec.run_at : "",
-      cron_interval_minutes:
-        typeof automation.trigger_spec?.interval_minutes === "number"
-          ? String(automation.trigger_spec.interval_minutes)
-          : "60",
+      ...onceDateTime,
+      cron_interval_preset: CRON_INTERVAL_VALUES.has(cronIntervalMinutes) ? cronIntervalMinutes : "custom",
+      cron_interval_minutes: cronIntervalMinutes,
     })
     setAutomationDialogOpen(true)
   }
 
   function buildTriggerSpec() {
-    if (form.trigger_kind === "once") return { run_at: form.once_run_at }
+    if (form.trigger_kind === "once") return { run_at: buildOnceRunAt(form.once_date, form.once_time) }
     if (form.trigger_kind === "cron") return { interval_minutes: Number(form.cron_interval_minutes) || 60 }
     return {}
   }
@@ -141,17 +226,31 @@ export function AutomationPage() {
     event.preventDefault()
     setSaving(true)
     setError(null)
-    const payload = {
-      name: form.name,
-      description: form.description,
-      agent_profile_id: form.agent_profile_id,
-      task_prompt: form.task_prompt,
-      trigger_kind: form.trigger_kind,
-      trigger_spec: buildTriggerSpec(),
+    if (!editingAutomation && !currentConversationId) {
+      setSaving(false)
+      setError("Create an automation from an active conversation.")
+      return
     }
+    const conversationId = currentConversationId ?? ""
     try {
-      if (editingAutomation) await updateAutomation(accessToken, editingAutomation.id, payload)
-      else await createAutomation(accessToken, payload)
+      if (editingAutomation) {
+        await updateAutomation(accessToken, editingAutomation.id, {
+          name: form.name,
+          description: form.description,
+          message: form.message,
+          trigger_kind: form.trigger_kind,
+          trigger_spec: buildTriggerSpec(),
+        })
+      } else {
+        await createAutomation(accessToken, {
+          conversation_id: conversationId,
+          name: form.name,
+          description: form.description,
+          message: form.message,
+          trigger_kind: form.trigger_kind,
+          trigger_spec: buildTriggerSpec(),
+        })
+      }
       closeAutomationDialog()
       await reload()
     } catch (err) {
@@ -225,12 +324,12 @@ export function AutomationPage() {
     <AgentProductPage
       eyebrow="Automation"
       title="Active Trigger Console"
-      subtitle="Automation 是主动触发某个 AI Teammate 执行任务。它不绕过 agent 主链路，而是创建绑定目标 teammate 的 conversation 并发送任务。"
+      subtitle="Automation 是 agent 在 conversation 中安排的未来自动输入。触发时追加到原会话并走正常 agent run。"
       metrics={[
         {
           label: "Automations",
           value: String(automations.length),
-          detail: "configured trigger profiles",
+          detail: "conversation-bound triggers",
           icon: Zap,
           tone: "amber",
         },
@@ -255,7 +354,7 @@ export function AutomationPage() {
             <Clock3 className="mr-2 size-4" />
             Tick due
           </Button>
-          <Button onClick={startCreateAutomation}>
+          <Button onClick={startCreateAutomation} disabled={!currentConversationId}>
             <Plus className="mr-2 size-4" />
             New Automation
           </Button>
@@ -292,7 +391,7 @@ export function AutomationPage() {
                     <StatusBadge status={automation.status} />
                   </div>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {automation.trigger_kind} · teammate {automation.agent_profile_id}
+                    {automation.trigger_kind} · conversation {automation.conversation_id}
                   </p>
                   {automation.next_run_at ? (
                     <p className="text-muted-foreground mt-1 text-xs">next: {new Date(automation.next_run_at).toLocaleString()}</p>
@@ -300,7 +399,7 @@ export function AutomationPage() {
                 </div>
                 <Badge variant="outline">{automation.trigger_kind}</Badge>
               </div>
-              <p className="text-muted-foreground mt-3 line-clamp-3 text-sm leading-6">{automation.task_prompt}</p>
+              <p className="text-muted-foreground mt-3 line-clamp-3 text-sm leading-6">{automation.message}</p>
               {(automationRuns[automation.id] ?? []).slice(0, 3).length > 0 ? (
                 <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-2 text-xs">
                   {(automationRuns[automation.id] ?? []).slice(0, 3).map((run) => (
@@ -350,20 +449,70 @@ export function AutomationPage() {
         <form className="space-y-3" onSubmit={handleSaveAutomation}>
           <Input placeholder="Automation name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
           <Input placeholder="Description" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
-          <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.agent_profile_id} onChange={(event) => setForm((current) => ({ ...current, agent_profile_id: event.target.value }))}>
-            {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-          </select>
-          <Textarea placeholder="Task prompt" value={form.task_prompt} onChange={(event) => setForm((current) => ({ ...current, task_prompt: event.target.value }))} rows={8} required />
-          <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.trigger_kind} onChange={(event) => setForm((current) => ({ ...current, trigger_kind: event.target.value }))}>
-            <option value="manual">manual</option>
-            <option value="once">once</option>
-            <option value="cron">cron</option>
-          </select>
+          <Textarea placeholder="Message to append to the conversation" value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} rows={8} required />
+          <Select
+            value={form.trigger_kind}
+            onValueChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                trigger_kind: value,
+                ...(value === "once" && !current.once_date ? defaultOnceDateTime() : {}),
+              }))
+            }
+          >
+            <SelectTrigger className="h-9 w-full">
+              <SelectValue placeholder="Trigger" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">manual</SelectItem>
+              <SelectItem value="once">once</SelectItem>
+              <SelectItem value="cron">cron</SelectItem>
+            </SelectContent>
+          </Select>
           {form.trigger_kind === "once" ? (
-            <Input placeholder="Run at, RFC3339 e.g. 2026-06-24T12:00:00Z" value={form.once_run_at} onChange={(event) => setForm((current) => ({ ...current, once_run_at: event.target.value }))} required />
+            <div className="space-y-2">
+              <DateTimePicker
+                dateValue={form.once_date}
+                timeValue={form.once_time}
+                onChange={(next) => setForm((current) => ({ ...current, ...next }))}
+              />
+              <p className="text-muted-foreground md:col-span-2 text-xs">
+                Uses your browser timezone and saves as RFC3339 UTC.
+              </p>
+            </div>
           ) : null}
           {form.trigger_kind === "cron" ? (
-            <Input type="number" min="1" placeholder="Interval minutes" value={form.cron_interval_minutes} onChange={(event) => setForm((current) => ({ ...current, cron_interval_minutes: event.target.value }))} required />
+            <div className="grid gap-2 md:grid-cols-[1fr_160px]">
+              <Select
+                value={form.cron_interval_preset}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    cron_interval_preset: value,
+                    cron_interval_minutes: value === "custom" ? current.cron_interval_minutes : value,
+                  }))
+                }
+              >
+                <SelectTrigger className="h-9 w-full">
+                  <SelectValue placeholder="Interval" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CRON_INTERVAL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.cron_interval_preset === "custom" ? (
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Minutes"
+                  value={form.cron_interval_minutes}
+                  onChange={(event) => setForm((current) => ({ ...current, cron_interval_minutes: event.target.value }))}
+                  required
+                />
+              ) : null}
+            </div>
           ) : null}
           <div className="flex gap-2">
             <Button type="submit" disabled={saving}>{editingAutomation ? "Save automation" : "Create automation"}</Button>
@@ -372,6 +521,169 @@ export function AutomationPage() {
         </form>
       </AutomationDialog>
     </AgentProductPage>
+  )
+}
+
+function DateTimePicker({
+  dateValue,
+  timeValue,
+  onChange,
+}: {
+  dateValue: string
+  timeValue: string
+  onChange: (next: { once_date?: string; once_time?: string }) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const selectedDate = parseLocalDate(dateValue)
+  const label = formatDateTimeLabel(dateValue, timeValue)
+  const [hour, minute, second] = normalizeTimeValue(timeValue).split(":")
+
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <button
+          type="button"
+          className="border-input bg-background hover:bg-muted/60 flex h-11 w-full items-center justify-between gap-3 rounded-md border px-3 text-left text-sm transition-colors"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md border border-border">
+              <CalendarClock className="text-muted-foreground size-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate font-medium">{label}</span>
+              <span className="text-muted-foreground block text-xs">One-time trigger</span>
+            </span>
+          </span>
+          <span className="text-muted-foreground shrink-0 text-xs">Change</span>
+        </button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="start"
+          sideOffset={8}
+          className="bg-popover text-popover-foreground z-[70] w-[min(calc(100vw-2rem),360px)] rounded-xl border border-border p-3 shadow-xl outline-none"
+        >
+          <DayPicker
+            mode="single"
+            selected={selectedDate}
+            onSelect={(date) => {
+              if (!date) return
+              onChange({ once_date: formatLocalDateValue(date) })
+            }}
+            weekStartsOn={1}
+            classNames={{
+              root: "w-full",
+              months: "space-y-4",
+              month: "space-y-3",
+              month_caption: "flex h-8 items-center justify-center",
+              caption_label: "text-sm font-medium",
+              nav: "absolute inset-x-3 top-3 flex items-center justify-between",
+              button_previous: "flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted",
+              button_next: "flex size-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted",
+              month_grid: "w-full border-collapse",
+              weekdays: "grid grid-cols-7",
+              weekday: "text-muted-foreground flex h-8 items-center justify-center text-xs font-normal",
+              week: "grid grid-cols-7",
+              day: "p-0 text-center text-sm",
+              day_button: "mx-auto flex size-9 items-center justify-center rounded-md text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selected: "[&>button]:bg-primary [&>button]:text-primary-foreground [&>button]:hover:bg-primary",
+              today: "[&>button]:border [&>button]:border-primary/40",
+              outside: "text-muted-foreground/40",
+              disabled: "pointer-events-none opacity-40",
+            }}
+          />
+
+          <div className="mt-3 grid gap-3 border-t border-border pt-3">
+            <div>
+              <p className="text-sm font-medium">Time</p>
+              <p className="text-muted-foreground text-xs">Choose hour, minute, and second precisely.</p>
+            </div>
+
+            <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-end gap-2">
+              <TimeNumberField
+                label="Hour"
+                value={hour}
+                max={23}
+                onChange={(value) => onChange({ once_time: updateTimePart(timeValue, "hour", value) })}
+              />
+              <span className="text-muted-foreground pb-2 text-lg font-medium">:</span>
+              <TimeNumberField
+                label="Minute"
+                value={minute}
+                max={59}
+                onChange={(value) => onChange({ once_time: updateTimePart(timeValue, "minute", value) })}
+              />
+              <span className="text-muted-foreground pb-2 text-lg font-medium">:</span>
+              <TimeNumberField
+                label="Second"
+                value={second}
+                max={59}
+                onChange={(value) => onChange({ once_time: updateTimePart(timeValue, "second", value) })}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {[0, 15, 30, 45].map((value) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    onChange({
+                      once_time: `${hour}:${padNumber(value)}:${second}`,
+                    })
+                  }
+                >
+                  :{padNumber(value)}
+                </Button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onChange(defaultOnceDateTime())}
+              >
+                Next slot
+              </Button>
+              <Button type="button" onClick={() => setOpen(false)}>
+                Apply
+              </Button>
+            </div>
+          </div>
+          <PopoverPrimitive.Arrow className="fill-popover" />
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  )
+}
+
+function TimeNumberField({
+  label,
+  value,
+  max,
+  onChange,
+}: {
+  label: string
+  value: string
+  max: number
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="grid gap-1">
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <Input
+        type="number"
+        min={0}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onChange(event.target.value)}
+        className="h-10 text-center font-mono text-base"
+      />
+    </label>
   )
 }
 
@@ -394,7 +706,7 @@ function AutomationDialog({
           <div className="pr-8">
             <DialogPrimitive.Title className="text-base font-medium">{title}</DialogPrimitive.Title>
             <DialogPrimitive.Description className="text-muted-foreground mt-1 text-sm">
-              选择 target teammate、task prompt 和 trigger。
+              设置要追加到会话的消息和触发条件。
             </DialogPrimitive.Description>
           </div>
           {children}

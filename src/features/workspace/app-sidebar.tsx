@@ -87,12 +87,15 @@ import {
   Trash2Icon,
   UserPlusIcon,
   UsersIcon,
-  ZapIcon,
+  type LucideIcon,
 } from "lucide-react"
 
-const primaryNavItems = [
-  { id: "automation", title: "Automation", icon: ZapIcon, path: "/automation" },
-]
+const primaryNavItems: Array<{
+  id: string
+  title: string
+  icon: LucideIcon
+  path: string
+}> = []
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
   if (item.accent === "team") {
@@ -588,7 +591,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   } = useAppSession()
   const location = useLocation()
   const navigate = useNavigate()
-  const [selectedEntryId, setSelectedEntryId] = React.useState("automation")
+  const [selectedEntryId, setSelectedEntryId] = React.useState("")
   const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
   const [collapsedEntryIds, setCollapsedEntryIds] = React.useState<Set<string>>(
     () => new Set()
@@ -1083,7 +1086,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }
 
           await deleteWorkspaceObject(accessToken, item.workspaceId, item.object.id)
-          setSelectedEntryId("automation")
+          setSelectedEntryId(item.workspaceId)
           await refreshWorkspaceTrees({
             workspaceIds: [item.workspaceId],
             showLoading: false,
