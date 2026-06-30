@@ -134,8 +134,10 @@ export function GatewayChatSidebar() {
   const terminalEventSeenRef = React.useRef(false)
   const recoveryInFlightRef = React.useRef(false)
   const recoveryTimerRef = React.useRef<number | null>(null)
+  const catchupInFlightRef = React.useRef(false)
   const conversationSeqRef = React.useRef(new Map<string, number>())
   const currentConversationIdRef = React.useRef<string | null>(currentConversationId)
+  const hydratedConversationIdRef = React.useRef<string | null>(hydratedConversationId)
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const seenEventRef = React.useRef(new Set<string>())
@@ -179,6 +181,10 @@ export function GatewayChatSidebar() {
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
   }, [currentConversationId])
+
+  React.useEffect(() => {
+    hydratedConversationIdRef.current = hydratedConversationId
+  }, [hydratedConversationId])
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -1244,38 +1250,118 @@ export function GatewayChatSidebar() {
     applyEvent(envelope.event)
   })
 
+  const syncConversationIfBehind = React.useEffectEvent(
+    async (conversationId: string | null | undefined) => {
+      if (!accessToken || !conversationId) {
+        return
+      }
+
+      if (catchupInFlightRef.current) {
+        return
+      }
+
+      const activeConversationId =
+        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      const status = streamStatusRef.current
+      if (
+        conversationId === activeConversationId &&
+        (status === "streaming" || status === "recovering")
+      ) {
+        void recoverConversationEvents(conversationId, false)
+        return
+      }
+
+      if (status === "error") {
+        return
+      }
+
+      catchupInFlightRef.current = true
+      try {
+        const hasCursor = conversationSeqRef.current.has(conversationId)
+        if (hydratedConversationIdRef.current !== conversationId || !hasCursor) {
+          await syncConversationMessages(conversationId)
+          return
+        }
+
+        const afterSeq = conversationSeqRef.current.get(conversationId)
+        const response = await getConversationEvents(
+          accessToken,
+          conversationId,
+          {
+            afterSeq,
+            max: 1,
+          }
+        )
+
+        if (response.events.length > 0) {
+          await Promise.all([
+            refreshConversations(),
+            syncConversationMessages(conversationId),
+            refreshPendingInputsForConversation(conversationId),
+          ])
+          return
+        }
+
+        setConversationLastSeq(conversationId, response.next_seq ?? afterSeq ?? 0)
+      } catch (catchupError) {
+        setError(
+          catchupError instanceof Error
+            ? `同步会话更新失败：${catchupError.message}`
+            : "同步会话更新失败。"
+        )
+      } finally {
+        catchupInFlightRef.current = false
+      }
+    }
+  )
+
   React.useEffect(() => {
-    const triggerRecovery = () => {
+    const triggerConversationCatchup = () => {
       const conversationId =
         activeStreamConversationIdRef.current ?? currentConversationIdRef.current
       if (!conversationId) {
         return
       }
 
-      const status = streamStatusRef.current
-      if (status !== "streaming" && status !== "recovering") {
-        return
-      }
-
-      void recoverConversationEvents(conversationId, false)
+      void syncConversationIfBehind(conversationId)
     }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        triggerRecovery()
+        triggerConversationCatchup()
       }
     }
 
-    window.addEventListener("focus", triggerRecovery)
-    window.addEventListener("online", triggerRecovery)
+    window.addEventListener("focus", triggerConversationCatchup)
+    window.addEventListener("online", triggerConversationCatchup)
     document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
-      window.removeEventListener("focus", triggerRecovery)
-      window.removeEventListener("online", triggerRecovery)
+      window.removeEventListener("focus", triggerConversationCatchup)
+      window.removeEventListener("online", triggerConversationCatchup)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [])
+
+  React.useEffect(() => {
+    if (!accessToken || !currentConversationId) {
+      return
+    }
+
+    if (hydratedConversationId !== currentConversationId) {
+      return
+    }
+
+    if (activeStreamConversationIdRef.current) {
+      return
+    }
+
+    void syncConversationIfBehind(currentConversationId)
+  }, [
+    accessToken,
+    currentConversationId,
+    hydratedConversationId,
+  ])
 
   React.useEffect(() => {
     if (!accessToken || !currentConversationId) {

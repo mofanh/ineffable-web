@@ -49,7 +49,7 @@ type ConversationSessionContextValue = {
   refreshConversations: () => Promise<void>
   createConversation: (
     title: string,
-    options?: { agent_profile_id?: string | null }
+    options?: { agent_profile_id?: string | null },
   ) => Promise<Conversation>
   selectConversation: (conversationId: string | null) => void
 }
@@ -66,7 +66,9 @@ const STORAGE_KEYS = {
   conversationId: "ineffable.chat.conversation_id",
 }
 
-const AuthSessionContext = React.createContext<AuthSessionContextValue | null>(null)
+const AuthSessionContext = React.createContext<AuthSessionContextValue | null>(
+  null,
+)
 const WorkspaceSessionContext =
   React.createContext<WorkspaceSessionContextValue | null>(null)
 const ConversationSessionContext =
@@ -100,18 +102,20 @@ function getWorkspaceType(workspace: Workspace) {
 function chooseWorkspaceId(
   workspaces: Workspace[],
   preferredWorkspaceId?: string | null,
-  backendWorkspaceId?: string | null
+  backendWorkspaceId?: string | null,
 ) {
   const findWorkspace = (workspaceId?: string | null) =>
     workspaceId
-      ? workspaces.find((workspace) => workspace.id === workspaceId) ?? null
+      ? (workspaces.find((workspace) => workspace.id === workspaceId) ?? null)
       : null
 
   return (
     findWorkspace(preferredWorkspaceId)?.id ||
     findWorkspace(backendWorkspaceId)?.id ||
-    workspaces.find((workspace) => getWorkspaceType(workspace) === "personal")?.id ||
-    workspaces.find((workspace) => getWorkspaceType(workspace) === "team")?.id ||
+    workspaces.find((workspace) => getWorkspaceType(workspace) === "personal")
+      ?.id ||
+    workspaces.find((workspace) => getWorkspaceType(workspace) === "team")
+      ?.id ||
     null
   )
 }
@@ -122,25 +126,26 @@ export function AppSessionProvider({
   children: React.ReactNode
 }) {
   const [status, setStatus] = React.useState<SessionStatus>("loading")
-  const [accessToken, setAccessToken] = React.useState<string | null>(() =>
-    readStorage(STORAGE_KEYS.accessToken) || null
+  const [accessToken, setAccessToken] = React.useState<string | null>(
+    () => readStorage(STORAGE_KEYS.accessToken) || null,
   )
-  const [refreshToken, setRefreshToken] = React.useState<string | null>(() =>
-    readStorage(STORAGE_KEYS.refreshToken) || null
+  const [refreshToken, setRefreshToken] = React.useState<string | null>(
+    () => readStorage(STORAGE_KEYS.refreshToken) || null,
   )
-  const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(() =>
-    readStorage(STORAGE_KEYS.sessionId) || null
+  const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(
+    () => readStorage(STORAGE_KEYS.sessionId) || null,
   )
   const [currentUser, setCurrentUser] = React.useState<AppUser | null>(null)
   const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
-  const [currentWorkspaceId, setCurrentWorkspaceId] = React.useState<string | null>(() =>
-    readStorage(STORAGE_KEYS.workspaceId) || null
-  )
+  const [currentWorkspaceId, setCurrentWorkspaceId] = React.useState<
+    string | null
+  >(() => readStorage(STORAGE_KEYS.workspaceId) || null)
   const [conversations, setConversations] = React.useState<Conversation[]>([])
-  const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(() =>
-    readStorage(STORAGE_KEYS.conversationId) || null
-  )
+  const [currentConversationId, setCurrentConversationId] = React.useState<
+    string | null
+  >(() => readStorage(STORAGE_KEYS.conversationId) || null)
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
+  const refreshAppDataPromiseRef = React.useRef<Promise<void> | null>(null)
 
   const clearSession = React.useCallback(() => {
     setStatus("unauthenticated")
@@ -159,21 +164,27 @@ export function AppSessionProvider({
     writeStorage(STORAGE_KEYS.conversationId, null)
   }, [])
 
-  const persistTokens = React.useCallback((
-    nextAccessToken: string,
-    nextRefreshToken: string,
-    nextSessionId: string
-  ) => {
-    setAccessToken(nextAccessToken)
-    setRefreshToken(nextRefreshToken)
-    setCurrentSessionId(nextSessionId)
-    writeStorage(STORAGE_KEYS.accessToken, nextAccessToken)
-    writeStorage(STORAGE_KEYS.refreshToken, nextRefreshToken)
-    writeStorage(STORAGE_KEYS.sessionId, nextSessionId)
-  }, [])
+  const persistTokens = React.useCallback(
+    (
+      nextAccessToken: string,
+      nextRefreshToken: string,
+      nextSessionId: string,
+    ) => {
+      setAccessToken(nextAccessToken)
+      setRefreshToken(nextRefreshToken)
+      setCurrentSessionId(nextSessionId)
+      writeStorage(STORAGE_KEYS.accessToken, nextAccessToken)
+      writeStorage(STORAGE_KEYS.refreshToken, nextRefreshToken)
+      writeStorage(STORAGE_KEYS.sessionId, nextSessionId)
+    },
+    [],
+  )
 
   const refreshConversations = React.useCallback(
-    async (_workspaceIdOverride?: string | null, tokenOverride?: string | null) => {
+    async (
+      _workspaceIdOverride?: string | null,
+      tokenOverride?: string | null,
+    ) => {
       const token = tokenOverride ?? accessToken
 
       if (!token) {
@@ -193,12 +204,12 @@ export function AppSessionProvider({
         const nextId =
           current && response.conversations.some((item) => item.id === current)
             ? current
-            : response.conversations[0]?.id ?? null
+            : (response.conversations[0]?.id ?? null)
         writeStorage(STORAGE_KEYS.conversationId, nextId)
         return nextId
       })
     },
-    [accessToken]
+    [accessToken],
   )
 
   const hydrateWithToken = React.useCallback(
@@ -212,7 +223,7 @@ export function AppSessionProvider({
       const nextWorkspaceId = chooseWorkspaceId(
         nextWorkspaces,
         currentWorkspaceId,
-        me.current_workspace_id
+        me.current_workspace_id,
       )
 
       setCurrentWorkspaceId(nextWorkspaceId)
@@ -221,40 +232,55 @@ export function AppSessionProvider({
 
       await refreshConversations(nextWorkspaceId, token)
     },
-    [currentWorkspaceId, refreshConversations]
+    [currentWorkspaceId, refreshConversations],
   )
 
-  const refreshAppData = React.useCallback(async () => {
-    if (!accessToken) {
-      clearSession()
-      return
+  const refreshAppData = React.useCallback(() => {
+    if (refreshAppDataPromiseRef.current) {
+      return refreshAppDataPromiseRef.current
     }
 
-    setIsBootstrapping(true)
-
-    try {
-      await hydrateWithToken(accessToken)
-    } catch {
-      if (!refreshToken) {
+    const run = (async () => {
+      if (!accessToken) {
         clearSession()
-        setIsBootstrapping(false)
         return
       }
 
+      setIsBootstrapping(true)
+
       try {
-        const refreshed = await refreshAuthToken(refreshToken)
-        persistTokens(
-          refreshed.tokens.access_token,
-          refreshed.tokens.refresh_token,
-          refreshed.tokens.session_id
-        )
-        await hydrateWithToken(refreshed.tokens.access_token)
+        await hydrateWithToken(accessToken)
       } catch {
-        clearSession()
+        if (!refreshToken) {
+          clearSession()
+          return
+        }
+
+        try {
+          const refreshed = await refreshAuthToken(refreshToken)
+          persistTokens(
+            refreshed.tokens.access_token,
+            refreshed.tokens.refresh_token,
+            refreshed.tokens.session_id,
+          )
+          await hydrateWithToken(refreshed.tokens.access_token)
+        } catch {
+          clearSession()
+        }
+      } finally {
+        setIsBootstrapping(false)
       }
-    } finally {
-      setIsBootstrapping(false)
-    }
+    })()
+
+    const trackedRun = run.finally(() => {
+      if (refreshAppDataPromiseRef.current === trackedRun) {
+        refreshAppDataPromiseRef.current = null
+      }
+    })
+
+    refreshAppDataPromiseRef.current = trackedRun
+
+    return refreshAppDataPromiseRef.current
   }, [accessToken, clearSession, hydrateWithToken, persistTokens, refreshToken])
 
   React.useEffect(() => {
@@ -267,28 +293,32 @@ export function AppSessionProvider({
       persistTokens(
         response.tokens.access_token,
         response.tokens.refresh_token,
-        response.tokens.session_id
+        response.tokens.session_id,
       )
       setCurrentUser(response.user)
       setStatus("authenticated")
       await hydrateWithToken(response.tokens.access_token)
     },
-    [hydrateWithToken, persistTokens]
+    [hydrateWithToken, persistTokens],
   )
 
   const register = React.useCallback(
-    async (payload: { email: string; display_name: string; password: string }) => {
+    async (payload: {
+      email: string
+      display_name: string
+      password: string
+    }) => {
       const response = await registerUser(payload)
       persistTokens(
         response.tokens.access_token,
         response.tokens.refresh_token,
-        response.tokens.session_id
+        response.tokens.session_id,
       )
       setCurrentUser(response.user)
       setStatus("authenticated")
       await hydrateWithToken(response.tokens.access_token)
     },
-    [hydrateWithToken, persistTokens]
+    [hydrateWithToken, persistTokens],
   )
 
   const logout = React.useCallback(async () => {
@@ -303,13 +333,10 @@ export function AppSessionProvider({
     clearSession()
   }, [accessToken, clearSession, currentWorkspaceId])
 
-  const selectWorkspace = React.useCallback(
-    async (workspaceId: string) => {
-      setCurrentWorkspaceId(workspaceId)
-      writeStorage(STORAGE_KEYS.workspaceId, workspaceId)
-    },
-    []
-  )
+  const selectWorkspace = React.useCallback(async (workspaceId: string) => {
+    setCurrentWorkspaceId(workspaceId)
+    writeStorage(STORAGE_KEYS.workspaceId, workspaceId)
+  }, [])
 
   const createConversationForWorkspace = React.useCallback(
     async (title: string, options?: { agent_profile_id?: string | null }) => {
@@ -323,20 +350,31 @@ export function AppSessionProvider({
       })
 
       setConversations((current) => {
-        const next = [conversation, ...current.filter((item) => item.id !== conversation.id)]
+        const next = [
+          conversation,
+          ...current.filter((item) => item.id !== conversation.id),
+        ]
         return next
       })
       setCurrentConversationId(conversation.id)
       writeStorage(STORAGE_KEYS.conversationId, conversation.id)
       return conversation
     },
-    [accessToken]
+    [accessToken],
   )
 
-  const selectConversation = React.useCallback((conversationId: string | null) => {
-    setCurrentConversationId(conversationId)
-    writeStorage(STORAGE_KEYS.conversationId, conversationId)
-  }, [])
+  const selectConversation = React.useCallback(
+    (conversationId: string | null) => {
+      setCurrentConversationId(conversationId)
+      writeStorage(STORAGE_KEYS.conversationId, conversationId)
+    },
+    [],
+  )
+
+  const refreshConversationList = React.useCallback(
+    () => refreshConversations(),
+    [refreshConversations],
+  )
 
   const authValue = React.useMemo<AuthSessionContextValue>(
     () => ({
@@ -362,24 +400,25 @@ export function AppSessionProvider({
       refreshToken,
       register,
       status,
-    ]
+    ],
   )
 
   const workspaceValue = React.useMemo<WorkspaceSessionContextValue>(
     () => ({
       workspaces,
       currentWorkspace:
-        workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null,
+        workspaces.find((workspace) => workspace.id === currentWorkspaceId) ??
+        null,
       selectWorkspace,
     }),
-    [currentWorkspaceId, selectWorkspace, workspaces]
+    [currentWorkspaceId, selectWorkspace, workspaces],
   )
 
   const conversationValue = React.useMemo<ConversationSessionContextValue>(
     () => ({
       conversations,
       currentConversationId,
-      refreshConversations: () => refreshConversations(),
+      refreshConversations: refreshConversationList,
       createConversation: createConversationForWorkspace,
       selectConversation,
     }),
@@ -387,9 +426,9 @@ export function AppSessionProvider({
       conversations,
       createConversationForWorkspace,
       currentConversationId,
-      refreshConversations,
+      refreshConversationList,
       selectConversation,
-    ]
+    ],
   )
 
   return (
@@ -417,7 +456,9 @@ export function useWorkspaceSession() {
   const context = React.useContext(WorkspaceSessionContext)
 
   if (!context) {
-    throw new Error("useWorkspaceSession must be used within AppSessionProvider")
+    throw new Error(
+      "useWorkspaceSession must be used within AppSessionProvider",
+    )
   }
 
   return context
@@ -427,7 +468,9 @@ export function useConversationSession() {
   const context = React.useContext(ConversationSessionContext)
 
   if (!context) {
-    throw new Error("useConversationSession must be used within AppSessionProvider")
+    throw new Error(
+      "useConversationSession must be used within AppSessionProvider",
+    )
   }
 
   return context

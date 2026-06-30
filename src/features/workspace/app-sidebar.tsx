@@ -87,6 +87,7 @@ import {
   Trash2Icon,
   UserPlusIcon,
   UsersIcon,
+  ZapIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -95,7 +96,14 @@ const primaryNavItems: Array<{
   title: string
   icon: LucideIcon
   path: string
-}> = []
+}> = [
+  {
+    id: "automation",
+    title: "Automation",
+    icon: ZapIcon,
+    path: "/automation",
+  },
+]
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
   if (item.accent === "team") {
@@ -599,6 +607,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [isTreeLoading, setIsTreeLoading] = React.useState(false)
   const [treeError, setTreeError] = React.useState<string | null>(null)
   const [pendingInvitationCount, setPendingInvitationCount] = React.useState(0)
+  const loadedWorkspaceTreeKeyRef = React.useRef("")
+  const workspaceTreeKey = React.useMemo(
+    () => workspaces.map((workspace) => workspace.id).sort().join("|"),
+    [workspaces]
+  )
 
   React.useEffect(() => {
     const match = location.pathname.match(/^\/workspace\/[^/]+\/objects\/([^/]+)/)
@@ -663,9 +676,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setWorkspaceTrees({})
       setTreeError(null)
       setIsTreeLoading(false)
+      loadedWorkspaceTreeKeyRef.current = ""
       return
     }
 
+    if (loadedWorkspaceTreeKeyRef.current === workspaceTreeKey) {
+      return
+    }
+
+    loadedWorkspaceTreeKeyRef.current = workspaceTreeKey
     let cancelled = false
 
     void refreshWorkspaceTrees().then(() => {
@@ -677,7 +696,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return () => {
       cancelled = true
     }
-  }, [accessToken, refreshWorkspaceTrees, workspaces])
+  }, [accessToken, refreshWorkspaceTrees, workspaceTreeKey, workspaces.length])
 
   React.useEffect(() => {
     if (!accessToken) {
@@ -702,7 +721,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return () => {
       cancelled = true
     }
-  }, [accessToken, workspaces])
+  }, [accessToken])
 
   React.useEffect(() => {
     const handleWorkspaceObjectsChanged = (event: Event) => {
