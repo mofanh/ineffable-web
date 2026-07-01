@@ -172,7 +172,7 @@ export function CreateTeamWorkspacePage() {
   return (
     <PageShell
       title="Create Team Workspace"
-      description="Initialize a shared environment for collaborators, team memory, workspace artifacts, and future AI teammate configuration."
+      description="Initialize a shared environment for collaborators, workspace artifacts, and shared project context."
     >
       <form onSubmit={submit} className="max-w-2xl space-y-8">
         <div className="space-y-2">

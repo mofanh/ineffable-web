@@ -1643,9 +1643,7 @@ export function GatewayChatSidebar() {
 
     let targetConversationId = currentConversationId
     if (!targetConversationId) {
-      const createdConversation = await createConversation(buildConversationTitle(content), {
-        agent_profile_id: "default",
-      })
+      const createdConversation = await createConversation(buildConversationTitle(content))
       targetConversationId = createdConversation.id
       skipNextConversationSyncRef.current = targetConversationId
       if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
@@ -1896,16 +1894,13 @@ export function GatewayChatSidebar() {
   return (
     <>
       <ChatSidebarHeader
-        isBound={Boolean(currentConversationId)}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
-        selectedConversationAgentProfileId={selectedConversation?.agent_profile_id ?? null}
         conversations={conversations.map((conversation) => ({
           id: conversation.id,
           title: conversation.title || "未命名会话",
           updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
-          agentProfileId: conversation.agent_profile_id ?? null,
         }))}
         onSelectConversation={selectConversation}
         onRefreshConversations={() => {

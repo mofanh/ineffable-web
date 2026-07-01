@@ -22,12 +22,10 @@ import {
 } from "lucide-react"
 
 type ChatSidebarHeaderProps = {
-  isBound: boolean
   bindStatus: string
   selectedConversationId: string | null
   selectedConversationTitle: string
-  selectedConversationAgentProfileId?: string | null
-  conversations: Array<{ id: string; title: string; updatedAt?: string | null; agentProfileId?: string | null }>
+  conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
   onSelectConversation: (conversationId: string | null) => void
   onRefreshConversations: () => void
   onStartNewChat: () => void
@@ -36,7 +34,7 @@ type ChatSidebarHeaderProps = {
 
 type ConversationGroup = {
   label: string
-  items: Array<{ id: string; title: string; updatedAt?: string | null; agentProfileId?: string | null }>
+  items: Array<{ id: string; title: string; updatedAt?: string | null }>
 }
 
 function HeaderActionButton({
@@ -91,7 +89,7 @@ function getConversationGroupLabel(updatedAt?: string | null) {
 }
 
 function groupConversations(
-  conversations: Array<{ id: string; title: string; updatedAt?: string | null; agentProfileId?: string | null }>
+  conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
 ) {
   const order = ["Today", "Previous 7 Days", "Previous 30 Days", "Older"]
   const grouped = new Map<string, ConversationGroup>()
@@ -109,11 +107,9 @@ function groupConversations(
 }
 
 export function ChatSidebarHeader({
-  isBound,
   bindStatus,
   selectedConversationId,
   selectedConversationTitle,
-  selectedConversationAgentProfileId,
   conversations,
   onSelectConversation,
   onRefreshConversations,
@@ -153,8 +149,6 @@ export function ChatSidebarHeader({
     () => groupConversations(filteredConversations),
     [filteredConversations]
   )
-  const hasBoundAgent = Boolean(selectedConversationAgentProfileId)
-
   return (
     <SidebarHeader className="gap-0 bg-sidebar p-0">
       <div className="flex h-[60px] shrink-0 items-center gap-2.5 bg-sidebar pr-3 pl-5">
@@ -171,11 +165,8 @@ export function ChatSidebarHeader({
               title={selectedConversationTitle}
             >
               <span
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground",
-                  hasBoundAgent && "border-emerald-200 bg-emerald-50 text-emerald-600"
-                )}
-                title={hasBoundAgent ? `Agent: ${selectedConversationAgentProfileId}` : "Default agent"}
+                className="flex size-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground"
+                title="Chat"
               >
                 <BotIcon className="size-3.5" />
               </span>
@@ -183,10 +174,7 @@ export function ChatSidebarHeader({
                 {selectedConversationTitle}
               </span>
               <span
-                className={cn(
-                  "flex shrink-0 items-center gap-1 text-muted-foreground",
-                  isBound ? "text-emerald-600" : "text-muted-foreground"
-                )}
+                className="flex shrink-0 items-center gap-1 text-muted-foreground"
                 title={bindStatus}
               >
                 <ChevronDownIcon className="size-3 transition-transform group-hover:translate-y-0.5 group-aria-expanded:rotate-180" />
@@ -258,8 +246,6 @@ export function ChatSidebarHeader({
                               <div className="flex min-w-0 items-center gap-2">
                                 {isSelected ? (
                                   <CheckIcon className="size-4 text-primary" />
-                                ) : conversation.agentProfileId ? (
-                                  <BotIcon className="size-4 text-emerald-600" />
                                 ) : (
                                   <MessageSquareTextIcon className="size-4 text-muted-foreground" />
                                 )}
