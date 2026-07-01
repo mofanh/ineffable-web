@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { Bot, Brain, Database, History, Plus, Route, ShieldCheck, Sparkles, X } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
@@ -48,10 +48,12 @@ function useAccessToken() {
 
 export function AiTeammatesPage() {
   const accessToken = useAccessToken()
+  const { createConversation } = useAppSession()
   const navigate = useNavigate()
   const [profiles, setProfiles] = React.useState<AgentProfile[]>([])
   const [query, setQuery] = React.useState("")
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
+  const [openingProfileId, setOpeningProfileId] = React.useState<string | null>(null)
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [systemPrompt, setSystemPrompt] = React.useState("")
@@ -107,6 +109,22 @@ export function AiTeammatesPage() {
     }
   }
 
+  async function handleSelectProfile(profile: AgentProfile) {
+    setOpeningProfileId(profile.id)
+    setError(null)
+    try {
+      await createConversation(profile.name || "New Chat", {
+        agent_profile_id: profile.id,
+      })
+      window.dispatchEvent(new Event("ineffable:right-sidebar:open"))
+      navigate(`/ai-teammates/${profile.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to start teammate chat")
+    } finally {
+      setOpeningProfileId(null)
+    }
+  }
+
   return (
     <AgentProductPage
       eyebrow="AI Teammates"
@@ -159,10 +177,12 @@ export function AiTeammatesPage() {
         </div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           {filteredProfiles.map((profile) => (
-            <Link
+            <button
+              type="button"
               key={profile.id}
-              to={`/ai-teammates/${profile.id}`}
-              className="group block rounded-md border border-border bg-background/60 p-4 transition-colors hover:bg-muted/60"
+              disabled={openingProfileId === profile.id}
+              onClick={() => void handleSelectProfile(profile)}
+              className="group block rounded-md border border-border bg-background/60 p-4 text-left transition-colors hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-60"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 gap-3">
@@ -180,9 +200,11 @@ export function AiTeammatesPage() {
               </div>
               <div className="text-muted-foreground mt-4 flex items-center justify-between text-xs">
                 <span>rev {profile.revision}</span>
-                <span className="group-hover:text-foreground">Open profile →</span>
+                <span className="group-hover:text-foreground">
+                  {openingProfileId === profile.id ? "Opening..." : "Open profile →"}
+                </span>
               </div>
-            </Link>
+            </button>
           ))}
         </div>
         {!loading && filteredProfiles.length === 0 ? (

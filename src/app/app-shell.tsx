@@ -22,7 +22,7 @@ import { useAppSession } from "@/features/auth/app-session"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment } from "react"
+import { Fragment, useEffect } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties } from "react"
 import { PanelRightIcon } from "lucide-react"
@@ -52,6 +52,17 @@ function AppShellContent() {
     startRightSidebarResize,
     handleRightSidebarResizeKeyDown,
   } = useRightSidebarResize()
+
+  useEffect(() => {
+    function handleOpenRightSidebar() {
+      setIsRightSidebarOpen(true)
+    }
+
+    window.addEventListener("ineffable:right-sidebar:open", handleOpenRightSidebar)
+    return () => {
+      window.removeEventListener("ineffable:right-sidebar:open", handleOpenRightSidebar)
+    }
+  }, [setIsRightSidebarOpen])
 
   return (
     <div className="relative flex min-h-svh w-full bg-sidebar">

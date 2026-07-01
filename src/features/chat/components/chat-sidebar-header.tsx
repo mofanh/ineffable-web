@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import {
   CheckIcon,
   ChevronDownIcon,
+  BotIcon,
   MessageSquareTextIcon,
   PanelRightIcon,
   PlusIcon,
@@ -25,7 +26,8 @@ type ChatSidebarHeaderProps = {
   bindStatus: string
   selectedConversationId: string | null
   selectedConversationTitle: string
-  conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
+  selectedConversationAgentProfileId?: string | null
+  conversations: Array<{ id: string; title: string; updatedAt?: string | null; agentProfileId?: string | null }>
   onSelectConversation: (conversationId: string | null) => void
   onRefreshConversations: () => void
   onStartNewChat: () => void
@@ -34,7 +36,7 @@ type ChatSidebarHeaderProps = {
 
 type ConversationGroup = {
   label: string
-  items: Array<{ id: string; title: string; updatedAt?: string | null }>
+  items: Array<{ id: string; title: string; updatedAt?: string | null; agentProfileId?: string | null }>
 }
 
 function HeaderActionButton({
@@ -89,7 +91,7 @@ function getConversationGroupLabel(updatedAt?: string | null) {
 }
 
 function groupConversations(
-  conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
+  conversations: Array<{ id: string; title: string; updatedAt?: string | null; agentProfileId?: string | null }>
 ) {
   const order = ["Today", "Previous 7 Days", "Previous 30 Days", "Older"]
   const grouped = new Map<string, ConversationGroup>()
@@ -111,6 +113,7 @@ export function ChatSidebarHeader({
   bindStatus,
   selectedConversationId,
   selectedConversationTitle,
+  selectedConversationAgentProfileId,
   conversations,
   onSelectConversation,
   onRefreshConversations,
@@ -150,6 +153,7 @@ export function ChatSidebarHeader({
     () => groupConversations(filteredConversations),
     [filteredConversations]
   )
+  const hasBoundAgent = Boolean(selectedConversationAgentProfileId)
 
   return (
     <SidebarHeader className="gap-0 bg-sidebar p-0">
@@ -162,10 +166,19 @@ export function ChatSidebarHeader({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="group mr-4 flex min-w-0 flex-1 items-center gap-1 rounded py-0.5 pr-0 pl-0.5 text-left"
+              className="group mr-4 flex min-w-0 flex-1 items-center gap-2 rounded py-0.5 pr-0 pl-0.5 text-left"
               aria-expanded={open}
               title={selectedConversationTitle}
             >
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground",
+                  hasBoundAgent && "border-emerald-200 bg-emerald-50 text-emerald-600"
+                )}
+                title={hasBoundAgent ? `Agent: ${selectedConversationAgentProfileId}` : "Default agent"}
+              >
+                <BotIcon className="size-3.5" />
+              </span>
               <span className="truncate text-[14px] font-semibold text-foreground">
                 {selectedConversationTitle}
               </span>
@@ -245,6 +258,8 @@ export function ChatSidebarHeader({
                               <div className="flex min-w-0 items-center gap-2">
                                 {isSelected ? (
                                   <CheckIcon className="size-4 text-primary" />
+                                ) : conversation.agentProfileId ? (
+                                  <BotIcon className="size-4 text-emerald-600" />
                                 ) : (
                                   <MessageSquareTextIcon className="size-4 text-muted-foreground" />
                                 )}
