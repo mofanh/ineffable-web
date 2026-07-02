@@ -13,7 +13,6 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import {
   RIGHT_SIDEBAR_DEFAULT_WIDTH,
-  RIGHT_SIDEBAR_MAX_WIDTH,
   RIGHT_SIDEBAR_MIN_WIDTH,
   useRightSidebarResize,
 } from "@/app/shell/use-right-sidebar-resize"
@@ -22,9 +21,9 @@ import { useAppSession } from "@/features/auth/app-session"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, useEffect } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import type { CSSProperties } from "react"
+import type { CSSProperties, SetStateAction } from "react"
 import { PanelRightIcon } from "lucide-react"
 
 export function AppShell() {
@@ -38,6 +37,8 @@ export function AppShell() {
 function AppShellContent() {
   const { pathname } = useLocation()
   const { currentWorkspace, workspaces } = useAppSession()
+  const [leftSidebarRight, setLeftSidebarRight] = useState(0)
+  const [isRightSidebarFullScreen, setIsRightSidebarFullScreen] = useState(false)
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
   const breadcrumbs =
     getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces) ??
@@ -47,22 +48,73 @@ function AppShellContent() {
   const {
     isRightSidebarOpen,
     rightSidebarWidth,
+    rightSidebarMaxWidth,
+    rightSidebarReservedWidth,
     setIsRightSidebarOpen,
     setRightSidebarWidth,
     startRightSidebarResize,
     handleRightSidebarResizeKeyDown,
-  } = useRightSidebarResize()
+  } = useRightSidebarResize(leftSidebarRight)
+
+  const setRightSidebarOpen = useCallback(
+    (value: SetStateAction<boolean>) => {
+      setIsRightSidebarOpen((currentOpen) => {
+        const nextOpen = typeof value === "function" ? value(currentOpen) : value
+        if (!nextOpen) {
+          setIsRightSidebarFullScreen(false)
+        }
+        return nextOpen
+      })
+    },
+    [setIsRightSidebarOpen]
+  )
+
+  useEffect(() => {
+    const leftSidebarGap = document.querySelector<HTMLElement>(
+      '[data-slot="sidebar"][data-side="left"] [data-slot="sidebar-gap"]'
+    )
+
+    function updateLeftSidebarRight() {
+      const nextRight = leftSidebarGap?.getBoundingClientRect().right ?? 0
+      setLeftSidebarRight(Math.max(0, Math.round(nextRight)))
+    }
+
+    updateLeftSidebarRight()
+
+    const resizeObserver =
+      leftSidebarGap && "ResizeObserver" in window
+        ? new ResizeObserver(updateLeftSidebarRight)
+        : null
+    if (leftSidebarGap) {
+      resizeObserver?.observe(leftSidebarGap)
+    }
+    leftSidebarGap?.addEventListener("transitionend", updateLeftSidebarRight)
+    window.addEventListener("resize", updateLeftSidebarRight)
+
+    return () => {
+      resizeObserver?.disconnect()
+      leftSidebarGap?.removeEventListener("transitionend", updateLeftSidebarRight)
+      window.removeEventListener("resize", updateLeftSidebarRight)
+    }
+  }, [])
 
   useEffect(() => {
     function handleOpenRightSidebar() {
-      setIsRightSidebarOpen(true)
+      setRightSidebarOpen(true)
     }
 
     window.addEventListener("ineffable:right-sidebar:open", handleOpenRightSidebar)
     return () => {
       window.removeEventListener("ineffable:right-sidebar:open", handleOpenRightSidebar)
     }
-  }, [setIsRightSidebarOpen])
+  }, [setRightSidebarOpen])
+
+  const rightSidebarCssWidth = isRightSidebarFullScreen
+    ? "100vw"
+    : `${rightSidebarWidth}px`
+  const rightSidebarGapWidth = isRightSidebarFullScreen
+    ? "0px"
+    : `${rightSidebarReservedWidth}px`
 
   return (
     <div className="relative flex min-h-svh w-full bg-sidebar">
@@ -112,7 +164,7 @@ function AppShellContent() {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => setIsRightSidebarOpen((open) => !open)}
+                onClick={() => setRightSidebarOpen((open) => !open)}
                 aria-label="Toggle right sidebar"
               >
                 <PanelRightIcon />
@@ -130,9 +182,9 @@ function AppShellContent() {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize right sidebar"
-        tabIndex={isRightSidebarOpen ? 0 : -1}
+        tabIndex={isRightSidebarOpen && !isRightSidebarFullScreen ? 0 : -1}
         aria-valuemin={RIGHT_SIDEBAR_MIN_WIDTH}
-        aria-valuemax={RIGHT_SIDEBAR_MAX_WIDTH}
+        aria-valuemax={Math.round(rightSidebarMaxWidth)}
         aria-valuenow={Math.round(rightSidebarWidth)}
         onPointerDown={startRightSidebarResize}
         onKeyDown={handleRightSidebarResizeKeyDown}
@@ -140,24 +192,30 @@ function AppShellContent() {
         style={{ right: `${rightSidebarWidth}px` }}
         className={cn(
           "fixed inset-y-0 z-20 hidden w-2 translate-x-1/2 touch-none cursor-col-resize bg-transparent focus-visible:outline-2 focus-visible:outline-ring md:block",
-          isRightSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          isRightSidebarOpen && !isRightSidebarFullScreen
+            ? "opacity-100"
+            : "pointer-events-none opacity-0"
         )}
       />
 
       <SidebarProvider
         defaultOpen
         open={isRightSidebarOpen}
-        onOpenChange={setIsRightSidebarOpen}
+        onOpenChange={setRightSidebarOpen}
         persistCookie={false}
         className="w-auto"
         style={
           {
-            "--sidebar-width": `${rightSidebarWidth}px`,
+            "--sidebar-width": rightSidebarCssWidth,
+            "--sidebar-width-gap": rightSidebarGapWidth,
             "--sidebar-width-icon": "0rem",
           } as CSSProperties
         }
       >
-        <RightSidebar />
+        <RightSidebar
+          isFullScreen={isRightSidebarFullScreen}
+          onFullScreenChange={setIsRightSidebarFullScreen}
+        />
       </SidebarProvider>
     </div>
   )

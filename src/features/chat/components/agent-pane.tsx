@@ -15,7 +15,12 @@ import {
   type ToolCallView,
 } from "@/features/chat/chat-pane-state"
 import { cn } from "@/lib/utils"
-import { BrainCircuitIcon, ChevronDownIcon, WrenchIcon } from "lucide-react"
+import {
+  BrainCircuitIcon,
+  ChevronDownIcon,
+  TerminalIcon,
+  WrenchIcon,
+} from "lucide-react"
 
 const markdownIt = new MarkdownIt({
   breaks: true,
@@ -56,6 +61,232 @@ function MarkdownContent({
   const renderedHtml = React.useMemo(() => markdownIt.render(content), [content])
 
   return <div className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+}
+
+type JsonObject = Record<string, unknown>
+
+function objectValue(value: unknown): JsonObject | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonObject)
+    : null
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : ""
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function booleanValue(value: unknown) {
+  return typeof value === "boolean" ? value : null
+}
+
+function parseJsonObject(value: string) {
+  if (!value.trim()) {
+    return null
+  }
+
+  try {
+    return objectValue(JSON.parse(value))
+  } catch {
+    return null
+  }
+}
+
+function isTerminalToolName(name: string) {
+  return (
+    name === "exec_command" ||
+    name === "terminal_read" ||
+    name === "terminal_list" ||
+    name === "terminal_stop" ||
+    name === "write_stdin"
+  )
+}
+
+function terminalStatusTone(status: string) {
+  const normalized = status.toLowerCase()
+  if (normalized === "running") {
+    return "border-sky-500/25 text-sky-700"
+  }
+  if (normalized === "exited" || normalized === "completed" || normalized === "succeeded") {
+    return "border-emerald-500/25 text-emerald-700"
+  }
+  if (normalized === "interrupted" || normalized === "cancelled" || normalized === "canceled") {
+    return "border-amber-500/25 text-amber-700"
+  }
+  if (normalized === "failed" || normalized === "timed_out" || normalized === "error") {
+    return "border-red-500/25 text-red-600"
+  }
+  return "border-black/10 text-foreground/65"
+}
+
+function TerminalMetaItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium tracking-wide text-foreground/45">{label}</p>
+      <p className="mt-0.5 truncate font-mono text-[11px] leading-5 text-foreground/72">
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function TerminalOutputBlock({ label, content }: { label: string; content: string }) {
+  if (!content.trim()) {
+    return null
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-medium tracking-wide text-foreground/45">{label}</p>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap wrap-anywhere rounded-md border border-black/5 bg-black/[0.025] px-2.5 py-2 font-mono text-[11px] leading-5 text-foreground/75">
+        {content}
+      </pre>
+    </div>
+  )
+}
+
+function TerminalSessionResult({ result }: { result: JsonObject }) {
+  const sessionId = stringValue(result.session_id)
+  const command = stringValue(result.command)
+  const cwd = stringValue(result.cwd)
+  const status = stringValue(result.status)
+  const tty = booleanValue(result.tty)
+  const cursor = numberValue(result.next_cursor ?? result.cursor)
+  const exitCode = numberValue(result.exit_code)
+  const lineRange =
+    numberValue(result.start_line) || numberValue(result.end_line)
+      ? `${numberValue(result.start_line) ?? "?"}-${numberValue(result.end_line) ?? "?"} / ${
+          numberValue(result.total_lines) ?? "?"
+        }`
+      : ""
+  const stdout = stringValue(result.stdout)
+  const stderr = stringValue(result.stderr)
+  const outputTail = stringValue(result.output_tail)
+  const failureReason = stringValue(result.failure_reason)
+  const nextAction = stringValue(result.next_action)
+  const output = stdout || outputTail
+
+  return (
+    <div className="space-y-2 rounded-md border border-black/6 bg-background/45 p-2.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-foreground/75">
+          <TerminalIcon className="size-3.5 flex-none" />
+          <span className="truncate">{command || sessionId || "Terminal session"}</span>
+        </span>
+        {status ? (
+          <Badge
+            variant="outline"
+            className={cn(
+              "h-5 rounded-full bg-transparent px-1.5 text-[10px]",
+              terminalStatusTone(status)
+            )}
+          >
+            {status}
+          </Badge>
+        ) : null}
+        {tty ? (
+          <Badge
+            variant="outline"
+            className="h-5 rounded-full border-black/10 bg-transparent px-1.5 text-[10px] text-foreground/65"
+          >
+            TTY
+          </Badge>
+        ) : null}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {sessionId ? <TerminalMetaItem label="Session" value={sessionId} /> : null}
+        {cwd ? <TerminalMetaItem label="CWD" value={cwd} /> : null}
+        {cursor !== null ? <TerminalMetaItem label="Cursor" value={cursor} /> : null}
+        {lineRange ? <TerminalMetaItem label="Lines" value={lineRange} /> : null}
+        {exitCode !== null ? <TerminalMetaItem label="Exit" value={exitCode} /> : null}
+      </div>
+
+      <TerminalOutputBlock label="Output" content={output} />
+      <TerminalOutputBlock label="Stderr" content={stderr} />
+      <TerminalOutputBlock label="Failure" content={failureReason} />
+      <TerminalOutputBlock label="Next" content={nextAction} />
+    </div>
+  )
+}
+
+function TerminalListResult({ result }: { result: JsonObject }) {
+  const sessions = Array.isArray(result.sessions)
+    ? result.sessions.map(objectValue).filter((session): session is JsonObject => Boolean(session))
+    : []
+
+  if (!sessions.length) {
+    return (
+      <div className="rounded-md border border-black/6 bg-background/45 px-2.5 py-2 text-[11px] text-foreground/60">
+        No terminal sessions.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {sessions.map((session, index) => {
+        const sessionId = stringValue(session.session_id) || `session-${index + 1}`
+        const status = stringValue(session.status)
+        return (
+          <div
+            key={`${sessionId}-${index}`}
+            className="space-y-1.5 rounded-md border border-black/6 bg-background/45 p-2.5"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <TerminalIcon className="size-3.5 flex-none text-foreground/55" />
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground/75">
+                {stringValue(session.command) || sessionId}
+              </span>
+              {status ? (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "h-5 rounded-full bg-transparent px-1.5 text-[10px]",
+                    terminalStatusTone(status)
+                  )}
+                >
+                  {status}
+                </Badge>
+              ) : null}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <TerminalMetaItem label="Session" value={sessionId} />
+              <TerminalMetaItem label="CWD" value={stringValue(session.cwd) || "-"} />
+            </div>
+            <TerminalOutputBlock
+              label="Tail"
+              content={stringValue(session.last_output_tail)}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function renderTerminalToolResult(tool: ToolCallView) {
+  if (!isTerminalToolName(tool.name)) {
+    return null
+  }
+
+  const result = parseJsonObject(tool.output)
+  if (!result) {
+    return null
+  }
+
+  if (Array.isArray(result.sessions)) {
+    return <TerminalListResult result={result} />
+  }
+
+  if (stringValue(result.session_id) || stringValue(result.status)) {
+    return <TerminalSessionResult result={result} />
+  }
+
+  return null
 }
 
 function ThinkBlockView({ block }: { block: ThinkBlock }) {
@@ -105,6 +336,7 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
   const isRunning = tool.status === "running"
   const isTerminal =
     tool.status === "succeeded" || tool.status === "failed" || tool.status === "cancelled"
+  const terminalResult = renderTerminalToolResult(tool)
   const [open, setOpen] = React.useState(isRunning)
   const prevStatusRef = React.useRef<ToolCallStatus>(tool.status)
 
@@ -173,9 +405,11 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
         {tool.output.trim() ? (
           <div className={cn("space-y-1", tool.input.trim() ? "mt-2" : "")}>
             <p className="text-[10px] font-medium tracking-wide opacity-55">Output</p>
-            <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
-              {tool.output}
-            </pre>
+            {terminalResult || (
+              <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
+                {tool.output}
+              </pre>
+            )}
           </div>
         ) : null}
       </CollapsibleContent>

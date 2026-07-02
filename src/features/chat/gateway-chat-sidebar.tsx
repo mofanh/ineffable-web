@@ -100,7 +100,15 @@ function sandboxOptionLabel(
   return provider?.display_name || environment.environment_type || environment.environment_id
 }
 
-export function GatewayChatSidebar() {
+type GatewayChatSidebarProps = {
+  isFullScreen: boolean
+  onFullScreenChange: (isFullScreen: boolean) => void
+}
+
+export function GatewayChatSidebar({
+  isFullScreen,
+  onFullScreenChange,
+}: GatewayChatSidebarProps) {
   const { toggleSidebar } = useSidebar()
   const {
     accessToken,
@@ -1907,6 +1915,8 @@ export function GatewayChatSidebar() {
           void refreshConversations()
         }}
         onStartNewChat={startNewChat}
+        isFullScreen={isFullScreen}
+        onFullScreenChange={onFullScreenChange}
         onCollapseSidebar={toggleSidebar}
       />
 

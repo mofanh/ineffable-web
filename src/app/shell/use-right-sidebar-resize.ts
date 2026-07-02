@@ -8,7 +8,7 @@ const RIGHT_SIDEBAR_OPEN_STORAGE_KEY = "ineffable.ui.right-sidebar.open"
 const RIGHT_SIDEBAR_WIDTH_STORAGE_KEY = "ineffable.ui.right-sidebar.width"
 const RIGHT_SIDEBAR_MIN_REMAINING_WIDTH = 320
 
-function getRightSidebarMaxWidth(viewportWidth: number) {
+function getRightSidebarReservedWidth(viewportWidth: number) {
   return Math.max(
     RIGHT_SIDEBAR_MIN_WIDTH,
     Math.min(
@@ -18,9 +18,17 @@ function getRightSidebarMaxWidth(viewportWidth: number) {
   )
 }
 
-function clampRightSidebarWidth(rawWidth: number, viewportWidth: number) {
+function getRightSidebarMaxWidth(viewportWidth: number, leftBoundaryX: number) {
+  return Math.max(RIGHT_SIDEBAR_MIN_WIDTH, viewportWidth - leftBoundaryX)
+}
+
+function clampRightSidebarWidth(
+  rawWidth: number,
+  viewportWidth: number,
+  leftBoundaryX: number
+) {
   return Math.min(
-    getRightSidebarMaxWidth(viewportWidth),
+    getRightSidebarMaxWidth(viewportWidth, leftBoundaryX),
     Math.max(RIGHT_SIDEBAR_MIN_WIDTH, rawWidth)
   )
 }
@@ -34,7 +42,14 @@ function readStoredWidth() {
     : RIGHT_SIDEBAR_DEFAULT_WIDTH
 }
 
-export function useRightSidebarResize() {
+export function useRightSidebarResize(leftBoundaryX = 0) {
+  const [viewportWidth, setViewportWidth] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return RIGHT_SIDEBAR_DEFAULT_WIDTH + RIGHT_SIDEBAR_MIN_REMAINING_WIDTH
+    }
+
+    return window.innerWidth
+  })
   const [isRightSidebarOpen, setIsRightSidebarOpen] = React.useState(() => {
     if (typeof window === "undefined") {
       return true
@@ -51,7 +66,7 @@ export function useRightSidebarResize() {
       return RIGHT_SIDEBAR_DEFAULT_WIDTH
     }
 
-    return clampRightSidebarWidth(readStoredWidth(), window.innerWidth)
+    return clampRightSidebarWidth(readStoredWidth(), window.innerWidth, leftBoundaryX)
   })
   const resizingPointerIdRef = React.useRef<number | null>(null)
 
@@ -60,10 +75,14 @@ export function useRightSidebarResize() {
       setRightSidebarWidthState((currentWidth) => {
         const requestedWidth =
           typeof value === "function" ? value(currentWidth) : value
-        return clampRightSidebarWidth(requestedWidth, window.innerWidth)
+        return clampRightSidebarWidth(
+          requestedWidth,
+          window.innerWidth,
+          leftBoundaryX
+        )
       })
     },
-    []
+    [leftBoundaryX]
   )
 
   const setRightSidebarOpen = React.useCallback(
@@ -107,7 +126,7 @@ export function useRightSidebarResize() {
       } else if (event.key === "Home") {
         nextWidth = RIGHT_SIDEBAR_MIN_WIDTH
       } else if (event.key === "End") {
-        nextWidth = getRightSidebarMaxWidth(window.innerWidth)
+        nextWidth = getRightSidebarMaxWidth(viewportWidth, leftBoundaryX)
       }
 
       if (nextWidth !== null) {
@@ -115,7 +134,7 @@ export function useRightSidebarResize() {
         setRightSidebarWidth(nextWidth)
       }
     },
-    [rightSidebarWidth, setRightSidebarWidth]
+    [rightSidebarWidth, setRightSidebarWidth, viewportWidth, leftBoundaryX]
   )
 
   React.useEffect(() => {
@@ -131,14 +150,21 @@ export function useRightSidebarResize() {
 
   React.useEffect(() => {
     const handleWindowResize = () => {
+      setViewportWidth(window.innerWidth)
       setRightSidebarWidthState((currentWidth) =>
-        clampRightSidebarWidth(currentWidth, window.innerWidth)
+        clampRightSidebarWidth(currentWidth, window.innerWidth, leftBoundaryX)
       )
     }
 
     window.addEventListener("resize", handleWindowResize)
     return () => window.removeEventListener("resize", handleWindowResize)
-  }, [])
+  }, [leftBoundaryX])
+
+  React.useEffect(() => {
+    setRightSidebarWidthState((currentWidth) =>
+      clampRightSidebarWidth(currentWidth, viewportWidth, leftBoundaryX)
+    )
+  }, [leftBoundaryX, viewportWidth])
 
   React.useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -174,9 +200,20 @@ export function useRightSidebarResize() {
     }
   }, [setRightSidebarWidth])
 
+  const rightSidebarMaxWidth = getRightSidebarMaxWidth(
+    viewportWidth,
+    leftBoundaryX
+  )
+  const rightSidebarReservedWidth = Math.min(
+    rightSidebarWidth,
+    getRightSidebarReservedWidth(viewportWidth)
+  )
+
   return {
     isRightSidebarOpen,
     rightSidebarWidth,
+    rightSidebarMaxWidth,
+    rightSidebarReservedWidth,
     setIsRightSidebarOpen: setRightSidebarOpen,
     setRightSidebarWidth,
     startRightSidebarResize,

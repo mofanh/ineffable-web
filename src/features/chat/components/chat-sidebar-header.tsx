@@ -13,7 +13,9 @@ import {
   CheckIcon,
   ChevronDownIcon,
   BotIcon,
+  Maximize2Icon,
   MessageSquareTextIcon,
+  Minimize2Icon,
   PanelRightIcon,
   PlusIcon,
   RefreshCcwIcon,
@@ -29,6 +31,8 @@ type ChatSidebarHeaderProps = {
   onSelectConversation: (conversationId: string | null) => void
   onRefreshConversations: () => void
   onStartNewChat: () => void
+  isFullScreen: boolean
+  onFullScreenChange: (isFullScreen: boolean) => void
   onCollapseSidebar: () => void
 }
 
@@ -114,6 +118,8 @@ export function ChatSidebarHeader({
   onSelectConversation,
   onRefreshConversations,
   onStartNewChat,
+  isFullScreen,
+  onFullScreenChange,
   onCollapseSidebar,
 }: ChatSidebarHeaderProps) {
   const [query, setQuery] = React.useState("")
@@ -275,6 +281,16 @@ export function ChatSidebarHeader({
             onClick={() => setOpen((current) => !current)}
           >
             <SquareArrowOutUpRightIcon className="size-4" />
+          </HeaderActionButton>
+          <HeaderActionButton
+            title={isFullScreen ? "退出全屏" : "全屏右侧栏"}
+            onClick={() => onFullScreenChange(!isFullScreen)}
+          >
+            {isFullScreen ? (
+              <Minimize2Icon className="size-4" />
+            ) : (
+              <Maximize2Icon className="size-4" />
+            )}
           </HeaderActionButton>
           <HeaderActionButton title="收起右侧栏" onClick={onCollapseSidebar}>
             <PanelRightIcon className="size-4" />
