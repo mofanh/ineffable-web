@@ -100,6 +100,9 @@ function sandboxOptionLabel(
   return provider?.display_name || environment.environment_type || environment.environment_id
 }
 
+const INITIAL_RENDERED_ENTRY_COUNT = 40
+const RENDERED_ENTRY_INCREMENT = 30
+
 type GatewayChatSidebarProps = {
   isFullScreen: boolean
   onFullScreenChange: (isFullScreen: boolean) => void
@@ -126,6 +129,10 @@ export function GatewayChatSidebar({
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
   const [error, setError] = React.useState<string | null>(null)
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false)
+  const [isLoadingOlderEntries, setIsLoadingOlderEntries] = React.useState(false)
+  const [renderedEntryLimit, setRenderedEntryLimit] = React.useState(
+    INITIAL_RENDERED_ENTRY_COUNT
+  )
   const [hydratedConversationId, setHydratedConversationId] = React.useState<string | null>(null)
   const [sandboxOptions, setSandboxOptions] = React.useState<
     { environmentId: string; label: string; status: string }[]
@@ -152,6 +159,11 @@ export function GatewayChatSidebar({
   const seenFinalRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
+  const pendingOlderLoadMetricsRef = React.useRef<{
+    scrollHeight: number
+    scrollTop: number
+  } | null>(null)
+  const olderLoadResetTimerRef = React.useRef<number | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
 
@@ -182,6 +194,9 @@ export function GatewayChatSidebar({
       abortRef.current?.abort()
       if (recoveryTimerRef.current != null) {
         window.clearTimeout(recoveryTimerRef.current)
+      }
+      if (olderLoadResetTimerRef.current != null) {
+        window.clearTimeout(olderLoadResetTimerRef.current)
       }
     }
   }, [])
@@ -353,6 +368,11 @@ export function GatewayChatSidebar({
       }),
     [entries]
   )
+  const renderedEntries = React.useMemo(
+    () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
+    [renderedEntryLimit, visibleEntries]
+  )
+  const hasOlderEntries = renderedEntries.length < visibleEntries.length
 
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
     const viewport = scrollViewportRef.current
@@ -380,7 +400,7 @@ export function GatewayChatSidebar({
     setShowScrollToBottom(!isNearBottom)
   }, [])
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!scrollViewportRef.current || !autoStickToBottomRef.current) {
       return
     }
@@ -390,7 +410,47 @@ export function GatewayChatSidebar({
         ? "auto"
         : "smooth"
     )
-  }, [scrollToBottom, streamStatus, visibleEntries])
+  }, [renderedEntries, scrollToBottom, streamStatus])
+
+  React.useLayoutEffect(() => {
+    const metrics = pendingOlderLoadMetricsRef.current
+    const viewport = scrollViewportRef.current
+    if (!metrics || !viewport) {
+      return
+    }
+
+    const addedHeight = viewport.scrollHeight - metrics.scrollHeight
+    viewport.scrollTop = metrics.scrollTop + Math.max(0, addedHeight)
+    pendingOlderLoadMetricsRef.current = null
+    setIsLoadingOlderEntries(false)
+  }, [renderedEntries])
+
+  const loadOlderEntries = React.useCallback(() => {
+    if (!hasOlderEntries || pendingOlderLoadMetricsRef.current) {
+      return
+    }
+
+    const viewport = scrollViewportRef.current
+    pendingOlderLoadMetricsRef.current = {
+      scrollHeight: viewport?.scrollHeight ?? 0,
+      scrollTop: viewport?.scrollTop ?? 0,
+    }
+    setIsLoadingOlderEntries(true)
+    autoStickToBottomRef.current = false
+    setShowScrollToBottom(true)
+    setRenderedEntryLimit((current) =>
+      Math.min(current + RENDERED_ENTRY_INCREMENT, visibleEntries.length)
+    )
+
+    if (olderLoadResetTimerRef.current != null) {
+      window.clearTimeout(olderLoadResetTimerRef.current)
+    }
+    olderLoadResetTimerRef.current = window.setTimeout(() => {
+      pendingOlderLoadMetricsRef.current = null
+      setIsLoadingOlderEntries(false)
+      olderLoadResetTimerRef.current = null
+    }, 250)
+  }, [hasOlderEntries, visibleEntries.length])
 
   const clearRecoveryTimer = React.useCallback(() => {
     if (recoveryTimerRef.current != null) {
@@ -540,6 +600,9 @@ export function GatewayChatSidebar({
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
     setHydratedConversationId(null)
+    setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
+    pendingOlderLoadMetricsRef.current = null
+    setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
       setEntries([])
@@ -558,11 +621,11 @@ export function GatewayChatSidebar({
     updateStreamStatus,
   ])
 
-  function handleScrollToBottomClick() {
+  const handleScrollToBottomClick = React.useCallback(() => {
     autoStickToBottomRef.current = true
     setShowScrollToBottom(false)
     scrollToBottom("smooth")
-  }
+  }, [scrollToBottom])
 
   function resetSeenCaches() {
     seenEventRef.current = new Set()
@@ -1428,6 +1491,9 @@ export function GatewayChatSidebar({
   function clearConversation() {
     setEntries([])
     setError(null)
+    setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
+    pendingOlderLoadMetricsRef.current = null
+    setIsLoadingOlderEntries(false)
     resetTurnState()
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
@@ -1892,6 +1958,26 @@ export function GatewayChatSidebar({
     setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
   }
 
+  const resolveApproval = React.useEffectEvent(
+    async (entryId: string, approved: boolean) => {
+      await handleResolveApproval(entryId, approved)
+    }
+  )
+
+  const handleApproveApproval = React.useCallback(
+    (entryId: string) => {
+      void resolveApproval(entryId, true)
+    },
+    [resolveApproval]
+  )
+
+  const handleRejectApproval = React.useCallback(
+    (entryId: string) => {
+      void resolveApproval(entryId, false)
+    },
+    [resolveApproval]
+  )
+
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault()
@@ -1922,18 +2008,17 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="bg-sidebar/50">
         <ChatMessageList
-          entries={visibleEntries}
+          entries={renderedEntries}
+          hasOlderEntries={hasOlderEntries}
+          isLoadingOlderEntries={isLoadingOlderEntries}
           isSending={isSending}
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
+          onLoadOlderEntries={loadOlderEntries}
           onScrollToBottomClick={handleScrollToBottomClick}
-          onApproveApproval={(entryId) => {
-            void handleResolveApproval(entryId, true)
-          }}
-          onRejectApproval={(entryId) => {
-            void handleResolveApproval(entryId, false)
-          }}
+          onApproveApproval={handleApproveApproval}
+          onRejectApproval={handleRejectApproval}
         />
         {isLoadingMessages ? (
           <div className="px-4 pb-3 text-xs text-muted-foreground">正在同步历史消息…</div>

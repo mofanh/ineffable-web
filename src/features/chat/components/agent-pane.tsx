@@ -417,7 +417,11 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
   )
 }
 
-export function AgentPane({ pane }: { pane: AgentPaneState }) {
+export const AgentPane = React.memo(function AgentPane({
+  pane,
+}: {
+  pane: AgentPaneState
+}) {
   const blocks = getPaneBlocks(pane)
 
   return (
@@ -455,4 +459,4 @@ export function AgentPane({ pane }: { pane: AgentPaneState }) {
       })}
     </div>
   )
-}
+})

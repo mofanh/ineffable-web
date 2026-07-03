@@ -16,10 +16,13 @@ import { AgentPane } from "@/features/chat/components/agent-pane"
 
 type ChatMessageListProps = {
   entries: ChatEntry[]
+  hasOlderEntries: boolean
+  isLoadingOlderEntries: boolean
   isSending: boolean
   showScrollToBottom: boolean
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
   onViewportScroll: () => void
+  onLoadOlderEntries: () => void
   onScrollToBottomClick: () => void
   onApproveApproval: (entryId: string) => void
   onRejectApproval: (entryId: string) => void
@@ -34,12 +37,15 @@ function StreamingTailDot() {
   )
 }
 
-export function ChatMessageList({
+export const ChatMessageList = React.memo(function ChatMessageList({
   entries,
+  hasOlderEntries,
+  isLoadingOlderEntries,
   isSending,
   showScrollToBottom,
   scrollViewportRef,
   onViewportScroll,
+  onLoadOlderEntries,
   onScrollToBottomClick,
   onApproveApproval,
   onRejectApproval,
@@ -64,9 +70,36 @@ export function ChatMessageList({
     <div className="relative h-full">
       <div
         ref={scrollViewportRef}
-        onScroll={onViewportScroll}
+        onScroll={(event) => {
+          onViewportScroll()
+          if (
+            hasOlderEntries &&
+            !isLoadingOlderEntries &&
+            event.currentTarget.scrollTop < 96
+          ) {
+            onLoadOlderEntries()
+          }
+        }}
         className="flex h-full min-h-0 flex-col gap-7 overflow-y-auto px-3 py-4"
       >
+        {hasOlderEntries ? (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 rounded-md px-3 text-xs text-sidebar-foreground/70"
+              disabled={isLoadingOlderEntries}
+              onClick={onLoadOlderEntries}
+            >
+              {isLoadingOlderEntries ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : null}
+              更早消息
+            </Button>
+          </div>
+        ) : null}
+
         {entries.map((entry, index) => {
           const showStreamingTail =
             isSending && entry.role === "assistant" && index === entries.length - 1
@@ -221,4 +254,4 @@ export function ChatMessageList({
       ) : null}
     </div>
   )
-}
+})
