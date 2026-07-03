@@ -159,6 +159,10 @@ export type ConversationEventsResponse = {
 export type ConversationMessagesResponse = {
   messages: ConversationMessageRecord[]
   next_seq?: number | null
+  page?: {
+    before?: string | null
+    has_older: boolean
+  }
 }
 
 export type AuthTokenPair = {
@@ -1068,11 +1072,21 @@ export function getConversation(
 
 export function getConversationMessages(
   accessToken: string,
-  conversationId: string
+  conversationId: string,
+  options?: {
+    limit?: number
+    before?: string | null
+  }
 ) {
   const params = new URLSearchParams({
     conversation_id: conversationId,
   })
+  if (options?.limit != null) {
+    params.set("limit", String(options.limit))
+  }
+  if (options?.before) {
+    params.set("before", options.before)
+  }
 
   return requestJson<ConversationMessagesResponse>(
     `/gateway/v1/conversations/messages?${params.toString()}`,

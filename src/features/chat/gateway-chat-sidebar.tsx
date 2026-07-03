@@ -102,6 +102,7 @@ function sandboxOptionLabel(
 
 const INITIAL_RENDERED_ENTRY_COUNT = 40
 const RENDERED_ENTRY_INCREMENT = 30
+const CONVERSATION_MESSAGES_PAGE_LIMIT = 40
 
 type GatewayChatSidebarProps = {
   isFullScreen: boolean
@@ -133,6 +134,8 @@ export function GatewayChatSidebar({
   const [renderedEntryLimit, setRenderedEntryLimit] = React.useState(
     INITIAL_RENDERED_ENTRY_COUNT
   )
+  const [olderMessagesCursor, setOlderMessagesCursor] = React.useState<string | null>(null)
+  const [hasOlderMessages, setHasOlderMessages] = React.useState(false)
   const [hydratedConversationId, setHydratedConversationId] = React.useState<string | null>(null)
   const [sandboxOptions, setSandboxOptions] = React.useState<
     { environmentId: string; label: string; status: string }[]
@@ -163,6 +166,7 @@ export function GatewayChatSidebar({
     scrollHeight: number
     scrollTop: number
   } | null>(null)
+  const olderMessagesInFlightCursorRef = React.useRef<string | null>(null)
   const olderLoadResetTimerRef = React.useRef<number | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
@@ -372,7 +376,8 @@ export function GatewayChatSidebar({
     () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
     [renderedEntryLimit, visibleEntries]
   )
-  const hasOlderEntries = renderedEntries.length < visibleEntries.length
+  const hasHiddenLoadedEntries = renderedEntries.length < visibleEntries.length
+  const hasOlderEntries = hasHiddenLoadedEntries || hasOlderMessages
 
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
     const viewport = scrollViewportRef.current
@@ -424,33 +429,6 @@ export function GatewayChatSidebar({
     pendingOlderLoadMetricsRef.current = null
     setIsLoadingOlderEntries(false)
   }, [renderedEntries])
-
-  const loadOlderEntries = React.useCallback(() => {
-    if (!hasOlderEntries || pendingOlderLoadMetricsRef.current) {
-      return
-    }
-
-    const viewport = scrollViewportRef.current
-    pendingOlderLoadMetricsRef.current = {
-      scrollHeight: viewport?.scrollHeight ?? 0,
-      scrollTop: viewport?.scrollTop ?? 0,
-    }
-    setIsLoadingOlderEntries(true)
-    autoStickToBottomRef.current = false
-    setShowScrollToBottom(true)
-    setRenderedEntryLimit((current) =>
-      Math.min(current + RENDERED_ENTRY_INCREMENT, visibleEntries.length)
-    )
-
-    if (olderLoadResetTimerRef.current != null) {
-      window.clearTimeout(olderLoadResetTimerRef.current)
-    }
-    olderLoadResetTimerRef.current = window.setTimeout(() => {
-      pendingOlderLoadMetricsRef.current = null
-      setIsLoadingOlderEntries(false)
-      olderLoadResetTimerRef.current = null
-    }, 250)
-  }, [hasOlderEntries, visibleEntries.length])
 
   const clearRecoveryTimer = React.useCallback(() => {
     if (recoveryTimerRef.current != null) {
@@ -525,6 +503,97 @@ export function GatewayChatSidebar({
     [persistResumeState]
   )
 
+  const loadOlderEntries = React.useCallback(() => {
+    if (
+      !hasOlderEntries ||
+      pendingOlderLoadMetricsRef.current ||
+      olderMessagesInFlightCursorRef.current
+    ) {
+      return
+    }
+
+    const viewport = scrollViewportRef.current
+    pendingOlderLoadMetricsRef.current = {
+      scrollHeight: viewport?.scrollHeight ?? 0,
+      scrollTop: viewport?.scrollTop ?? 0,
+    }
+    setIsLoadingOlderEntries(true)
+    autoStickToBottomRef.current = false
+    setShowScrollToBottom(true)
+
+    if (hasHiddenLoadedEntries) {
+      setRenderedEntryLimit((current) =>
+        Math.min(current + RENDERED_ENTRY_INCREMENT, visibleEntries.length)
+      )
+
+      if (olderLoadResetTimerRef.current != null) {
+        window.clearTimeout(olderLoadResetTimerRef.current)
+      }
+      olderLoadResetTimerRef.current = window.setTimeout(() => {
+        pendingOlderLoadMetricsRef.current = null
+        setIsLoadingOlderEntries(false)
+        olderLoadResetTimerRef.current = null
+      }, 250)
+      return
+    }
+
+    if (!accessToken || !currentConversationId || !olderMessagesCursor) {
+      pendingOlderLoadMetricsRef.current = null
+      setIsLoadingOlderEntries(false)
+      return
+    }
+
+    olderMessagesInFlightCursorRef.current = olderMessagesCursor
+    void getConversationMessages(accessToken, currentConversationId, {
+      limit: CONVERSATION_MESSAGES_PAGE_LIMIT,
+      before: olderMessagesCursor,
+    })
+      .then((response) => {
+        if (
+          olderMessagesInFlightCursorRef.current !== olderMessagesCursor ||
+          currentConversationIdRef.current !== currentConversationId
+        ) {
+          return
+        }
+
+        const olderEntries = mapConversationMessagesToEntries(response.messages)
+        setEntries((current) => {
+          const seen = new Set(current.map((entry) => entry.id))
+          return [
+            ...olderEntries.filter((entry) => !seen.has(entry.id)),
+            ...current,
+          ]
+        })
+        setRenderedEntryLimit((current) => current + olderEntries.length)
+        setOlderMessagesCursor(response.page?.before ?? null)
+        setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
+        setConversationLastSeq(currentConversationId, response.next_seq ?? 0)
+        setError(null)
+      })
+      .catch((loadError) => {
+        pendingOlderLoadMetricsRef.current = null
+        setError(
+          loadError instanceof Error
+            ? `加载更早消息失败：${loadError.message}`
+            : "加载更早消息失败。"
+        )
+      })
+      .finally(() => {
+        if (olderMessagesInFlightCursorRef.current === olderMessagesCursor) {
+          olderMessagesInFlightCursorRef.current = null
+        }
+        setIsLoadingOlderEntries(false)
+      })
+  }, [
+    accessToken,
+    currentConversationId,
+    hasHiddenLoadedEntries,
+    hasOlderEntries,
+    olderMessagesCursor,
+    setConversationLastSeq,
+    visibleEntries.length,
+  ])
+
   const primeConversationCursor = React.useCallback(
     async (conversationId: string) => {
       if (!accessToken || !conversationId) {
@@ -562,9 +631,12 @@ export function GatewayChatSidebar({
       try {
         const response = await getConversationMessages(
           accessToken,
-          conversationId
+          conversationId,
+          { limit: CONVERSATION_MESSAGES_PAGE_LIMIT }
         )
         setEntries(mapConversationMessagesToEntries(response.messages))
+        setOlderMessagesCursor(response.page?.before ?? null)
+        setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
         setConversationLastSeq(conversationId, response.next_seq ?? 0)
         setHydratedConversationId(conversationId)
         setError(null)
@@ -602,6 +674,9 @@ export function GatewayChatSidebar({
     setHydratedConversationId(null)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
     pendingOlderLoadMetricsRef.current = null
+    olderMessagesInFlightCursorRef.current = null
+    setOlderMessagesCursor(null)
+    setHasOlderMessages(false)
     setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
@@ -1493,6 +1568,9 @@ export function GatewayChatSidebar({
     setError(null)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
     pendingOlderLoadMetricsRef.current = null
+    olderMessagesInFlightCursorRef.current = null
+    setOlderMessagesCursor(null)
+    setHasOlderMessages(false)
     setIsLoadingOlderEntries(false)
     resetTurnState()
     clearRecoveryTimer()
