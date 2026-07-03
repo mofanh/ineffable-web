@@ -509,7 +509,7 @@ export function GatewayChatSidebar({
     [persistResumeState]
   )
 
-  const loadOlderEntries = React.useCallback(() => {
+  const loadOlderConversationMessagesPage = React.useCallback(() => {
     if (
       !hasOlderEntries ||
       pendingOlderLoadMetricsRef.current ||
@@ -626,7 +626,7 @@ export function GatewayChatSidebar({
     [accessToken, setConversationLastSeq]
   )
 
-  const syncConversationMessages = React.useCallback(
+  const syncLatestConversationMessagesPage = React.useCallback(
     async (conversationId: string) => {
       if (!accessToken) {
         setEntries([])
@@ -714,14 +714,14 @@ export function GatewayChatSidebar({
       return
     }
 
-    void syncConversationMessages(currentConversationId).catch((loadError) => {
+    void syncLatestConversationMessagesPage(currentConversationId).catch((loadError) => {
       setEntries([])
       setError(loadError instanceof Error ? loadError.message : "加载会话失败。")
     })
   }, [
     clearRecoveryTimer,
     currentConversationId,
-    syncConversationMessages,
+    syncLatestConversationMessagesPage,
     updateStreamStatus,
   ])
 
@@ -1024,7 +1024,7 @@ export function GatewayChatSidebar({
     updateStreamStatus("completed")
     void Promise.all([
       refreshConversations(),
-      syncConversationMessages(conversationId),
+      syncLatestConversationMessagesPage(conversationId),
       refreshPendingInputsForConversation(conversationId),
     ])
   }
@@ -1045,7 +1045,7 @@ export function GatewayChatSidebar({
     if (conversationId) {
       void Promise.all([
         refreshConversations(),
-        syncConversationMessages(conversationId),
+        syncLatestConversationMessagesPage(conversationId),
         refreshPendingInputsForConversation(conversationId),
       ])
     }
@@ -1099,7 +1099,7 @@ export function GatewayChatSidebar({
     if (currentConversationIdRef.current) {
       void Promise.all([
         refreshConversations(),
-        syncConversationMessages(currentConversationIdRef.current),
+        syncLatestConversationMessagesPage(currentConversationIdRef.current),
         refreshPendingInputsForConversation(currentConversationIdRef.current),
       ])
     }
@@ -1454,7 +1454,7 @@ export function GatewayChatSidebar({
       try {
         const hasCursor = conversationSeqRef.current.has(conversationId)
         if (hydratedConversationIdRef.current !== conversationId || !hasCursor) {
-          await syncConversationMessages(conversationId)
+          await syncLatestConversationMessagesPage(conversationId)
           return
         }
 
@@ -1471,7 +1471,7 @@ export function GatewayChatSidebar({
         if (response.events.length > 0) {
           await Promise.all([
             refreshConversations(),
-            syncConversationMessages(conversationId),
+            syncLatestConversationMessagesPage(conversationId),
             refreshPendingInputsForConversation(conversationId),
           ])
           return
@@ -2123,7 +2123,7 @@ export function GatewayChatSidebar({
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
-          onLoadOlderEntries={loadOlderEntries}
+          onLoadOlderConversationMessagesPage={loadOlderConversationMessagesPage}
           onScrollToBottomClick={handleScrollToBottomClick}
           onApproveApproval={handleApproveApproval}
           onRejectApproval={handleRejectApproval}

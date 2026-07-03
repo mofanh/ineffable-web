@@ -23,7 +23,7 @@ type ChatMessageListProps = {
   showScrollToBottom: boolean
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
   onViewportScroll: () => void
-  onLoadOlderEntries: () => void
+  onLoadOlderConversationMessagesPage: () => void
   onScrollToBottomClick: () => void
   onApproveApproval: (entryId: string) => void
   onRejectApproval: (entryId: string) => void
@@ -47,7 +47,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   showScrollToBottom,
   scrollViewportRef,
   onViewportScroll,
-  onLoadOlderEntries,
+  onLoadOlderConversationMessagesPage,
   onScrollToBottomClick,
   onApproveApproval,
   onRejectApproval,
@@ -80,7 +80,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             !olderEntriesError &&
             event.currentTarget.scrollTop < 96
           ) {
-            onLoadOlderEntries()
+            onLoadOlderConversationMessagesPage()
           }
         }}
         className="flex h-full min-h-0 flex-col gap-7 overflow-y-auto px-3 py-4"
@@ -93,7 +93,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               variant={olderEntriesError ? "outline" : "ghost"}
               className="h-8 rounded-md px-3 text-xs text-sidebar-foreground/70"
               disabled={isLoadingOlderEntries}
-              onClick={onLoadOlderEntries}
+              onClick={onLoadOlderConversationMessagesPage}
             >
               {isLoadingOlderEntries ? (
                 <Loader2Icon className="size-3.5 animate-spin" />
