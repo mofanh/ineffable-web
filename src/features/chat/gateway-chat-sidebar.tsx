@@ -146,6 +146,7 @@ export function GatewayChatSidebar({
   >([])
 
   const abortRef = React.useRef<AbortController | null>(null)
+  const entriesRef = React.useRef<ChatEntry[]>([])
   const assistantEntryIdRef = React.useRef<string | null>(null)
   const activeStreamConversationIdRef = React.useRef<string | null>(null)
   const activeRunIdRef = React.useRef<string | null>(null)
@@ -208,6 +209,10 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
   }, [currentConversationId])
+
+  React.useEffect(() => {
+    entriesRef.current = entries
+  }, [entries])
 
   React.useEffect(() => {
     hydratedConversationIdRef.current = hydratedConversationId
@@ -622,6 +627,8 @@ export function GatewayChatSidebar({
     async (conversationId: string) => {
       if (!accessToken) {
         setEntries([])
+        setOlderMessagesCursor(null)
+        setHasOlderMessages(false)
         setHydratedConversationId(null)
         return
       }
@@ -634,9 +641,25 @@ export function GatewayChatSidebar({
           conversationId,
           { limit: CONVERSATION_MESSAGES_PAGE_LIMIT }
         )
-        setEntries(mapConversationMessagesToEntries(response.messages))
-        setOlderMessagesCursor(response.page?.before ?? null)
-        setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
+        const latestEntries = mapConversationMessagesToEntries(response.messages)
+        const shouldReplaceTranscript =
+          hydratedConversationIdRef.current !== conversationId ||
+          entriesRef.current.length === 0
+        setEntries((current) => {
+          if (shouldReplaceTranscript) {
+            return latestEntries
+          }
+
+          const latestIds = new Set(latestEntries.map((entry) => entry.id))
+          return [
+            ...current.filter((entry) => !latestIds.has(entry.id)),
+            ...latestEntries,
+          ]
+        })
+        if (shouldReplaceTranscript) {
+          setOlderMessagesCursor(response.page?.before ?? null)
+          setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
+        }
         setConversationLastSeq(conversationId, response.next_seq ?? 0)
         setHydratedConversationId(conversationId)
         setError(null)
