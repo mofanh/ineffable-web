@@ -131,6 +131,7 @@ export function GatewayChatSidebar({
   const [error, setError] = React.useState<string | null>(null)
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false)
   const [isLoadingOlderEntries, setIsLoadingOlderEntries] = React.useState(false)
+  const [olderMessagesError, setOlderMessagesError] = React.useState<string | null>(null)
   const [renderedEntryLimit, setRenderedEntryLimit] = React.useState(
     INITIAL_RENDERED_ENTRY_COUNT
   )
@@ -523,6 +524,7 @@ export function GatewayChatSidebar({
       scrollTop: viewport?.scrollTop ?? 0,
     }
     setIsLoadingOlderEntries(true)
+    setOlderMessagesError(null)
     autoStickToBottomRef.current = false
     setShowScrollToBottom(true)
 
@@ -573,14 +575,15 @@ export function GatewayChatSidebar({
         setOlderMessagesCursor(response.page?.before ?? null)
         setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
         setConversationLastSeq(currentConversationId, response.next_seq ?? 0)
+        setOlderMessagesError(null)
         setError(null)
       })
       .catch((loadError) => {
         pendingOlderLoadMetricsRef.current = null
-        setError(
+        setOlderMessagesError(
           loadError instanceof Error
-            ? `加载更早消息失败：${loadError.message}`
-            : "加载更早消息失败。"
+            ? `加载失败：${loadError.message}`
+            : "加载失败。"
         )
       })
       .finally(() => {
@@ -629,6 +632,7 @@ export function GatewayChatSidebar({
         setEntries([])
         setOlderMessagesCursor(null)
         setHasOlderMessages(false)
+        setOlderMessagesError(null)
         setHydratedConversationId(null)
         return
       }
@@ -662,6 +666,7 @@ export function GatewayChatSidebar({
         }
         setConversationLastSeq(conversationId, response.next_seq ?? 0)
         setHydratedConversationId(conversationId)
+        setOlderMessagesError(null)
         setError(null)
       } catch (error) {
         setHydratedConversationId(null)
@@ -700,6 +705,7 @@ export function GatewayChatSidebar({
     olderMessagesInFlightCursorRef.current = null
     setOlderMessagesCursor(null)
     setHasOlderMessages(false)
+    setOlderMessagesError(null)
     setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
@@ -2112,6 +2118,7 @@ export function GatewayChatSidebar({
           entries={renderedEntries}
           hasOlderEntries={hasOlderEntries}
           isLoadingOlderEntries={isLoadingOlderEntries}
+          olderEntriesError={olderMessagesError}
           isSending={isSending}
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}

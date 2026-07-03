@@ -18,6 +18,7 @@ type ChatMessageListProps = {
   entries: ChatEntry[]
   hasOlderEntries: boolean
   isLoadingOlderEntries: boolean
+  olderEntriesError: string | null
   isSending: boolean
   showScrollToBottom: boolean
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
@@ -41,6 +42,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   entries,
   hasOlderEntries,
   isLoadingOlderEntries,
+  olderEntriesError,
   isSending,
   showScrollToBottom,
   scrollViewportRef,
@@ -75,6 +77,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           if (
             hasOlderEntries &&
             !isLoadingOlderEntries &&
+            !olderEntriesError &&
             event.currentTarget.scrollTop < 96
           ) {
             onLoadOlderEntries()
@@ -87,7 +90,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             <Button
               type="button"
               size="sm"
-              variant="ghost"
+              variant={olderEntriesError ? "outline" : "ghost"}
               className="h-8 rounded-md px-3 text-xs text-sidebar-foreground/70"
               disabled={isLoadingOlderEntries}
               onClick={onLoadOlderEntries}
@@ -95,8 +98,13 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               {isLoadingOlderEntries ? (
                 <Loader2Icon className="size-3.5 animate-spin" />
               ) : null}
-              更早消息
+              {olderEntriesError ? "重试更早消息" : "更早消息"}
             </Button>
+            {olderEntriesError ? (
+              <p className="ml-2 max-w-[220px] truncate text-xs text-destructive">
+                {olderEntriesError}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
