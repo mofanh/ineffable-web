@@ -3,6 +3,14 @@ import * as React from "react"
 import { Navigate } from "react-router-dom"
 
 import {
+  Toast,
+  ToastAction,
+  ToastDescription,
+  ToastProvider,
+  ToastTitle,
+  ToastViewport,
+} from "@/components/ui/toast"
+import {
   fetchMe,
   loginUser,
   logoutUser,
@@ -15,6 +23,7 @@ import {
   listConversations,
   type Conversation,
 } from "@/features/chat/api/chat-api"
+import { GATEWAY_AUTH_EXPIRED_EVENT } from "@/lib/api/gateway-client"
 import { type Workspace } from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
 
@@ -142,7 +151,12 @@ export function AppSessionProvider({
     string | null
   >(() => readStorage(STORAGE_KEYS.conversationId) || null)
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
+  const [isAuthExpiredToastOpen, setIsAuthExpiredToastOpen] =
+    React.useState(false)
   const refreshAppDataPromiseRef = React.useRef<Promise<void> | null>(null)
+  const authExpiredRefreshStartedRef = React.useRef(false)
+  const authExpiredReloadingRef = React.useRef(false)
+  const authExpiredReloadTimerRef = React.useRef<number | null>(null)
 
   const clearSession = React.useCallback(() => {
     setStatus("unauthenticated")
@@ -283,6 +297,60 @@ export function AppSessionProvider({
   React.useEffect(() => {
     void refreshAppData()
   }, [refreshAppData])
+
+  const executeExpiredSessionRefresh = React.useCallback(() => {
+    if (authExpiredReloadingRef.current) {
+      return
+    }
+
+    authExpiredReloadingRef.current = true
+    if (authExpiredReloadTimerRef.current != null) {
+      window.clearTimeout(authExpiredReloadTimerRef.current)
+      authExpiredReloadTimerRef.current = null
+    }
+
+    void refreshAppData().finally(() => {
+      window.location.reload()
+    })
+  }, [refreshAppData])
+
+  const scheduleExpiredSessionRefresh = React.useCallback(
+    (delayMs = 0) => {
+      if (
+        authExpiredRefreshStartedRef.current ||
+        authExpiredReloadingRef.current
+      ) {
+        return
+      }
+
+      authExpiredRefreshStartedRef.current = true
+      setIsAuthExpiredToastOpen(true)
+
+      if (authExpiredReloadTimerRef.current != null) {
+        window.clearTimeout(authExpiredReloadTimerRef.current)
+      }
+
+      authExpiredReloadTimerRef.current = window.setTimeout(() => {
+        executeExpiredSessionRefresh()
+      }, delayMs)
+    },
+    [executeExpiredSessionRefresh],
+  )
+
+  React.useEffect(() => {
+    const handleAuthExpired = () => {
+      scheduleExpiredSessionRefresh(1400)
+    }
+
+    window.addEventListener(GATEWAY_AUTH_EXPIRED_EVENT, handleAuthExpired)
+    return () => {
+      window.removeEventListener(GATEWAY_AUTH_EXPIRED_EVENT, handleAuthExpired)
+      if (authExpiredReloadTimerRef.current != null) {
+        window.clearTimeout(authExpiredReloadTimerRef.current)
+        authExpiredReloadTimerRef.current = null
+      }
+    }
+  }, [scheduleExpiredSessionRefresh])
 
   const login = React.useCallback(
     async (payload: { email: string; password: string }) => {
@@ -431,7 +499,28 @@ export function AppSessionProvider({
     <AuthSessionContext.Provider value={authValue}>
       <WorkspaceSessionContext.Provider value={workspaceValue}>
         <ConversationSessionContext.Provider value={conversationValue}>
-          {children}
+          <ToastProvider swipeDirection="right">
+            {children}
+            <Toast
+              duration={2000}
+              open={isAuthExpiredToastOpen}
+              onOpenChange={setIsAuthExpiredToastOpen}
+            >
+              <div className="min-w-0">
+                <ToastTitle>登录状态已过期</ToastTitle>
+                <ToastDescription>
+                  正在重新同步会话，页面将自动刷新。
+                </ToastDescription>
+              </div>
+              <ToastAction
+                altText="立即刷新页面"
+                onClick={executeExpiredSessionRefresh}
+              >
+                立即刷新
+              </ToastAction>
+            </Toast>
+            <ToastViewport />
+          </ToastProvider>
         </ConversationSessionContext.Provider>
       </WorkspaceSessionContext.Provider>
     </AuthSessionContext.Provider>

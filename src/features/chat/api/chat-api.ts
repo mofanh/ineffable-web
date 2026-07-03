@@ -6,6 +6,7 @@ export {
   getConversationEvents,
   getConversationMessages,
   getPendingInputs,
+  isAccessTokenExpiredError,
   listConversations,
   listPendingSandboxApprovals,
   listSandboxWorkspaceEnvironments,

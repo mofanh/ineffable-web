@@ -419,6 +419,42 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   ""
 
+export const GATEWAY_AUTH_EXPIRED_EVENT = "ineffable:auth-expired"
+
+export function isAccessTokenExpiredError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : ""
+
+  return (
+    message.includes("ExpiredSignature") ||
+    message.toLowerCase().includes("invalid access token")
+  )
+}
+
+function notifyAccessTokenExpired(message: string) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(GATEWAY_AUTH_EXPIRED_EVENT, {
+      detail: { message },
+    })
+  )
+}
+
+function createGatewayError(message: string) {
+  const error = new Error(message)
+  if (isAccessTokenExpiredError(message)) {
+    notifyAccessTokenExpired(message)
+  }
+  return error
+}
+
 function toUrl(path: string) {
   if (!API_BASE_URL) {
     return path
@@ -487,7 +523,7 @@ async function requestJson<T>(
   })
 
   if (!response.ok) {
-    throw new Error(await parseError(response))
+    throw createGatewayError(await parseError(response))
   }
 
   return (await response.json()) as T
@@ -1432,7 +1468,7 @@ export async function subscribeConversationEvents(
   )
 
   if (!response.ok) {
-    throw withRecoverableFlag(new Error(await parseError(response)), true)
+    throw withRecoverableFlag(createGatewayError(await parseError(response)), true)
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
@@ -1484,7 +1520,7 @@ export async function streamConversationSend(
   })
 
   if (!response.ok) {
-    throw withRecoverableFlag(new Error(await parseError(response)), false)
+    throw withRecoverableFlag(createGatewayError(await parseError(response)), false)
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
