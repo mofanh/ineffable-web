@@ -419,8 +419,7 @@ export function GatewayChatSidebar({
 
     const shouldJumpToBottom =
       pendingInitialBottomScrollRef.current ||
-      streamStatus === "streaming" ||
-      streamStatus === "recovering"
+      streamStatus !== "idle"
 
     scrollToBottom(
       shouldJumpToBottom ? "auto" : "smooth"
