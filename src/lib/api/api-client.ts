@@ -5,6 +5,7 @@ import {
 import {
   buildApiHeaders,
   createApiError,
+  createIdempotencyKey,
   getApiBaseUrl,
   isAccessTokenExpiredError,
   parseApiError,
@@ -1403,6 +1404,7 @@ export async function streamConversationSend(
   },
   options: {
     signal?: AbortSignal
+    idempotencyKey?: string
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
@@ -1414,6 +1416,8 @@ export async function streamConversationSend(
         accept: "text/event-stream, application/json",
       }),
       "Content-Type": "application/json",
+      "Idempotency-Key":
+        options.idempotencyKey ?? createIdempotencyKey("conversation-send"),
     },
     body: JSON.stringify(payload),
     signal: options.signal,

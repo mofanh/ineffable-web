@@ -10,6 +10,7 @@ import {
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
 import {
+  buildApiHeaders,
   createApiError,
   parseApiError,
   toApiUrl,
@@ -108,14 +109,21 @@ async function parseSseStream(
   }
 }
 
-export async function pollFrontendChannel(channel: string, max = 50) {
+export async function pollFrontendChannel(
+  accessToken: string,
+  channel: string,
+  max = 50
+) {
   const params = new URLSearchParams({
     channel,
     max: String(max),
   })
 
   const response = await fetch(
-    toApiUrl(`/gateway/v1/channels/poll?${params.toString()}`)
+    toApiUrl(`/gateway/v1/channels/poll?${params.toString()}`),
+    {
+      headers: buildApiHeaders({ accessToken }),
+    }
   )
 
   if (!response.ok) {
@@ -126,6 +134,7 @@ export async function pollFrontendChannel(channel: string, max = 50) {
 }
 
 export async function streamGatewayChat(
+  accessToken: string,
   payload: GatewayChatRequest,
   options: {
     signal?: AbortSignal
@@ -135,8 +144,11 @@ export async function streamGatewayChat(
   const response = await fetch(toApiUrl("/gateway/v1/chat"), {
     method: "POST",
     headers: {
+      ...buildApiHeaders({
+        accessToken,
+        accept: "text/event-stream, application/json",
+      }),
       "Content-Type": "application/json",
-      Accept: "text/event-stream, application/json",
     },
     body: JSON.stringify(payload),
     signal: options.signal,

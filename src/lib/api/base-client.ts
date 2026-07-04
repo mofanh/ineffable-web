@@ -56,6 +56,15 @@ export function buildApiHeaders(options?: {
   return headers
 }
 
+export function createIdempotencyKey(prefix = "web") {
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  return `${prefix}-${random}`
+}
+
 export async function parseApiError(response: Response) {
   const text = await response.text()
 
