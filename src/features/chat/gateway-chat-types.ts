@@ -46,6 +46,7 @@ export type SubagentView = AgentPaneState & {
 export type AssistantEntry = {
   id: string
   role: "assistant"
+  runId?: string | null
   status: "streaming" | "done" | "error"
   pane: AgentPaneState
   subagentOrder: string[]

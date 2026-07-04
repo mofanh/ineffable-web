@@ -41,11 +41,13 @@ import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 //    tool blocks and their ordering survive the post-stream resync path.
 
 export function createAssistantEntry(
-  status: AssistantEntry["status"]
+  status: AssistantEntry["status"],
+  runId?: string | null
 ): AssistantEntry {
   return {
     id: createMessageId("assistant"),
     role: "assistant",
+    runId: runId ?? null,
     status,
     pane: createEmptyAgentPane(),
     subagentOrder: [],
@@ -233,6 +235,10 @@ function buildAssistantEntryFromMessages(
 ): AssistantEntry {
   const compactedMessages = compactAssistantHistoryMessages(messages)
   const first = compactedMessages[0] ?? messages[0]
+  const runId =
+    compactedMessages.find((message) => message.run_id)?.run_id ??
+    messages.find((message) => message.run_id)?.run_id ??
+    null
   let pane = createEmptyAgentPane()
   const subagents: Record<string, SubagentView> = {}
   const subagentOrder: string[] = []
@@ -335,6 +341,7 @@ function buildAssistantEntryFromMessages(
   return {
     id: first?.id ?? createMessageId("assistant"),
     role: "assistant",
+    runId,
     status: "done",
     pane: finalizePane(pane),
     subagentOrder,

@@ -136,6 +136,10 @@ function entryFingerprint(entry: ChatEntry) {
   }
 
   if (entry.role === "assistant") {
+    if (entry.runId) {
+      return `assistant-run:${entry.runId}`
+    }
+
     const content = normalizeEntryContent(paneText(entry))
     return content ? `assistant:${content}` : null
   }
@@ -867,11 +871,33 @@ export function GatewayChatSidebar({
   function ensureAssistantEntry() {
     updateAssistantEntry((entry) => {
       if (entry) {
-        return entry
+        return entry.runId || !activeRunIdRef.current
+          ? entry
+          : {
+              ...entry,
+              runId: activeRunIdRef.current,
+            }
       }
 
-      return createAssistantEntry("streaming")
+      return createAssistantEntry("streaming", activeRunIdRef.current)
     })
+  }
+
+  function bindActiveAssistantRun(runId: string | null | undefined) {
+    const normalized = runId?.trim()
+    if (!normalized) {
+      return
+    }
+
+    activeRunIdRef.current = normalized
+    updateAssistantEntry((entry) =>
+      entry && !entry.runId
+        ? {
+            ...entry,
+            runId: normalized,
+          }
+        : (entry ?? null)
+    )
   }
 
   function updateAgentPane(pane: AgentPaneState, event: GatewayChatStreamEvent) {
@@ -902,7 +928,7 @@ export function GatewayChatSidebar({
     ensureAssistantEntry()
 
     updateAssistantEntry((entry) => {
-      const current = entry ?? createAssistantEntry("streaming")
+      const current = entry ?? createAssistantEntry("streaming", activeRunIdRef.current)
 
       return {
         ...current,
@@ -920,7 +946,7 @@ export function GatewayChatSidebar({
     ensureAssistantEntry()
 
     updateAssistantEntry((entry) => {
-      const current = entry ?? createAssistantEntry("streaming")
+      const current = entry ?? createAssistantEntry("streaming", activeRunIdRef.current)
 
       const existing =
         current.subagents[subagentId] ?? createEmptySubagent(subagentId, subagentName)
@@ -1053,7 +1079,7 @@ export function GatewayChatSidebar({
         return null
       }
 
-      const current = entry ?? createAssistantEntry("done")
+      const current = entry ?? createAssistantEntry("done", activeRunIdRef.current)
 
       const nextSubagents = Object.fromEntries(
         current.subagentOrder.map((subagentId) => {
@@ -1442,7 +1468,7 @@ export function GatewayChatSidebar({
       typeof envelope.event.run_id === "string" &&
       envelope.event.run_id.trim()
     ) {
-      activeRunIdRef.current = envelope.event.run_id
+      bindActiveAssistantRun(envelope.event.run_id)
     }
 
     if (
