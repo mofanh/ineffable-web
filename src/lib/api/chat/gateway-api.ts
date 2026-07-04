@@ -13,8 +13,8 @@ import {
   createGatewayError,
   parseGatewayError,
   toGatewayUrl,
-} from "@/lib/api/gateway-request"
-export { getGatewayApiBaseUrl } from "@/lib/api/gateway-request"
+} from "@/lib/api/base-client"
+export { getGatewayApiBaseUrl } from "@/lib/api/base-client"
 
 export type {
   FrontendChannelMessage,

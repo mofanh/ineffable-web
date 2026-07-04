@@ -10,11 +10,9 @@ import {
   parseGatewayError,
   requestGatewayJson,
   toGatewayUrl,
-  GATEWAY_AUTH_EXPIRED_EVENT,
-} from "@/lib/api/gateway-request"
+} from "@/lib/api/base-client"
 
 export {
-  GATEWAY_AUTH_EXPIRED_EVENT,
   createGatewayError,
   getGatewayApiBaseUrl,
   isAccessTokenExpiredError,

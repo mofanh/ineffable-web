@@ -6,6 +6,7 @@ import "./index.css"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppSessionProvider } from "@/features/auth/app-session"
+import { BaseClientToaster } from "@/lib/api/base-client-toaster"
 import { router } from "@/routes/router"
 
 createRoot(document.getElementById("root")!).render(
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root")!).render(
       <AppSessionProvider>
         <TooltipProvider>
           <RouterProvider router={router} />
+          <BaseClientToaster />
         </TooltipProvider>
       </AppSessionProvider>
     </ThemeProvider>

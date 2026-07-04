@@ -70,7 +70,6 @@ import {
   getConversationEvents,
   getConversationMessages,
   getPendingInputs,
-  isAccessTokenExpiredError,
   listSandboxWorkspaceEnvironments,
   promotePendingInput,
   rejectSandboxApproval,
@@ -1481,10 +1480,6 @@ export function GatewayChatSidebar({
 
         setConversationLastSeq(conversationId, response.next_seq ?? afterSeq ?? 0)
       } catch (catchupError) {
-        if (isAccessTokenExpiredError(catchupError)) {
-          return
-        }
-
         setError(
           catchupError instanceof Error
             ? `同步会话更新失败：${catchupError.message}`
