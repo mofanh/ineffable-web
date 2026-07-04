@@ -18,7 +18,7 @@ function ToastViewport({
     <ToastPrimitive.Viewport
       data-slot="toast-viewport"
       className={cn(
-        "fixed right-4 bottom-4 z-50 flex max-h-svh w-full max-w-sm flex-col gap-2 outline-none",
+        "fixed top-4 left-1/2 z-50 flex max-h-svh w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4 outline-none sm:px-0",
         className
       )}
       {...props}
@@ -34,7 +34,7 @@ function Toast({
     <ToastPrimitive.Root
       data-slot="toast"
       className={cn(
-        "bg-background text-foreground ring-foreground/10 data-open:animate-in data-closed:animate-out data-closed:fade-out-80 data-closed:slide-out-to-right-full data-open:slide-in-from-right-full relative grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 overflow-hidden rounded-lg p-4 pr-3 shadow-lg ring-1",
+        "bg-background text-foreground ring-foreground/10 data-open:animate-in data-closed:animate-out data-closed:fade-out-80 data-closed:slide-out-to-top-full data-open:slide-in-from-top-full relative grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 overflow-hidden rounded-lg p-4 pr-3 shadow-lg ring-1",
         className
       )}
       {...props}
