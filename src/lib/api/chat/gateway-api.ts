@@ -9,6 +9,12 @@ import {
   type FrontendChannelMessage,
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
+import {
+  createGatewayError,
+  parseGatewayError,
+  toGatewayUrl,
+} from "@/lib/api/gateway-request"
+export { getGatewayApiBaseUrl } from "@/lib/api/gateway-request"
 
 export type {
   FrontendChannelMessage,
@@ -32,32 +38,12 @@ export type FrontendChannelPollResponse = {
   messages: FrontendChannelMessage[]
 }
 
-const API_BASE_URL =
-  (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
-  ""
-
-function toUrl(path: string) {
-  if (!API_BASE_URL) {
-    return path
-  }
-
-  const normalizedBase = API_BASE_URL.replace(/\/$/, "")
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`
-
-  return `${normalizedBase}${normalizedPath}`
-}
-
 function parseMaybeJson(raw: string) {
   try {
     return JSON.parse(raw) as unknown
   } catch {
     return raw
   }
-}
-
-export function getGatewayApiBaseUrl() {
-  return API_BASE_URL || "(same-origin)"
 }
 
 export {
@@ -129,12 +115,11 @@ export async function pollFrontendChannel(channel: string, max = 50) {
   })
 
   const response = await fetch(
-    toUrl(`/gateway/v1/channels/poll?${params.toString()}`)
+    toGatewayUrl(`/gateway/v1/channels/poll?${params.toString()}`)
   )
 
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || `Poll failed: ${response.status}`)
+    throw createGatewayError(await parseGatewayError(response))
   }
 
   return (await response.json()) as FrontendChannelPollResponse
@@ -147,7 +132,7 @@ export async function streamGatewayChat(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
-  const response = await fetch(toUrl("/gateway/v1/chat"), {
+  const response = await fetch(toGatewayUrl("/gateway/v1/chat"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -158,8 +143,7 @@ export async function streamGatewayChat(
   })
 
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || `Request failed: ${response.status}`)
+    throw createGatewayError(await parseGatewayError(response))
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""

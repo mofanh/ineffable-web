@@ -23,7 +23,7 @@ import {
   listConversations,
   type Conversation,
 } from "@/features/chat/api/chat-api"
-import { GATEWAY_AUTH_EXPIRED_EVENT } from "@/lib/api/gateway-client"
+import { GATEWAY_AUTH_EXPIRED_EVENT } from "@/lib/api/gateway-request"
 import { type Workspace } from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
 

@@ -2,6 +2,23 @@ import {
   normalizeGatewayEnvelope,
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
+import {
+  buildGatewayHeaders,
+  createGatewayError,
+  getGatewayApiBaseUrl,
+  isAccessTokenExpiredError,
+  parseGatewayError,
+  requestGatewayJson,
+  toGatewayUrl,
+  GATEWAY_AUTH_EXPIRED_EVENT,
+} from "@/lib/api/gateway-request"
+
+export {
+  GATEWAY_AUTH_EXPIRED_EVENT,
+  createGatewayError,
+  getGatewayApiBaseUrl,
+  isAccessTokenExpiredError,
+}
 
 export type AppUser = {
   id: string
@@ -414,119 +431,8 @@ export type ResumeRunResponse = {
   forward_messages?: import("@/lib/api/chat/gateway-events").GatewayForwardMessage[]
 }
 
-const API_BASE_URL =
-  (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
-  ""
-
-export const GATEWAY_AUTH_EXPIRED_EVENT = "ineffable:auth-expired"
-
-export function isAccessTokenExpiredError(error: unknown) {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : ""
-
-  return (
-    message.includes("ExpiredSignature") ||
-    message.toLowerCase().includes("invalid access token")
-  )
-}
-
-function notifyAccessTokenExpired(message: string) {
-  if (typeof window === "undefined") {
-    return
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(GATEWAY_AUTH_EXPIRED_EVENT, {
-      detail: { message },
-    })
-  )
-}
-
-function createGatewayError(message: string) {
-  const error = new Error(message)
-  if (isAccessTokenExpiredError(message)) {
-    notifyAccessTokenExpired(message)
-  }
-  return error
-}
-
-function toUrl(path: string) {
-  if (!API_BASE_URL) {
-    return path
-  }
-
-  const normalizedBase = API_BASE_URL.replace(/\/$/, "")
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`
-
-  return `${normalizedBase}${normalizedPath}`
-}
-
-function buildHeaders(options?: {
-  accessToken?: string | null
-  workspaceId?: string | null
-  accept?: string
-}) {
-  const headers: Record<string, string> = {
-    Accept: options?.accept ?? "application/json",
-  }
-
-  if (options?.accessToken) {
-    headers.Authorization = `Bearer ${options.accessToken}`
-  }
-
-  if (options?.workspaceId) {
-    headers["x-tenant-id"] = options.workspaceId
-  }
-
-  return headers
-}
-
-async function parseError(response: Response) {
-  const text = await response.text()
-
-  try {
-    const parsed = JSON.parse(text) as { error?: string }
-    return parsed.error || text || `Request failed: ${response.status}`
-  } catch {
-    return text || `Request failed: ${response.status}`
-  }
-}
-
 function withRecoverableFlag(error: Error, recoverable: boolean) {
   return Object.assign(error, { recoverable })
-}
-
-async function requestJson<T>(
-  path: string,
-  options?: {
-    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
-    accessToken?: string | null
-    workspaceId?: string | null
-    body?: unknown
-  }
-) {
-  const response = await fetch(toUrl(path), {
-    method: options?.method ?? "GET",
-    headers: {
-      ...buildHeaders({
-        accessToken: options?.accessToken,
-        workspaceId: options?.workspaceId,
-      }),
-      ...(options?.body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: options?.body ? JSON.stringify(options.body) : undefined,
-  })
-
-  if (!response.ok) {
-    throw createGatewayError(await parseError(response))
-  }
-
-  return (await response.json()) as T
 }
 
 async function parseSseStream(
@@ -586,10 +492,6 @@ async function parseSseStream(
   }
 }
 
-export function getGatewayApiBaseUrl() {
-  return API_BASE_URL || "(same-origin)"
-}
-
 export function registerUser(payload: {
   email: string
   display_name: string
@@ -597,35 +499,35 @@ export function registerUser(payload: {
   avatar_url?: string | null
   phone?: string | null
 }) {
-  return requestJson<AuthResponse>("/gateway/v1/users/register", {
+  return requestGatewayJson<AuthResponse>("/gateway/v1/users/register", {
     method: "POST",
     body: payload,
   })
 }
 
 export function loginUser(payload: { email: string; password: string }) {
-  return requestJson<AuthResponse>("/gateway/v1/auth/login", {
+  return requestGatewayJson<AuthResponse>("/gateway/v1/auth/login", {
     method: "POST",
     body: payload,
   })
 }
 
 export function refreshToken(refresh_token: string) {
-  return requestJson<{ tokens: AuthTokenPair }>("/gateway/v1/auth/refresh", {
+  return requestGatewayJson<{ tokens: AuthTokenPair }>("/gateway/v1/auth/refresh", {
     method: "POST",
     body: { refresh_token },
   })
 }
 
 export function fetchMe(accessToken: string, workspaceId?: string | null) {
-  return requestJson<MeResponse>("/gateway/v1/auth/me", {
+  return requestGatewayJson<MeResponse>("/gateway/v1/auth/me", {
     accessToken,
     workspaceId,
   })
 }
 
 export function logoutUser(accessToken: string, workspaceId?: string | null) {
-  return requestJson<{ session: unknown }>("/gateway/v1/auth/logout", {
+  return requestGatewayJson<{ session: unknown }>("/gateway/v1/auth/logout", {
     method: "POST",
     accessToken,
     workspaceId,
@@ -634,7 +536,7 @@ export function logoutUser(accessToken: string, workspaceId?: string | null) {
 }
 
 export function fetchAuthSessions(accessToken: string, workspaceId?: string | null) {
-  return requestJson<{ sessions: UserSessionRecord[] }>("/gateway/v1/auth/sessions", {
+  return requestGatewayJson<{ sessions: UserSessionRecord[] }>("/gateway/v1/auth/sessions", {
     accessToken,
     workspaceId,
   })
@@ -645,7 +547,7 @@ export function revokeAuthSession(
   sessionId: string,
   workspaceId?: string | null
 ) {
-  return requestJson<{ session: UserSessionRecord }>(
+  return requestGatewayJson<{ session: UserSessionRecord }>(
     "/gateway/v1/auth/sessions/revoke",
     {
       method: "POST",
@@ -665,7 +567,7 @@ export function createWorkspace(
     settings_json?: Record<string, unknown>
   }
 ) {
-  return requestJson<{ workspace: Workspace; membership?: WorkspaceMembership }>(
+  return requestGatewayJson<{ workspace: Workspace; membership?: WorkspaceMembership }>(
     "/gateway/v1/workspaces/create",
     {
     method: "POST",
@@ -676,13 +578,13 @@ export function createWorkspace(
 }
 
 export function listWorkspaces(accessToken: string) {
-  return requestJson<{ workspaces: Workspace[] }>("/gateway/v1/workspaces/list", {
+  return requestGatewayJson<{ workspaces: Workspace[] }>("/gateway/v1/workspaces/list", {
     accessToken,
   })
 }
 
 export function listWorkspaceMembers(accessToken: string, workspaceId: string) {
-  return requestJson<{ members: WorkspaceMembership[] }>(
+  return requestGatewayJson<{ members: WorkspaceMembership[] }>(
     `/gateway/v1/workspaces/${workspaceId}/members`,
     {
       accessToken,
@@ -697,7 +599,7 @@ export function updateWorkspaceMemberRole(
   userId: string,
   role: string
 ) {
-  return requestJson<{ membership: WorkspaceMembership }>(
+  return requestGatewayJson<{ membership: WorkspaceMembership }>(
     `/gateway/v1/workspaces/${workspaceId}/members/${userId}`,
     {
       method: "PATCH",
@@ -713,7 +615,7 @@ export function removeWorkspaceMember(
   workspaceId: string,
   userId: string
 ) {
-  return requestJson<{ membership: WorkspaceMembership }>(
+  return requestGatewayJson<{ membership: WorkspaceMembership }>(
     `/gateway/v1/workspaces/${workspaceId}/members/${userId}`,
     {
       method: "DELETE",
@@ -728,7 +630,7 @@ export function inviteWorkspaceMember(
   workspaceId: string,
   payload: { email: string; role: string; invite_base_url?: string }
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     invitation: WorkspaceInvitation
     invite_token: string
     invite_url: string
@@ -743,7 +645,7 @@ export function inviteWorkspaceMember(
 }
 
 export function listWorkspaceInvitations(accessToken: string, workspaceId: string) {
-  return requestJson<{ invitations: WorkspaceInvitation[] }>(
+  return requestGatewayJson<{ invitations: WorkspaceInvitation[] }>(
     `/gateway/v1/workspaces/${workspaceId}/invitations`,
     {
       accessToken,
@@ -753,7 +655,7 @@ export function listWorkspaceInvitations(accessToken: string, workspaceId: strin
 }
 
 export function listIncomingWorkspaceInvitations(accessToken: string) {
-  return requestJson<{ invitations: IncomingWorkspaceInvitation[] }>(
+  return requestGatewayJson<{ invitations: IncomingWorkspaceInvitation[] }>(
     "/gateway/v1/workspace-invitations/incoming",
     {
       accessToken,
@@ -766,7 +668,7 @@ export function revokeWorkspaceInvitation(
   workspaceId: string,
   invitationId: string
 ) {
-  return requestJson<{ invitation: WorkspaceInvitation }>(
+  return requestGatewayJson<{ invitation: WorkspaceInvitation }>(
     `/gateway/v1/workspaces/${workspaceId}/invitations/${invitationId}`,
     {
       method: "DELETE",
@@ -777,7 +679,7 @@ export function revokeWorkspaceInvitation(
 }
 
 export function acceptWorkspaceInvitation(accessToken: string, token: string) {
-  return requestJson<{
+  return requestGatewayJson<{
     workspace: Workspace
     membership: WorkspaceMembership
     invitation: WorkspaceInvitation
@@ -791,7 +693,7 @@ export function acceptWorkspaceInvitationById(
   accessToken: string,
   invitationId: string
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     workspace: Workspace
     membership: WorkspaceMembership
     invitation: WorkspaceInvitation
@@ -805,7 +707,7 @@ export function acceptWorkspaceInvitationById(
 }
 
 export function listWorkspaceTree(accessToken: string, workspaceId: string) {
-  return requestJson<WorkspaceTreeResponse>(
+  return requestGatewayJson<WorkspaceTreeResponse>(
     `/gateway/v1/workspaces/${workspaceId}/tree`,
     {
       accessToken,
@@ -819,7 +721,7 @@ export function createWorkspaceFolder(
   workspaceId: string,
   payload: { name: string; parent_id?: string | null }
 ) {
-  return requestJson<{ object: WorkspaceObject }>(
+  return requestGatewayJson<{ object: WorkspaceObject }>(
     `/gateway/v1/workspaces/${workspaceId}/folders`,
     {
       method: "POST",
@@ -840,7 +742,7 @@ export function createWorkspaceFile(
     mime_type?: string | null
   }
 ) {
-  return requestJson<{ object: WorkspaceObject; version: WorkspaceObjectVersion }>(
+  return requestGatewayJson<{ object: WorkspaceObject; version: WorkspaceObjectVersion }>(
     `/gateway/v1/workspaces/${workspaceId}/files`,
     {
       method: "POST",
@@ -856,7 +758,7 @@ export function getWorkspaceObjectContent(
   workspaceId: string,
   objectId: string
 ) {
-  return requestJson<WorkspaceObjectContentResponse>(
+  return requestGatewayJson<WorkspaceObjectContentResponse>(
     `/gateway/v1/workspace-objects/${objectId}/content`,
     {
       accessToken,
@@ -875,7 +777,7 @@ export function updateWorkspaceObjectContent(
     expected_version_id?: string | null
   }
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     object: WorkspaceObject
     version: WorkspaceObjectVersion
   }>(`/gateway/v1/workspace-objects/${objectId}/content`, {
@@ -891,7 +793,7 @@ export function listWorkspaceObjectVersions(
   workspaceId: string,
   objectId: string
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     object: WorkspaceObject
     versions: WorkspaceObjectVersion[]
   }>(`/gateway/v1/workspace-objects/${objectId}/versions`, {
@@ -905,7 +807,7 @@ export function getWorkspaceObjectVersionContent(
   workspaceId: string,
   versionId: string
 ) {
-  return requestJson<WorkspaceObjectContentResponse>(
+  return requestGatewayJson<WorkspaceObjectContentResponse>(
     `/gateway/v1/workspace-object-versions/${versionId}/content`,
     {
       accessToken,
@@ -923,7 +825,7 @@ export function restoreWorkspaceObjectVersion(
     expected_version_id?: string | null
   }
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     object: WorkspaceObject
     version: WorkspaceObjectVersion
   }>(`/gateway/v1/workspace-objects/${objectId}/restore-version`, {
@@ -940,7 +842,7 @@ export function renameMoveWorkspaceObject(
   objectId: string,
   payload: { name?: string; parent_id?: string | null }
 ) {
-  return requestJson<{ object: WorkspaceObject }>(
+  return requestGatewayJson<{ object: WorkspaceObject }>(
     `/gateway/v1/workspace-objects/${objectId}`,
     {
       method: "PATCH",
@@ -956,7 +858,7 @@ export function deleteWorkspaceObject(
   workspaceId: string,
   objectId: string
 ) {
-  return requestJson<{ object: WorkspaceObject }>(
+  return requestGatewayJson<{ object: WorkspaceObject }>(
     `/gateway/v1/workspace-objects/${objectId}`,
     {
       method: "DELETE",
@@ -967,7 +869,7 @@ export function deleteWorkspaceObject(
 }
 
 export function listAutomations(accessToken: string) {
-  return requestJson<{ automations: Automation[] }>("/gateway/v1/automations", {
+  return requestGatewayJson<{ automations: Automation[] }>("/gateway/v1/automations", {
     accessToken,
   })
 }
@@ -983,7 +885,7 @@ export function createAutomation(
     trigger_spec?: Record<string, unknown>
   }
 ) {
-  return requestJson<{ automation: Automation }>("/gateway/v1/automations", {
+  return requestGatewayJson<{ automation: Automation }>("/gateway/v1/automations", {
     method: "POST",
     accessToken,
     body: payload,
@@ -1003,7 +905,7 @@ export function updateAutomation(
     status?: string
   }
 ) {
-  return requestJson<{ automation: Automation }>(
+  return requestGatewayJson<{ automation: Automation }>(
     `/gateway/v1/automations/${encodeURIComponent(automationId)}`,
     {
       method: "PATCH",
@@ -1014,7 +916,7 @@ export function updateAutomation(
 }
 
 export function deleteAutomation(accessToken: string, automationId: string) {
-  return requestJson<{ automation: Automation }>(
+  return requestGatewayJson<{ automation: Automation }>(
     `/gateway/v1/automations/${encodeURIComponent(automationId)}`,
     {
       method: "DELETE",
@@ -1024,7 +926,7 @@ export function deleteAutomation(accessToken: string, automationId: string) {
 }
 
 export function runAutomation(accessToken: string, automationId: string) {
-  return requestJson<{
+  return requestGatewayJson<{
     automation_run: AutomationRun
     conversation_id: string
     send_status: number
@@ -1035,7 +937,7 @@ export function runAutomation(accessToken: string, automationId: string) {
 }
 
 export function listAutomationRuns(accessToken: string, automationId: string) {
-  return requestJson<{ runs: AutomationRun[] }>(
+  return requestGatewayJson<{ runs: AutomationRun[] }>(
     `/gateway/v1/automations/${encodeURIComponent(automationId)}/runs`,
     {
       accessToken,
@@ -1044,7 +946,7 @@ export function listAutomationRuns(accessToken: string, automationId: string) {
 }
 
 export function tickDueAutomations(accessToken: string) {
-  return requestJson<{
+  return requestGatewayJson<{
     triggered: Array<{
       automation_run: AutomationRun
       conversation_id: string
@@ -1061,7 +963,7 @@ export function createConversation(
   accessToken: string,
   payload: { title: string }
 ) {
-  return requestJson<Conversation>("/gateway/v1/conversations/create", {
+  return requestGatewayJson<Conversation>("/gateway/v1/conversations/create", {
     method: "POST",
     accessToken,
     body: payload,
@@ -1082,7 +984,7 @@ export function listConversations(
 
   const suffix = params.toString() ? `?${params.toString()}` : ""
 
-  return requestJson<{ conversations: Conversation[] }>(
+  return requestGatewayJson<{ conversations: Conversation[] }>(
     `/gateway/v1/conversations/list${suffix}`,
     {
       accessToken,
@@ -1098,7 +1000,7 @@ export function getConversation(
     conversation_id: conversationId,
   })
 
-  return requestJson<Conversation>(
+  return requestGatewayJson<Conversation>(
     `/gateway/v1/conversations/get?${params.toString()}`,
     {
       accessToken,
@@ -1124,7 +1026,7 @@ export function getConversationMessages(
     params.set("before", options.before)
   }
 
-  return requestJson<ConversationMessagesResponse>(
+  return requestGatewayJson<ConversationMessagesResponse>(
     `/gateway/v1/conversations/messages?${params.toString()}`,
     {
       accessToken,
@@ -1143,7 +1045,7 @@ export function getSandboxProjectEnvironmentSummary(
   }
   const suffix = params.toString() ? `?${params.toString()}` : ""
 
-  return requestJson<SandboxProjectEnvironmentSummary>(
+  return requestGatewayJson<SandboxProjectEnvironmentSummary>(
     `/gateway/v1/sandbox/projects/${encodeURIComponent(projectId)}/environment-summary${suffix}`,
     {
       accessToken,
@@ -1162,7 +1064,7 @@ export function listSandboxWorkspaceEnvironments(
   }
   const suffix = params.toString() ? `?${params.toString()}` : ""
 
-  return requestJson<SandboxWorkspaceEnvironmentListResponse>(
+  return requestGatewayJson<SandboxWorkspaceEnvironmentListResponse>(
     `/gateway/v1/sandbox/environments${suffix}`,
     {
       accessToken,
@@ -1181,7 +1083,7 @@ export function upsertSandboxProjectPreference(
     environment_id?: string | null
   }
 ) {
-  return requestJson<SandboxProjectPreference>(
+  return requestGatewayJson<SandboxProjectPreference>(
     "/gateway/v1/sandbox/projects/preferences",
     {
       method: "POST",
@@ -1203,7 +1105,7 @@ export function selectSandboxEnvironment(
     capability_hint?: SandboxCapabilityHint
   }
 ) {
-  return requestJson<SandboxEnvironmentSelection>(
+  return requestGatewayJson<SandboxEnvironmentSelection>(
     "/gateway/v1/sandbox/environments/select",
     {
       method: "POST",
@@ -1219,7 +1121,7 @@ export function listSandboxPathGrants(
   workspaceId: string | null,
   environmentId: string
 ) {
-  return requestJson<SandboxPathGrantListResponse>(
+  return requestGatewayJson<SandboxPathGrantListResponse>(
     `/gateway/v1/sandbox/environments/${encodeURIComponent(environmentId)}/path-grants`,
     {
       accessToken,
@@ -1238,7 +1140,7 @@ export function createSandboxFileExecutionRequest(
     metadata_json?: Record<string, unknown>
   }
 ) {
-  return requestJson<SandboxExecutionRequestResponse>(
+  return requestGatewayJson<SandboxExecutionRequestResponse>(
     "/gateway/v1/sandbox/execution-requests/file",
     {
       method: "POST",
@@ -1259,7 +1161,7 @@ export function createSandboxCommandExecutionRequest(
     metadata_json?: Record<string, unknown>
   }
 ) {
-  return requestJson<SandboxExecutionRequestResponse>(
+  return requestGatewayJson<SandboxExecutionRequestResponse>(
     "/gateway/v1/sandbox/execution-requests/command",
     {
       method: "POST",
@@ -1275,7 +1177,7 @@ export function getSandboxExecutionSession(
   workspaceId: string | null,
   executionSessionId: string
 ) {
-  return requestJson<SandboxExecutionSession>(
+  return requestGatewayJson<SandboxExecutionSession>(
     `/gateway/v1/sandbox/execution-sessions/${encodeURIComponent(executionSessionId)}`,
     {
       accessToken,
@@ -1289,7 +1191,7 @@ export function getSandboxExecutionTimeline(
   workspaceId: string | null,
   executionSessionId: string
 ) {
-  return requestJson<SandboxExecutionTimeline>(
+  return requestGatewayJson<SandboxExecutionTimeline>(
     `/gateway/v1/sandbox/execution-sessions/${encodeURIComponent(executionSessionId)}/timeline`,
     {
       accessToken,
@@ -1303,7 +1205,7 @@ export function listSandboxSessionsForToolCall(
   workspaceId: string | null,
   toolCallId: string
 ) {
-  return requestJson<SandboxToolCallSessionsResponse>(
+  return requestGatewayJson<SandboxToolCallSessionsResponse>(
     `/gateway/v1/sandbox/tool-calls/${encodeURIComponent(toolCallId)}/execution-sessions`,
     {
       accessToken,
@@ -1320,7 +1222,7 @@ export function interruptSandboxExecutionSession(
     reason?: string
   }
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     execution_session_id: string
     status: SandboxExecutionSessionStatus
   }>("/gateway/v1/sandbox/execution-sessions/interrupt", {
@@ -1335,7 +1237,7 @@ export function listPendingSandboxApprovals(
   accessToken: string | null,
   workspaceId: string | null
 ) {
-  return requestJson<SandboxApprovalListResponse>(
+  return requestGatewayJson<SandboxApprovalListResponse>(
     "/gateway/v1/sandbox/approvals/pending",
     {
       accessToken,
@@ -1352,7 +1254,7 @@ export function approveSandboxApproval(
     reason?: string
   }
 ) {
-  return requestJson<SandboxApproval>("/gateway/v1/sandbox/approvals/approve", {
+  return requestGatewayJson<SandboxApproval>("/gateway/v1/sandbox/approvals/approve", {
     method: "POST",
     accessToken,
     workspaceId,
@@ -1368,7 +1270,7 @@ export function rejectSandboxApproval(
     reason?: string
   }
 ) {
-  return requestJson<SandboxApproval>("/gateway/v1/sandbox/approvals/reject", {
+  return requestGatewayJson<SandboxApproval>("/gateway/v1/sandbox/approvals/reject", {
     method: "POST",
     accessToken,
     workspaceId,
@@ -1386,7 +1288,7 @@ export function resumeRunWithApproval(
     approved: boolean
   }
 ) {
-  return requestJson<ResumeRunResponse>("/gateway/v1/runs/resume", {
+  return requestGatewayJson<ResumeRunResponse>("/gateway/v1/runs/resume", {
     method: "POST",
     accessToken,
     workspaceId,
@@ -1420,7 +1322,7 @@ export async function getConversationEvents(
     params.set("max", String(options.max))
   }
 
-  const response = await requestJson<{
+  const response = await requestGatewayJson<{
     events: unknown[]
     next_seq?: number | null
   }>(`/gateway/v1/conversations/events?${params.toString()}`, {
@@ -1456,10 +1358,10 @@ export async function subscribeConversationEvents(
   }
 
   const response = await fetch(
-    toUrl(`/gateway/v1/conversations/subscribe?${params.toString()}`),
+    toGatewayUrl(`/gateway/v1/conversations/subscribe?${params.toString()}`),
     {
       method: "GET",
-      headers: buildHeaders({
+      headers: buildGatewayHeaders({
         accessToken,
         accept: "text/event-stream, application/json",
       }),
@@ -1468,7 +1370,7 @@ export async function subscribeConversationEvents(
   )
 
   if (!response.ok) {
-    throw withRecoverableFlag(createGatewayError(await parseError(response)), true)
+    throw withRecoverableFlag(createGatewayError(await parseGatewayError(response)), true)
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
@@ -1506,10 +1408,10 @@ export async function streamConversationSend(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
-  const response = await fetch(toUrl("/gateway/v1/conversations/send"), {
+  const response = await fetch(toGatewayUrl("/gateway/v1/conversations/send"), {
     method: "POST",
     headers: {
-      ...buildHeaders({
+      ...buildGatewayHeaders({
         accessToken,
         accept: "text/event-stream, application/json",
       }),
@@ -1520,7 +1422,7 @@ export async function streamConversationSend(
   })
 
   if (!response.ok) {
-    throw withRecoverableFlag(createGatewayError(await parseError(response)), false)
+    throw withRecoverableFlag(createGatewayError(await parseGatewayError(response)), false)
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
@@ -1545,7 +1447,7 @@ export function stopConversationRun(
   accessToken: string,
   conversationId: string
 ) {
-  return requestJson<{
+  return requestGatewayJson<{
     ok: boolean
     cancelled: boolean
     conversation_id: string
@@ -1577,7 +1479,7 @@ export function getPendingInputs(
   accessToken: string,
   conversationId: string
 ) {
-  return requestJson<{ pending_inputs: PendingInputItem[] }>(
+  return requestGatewayJson<{ pending_inputs: PendingInputItem[] }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs`,
     {
       accessToken,
@@ -1590,7 +1492,7 @@ export function promotePendingInput(
   conversationId: string,
   pendingId: number
 ) {
-  return requestJson<{ ok: boolean; pending_input: PendingInputItem }>(
+  return requestGatewayJson<{ ok: boolean; pending_input: PendingInputItem }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs/${pendingId}/promote`,
     {
       method: "PATCH",
@@ -1604,7 +1506,7 @@ export function deletePendingInput(
   conversationId: string,
   pendingId: number
 ) {
-  return requestJson<{ ok: boolean }>(
+  return requestGatewayJson<{ ok: boolean }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs/${pendingId}`,
     {
       method: "DELETE",
