@@ -1,5 +1,5 @@
 // Legacy compatibility helpers for the old `/gateway/v1/chat` + `channels/poll`
-// path. Product chat should prefer `gateway-client.ts` and conversation-scoped
+// path. Product chat should prefer `api-client.ts` and conversation-scoped
 // APIs.
 
 import {
@@ -10,11 +10,11 @@ import {
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
 import {
-  createGatewayError,
-  parseGatewayError,
-  toGatewayUrl,
+  createApiError,
+  parseApiError,
+  toApiUrl,
 } from "@/lib/api/base-client"
-export { getGatewayApiBaseUrl } from "@/lib/api/base-client"
+export { getApiBaseUrl } from "@/lib/api/base-client"
 
 export type {
   FrontendChannelMessage,
@@ -115,11 +115,11 @@ export async function pollFrontendChannel(channel: string, max = 50) {
   })
 
   const response = await fetch(
-    toGatewayUrl(`/gateway/v1/channels/poll?${params.toString()}`)
+    toApiUrl(`/gateway/v1/channels/poll?${params.toString()}`)
   )
 
   if (!response.ok) {
-    throw createGatewayError(await parseGatewayError(response))
+    throw createApiError(await parseApiError(response))
   }
 
   return (await response.json()) as FrontendChannelPollResponse
@@ -132,7 +132,7 @@ export async function streamGatewayChat(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
-  const response = await fetch(toGatewayUrl("/gateway/v1/chat"), {
+  const response = await fetch(toApiUrl("/gateway/v1/chat"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -143,7 +143,7 @@ export async function streamGatewayChat(
   })
 
   if (!response.ok) {
-    throw createGatewayError(await parseGatewayError(response))
+    throw createApiError(await parseApiError(response))
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""

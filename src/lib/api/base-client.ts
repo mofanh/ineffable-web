@@ -21,11 +21,11 @@ let tokenRefreshStarted = false
 let tokenRefreshReloading = false
 let tokenRefreshTimer: number | null = null
 
-export function getGatewayApiBaseUrl() {
+export function getApiBaseUrl() {
   return API_BASE_URL || "(same-origin)"
 }
 
-export function toGatewayUrl(path: string) {
+export function toApiUrl(path: string) {
   if (!API_BASE_URL) {
     return path
   }
@@ -36,7 +36,7 @@ export function toGatewayUrl(path: string) {
   return `${normalizedBase}${normalizedPath}`
 }
 
-export function buildGatewayHeaders(options?: {
+export function buildApiHeaders(options?: {
   accessToken?: string | null
   workspaceId?: string | null
   accept?: string
@@ -56,7 +56,7 @@ export function buildGatewayHeaders(options?: {
   return headers
 }
 
-export async function parseGatewayError(response: Response) {
+export async function parseApiError(response: Response) {
   const text = await response.text()
 
   try {
@@ -118,7 +118,7 @@ async function refreshAccessTokenForReload() {
     return
   }
 
-  const response = await fetch(toGatewayUrl("/gateway/v1/auth/refresh"), {
+  const response = await fetch(toApiUrl("/gateway/v1/auth/refresh"), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -184,7 +184,7 @@ function scheduleExpiredSessionRefresh(delayMs = 1400) {
   }, delayMs)
 }
 
-export function createGatewayError(message: string) {
+export function createApiError(message: string) {
   if (isAccessTokenExpiredError(message)) {
     scheduleExpiredSessionRefresh()
     return new Error("登录状态已过期，正在刷新页面。")
@@ -192,7 +192,7 @@ export function createGatewayError(message: string) {
   return new Error(message)
 }
 
-export async function requestGatewayJson<T>(
+export async function requestApiJson<T>(
   path: string,
   options?: {
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
@@ -201,10 +201,10 @@ export async function requestGatewayJson<T>(
     body?: unknown
   }
 ) {
-  const response = await fetch(toGatewayUrl(path), {
+  const response = await fetch(toApiUrl(path), {
     method: options?.method ?? "GET",
     headers: {
-      ...buildGatewayHeaders({
+      ...buildApiHeaders({
         accessToken: options?.accessToken,
         workspaceId: options?.workspaceId,
       }),
@@ -214,7 +214,7 @@ export async function requestGatewayJson<T>(
   })
 
   if (!response.ok) {
-    throw createGatewayError(await parseGatewayError(response))
+    throw createApiError(await parseApiError(response))
   }
 
   return (await response.json()) as T

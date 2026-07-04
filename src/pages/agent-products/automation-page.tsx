@@ -36,7 +36,7 @@ import {
   updateAutomation,
   type Automation,
   type AutomationRun,
-} from "@/lib/api/gateway-client"
+} from "@/lib/api/api-client"
 
 import {
   AgentProductPage,

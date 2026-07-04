@@ -28,4 +28,4 @@ export {
   type WorkspaceObjectContentResponse,
   type WorkspaceObjectVersion,
   type WorkspaceTreeResponse,
-} from "@/lib/api/gateway-client"
+} from "@/lib/api/api-client"

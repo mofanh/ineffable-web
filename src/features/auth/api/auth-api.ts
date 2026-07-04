@@ -11,4 +11,4 @@ export {
   type AuthTokenPair,
   type MeResponse,
   type UserSessionRecord,
-} from "@/lib/api/gateway-client"
+} from "@/lib/api/api-client"

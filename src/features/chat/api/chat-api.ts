@@ -24,4 +24,4 @@ export {
   type ResumeRunResponse,
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
-} from "@/lib/api/gateway-client"
+} from "@/lib/api/api-client"
