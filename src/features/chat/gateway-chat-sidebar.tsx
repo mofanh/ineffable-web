@@ -11,6 +11,7 @@ import {
   appendUpdateToPane,
   buildToolView,
   finalizePane,
+  getPaneBlocks,
   type AgentPaneState,
   upsertToolInPane,
 } from "@/features/chat/chat-pane-state"
@@ -103,6 +104,84 @@ function sandboxOptionLabel(
 const INITIAL_RENDERED_ENTRY_COUNT = 40
 const RENDERED_ENTRY_INCREMENT = 30
 const CONVERSATION_MESSAGES_PAGE_LIMIT = 40
+
+function normalizeEntryContent(content: string) {
+  return content.replace(/\s+/g, " ").trim()
+}
+
+function paneText(entry: AssistantEntry) {
+  const mainText = getPaneBlocks(entry.pane)
+    .map((block) => ("content" in block ? block.content : ""))
+    .filter(Boolean)
+    .join("\n")
+
+  const subagentText = entry.subagentOrder
+    .map((subagentId) => entry.subagents[subagentId])
+    .filter((subagent): subagent is SubagentView => Boolean(subagent))
+    .flatMap((subagent) =>
+      getPaneBlocks(subagent).map((block) =>
+        "content" in block ? block.content : ""
+      )
+    )
+    .filter(Boolean)
+    .join("\n")
+
+  return [mainText, subagentText].filter(Boolean).join("\n")
+}
+
+function entryFingerprint(entry: ChatEntry) {
+  if (entry.role === "user" || entry.role === "system") {
+    const content = normalizeEntryContent(entry.content)
+    return content ? `${entry.role}:${content}` : null
+  }
+
+  if (entry.role === "assistant") {
+    const content = normalizeEntryContent(paneText(entry))
+    return content ? `assistant:${content}` : null
+  }
+
+  return entry.approvalId || entry.needId
+    ? `approval:${entry.approvalId ?? entry.needId}`
+    : null
+}
+
+function removeEntriesCoveredByLatest(
+  current: ChatEntry[],
+  latestEntries: ChatEntry[]
+) {
+  const latestIds = new Set(latestEntries.map((entry) => entry.id))
+  const latestFingerprintCounts = new Map<string, number>()
+
+  latestEntries.forEach((entry) => {
+    const fingerprint = entryFingerprint(entry)
+    if (!fingerprint) {
+      return
+    }
+    latestFingerprintCounts.set(
+      fingerprint,
+      (latestFingerprintCounts.get(fingerprint) ?? 0) + 1
+    )
+  })
+
+  const kept: ChatEntry[] = []
+  for (let index = current.length - 1; index >= 0; index -= 1) {
+    const entry = current[index]
+    if (latestIds.has(entry.id)) {
+      continue
+    }
+
+    const fingerprint = entryFingerprint(entry)
+    const count = fingerprint ? latestFingerprintCounts.get(fingerprint) ?? 0 : 0
+    if (fingerprint && count > 0) {
+      latestFingerprintCounts.set(fingerprint, count - 1)
+      continue
+    }
+
+    kept.push(entry)
+  }
+
+  return kept.reverse()
+}
 
 type GatewayChatSidebarProps = {
   isFullScreen: boolean
@@ -654,9 +733,8 @@ export function GatewayChatSidebar({
             return latestEntries
           }
 
-          const latestIds = new Set(latestEntries.map((entry) => entry.id))
           return [
-            ...current.filter((entry) => !latestIds.has(entry.id)),
+            ...removeEntriesCoveredByLatest(current, latestEntries),
             ...latestEntries,
           ]
         })
