@@ -181,6 +181,24 @@ export type ConversationMessagesResponse = {
   }
 }
 
+export type ModelProfile = {
+  id: string
+  display_name: string
+  context_window_tokens?: number | null
+  max_output_tokens?: number | null
+  supports_tool_calls: boolean
+  supports_reasoning: boolean
+  supports_json_schema: boolean
+  supports_vision: boolean
+  usage_multiplier: number
+  plan_id: string
+  input_multiplier: number
+  output_multiplier: number
+  reasoning_multiplier: number
+  cached_input_multiplier: number
+  max_tokens_per_request?: number | null
+}
+
 export type AuthTokenPair = {
   access_token: string
   refresh_token: string
@@ -1033,6 +1051,15 @@ export function getConversationMessages(
   )
 }
 
+export function listModelProfiles(accessToken: string) {
+  return requestApiJson<{ profiles: ModelProfile[] }>(
+    "/gateway/v1/models/profiles",
+    {
+      accessToken,
+    }
+  )
+}
+
 export function getSandboxProjectEnvironmentSummary(
   accessToken: string | null,
   workspaceId: string | null,
@@ -1398,6 +1425,7 @@ export async function streamConversationSend(
     stream?: boolean
     channel?: string
     input_mode?: string
+    model_profile_id?: string
     sandbox?: {
       environment_id?: string
     }

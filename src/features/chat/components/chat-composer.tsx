@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
   AtSignIcon,
+  BotIcon,
   FileTextIcon,
   GripVerticalIcon,
   SendHorizontalIcon,
@@ -38,16 +39,26 @@ export type AgentDescriptorOption = {
   label: string
 }
 
+export type ModelProfileOption = {
+  id: string
+  displayName: string
+  supportsReasoning: boolean
+  supportsToolCalls: boolean
+}
+
 type ChatComposerProps = {
   composer: string
   error: string | null
   isSending: boolean
   preInputQueue: PreInputQueueItem[]
   agentDescriptorOptions: AgentDescriptorOption[]
+  modelOptions: ModelProfileOption[]
+  selectedModelProfileId: string
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   selectedSandboxEnvironmentId: string
   onComposerChange: (value: string) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onModelProfileChange: (value: string) => void
   onSandboxEnvironmentChange: (value: string) => void
   onSend: () => void
   onStop: () => void
@@ -61,10 +72,13 @@ export function ChatComposer({
   isSending,
   preInputQueue,
   agentDescriptorOptions,
+  modelOptions,
+  selectedModelProfileId,
   sandboxOptions,
   selectedSandboxEnvironmentId,
   onComposerChange,
   onComposerKeyDown,
+  onModelProfileChange,
   onSandboxEnvironmentChange,
   onSend,
   onStop,
@@ -300,7 +314,29 @@ export function ChatComposer({
             align="block-end"
             className="justify-between border-t border-sidebar-border bg-sidebar-accent/15 px-2 py-1.5 [.border-t]:pt-1.5"
           >
-            <div className="flex min-w-0 items-center">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Select
+                value={selectedModelProfileId || "__default__"}
+                onValueChange={(value) =>
+                  onModelProfileChange(value === "__default__" ? "" : value)
+                }
+              >
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 w-[150px] max-w-[42vw] rounded-md bg-background text-xs"
+                >
+                  <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Model: Default</SelectItem>
+                  {modelOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select
                 value={selectedSandboxEnvironmentId || "__auto__"}
                 onValueChange={(value) =>

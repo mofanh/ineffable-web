@@ -18,6 +18,7 @@ import {
 import {
   ChatComposer,
   type AgentDescriptorOption,
+  type ModelProfileOption,
   type PreInputQueueItem,
 } from "@/features/chat/components/chat-composer"
 import { ChatMessageList } from "@/features/chat/components/chat-message-list"
@@ -71,6 +72,7 @@ import {
   getConversationEvents,
   getConversationMessages,
   getPendingInputs,
+  listModelProfiles,
   listSandboxWorkspaceEnvironments,
   promotePendingInput,
   rejectSandboxApproval,
@@ -78,6 +80,7 @@ import {
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
+  type ModelProfile,
   type ResumeRunResponse,
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
@@ -224,6 +227,8 @@ export function GatewayChatSidebar({
   const [sandboxOptions, setSandboxOptions] = React.useState<
     { environmentId: string; label: string; status: string }[]
   >([])
+  const [modelProfiles, setModelProfiles] = React.useState<ModelProfile[]>([])
+  const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
     AgentDescriptorOption[]
@@ -311,6 +316,38 @@ export function GatewayChatSidebar({
       window.localStorage.getItem(sandboxStorageKey(currentConversationId)) ?? ""
     )
   }, [currentConversationId])
+
+  React.useEffect(() => {
+    if (!accessToken) {
+      setModelProfiles([])
+      setSelectedModelProfileId("")
+      return
+    }
+
+    let cancelled = false
+    listModelProfiles(accessToken)
+      .then((response) => {
+        if (cancelled) {
+          return
+        }
+        setModelProfiles(response.profiles)
+        setSelectedModelProfileId((current) =>
+          current && response.profiles.some((profile) => profile.id === current)
+            ? current
+            : ""
+        )
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setModelProfiles([])
+          setSelectedModelProfileId("")
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
   React.useEffect(() => {
     if (!accessToken || !currentWorkspace) {
@@ -441,6 +478,16 @@ export function GatewayChatSidebar({
   const selectedLiveRun = React.useMemo(
     () => getLiveConversationRun(selectedConversation),
     [selectedConversation]
+  )
+  const modelOptions = React.useMemo<ModelProfileOption[]>(
+    () =>
+      modelProfiles.map((profile) => ({
+        id: profile.id,
+        displayName: profile.display_name || profile.id,
+        supportsReasoning: profile.supports_reasoning,
+        supportsToolCalls: profile.supports_tool_calls,
+      })),
+    [modelProfiles]
   )
 
   const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
@@ -1864,6 +1911,7 @@ export function GatewayChatSidebar({
             stream: false,
             channel: "web",
             input_mode: mode,
+            model_profile_id: selectedModelProfileId || undefined,
             sandbox: sandboxPayload,
           },
           {
@@ -1993,6 +2041,7 @@ export function GatewayChatSidebar({
           stream: true,
           channel: "web",
           input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
+          model_profile_id: selectedModelProfileId || undefined,
           sandbox: sandboxPayload,
         },
         {
@@ -2244,10 +2293,13 @@ export function GatewayChatSidebar({
         isSending={isSending}
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
+        modelOptions={modelOptions}
+        selectedModelProfileId={selectedModelProfileId}
         sandboxOptions={sandboxOptions}
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
+        onModelProfileChange={setSelectedModelProfileId}
         onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
         onSend={() => {
           void handleSend()
