@@ -36,6 +36,7 @@ import {
 import { normalizeAppError, type AppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
+import { useApiResource } from "@/lib/app/use-api-resource"
 
 const roleOptions = ["admin", "member", "viewer"] as const
 const purposeOptions = ["Engineering", "Marketing", "Operations", "Research"] as const
@@ -686,38 +687,25 @@ function StatusBadge({ status }: { status: string }) {
 export function WorkspaceNotificationsPage() {
   const navigate = useNavigate()
   const { accessToken, refreshAppData, selectWorkspace } = useAppSession()
-  const [items, setItems] = React.useState<IncomingWorkspaceInvitation[]>([])
-  const [loadError, setLoadError] = React.useState<AppError | null>(null)
   const [actionError, setActionError] = React.useState<AppError | null>(null)
-  const [isLoading, setIsLoading] = React.useState(false)
   const [acceptingId, setAcceptingId] = React.useState<string | null>(null)
 
-  const load = React.useCallback(async () => {
-    if (!accessToken) {
-      setItems([])
-      setLoadError(null)
-      return
-    }
-
-    setIsLoading(true)
-    setLoadError(null)
-    try {
-      const response = await listIncomingWorkspaceInvitations(accessToken)
-      setItems(response.invitations)
-    } catch (err) {
-      setLoadError(
-        normalizeAppError(err, {
-          fallbackMessage: "Failed to load notifications.",
-        })
-      )
-    } finally {
-      setIsLoading(false)
-    }
+  const loadInvitations = React.useCallback(async () => {
+    if (!accessToken) return { invitations: [] }
+    return listIncomingWorkspaceInvitations(accessToken)
   }, [accessToken])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  const invitationsResource = useApiResource({
+    enabled: Boolean(accessToken),
+    load: loadInvitations,
+    errorMessage: "Failed to load notifications.",
+  })
+  const {
+    data: invitationsData,
+    error: invitationsError,
+    reload: reloadInvitations,
+    state: invitationsState,
+  } = invitationsResource
+  const items = invitationsData?.invitations ?? []
 
   const acceptInvitation = React.useCallback(
     async (item: IncomingWorkspaceInvitation) => {
@@ -732,7 +720,7 @@ export function WorkspaceNotificationsPage() {
         )
         await refreshAppData()
         await selectWorkspace(response.workspace.id)
-        await load()
+        await reloadInvitations()
         notify.success({
           title: "Invitation accepted",
           description: `Joined ${response.workspace.name}.`,
@@ -751,14 +739,8 @@ export function WorkspaceNotificationsPage() {
         setAcceptingId(null)
       }
     },
-    [accessToken, load, navigate, refreshAppData, selectWorkspace]
+    [accessToken, navigate, refreshAppData, reloadInvitations, selectWorkspace]
   )
-
-  const dataState = loadError
-    ? "error"
-    : isLoading
-      ? "loading"
-      : "success"
 
   return (
     <AppPage
@@ -776,11 +758,11 @@ export function WorkspaceNotificationsPage() {
         </div>
         <div className="p-4">
           <DataState
-            state={dataState}
-            error={loadError}
+            state={invitationsState}
+            error={invitationsError}
             empty={items.length === 0}
             emptyTitle="No pending workspace invitations."
-            onRetry={() => void load()}
+            onRetry={() => void reloadInvitations()}
           >
             <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
               {items.map((item) => (
