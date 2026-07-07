@@ -7,15 +7,12 @@ import {
   Play,
   RotateCw,
   Trash2,
-  X,
   Zap,
 } from "lucide-react"
 import { DayPicker } from "react-day-picker"
-import {
-  Dialog as DialogPrimitive,
-  Popover as PopoverPrimitive,
-} from "radix-ui"
+import { Popover as PopoverPrimitive } from "radix-ui"
 
+import { AppDialog } from "@/components/app"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1146,32 +1143,13 @@ function AutomationDialog({
   onOpenChange: (open: boolean) => void
 }) {
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
-        <DialogPrimitive.Content className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border border-border p-5 shadow-lg duration-100 outline-none">
-          <div className="pr-8">
-            <DialogPrimitive.Title className="text-base font-medium">
-              {title}
-            </DialogPrimitive.Title>
-            <DialogPrimitive.Description className="text-muted-foreground mt-1 text-sm">
-              设置要追加到会话的消息和触发条件。
-            </DialogPrimitive.Description>
-          </div>
-          {children}
-          <DialogPrimitive.Close asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="absolute top-4 right-4"
-            >
-              <X className="size-4" />
-              <span className="sr-only">Close</span>
-            </Button>
-          </DialogPrimitive.Close>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    <AppDialog
+      open={open}
+      title={title}
+      description="设置要追加到会话的消息和触发条件。"
+      onOpenChange={onOpenChange}
+    >
+      {children}
+    </AppDialog>
   )
 }

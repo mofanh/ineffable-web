@@ -1,3 +1,4 @@
+export { AppDialog, type AppDialogMaxWidth } from "@/components/app/app-dialog"
 export { AppPage, PageHeader } from "@/components/app/app-page"
 export { AppToaster } from "@/components/app/app-toaster"
 export { DataState, type DataStateName } from "@/components/app/data-state"
