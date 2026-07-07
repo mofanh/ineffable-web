@@ -26,6 +26,9 @@ import {
   type AdminModelProfile,
   type AdminModelProfilePayload,
 } from "@/lib/api/api-client"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
+import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
@@ -184,11 +187,13 @@ export function SystemModelManagementPage() {
 
   async function deleteModel(model: AdminModelProfile) {
     if (!accessToken || model.archived_at) return
-    if (
-      !window.confirm(
-        `删除模型「${model.display_name}」后会禁用相关套餐授权，用户将自动回落到可用模型。`,
-      )
-    ) {
+    const confirmed = await confirm({
+      title: `删除模型「${model.display_name}」？`,
+      description: "删除后会禁用相关套餐授权，用户将自动回落到可用模型。",
+      confirmLabel: "删除模型",
+      variant: "destructive",
+    })
+    if (!confirmed) {
       return
     }
     setState("saving")
@@ -200,8 +205,19 @@ export function SystemModelManagementPage() {
         ...current.filter((item) => item.id !== result.profile.id),
       ])
       setMessage(`模型已删除：${result.profile.display_name}`)
+      notify.success({
+        title: "模型已删除",
+        description: result.profile.display_name,
+      })
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "删除失败")
+      const appError = normalizeAppError(deleteError, {
+        fallbackMessage: "删除失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "删除模型失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }

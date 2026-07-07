@@ -31,6 +31,9 @@ import {
   type AdminPlanPayload,
   type AdminPlanModelAccess,
 } from "@/lib/api/api-client"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
+import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
@@ -198,11 +201,13 @@ export function SystemPlanManagementPage() {
 
   async function deletePlan(plan: AdminPlan) {
     if (!accessToken || plan.id === "free" || plan.archived_at) return
-    if (
-      !window.confirm(
-        `删除套餐「${plan.display_name}」后，已有用户会在运行时自动回落到 Free 套餐。`,
-      )
-    ) {
+    const confirmed = await confirm({
+      title: `删除套餐「${plan.display_name}」？`,
+      description: "删除后，已有用户会在运行时自动回落到 Free 套餐。",
+      confirmLabel: "删除套餐",
+      variant: "destructive",
+    })
+    if (!confirmed) {
       return
     }
     setState("saving")
@@ -215,8 +220,19 @@ export function SystemPlanManagementPage() {
       ])
       setSelectedPlanId((current) => (current === plan.id ? "free" : current))
       setMessage(`套餐已删除：${result.plan.display_name}`)
+      notify.success({
+        title: "套餐已删除",
+        description: result.plan.display_name,
+      })
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "删除失败")
+      const appError = normalizeAppError(deleteError, {
+        fallbackMessage: "删除失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "删除套餐失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
