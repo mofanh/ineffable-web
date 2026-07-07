@@ -273,43 +273,44 @@ export function CreateTeamWorkspacePage() {
 export function TeamWorkspaceMembersPage() {
   const { workspaceId } = useParams()
   const { accessToken, currentWorkspace } = useAppSession()
-  const [members, setMembers] = React.useState<WorkspaceMembership[]>([])
-  const [invitations, setInvitations] = React.useState<WorkspaceInvitation[]>([])
   const [query, setQuery] = React.useState("")
   const [inviteEmail, setInviteEmail] = React.useState("")
   const [inviteRole, setInviteRole] = React.useState("member")
   const [lastInviteUrl, setLastInviteUrl] = React.useState<string | null>(null)
-  const [loadError, setLoadError] = React.useState<AppError | null>(null)
   const [actionError, setActionError] = React.useState<AppError | null>(null)
-  const [isLoading, setIsLoading] = React.useState(false)
 
   const targetWorkspaceId = workspaceId || currentWorkspace?.id || ""
 
-  const load = React.useCallback(async () => {
-    if (!accessToken || !targetWorkspaceId) return
-    setIsLoading(true)
-    setLoadError(null)
-    try {
-      const [memberResponse, invitationResponse] = await Promise.all([
-        listWorkspaceMembers(accessToken, targetWorkspaceId),
-        listWorkspaceInvitations(accessToken, targetWorkspaceId),
-      ])
-      setMembers(memberResponse.members)
-      setInvitations(invitationResponse.invitations)
-    } catch (err) {
-      setLoadError(
-        normalizeAppError(err, {
-          fallbackMessage: "Failed to load workspace members.",
-        })
-      )
-    } finally {
-      setIsLoading(false)
+  const loadMemberResource = React.useCallback(async () => {
+    if (!accessToken || !targetWorkspaceId) {
+      return {
+        members: [] as WorkspaceMembership[],
+        invitations: [] as WorkspaceInvitation[],
+      }
+    }
+
+    const [memberResponse, invitationResponse] = await Promise.all([
+      listWorkspaceMembers(accessToken, targetWorkspaceId),
+      listWorkspaceInvitations(accessToken, targetWorkspaceId),
+    ])
+    return {
+      members: memberResponse.members,
+      invitations: invitationResponse.invitations,
     }
   }, [accessToken, targetWorkspaceId])
-
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  const memberResource = useApiResource({
+    enabled: Boolean(accessToken && targetWorkspaceId),
+    load: loadMemberResource,
+    errorMessage: "Failed to load workspace members.",
+  })
+  const {
+    data: memberData,
+    error: memberLoadError,
+    reload: reloadMembers,
+    state: memberState,
+  } = memberResource
+  const members = memberData?.members ?? []
+  const invitations = memberData?.invitations ?? []
 
   const submitInvite = React.useCallback(
     async (event: React.FormEvent) => {
@@ -324,7 +325,7 @@ export function TeamWorkspaceMembersPage() {
         })
         setLastInviteUrl(response.invite_url)
         setInviteEmail("")
-        await load()
+        await reloadMembers()
         notify.success({
           title: "Invitation sent",
           description: `Invite sent to ${inviteEmail}.`,
@@ -340,7 +341,7 @@ export function TeamWorkspaceMembersPage() {
         })
       }
     },
-    [accessToken, inviteEmail, inviteRole, load, targetWorkspaceId]
+    [accessToken, inviteEmail, inviteRole, reloadMembers, targetWorkspaceId]
   )
 
   const updateMemberRole = React.useCallback(
@@ -354,7 +355,7 @@ export function TeamWorkspaceMembersPage() {
           member.user_id,
           role
         )
-        await load()
+        await reloadMembers()
         notify.success({
           title: "Role updated",
           description: `Member role changed to ${role}.`,
@@ -370,7 +371,7 @@ export function TeamWorkspaceMembersPage() {
         })
       }
     },
-    [accessToken, load, targetWorkspaceId]
+    [accessToken, reloadMembers, targetWorkspaceId]
   )
 
   const removeMember = React.useCallback(
@@ -387,7 +388,7 @@ export function TeamWorkspaceMembersPage() {
       setActionError(null)
       try {
         await removeWorkspaceMember(accessToken, targetWorkspaceId, member.user_id)
-        await load()
+        await reloadMembers()
         notify.success({ title: "Member removed" })
       } catch (err) {
         const appError = normalizeAppError(err, {
@@ -400,7 +401,7 @@ export function TeamWorkspaceMembersPage() {
         })
       }
     },
-    [accessToken, load, targetWorkspaceId]
+    [accessToken, reloadMembers, targetWorkspaceId]
   )
 
   const revokeInvitation = React.useCallback(
@@ -421,7 +422,7 @@ export function TeamWorkspaceMembersPage() {
           targetWorkspaceId,
           invitation.id
         )
-        await load()
+        await reloadMembers()
         notify.success({ title: "Invitation revoked" })
       } catch (err) {
         const appError = normalizeAppError(err, {
@@ -434,7 +435,7 @@ export function TeamWorkspaceMembersPage() {
         })
       }
     },
-    [accessToken, load, targetWorkspaceId]
+    [accessToken, reloadMembers, targetWorkspaceId]
   )
 
   const filteredMembers = members.filter((member) => {
@@ -446,12 +447,6 @@ export function TeamWorkspaceMembersPage() {
     )
   })
   const pendingInvitations = invitations.filter((item) => item.status === "pending")
-  const dataState = loadError
-    ? "error"
-    : isLoading
-      ? "loading"
-      : "success"
-
   return (
     <AppPage
       title="Team Workspace Members"
@@ -524,11 +519,11 @@ export function TeamWorkspaceMembersPage() {
         </div>
         <div className="p-4">
           <DataState
-            state={dataState}
-            error={loadError}
+            state={memberState}
+            error={memberLoadError}
             empty={filteredMembers.length === 0}
             emptyTitle="No members found."
-            onRetry={() => void load()}
+            onRetry={() => void reloadMembers()}
           >
             <div className="overflow-x-auto rounded-md border border-border">
               <table className="w-full text-left text-sm">
@@ -605,11 +600,11 @@ export function TeamWorkspaceMembersPage() {
         </div>
         <div className="p-4">
           <DataState
-            state={dataState}
-            error={loadError}
+            state={memberState}
+            error={memberLoadError}
             empty={invitations.length === 0}
             emptyTitle="No invitations yet."
-            onRetry={() => void load()}
+            onRetry={() => void reloadMembers()}
           >
             <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
               {invitations.map((invitation) => (
