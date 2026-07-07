@@ -14,6 +14,8 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { AppPage, DataState, Notice } from "@/components/app"
+import { Button } from "@/components/ui/button"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   acceptWorkspaceInvitationById,
@@ -30,6 +32,8 @@ import {
   type WorkspaceInvitation,
   type WorkspaceMembership,
 } from "@/features/workspace/api/workspace-api"
+import { normalizeAppError, type AppError } from "@/lib/app/api-errors"
+import { notify } from "@/lib/app/notifications"
 
 const roleOptions = ["admin", "member", "viewer"] as const
 const purposeOptions = ["Engineering", "Marketing", "Operations", "Research"] as const
@@ -592,23 +596,29 @@ export function WorkspaceNotificationsPage() {
   const navigate = useNavigate()
   const { accessToken, refreshAppData, selectWorkspace } = useAppSession()
   const [items, setItems] = React.useState<IncomingWorkspaceInvitation[]>([])
-  const [error, setError] = React.useState<string | null>(null)
+  const [loadError, setLoadError] = React.useState<AppError | null>(null)
+  const [actionError, setActionError] = React.useState<AppError | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
   const [acceptingId, setAcceptingId] = React.useState<string | null>(null)
 
   const load = React.useCallback(async () => {
     if (!accessToken) {
       setItems([])
+      setLoadError(null)
       return
     }
 
     setIsLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const response = await listIncomingWorkspaceInvitations(accessToken)
       setItems(response.invitations)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load notifications.")
+      setLoadError(
+        normalizeAppError(err, {
+          fallbackMessage: "Failed to load notifications.",
+        })
+      )
     } finally {
       setIsLoading(false)
     }
@@ -623,7 +633,7 @@ export function WorkspaceNotificationsPage() {
       if (!accessToken) return
 
       setAcceptingId(item.invitation.id)
-      setError(null)
+      setActionError(null)
       try {
         const response = await acceptWorkspaceInvitationById(
           accessToken,
@@ -632,9 +642,20 @@ export function WorkspaceNotificationsPage() {
         await refreshAppData()
         await selectWorkspace(response.workspace.id)
         await load()
+        notify.success({
+          title: "Invitation accepted",
+          description: `Joined ${response.workspace.name}.`,
+        })
         navigate(`/team-spaces/${response.workspace.id}/members`)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Accept invitation failed.")
+        const appError = normalizeAppError(err, {
+          fallbackMessage: "Accept invitation failed.",
+        })
+        setActionError(appError)
+        notify.error({
+          title: "Accept invitation failed",
+          description: appError.message,
+        })
       } finally {
         setAcceptingId(null)
       }
@@ -642,12 +663,18 @@ export function WorkspaceNotificationsPage() {
     [accessToken, load, navigate, refreshAppData, selectWorkspace]
   )
 
+  const dataState = loadError
+    ? "error"
+    : isLoading
+      ? "loading"
+      : "success"
+
   return (
-    <PageShell
+    <AppPage
       title="Notifications"
       description="Review workspace invitations that are addressed to your account and accept access inside Ineffable."
     >
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {actionError ? <Notice tone="error">{actionError.message}</Notice> : null}
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
@@ -656,40 +683,44 @@ export function WorkspaceNotificationsPage() {
             {items.length} PENDING
           </span>
         </div>
-        <div className="divide-y divide-border">
-          {items.map((item) => (
-            <div
-              key={item.invitation.id}
-              className="grid gap-4 px-4 py-4 text-sm sm:grid-cols-[1fr_140px_140px_auto]"
-            >
-              <div className="min-w-0">
-                <div className="truncate font-medium">{item.workspace.name}</div>
-                <div className="mt-1 truncate text-xs text-muted-foreground">
-                  Invited as {item.invitation.role} · {item.invitation.email}
+        <div className="p-4">
+          <DataState
+            state={dataState}
+            error={loadError}
+            empty={items.length === 0}
+            emptyTitle="No pending workspace invitations."
+            onRetry={() => void load()}
+          >
+            <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+              {items.map((item) => (
+                <div
+                  key={item.invitation.id}
+                  className="grid gap-4 px-4 py-4 text-sm sm:grid-cols-[1fr_140px_140px_auto]"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{item.workspace.name}</div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                      Invited as {item.invitation.role} · {item.invitation.email}
+                    </div>
+                  </div>
+                  <StatusBadge status={item.invitation.status} />
+                  <div className="text-muted-foreground">
+                    {new Date(item.invitation.expires_at).toLocaleDateString()}
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => void acceptInvitation(item)}
+                    disabled={acceptingId === item.invitation.id}
+                  >
+                    {acceptingId === item.invitation.id ? "Accepting..." : "Accept"}
+                  </Button>
                 </div>
-              </div>
-              <StatusBadge status={item.invitation.status} />
-              <div className="text-muted-foreground">
-                {new Date(item.invitation.expires_at).toLocaleDateString()}
-              </div>
-              <button
-                type="button"
-                onClick={() => void acceptInvitation(item)}
-                disabled={acceptingId === item.invitation.id}
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-foreground px-4 text-sm font-semibold text-background disabled:opacity-60"
-              >
-                {acceptingId === item.invitation.id ? "Accepting..." : "Accept"}
-              </button>
+              ))}
             </div>
-          ))}
-          {!items.length ? (
-            <div className="px-4 py-8 text-sm text-muted-foreground">
-              {isLoading ? "Loading..." : "No pending workspace invitations."}
-            </div>
-          ) : null}
+          </DataState>
         </div>
       </section>
-    </PageShell>
+    </AppPage>
   )
 }
 

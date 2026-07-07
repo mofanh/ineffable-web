@@ -1,3 +1,6 @@
+import { ApiRequestError } from "@/lib/app/api-errors"
+import { notify } from "@/lib/app/notifications"
+
 const API_BASE_URL =
   (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -9,12 +12,11 @@ const AUTH_STORAGE_KEYS = {
   sessionId: "ineffable.auth.session_id",
 }
 
-export const BASE_CLIENT_TOAST_EVENT = "ineffable:base-client-toast"
-
 export type BaseClientToastDetail = {
   title: string
   description: string
   actionLabel?: string
+  onAction?: () => void
 }
 
 let tokenRefreshStarted = false
@@ -104,15 +106,16 @@ function writeStorage(key: string, value: string | null) {
 }
 
 function showBaseClientToast(detail: BaseClientToastDetail) {
-  if (typeof window === "undefined") {
-    return
-  }
-
-  window.dispatchEvent(
-    new CustomEvent<BaseClientToastDetail>(BASE_CLIENT_TOAST_EVENT, {
-      detail,
-    })
-  )
+  notify.info({
+    title: detail.title,
+    description: detail.description,
+    action: detail.actionLabel
+      ? {
+          label: detail.actionLabel,
+          onClick: detail.onAction ?? refreshExpiredSessionNow,
+        }
+      : undefined,
+  })
 }
 
 async function refreshAccessTokenForReload() {
@@ -186,6 +189,7 @@ function scheduleExpiredSessionRefresh(delayMs = 1400) {
     title: "登录状态已过期",
     description: "正在重新同步会话，页面将自动刷新。",
     actionLabel: "立即刷新",
+    onAction: refreshExpiredSessionNow,
   })
 
   tokenRefreshTimer = window.setTimeout(() => {
@@ -193,12 +197,12 @@ function scheduleExpiredSessionRefresh(delayMs = 1400) {
   }, delayMs)
 }
 
-export function createApiError(message: string) {
+export function createApiError(message: string, status?: number) {
   if (isAccessTokenExpiredError(message)) {
     scheduleExpiredSessionRefresh()
     return new Error("登录状态已过期，正在刷新页面。")
   }
-  return new Error(message)
+  return new ApiRequestError(message, { status })
 }
 
 export async function requestApiJson<T>(
@@ -223,7 +227,7 @@ export async function requestApiJson<T>(
   })
 
   if (!response.ok) {
-    throw createApiError(await parseApiError(response))
+    throw createApiError(await parseApiError(response), response.status)
   }
 
   return (await response.json()) as T
