@@ -65,6 +65,7 @@ import {
 import {
   BadgeCheckIcon,
   BellIcon,
+  BotIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -76,6 +77,7 @@ import {
   FileTextIcon,
   FolderInputIcon,
   FolderPlusIcon,
+  KeyRoundIcon,
   LinkIcon,
   LogOutIcon,
   MoreHorizontalIcon,
@@ -97,12 +99,45 @@ const primaryNavItems: Array<{
   title: string
   icon: LucideIcon
   path: string
+  children?: Array<{
+    id: string
+    title: string
+    icon: LucideIcon
+    path: string
+  }>
 }> = [
   {
     id: "automation",
     title: "Automation",
     icon: ZapIcon,
     path: "/automation",
+  },
+]
+
+const systemManagementNavItems = [
+  {
+    id: "system-models",
+    title: "模型管理",
+    icon: BotIcon,
+    path: "/system/models",
+  },
+  {
+    id: "system-plans",
+    title: "套餐管理",
+    icon: PackageIcon,
+    path: "/system/plans",
+  },
+  {
+    id: "system-secrets",
+    title: "密钥管理",
+    icon: KeyRoundIcon,
+    path: "/system/secrets",
+  },
+  {
+    id: "system-users",
+    title: "用户管理",
+    icon: UsersIcon,
+    path: "/system/users",
   },
 ]
 
@@ -333,6 +368,9 @@ function PrimaryNav({
 }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [openGroupIds, setOpenGroupIds] = React.useState<Set<string>>(
+    () => new Set(["system-management"])
+  )
 
   return (
     <SidebarGroup className="pt-1">
@@ -340,7 +378,14 @@ function PrimaryNav({
         <SidebarMenu className="gap-1">
           {items.map((item) => {
             const Icon = item.icon
-            const isActive = location.pathname === item.path.split("?")[0]
+            const children = item.children ?? []
+            const isGroup = children.length > 0
+            const isChildActive = children.some(
+              (child) => location.pathname === child.path.split("?")[0]
+            )
+            const isActive =
+              location.pathname === item.path.split("?")[0] || isChildActive
+            const isOpen = openGroupIds.has(item.id) || isChildActive
 
             return (
               <SidebarMenuItem key={item.id}>
@@ -351,12 +396,75 @@ function PrimaryNav({
                   tooltip={item.title}
                   onClick={() => {
                     onSelectEntry(item.id)
+                    if (isGroup) {
+                      setOpenGroupIds((current) => {
+                        const next = new Set(current)
+                        if (next.has(item.id)) {
+                          next.delete(item.id)
+                        } else {
+                          next.add(item.id)
+                        }
+                        return next
+                      })
+                      if (!isChildActive) {
+                        navigate(item.path)
+                      }
+                      return
+                    }
                     navigate(item.path)
                   }}
                 >
                   <Icon className="text-sidebar-foreground/70" />
                   <span>{item.title}</span>
                 </SidebarMenuButton>
+                {isGroup ? (
+                  <SidebarMenuAction
+                    type="button"
+                    aria-label={isOpen ? "收起系统管理" : "展开系统管理"}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setOpenGroupIds((current) => {
+                        const next = new Set(current)
+                        if (next.has(item.id)) {
+                          next.delete(item.id)
+                        } else {
+                          next.add(item.id)
+                        }
+                        return next
+                      })
+                    }}
+                  >
+                    {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                  </SidebarMenuAction>
+                ) : null}
+                {isGroup && isOpen ? (
+                  <SidebarMenu className="mt-1 gap-0.5 pl-3">
+                    {children.map((child) => {
+                      const ChildIcon = child.icon
+                      const childActive =
+                        location.pathname === child.path.split("?")[0]
+                      return (
+                        <SidebarMenuItem key={child.id}>
+                          <SidebarMenuButton
+                            type="button"
+                            size="sm"
+                            isActive={childActive}
+                            tooltip={child.title}
+                            className="pl-4"
+                            onClick={() => {
+                              onSelectEntry(child.id)
+                              navigate(child.path)
+                            }}
+                          >
+                            <ChildIcon className="text-sidebar-foreground/60" />
+                            <span>{child.title}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      )
+                    })}
+                  </SidebarMenu>
+                ) : null}
               </SidebarMenuItem>
             )
           })}
@@ -627,6 +735,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "系统管理",
         icon: ShieldIcon,
         path: "/system/models",
+        children: systemManagementNavItems,
       },
     ]
   }, [currentUser?.role])

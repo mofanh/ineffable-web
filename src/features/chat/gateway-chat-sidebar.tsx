@@ -93,6 +93,12 @@ import type {
 } from "@/lib/api/chat/gateway-events"
 import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 
+function formatSendErrorMessage(message: string) {
+  return message.trim() === "no_available_model"
+    ? "当前套餐暂无可用模型"
+    : message
+}
+
 function sandboxStorageKey(conversationId: string | null | undefined) {
   return `ineffable.chat.sandbox.${conversationId ?? "new"}`
 }
@@ -1307,7 +1313,9 @@ export function GatewayChatSidebar({
     }
 
     if (event.event === "error" || event.event.endsWith("_error")) {
-      const errorMessage = (event.content ?? "Gateway stream failed").trim()
+      const errorMessage = formatSendErrorMessage(
+        (event.content ?? "Gateway stream failed").trim()
+      )
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       activeStreamConversationIdRef.current = null
@@ -1538,11 +1546,12 @@ export function GatewayChatSidebar({
     }
 
     if (envelope.type === "error") {
+      const errorMessage = formatSendErrorMessage(envelope.error)
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       activeStreamConversationIdRef.current = null
       updateStreamStatus("error")
-      setError(envelope.error)
+      setError(errorMessage)
       updateAssistantEntry((entry) =>
         entry
           ? {
@@ -1552,7 +1561,7 @@ export function GatewayChatSidebar({
             }
           : null
       )
-      appendSystemMessage(`发送失败：${envelope.error}`)
+      appendSystemMessage(`发送失败：${errorMessage}`)
       return
     }
 
@@ -1954,10 +1963,9 @@ export function GatewayChatSidebar({
         } else {
           setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
         }
-        const message =
-          enqueueError instanceof Error
-            ? enqueueError.message
-            : "发送失败。"
+        const message = formatSendErrorMessage(
+          enqueueError instanceof Error ? enqueueError.message : "发送失败。"
+        )
         setError(message)
         appendSystemMessage(`发送失败：${message}`)
       }
@@ -2089,7 +2097,9 @@ export function GatewayChatSidebar({
         return
       }
 
-      const message = streamError instanceof Error ? streamError.message : "发送失败。"
+      const message = formatSendErrorMessage(
+        streamError instanceof Error ? streamError.message : "发送失败。"
+      )
       const recoverable =
         typeof streamError === "object" &&
         streamError !== null &&

@@ -1083,6 +1083,7 @@ export type AdminModelProfile = {
   enabled: boolean
   sort_order: number
   metadata_json: Record<string, unknown>
+  archived_at?: string | null
 }
 
 export type AdminPlan = {
@@ -1091,6 +1092,7 @@ export type AdminPlan = {
   display_name: string
   monthly_credit_limit?: number | null
   enabled: boolean
+  archived_at?: string | null
 }
 
 export type AdminPlanModelAccess = {
@@ -1148,29 +1150,57 @@ export type AdminUserMonthlyUsage = {
   updated_at: string
 }
 
-export type AdminModelProfilePayload = AdminModelProfile
+export type AdminModelProfilePayload = Omit<
+  AdminModelProfile,
+  "id" | "archived_at"
+>
 
-export type AdminPlanPayload = AdminPlan
+export type AdminPlanPayload = Omit<AdminPlan, "id" | "archived_at">
 
 export type AdminPlanModelAccessPayload = AdminPlanModelAccess
 
 export function listAdminModelProfiles(accessToken: string) {
   return requestApiJson<{ profiles: AdminModelProfile[] }>(
-    "/gateway/v1/admin/models/profiles",
+    "/gateway/v1/admin/models",
     { accessToken },
   )
 }
 
-export function upsertAdminModelProfile(
+export function createAdminModelProfile(
   accessToken: string,
   payload: AdminModelProfilePayload,
 ) {
   return requestApiJson<{ profile: AdminModelProfile }>(
-    "/gateway/v1/admin/models/profiles",
+    "/gateway/v1/admin/models",
+    {
+      method: "POST",
+      accessToken,
+      body: payload,
+    },
+  )
+}
+
+export function updateAdminModelProfile(
+  accessToken: string,
+  modelId: string,
+  payload: AdminModelProfilePayload,
+) {
+  return requestApiJson<{ profile: AdminModelProfile }>(
+    `/gateway/v1/admin/models/${encodeURIComponent(modelId)}`,
     {
       method: "PUT",
       accessToken,
       body: payload,
+    },
+  )
+}
+
+export function deleteAdminModelProfile(accessToken: string, modelId: string) {
+  return requestApiJson<{ profile: AdminModelProfile }>(
+    `/gateway/v1/admin/models/${encodeURIComponent(modelId)}`,
+    {
+      method: "DELETE",
+      accessToken,
     },
   )
 }
@@ -1202,12 +1232,37 @@ export function upsertAdminLlmSecret(
   )
 }
 
-export function upsertAdminPlan(accessToken: string, payload: AdminPlanPayload) {
+export function createAdminPlan(accessToken: string, payload: AdminPlanPayload) {
   return requestApiJson<{ plan: AdminPlan }>("/gateway/v1/admin/plans", {
-    method: "PUT",
+    method: "POST",
     accessToken,
     body: payload,
   })
+}
+
+export function updateAdminPlan(
+  accessToken: string,
+  planId: string,
+  payload: AdminPlanPayload,
+) {
+  return requestApiJson<{ plan: AdminPlan }>(
+    `/gateway/v1/admin/plans/${encodeURIComponent(planId)}`,
+    {
+      method: "PUT",
+      accessToken,
+      body: payload,
+    },
+  )
+}
+
+export function deleteAdminPlan(accessToken: string, planId: string) {
+  return requestApiJson<{ plan: AdminPlan }>(
+    `/gateway/v1/admin/plans/${encodeURIComponent(planId)}`,
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  )
 }
 
 export function listAdminPlanModelAccess(
