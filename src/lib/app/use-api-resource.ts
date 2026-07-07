@@ -16,28 +16,50 @@ export function useApiResource<T>(options: {
     enabled ? "loading" : "idle"
   )
   const [error, setError] = React.useState<AppError | null>(null)
+  const requestIdRef = React.useRef(0)
+  const isMountedRef = React.useRef(true)
+
+  React.useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const reload = React.useCallback(async () => {
+    const requestId = requestIdRef.current + 1
+    requestIdRef.current = requestId
+    const canCommit = () =>
+      isMountedRef.current && requestIdRef.current === requestId
+
     if (!enabled) {
-      setState("idle")
-      setData(null)
-      setError(null)
+      if (canCommit()) {
+        setState("idle")
+        setData(null)
+        setError(null)
+      }
       return null
     }
 
-    setState((current) => (current === "success" ? "refreshing" : "loading"))
-    setError(null)
+    if (canCommit()) {
+      setState((current) => (current === "success" ? "refreshing" : "loading"))
+      setError(null)
+    }
     try {
       const result = await load()
-      setData(result)
-      setState("success")
+      if (canCommit()) {
+        setData(result)
+        setState("success")
+      }
       return result
     } catch (caught) {
       const appError = normalizeAppError(caught, {
         fallbackMessage: errorMessage,
       })
-      setError(appError)
-      setState("error")
+      if (canCommit()) {
+        setError(appError)
+        setState("error")
+      }
       return null
     }
   }, [enabled, errorMessage, load])
