@@ -349,11 +349,18 @@ function SystemAdminConsole({ section }: { section: Section }) {
       setError("模型密钥字段只能填写 secret_ref 或 env:NAME，不能填写原始 API Key")
       return
     }
+    if (!modelForm.max_output_tokens || modelForm.max_output_tokens <= 0) {
+      setError("模型最大输出 tokens 必须填写，并且必须大于 0")
+      return
+    }
 
     setState("saving")
     setError("")
     try {
-      const result = await upsertAdminModelProfile(accessToken, modelForm)
+      const result = await upsertAdminModelProfile(accessToken, {
+        ...modelForm,
+        default_max_tokens: modelForm.max_output_tokens,
+      })
       setModels((current) => [
         result.profile,
         ...current.filter((item) => item.id !== result.profile.id),
@@ -674,18 +681,6 @@ function ModelSection({
               }
             />
           </Field>
-          <Field label="默认 max tokens">
-            <Input
-              type="number"
-              value={modelForm.default_max_tokens ?? ""}
-              onChange={(event) =>
-                setModelForm((current) => ({
-                  ...current,
-                  default_max_tokens: numberOrNull(event.target.value),
-                }))
-              }
-            />
-          </Field>
           <Field label="上下文长度">
             <Input
               type="number"
@@ -696,6 +691,21 @@ function ModelSection({
                   context_window_tokens: numberOrNull(event.target.value),
                 }))
               }
+            />
+          </Field>
+          <Field label="最大输出 tokens">
+            <Input
+              type="number"
+              min={1}
+              value={modelForm.max_output_tokens ?? ""}
+              onChange={(event) => {
+                const value = numberOrNull(event.target.value)
+                setModelForm((current) => ({
+                  ...current,
+                  max_output_tokens: value,
+                  default_max_tokens: value,
+                }))
+              }}
             />
           </Field>
           <Field label="使用倍率">
