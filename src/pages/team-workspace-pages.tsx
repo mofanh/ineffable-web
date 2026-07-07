@@ -14,7 +14,17 @@ import {
   XIcon,
 } from "lucide-react"
 
-import { AppPage, DataState, Notice } from "@/components/app"
+import {
+  AppPage,
+  AsyncButton,
+  DataState,
+  DataTableBody,
+  DataTableHeader,
+  DataTableShell,
+  FormField,
+  FormSection,
+  Notice,
+} from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppSession } from "@/features/auth/app-session"
@@ -146,22 +156,16 @@ export function CreateTeamWorkspacePage() {
       description="Initialize a shared environment for collaborators, workspace artifacts, and shared project context."
     >
       <form onSubmit={submit} className="max-w-2xl space-y-8">
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
-            Team Name
-          </label>
+        <FormField label="Team Name">
           <Input
             value={teamName}
             onChange={(event) => setTeamName(event.target.value)}
             placeholder="e.g. Core Engineering"
             className="h-11 bg-muted/40"
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-3">
-          <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
-            Primary Purpose
-          </label>
+        <FormSection title="Primary Purpose">
           <div className="grid gap-3 sm:grid-cols-2">
             {purposeOptions.map((option) => (
               <button
@@ -185,9 +189,9 @@ export function CreateTeamWorkspacePage() {
               </button>
             ))}
           </div>
-        </div>
+        </FormSection>
 
-        <div className="space-y-4">
+        <FormSection>
           <div className="flex items-center justify-between gap-3">
             <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
               Initial Members
@@ -245,7 +249,7 @@ export function CreateTeamWorkspacePage() {
               </div>
             ))}
           </div>
-        </div>
+        </FormSection>
 
         {error ? <Notice tone="error">{error}</Notice> : null}
 
@@ -257,13 +261,14 @@ export function CreateTeamWorkspacePage() {
           >
             Cancel
           </Button>
-          <Button
+          <AsyncButton
             type="submit"
-            disabled={isSubmitting}
+            isLoading={isSubmitting}
+            loadingLabel="Creating..."
             className="px-8"
           >
-            {isSubmitting ? "Creating..." : "Create Workspace"}
-          </Button>
+            Create Workspace
+          </AsyncButton>
         </div>
       </form>
     </AppPage>
@@ -525,68 +530,68 @@ export function TeamWorkspaceMembersPage() {
             emptyTitle="No members found."
             onRetry={() => void reloadMembers()}
           >
-            <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-border bg-muted/20 text-[10px] uppercase text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3">Member</th>
-                    <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Joined</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredMembers.map((member) => (
-                    <tr key={member.id} className="hover:bg-muted/20">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black">
-                            {initials(member.user_id)}
-                          </div>
-                          <div>
-                            <div className="font-medium">{member.user_id.slice(0, 8)}</div>
-                            <div className="text-[11px] text-muted-foreground">{member.user_id}</div>
+            <DataTableShell>
+              <DataTableHeader>
+                <tr>
+                  <th className="px-4 py-3">Member</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </DataTableHeader>
+              <DataTableBody>
+                {filteredMembers.map((member) => (
+                  <tr key={member.id} className="hover:bg-muted/20">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black">
+                          {initials(member.user_id)}
+                        </div>
+                        <div>
+                          <div className="font-medium">{member.user_id.slice(0, 8)}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {member.user_id}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={member.role}
-                          onChange={(event) => {
-                            void updateMemberRole(member, event.target.value)
-                          }}
-                          className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
-                        >
-                          {["owner", ...roleOptions].map((role) => (
-                            <option key={role} value={role}>
-                              {role}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={member.status} />
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {new Date(member.joined_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => void removeMember(member)}
-                          aria-label={`Remove ${member.user_id}`}
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={member.role}
+                        onChange={(event) => {
+                          void updateMemberRole(member, event.target.value)
+                        }}
+                        className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
+                      >
+                        {["owner", ...roleOptions].map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={member.status} />
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {new Date(member.joined_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => void removeMember(member)}
+                        aria-label={`Remove ${member.user_id}`}
+                      >
+                        <Trash2Icon className="size-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </DataTableBody>
+            </DataTableShell>
           </DataState>
         </div>
       </section>
