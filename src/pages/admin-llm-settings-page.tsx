@@ -101,6 +101,15 @@ function textOrNull(value: string) {
   return trimmed ? trimmed : null
 }
 
+function isRawApiKey(value: string) {
+  const trimmed = value.trim().toLowerCase()
+  return (
+    trimmed.startsWith("sk-") ||
+    trimmed.startsWith("sk_") ||
+    trimmed.startsWith("bearer ")
+  )
+}
+
 function modelAccessFor(planId: string, modelId: string): AdminPlanModelAccess {
   return {
     plan_id: planId,
@@ -334,6 +343,10 @@ function SystemAdminConsole({ section }: { section: Section }) {
   async function saveModel(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!accessToken) {
+      return
+    }
+    if (modelForm.upstream_api_key_ref && isRawApiKey(modelForm.upstream_api_key_ref)) {
+      setError("模型密钥字段只能填写 secret_ref 或 env:NAME，不能填写原始 API Key")
       return
     }
 
@@ -649,9 +662,10 @@ function ModelSection({
               }
             />
           </Field>
-          <Field label="密钥引用">
+          <Field label="密钥引用（secret_ref 或 env:NAME）">
             <Input
               value={modelForm.upstream_api_key_ref ?? ""}
+              placeholder="例如 deepseek-default 或 env:DEEPSEEK_API_KEY"
               onChange={(event) =>
                 setModelForm((current) => ({
                   ...current,
