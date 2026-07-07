@@ -440,11 +440,18 @@ export function WorkspaceObjectEditorPage() {
       setPreviewContent(null)
       await loadVersions()
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load file")
+      reportActionError(loadError, "Failed to load file", "Load file failed")
     } finally {
       setIsLoading(false)
     }
-  }, [accessToken, loadVersions, loadWorkspaceTree, objectId, workspaceId])
+  }, [
+    accessToken,
+    loadVersions,
+    loadWorkspaceTree,
+    objectId,
+    reportActionError,
+    workspaceId,
+  ])
 
   React.useEffect(() => {
     void loadContent()
