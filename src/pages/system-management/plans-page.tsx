@@ -12,12 +12,12 @@ import { ToggleField } from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  AppDialog,
+  AppSearchBar,
+  AppSectionCard,
   EmptyState,
-  SearchBar,
   StatusBadge,
-  WorkbenchCard,
-  WorkbenchDialog,
-} from "@/components/workbench"
+} from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
   createAdminPlan,
@@ -307,14 +307,14 @@ export function SystemPlanManagementPage() {
       onRefresh={() => void loadPlans()}
     >
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <WorkbenchCard
+        <AppSectionCard
           title="套餐列表"
           description="每张卡片代表一个套餐。点击编辑可调整基础额度。"
           icon={PackageIcon}
           actions={
             <div className="flex items-center gap-2">
               <div className="hidden w-64 md:block">
-                <SearchBar
+                <AppSearchBar
                   value={query}
                   onChange={setQuery}
                   placeholder="搜索套餐..."
@@ -328,7 +328,7 @@ export function SystemPlanManagementPage() {
           }
         >
           <div className="mb-3 md:hidden">
-            <SearchBar value={query} onChange={setQuery} placeholder="搜索套餐..." />
+            <AppSearchBar value={query} onChange={setQuery} placeholder="搜索套餐..." />
           </div>
           <div className="grid gap-3">
             {filteredPlans.map((plan) => (
@@ -396,9 +396,9 @@ export function SystemPlanManagementPage() {
               <EmptyState title="暂无套餐" detail="新增套餐后会出现在这里。" />
             ) : null}
           </div>
-        </WorkbenchCard>
+        </AppSectionCard>
 
-        <WorkbenchCard
+        <AppSectionCard
           title="套餐模型权限"
           description="不可见的模型会自动变成不可用。"
           icon={BotIcon}
@@ -471,10 +471,10 @@ export function SystemPlanManagementPage() {
               <EmptyState title="暂无模型" detail="先创建模型档案后再配置套餐权限。" />
             ) : null}
           </div>
-        </WorkbenchCard>
+        </AppSectionCard>
       </section>
 
-      <WorkbenchDialog
+      <AppDialog
         open={dialogOpen}
         title={editingPlanId ? "编辑套餐" : "新增套餐"}
         description="套餐保存后可在权限区配置可见和可用模型。"
@@ -489,7 +489,7 @@ export function SystemPlanManagementPage() {
             onCancel={() => setDialogOpen(false)}
           />
         ) : null}
-      </WorkbenchDialog>
+      </AppDialog>
     </SystemPageShell>
   )
 }

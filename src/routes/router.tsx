@@ -62,11 +62,6 @@ import {
 import { WorkspaceObjectEditorPage } from "@/pages/workspace-object-editor-page"
 import { defaultPath } from "@/routes/navigation"
 
-function PrototypeWorkbenchRedirect() {
-  window.location.replace("/prototype/project-workbench/index.html")
-  return null
-}
-
 const routeElements: Record<string, React.ReactElement> = {
   "/account": <AccountPage />,
   "/admin/llm": (
@@ -126,10 +121,6 @@ const routeElements: Record<string, React.ReactElement> = {
 }
 
 export const router = createBrowserRouter([
-  {
-    path: "/prototype/project-workbench",
-    element: <PrototypeWorkbenchRedirect />,
-  },
   {
     path: "/",
     element: (

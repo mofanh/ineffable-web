@@ -4,12 +4,12 @@ import { CheckIcon, KeyRoundIcon, PlusIcon, SaveIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  AppDialog,
+  AppSearchBar,
+  AppSectionCard,
   EmptyState,
-  SearchBar,
   StatusBadge,
-  WorkbenchCard,
-  WorkbenchDialog,
-} from "@/components/workbench"
+} from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
   listAdminLlmSecrets,
@@ -158,14 +158,14 @@ export function SystemSecretManagementPage() {
       error={error}
       onRefresh={() => void loadSecrets()}
     >
-      <WorkbenchCard
+      <AppSectionCard
         title="密钥列表"
         description="每张卡片代表一个上游密钥引用。密钥值保存后不会回显。"
         icon={KeyRoundIcon}
         actions={
           <div className="flex items-center gap-2">
             <div className="hidden w-72 md:block">
-              <SearchBar
+              <AppSearchBar
                 value={query}
                 onChange={setQuery}
                 placeholder="搜索密钥..."
@@ -179,7 +179,7 @@ export function SystemSecretManagementPage() {
         }
       >
         <div className="mb-3 md:hidden">
-          <SearchBar value={query} onChange={setQuery} placeholder="搜索密钥..." />
+          <AppSearchBar value={query} onChange={setQuery} placeholder="搜索密钥..." />
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filteredSecrets.map((secret) => (
@@ -212,9 +212,9 @@ export function SystemSecretManagementPage() {
             <EmptyState title="暂无密钥" detail="新增上游密钥后会出现在这里。" />
           ) : null}
         </div>
-      </WorkbenchCard>
+      </AppSectionCard>
 
-      <WorkbenchDialog
+      <AppDialog
         open={dialogOpen}
         title={editingSecret?.secret_ref ? "编辑密钥" : "新增密钥"}
         description="编辑已有密钥时，密钥值留空表示不修改密钥内容。"
@@ -229,7 +229,7 @@ export function SystemSecretManagementPage() {
             onCancel={() => setDialogOpen(false)}
           />
         ) : null}
-      </WorkbenchDialog>
+      </AppDialog>
     </SystemPageShell>
   )
 }

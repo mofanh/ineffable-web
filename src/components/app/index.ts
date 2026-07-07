@@ -12,5 +12,11 @@ export { DataState, type DataStateName } from "@/components/app/data-state"
 export { EmptyState } from "@/components/app/empty-state"
 export { ErrorState } from "@/components/app/error-state"
 export { FormField, FormSection, ToggleField } from "@/components/app/form"
+export {
+  AppMetricPage,
+  AppSearchBar,
+  AppSectionCard,
+  type AppMetricCard,
+} from "@/components/app/metric-page"
 export { Notice, type NoticeTone } from "@/components/app/notice"
 export { StatusBadge, type StatusBadgeTone } from "@/components/app/status-badge"

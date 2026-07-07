@@ -4,11 +4,11 @@ import { GaugeIcon, PackageIcon, SaveIcon, UsersIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  AppDialog,
+  AppSearchBar,
+  AppSectionCard,
   EmptyState,
-  SearchBar,
-  WorkbenchCard,
-  WorkbenchDialog,
-} from "@/components/workbench"
+} from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
   assignAdminUserPlan,
@@ -232,13 +232,13 @@ export function SystemUserManagementPage() {
       onRefresh={() => void loadUsers()}
     >
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <WorkbenchCard
+        <AppSectionCard
           title="用户列表"
           description="每张卡片代表一个账号。点击编辑可调整角色并分配套餐。"
           icon={UsersIcon}
           actions={
             <div className="hidden w-72 md:block">
-              <SearchBar
+              <AppSearchBar
                 value={query}
                 onChange={setQuery}
                 placeholder="搜索用户..."
@@ -247,7 +247,7 @@ export function SystemUserManagementPage() {
           }
         >
           <div className="mb-3 md:hidden">
-            <SearchBar value={query} onChange={setQuery} placeholder="搜索用户..." />
+            <AppSearchBar value={query} onChange={setQuery} placeholder="搜索用户..." />
           </div>
           <div className="grid gap-3">
             {filteredUsers.map((user) => (
@@ -293,10 +293,10 @@ export function SystemUserManagementPage() {
               <EmptyState title="暂无用户" detail="有用户注册后会出现在这里。" />
             ) : null}
           </div>
-        </WorkbenchCard>
+        </AppSectionCard>
 
         <div className="grid gap-4">
-          <WorkbenchCard
+          <AppSectionCard
             title="套餐记录"
             description={selectedUser?.email ?? "选择一个用户查看套餐记录。"}
             icon={PackageIcon}
@@ -320,9 +320,9 @@ export function SystemUserManagementPage() {
                 />
               ) : null}
             </div>
-          </WorkbenchCard>
+          </AppSectionCard>
 
-          <WorkbenchCard
+          <AppSectionCard
             title="月度用量"
             description="用于核对用户维度 token 与 credit 消耗。"
             icon={GaugeIcon}
@@ -351,11 +351,11 @@ export function SystemUserManagementPage() {
                 />
               ) : null}
             </div>
-          </WorkbenchCard>
+          </AppSectionCard>
         </div>
       </section>
 
-      <WorkbenchDialog
+      <AppDialog
         open={dialogOpen}
         title="编辑用户"
         description="用户基础身份来自账号系统，这里只维护角色和套餐分配。"
@@ -411,7 +411,7 @@ export function SystemUserManagementPage() {
             </div>
           </form>
         ) : null}
-      </WorkbenchDialog>
+      </AppDialog>
     </SystemPageShell>
   )
 }

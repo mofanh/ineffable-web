@@ -3,13 +3,6 @@ import { Search } from "lucide-react"
 
 import { useAppHeader } from "@/app/shell/app-header-context"
 import {
-  AppDialog,
-  EmptyState,
-  ErrorState,
-  StatusBadge,
-  type AppDialogMaxWidth,
-} from "@/components/app"
-import {
   Card,
   CardContent,
   CardDescription,
@@ -19,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-export type MetricCard = {
+export type AppMetricCard = {
   label: string
   value: string
   detail: string
@@ -27,7 +20,7 @@ export type MetricCard = {
   tone?: "green" | "amber" | "blue" | "indigo"
 }
 
-export function WorkbenchPage({
+export function AppMetricPage({
   eyebrow,
   title,
   subtitle,
@@ -38,7 +31,7 @@ export function WorkbenchPage({
   eyebrow: string
   title: string
   subtitle: string
-  metrics: MetricCard[]
+  metrics: AppMetricCard[]
   headerActions?: React.ReactNode
   children: React.ReactNode
 }) {
@@ -72,9 +65,7 @@ export function WorkbenchPage({
   )
 }
 
-export const AgentProductPage = WorkbenchPage
-
-function MetricPanel({ metric }: { metric: MetricCard }) {
+function MetricPanel({ metric }: { metric: AppMetricCard }) {
   const Icon = metric.icon
   return (
     <Card className="border-border/80 bg-muted/40 shadow-none transition-colors hover:bg-muted/60">
@@ -87,7 +78,7 @@ function MetricPanel({ metric }: { metric: MetricCard }) {
               metric.tone === "green" && "text-emerald-500",
               metric.tone === "amber" && "text-amber-500",
               metric.tone === "blue" && "text-sky-500",
-              metric.tone === "indigo" && "text-indigo-500",
+              metric.tone === "indigo" && "text-indigo-500"
             )}
           />
         </div>
@@ -98,7 +89,7 @@ function MetricPanel({ metric }: { metric: MetricCard }) {
   )
 }
 
-export function WorkbenchCard({
+export function AppSectionCard({
   title,
   description,
   icon: Icon,
@@ -136,41 +127,7 @@ export function WorkbenchCard({
   )
 }
 
-export function WorkbenchDialog({
-  open,
-  title,
-  description,
-  children,
-  maxWidth = "xl",
-  onOpenChange,
-}: {
-  open: boolean
-  title: string
-  description?: string
-  children: React.ReactNode
-  maxWidth?: AppDialogMaxWidth
-  onOpenChange: (open: boolean) => void
-}) {
-  return (
-    <AppDialog
-      open={open}
-      title={title}
-      description={description}
-      maxWidth={maxWidth}
-      onOpenChange={onOpenChange}
-    >
-      {children}
-    </AppDialog>
-  )
-}
-
-export function ErrorNotice({ message }: { message: string | null }) {
-  return <ErrorState error={message} title="操作失败" />
-}
-
-export { EmptyState, StatusBadge }
-
-export function SearchBar({
+export function AppSearchBar({
   value,
   onChange,
   placeholder,
@@ -190,11 +147,4 @@ export function SearchBar({
       />
     </div>
   )
-}
-
-export function toggleSet(current: Set<string>, id: string, checked: boolean) {
-  const next = new Set(current)
-  if (checked) next.add(id)
-  else next.delete(id)
-  return next
 }

@@ -12,12 +12,12 @@ import { ToggleField } from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  AppDialog,
+  AppSearchBar,
+  AppSectionCard,
   EmptyState,
-  SearchBar,
   StatusBadge,
-  WorkbenchCard,
-  WorkbenchDialog,
-} from "@/components/workbench"
+} from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
   createAdminModelProfile,
@@ -253,14 +253,14 @@ export function SystemModelManagementPage() {
       error={error}
       onRefresh={() => void loadModels()}
     >
-      <WorkbenchCard
+      <AppSectionCard
         title="模型列表"
         description="每张卡片代表一个可被套餐授权和对话选择的模型档案。"
         icon={BotIcon}
         actions={
           <div className="flex items-center gap-2">
             <div className="hidden w-72 md:block">
-              <SearchBar
+              <AppSearchBar
                 value={query}
                 onChange={setQuery}
                 placeholder="搜索模型..."
@@ -274,7 +274,7 @@ export function SystemModelManagementPage() {
         }
       >
         <div className="mb-3 md:hidden">
-          <SearchBar value={query} onChange={setQuery} placeholder="搜索模型..." />
+          <AppSearchBar value={query} onChange={setQuery} placeholder="搜索模型..." />
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filteredModels.map((model) => (
@@ -339,9 +339,9 @@ export function SystemModelManagementPage() {
             <EmptyState title="暂无模型" detail="新增模型后会出现在这里。" />
           ) : null}
         </div>
-      </WorkbenchCard>
+      </AppSectionCard>
 
-      <WorkbenchDialog
+      <AppDialog
         open={dialogOpen}
         title={editingModelId ? "编辑模型" : "新增模型"}
         description="模型档案保存后可在套餐里配置可见和可用范围。"
@@ -357,7 +357,7 @@ export function SystemModelManagementPage() {
             onCancel={() => setDialogOpen(false)}
           />
         ) : null}
-      </WorkbenchDialog>
+      </AppDialog>
     </SystemPageShell>
   )
 }

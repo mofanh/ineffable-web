@@ -1,8 +1,8 @@
 import * as React from "react"
 import { ShieldIcon } from "lucide-react"
 
+import { AppMetricPage, type AppMetricCard } from "@/components/app"
 import { Button } from "@/components/ui/button"
-import { WorkbenchPage, type MetricCard } from "@/components/workbench"
 import {
   type AdminModelProfilePayload,
   type AdminPlanPayload,
@@ -135,7 +135,7 @@ export function SystemPageShell({
 }: {
   title: string
   subtitle: string
-  metrics: MetricCard[]
+  metrics: AppMetricCard[]
   state: LoadState
   message: string
   error: string
@@ -143,7 +143,7 @@ export function SystemPageShell({
   children: React.ReactNode
 }) {
   return (
-    <WorkbenchPage
+    <AppMetricPage
       eyebrow="System Management"
       title={title}
       subtitle={subtitle}
@@ -170,6 +170,6 @@ export function SystemPageShell({
         </div>
       ) : null}
       {children}
-    </WorkbenchPage>
+    </AppMetricPage>
   )
 }

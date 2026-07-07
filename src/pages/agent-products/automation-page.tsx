@@ -39,12 +39,12 @@ import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 
 import {
-  AgentProductPage,
+  AppMetricPage,
   EmptyState,
   ErrorNotice,
-  SearchBar,
+  AppSearchBar,
   StatusBadge,
-  WorkbenchCard,
+  AppSectionCard,
 } from "./shared"
 
 const INTERVAL_OPTIONS = [
@@ -523,7 +523,7 @@ export function AutomationPage() {
   }
 
   return (
-    <AgentProductPage
+    <AppMetricPage
       eyebrow="Automation"
       title="Scheduled Automations"
       subtitle="这里管理 agent 已经安排的自动任务。创建发生在对话中；这里用于查看、暂停、编辑、手动运行或归档。"
@@ -585,13 +585,13 @@ export function AutomationPage() {
         </div>
       ) : null}
 
-      <WorkbenchCard
+      <AppSectionCard
         title="Automation Inventory"
         description="自动任务绑定到原 conversation；到点后会向该会话追加一条输入并触发正常 agent run。"
         icon={Zap}
         actions={
           <div className="hidden min-w-72 md:block">
-            <SearchBar
+            <AppSearchBar
               value={query}
               onChange={setQuery}
               placeholder="Search automations..."
@@ -600,7 +600,7 @@ export function AutomationPage() {
         }
       >
         <div className="space-y-3 md:hidden">
-          <SearchBar
+          <AppSearchBar
             value={query}
             onChange={setQuery}
             placeholder="Search automations..."
@@ -716,7 +716,7 @@ export function AutomationPage() {
             />
           ) : null}
         </div>
-      </WorkbenchCard>
+      </AppSectionCard>
 
       <AutomationDialog
         open={automationDialogOpen}
@@ -939,7 +939,7 @@ export function AutomationPage() {
           </div>
         </form>
       </AutomationDialog>
-    </AgentProductPage>
+    </AppMetricPage>
   )
 }
 
