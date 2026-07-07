@@ -37,6 +37,9 @@ import {
   type Automation,
   type AutomationRun,
 } from "@/lib/api/api-client"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
+import { notify } from "@/lib/app/notifications"
 
 import {
   AgentProductPage,
@@ -257,6 +260,19 @@ export function AutomationPage() {
     [automationRuns],
   )
 
+  const reportActionError = React.useCallback(
+    (caught: unknown, fallbackMessage: string, title: string) => {
+      const appError = normalizeAppError(caught, { fallbackMessage })
+      setError(appError.message)
+      notify.error({
+        title,
+        description: appError.message,
+      })
+      return appError.message
+    },
+    [],
+  )
+
   const reload = React.useCallback(async () => {
     setError(null)
     try {
@@ -280,11 +296,9 @@ export function AutomationPage() {
       )
       setAutomationRuns(Object.fromEntries(runPairs))
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "failed to load automations",
-      )
+      reportActionError(err, "failed to load automations", "Load automations failed")
     }
-  }, [accessToken, refreshConversations])
+  }, [accessToken, refreshConversations, reportActionError])
 
   React.useEffect(() => {
     void reload()
@@ -414,24 +428,44 @@ export function AutomationPage() {
         trigger_spec: buildTriggerSpec(),
       })
       closeAutomationDialog()
+      notify.success({
+        title: "Automation saved",
+        description: form.name,
+      })
       await reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to save automation")
+      reportActionError(err, "failed to save automation", "Save automation failed")
     } finally {
       setSaving(false)
     }
   }
 
   async function handleArchiveAutomation(automation: Automation) {
+    const confirmed = await confirm({
+      title: `Archive "${automation.name}"?`,
+      description: "This automation will stop appearing in the active list.",
+      confirmLabel: "Archive",
+      variant: "destructive",
+    })
+    if (!confirmed) {
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
       await deleteAutomation(accessToken, automation.id)
       if (editingAutomation?.id === automation.id) closeAutomationDialog()
+      notify.success({
+        title: "Automation archived",
+        description: automation.name,
+      })
       await reload()
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "failed to archive automation",
+      reportActionError(
+        err,
+        "failed to archive automation",
+        "Archive automation failed",
       )
     } finally {
       setSaving(false)
@@ -445,10 +479,19 @@ export function AutomationPage() {
       await updateAutomation(accessToken, automation.id, {
         status: automation.status === "active" ? "inactive" : "active",
       })
+      notify.success({
+        title:
+          automation.status === "active"
+            ? "Automation paused"
+            : "Automation activated",
+        description: automation.name,
+      })
       await reload()
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "failed to update automation",
+      reportActionError(
+        err,
+        "failed to update automation",
+        "Update automation failed",
       )
     } finally {
       setSaving(false)
@@ -462,9 +505,13 @@ export function AutomationPage() {
     try {
       const response = await runAutomation(accessToken, automation.id)
       setLastRunConversationId(response.conversation_id)
+      notify.success({
+        title: "Automation started",
+        description: automation.name,
+      })
       await reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to run automation")
+      reportActionError(err, "failed to run automation", "Run automation failed")
     } finally {
       setSaving(false)
     }
