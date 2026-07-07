@@ -12,7 +12,15 @@ import {
 import { DayPicker } from "react-day-picker"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
-import { AppDialog } from "@/components/app"
+import {
+  AppDialog,
+  AppMetricPage,
+  AppSearchBar,
+  AppSectionCard,
+  EmptyState,
+  ErrorState,
+  StatusBadge,
+} from "@/components/app"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,15 +45,6 @@ import {
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
-
-import {
-  AppMetricPage,
-  EmptyState,
-  ErrorNotice,
-  AppSearchBar,
-  StatusBadge,
-  AppSectionCard,
-} from "./shared"
 
 const INTERVAL_OPTIONS = [
   { value: "15", label: "Every 15 minutes" },
@@ -570,7 +569,7 @@ export function AutomationPage() {
         </div>
       }
     >
-      <ErrorNotice message={error} />
+      <ErrorState error={error} title="操作失败" />
 
       {lastRunConversationId ? (
         <div className="border-primary/30 bg-primary/10 rounded-md border px-4 py-3 text-sm">

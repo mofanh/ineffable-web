@@ -11,11 +11,11 @@ import { AccountPage } from "@/pages/account-pages"
 import {
   AdminLlmSettingsPage,
   SystemModelManagementPage,
-  SystemPlanManagementPage,
-  SystemSecretManagementPage,
-  SystemUserManagementPage,
-} from "@/pages/admin-llm-settings-page"
-import { AutomationPage } from "@/pages/agent-product-pages"
+} from "@/pages/system-management/models-page"
+import { SystemPlanManagementPage } from "@/pages/system-management/plans-page"
+import { SystemSecretManagementPage } from "@/pages/system-management/secrets-page"
+import { SystemUserManagementPage } from "@/pages/system-management/users-page"
+import { AutomationPage } from "@/pages/agent-products/automation-page"
 import { LoginPage, RegisterPage } from "@/pages/auth-pages"
 import {
   ApiDebugPage,
