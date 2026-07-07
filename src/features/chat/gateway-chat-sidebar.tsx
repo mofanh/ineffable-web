@@ -2295,14 +2295,14 @@ export function GatewayChatSidebar({
     (entryId: string) => {
       void resolveApproval(entryId, true)
     },
-    [resolveApproval]
+    []
   )
 
   const handleRejectApproval = React.useCallback(
     (entryId: string) => {
       void resolveApproval(entryId, false)
     },
-    [resolveApproval]
+    []
   )
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {

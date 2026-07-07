@@ -4,6 +4,8 @@ import { Search } from "lucide-react"
 import { useAppHeader } from "@/app/shell/app-header-context"
 import {
   AppDialog,
+  EmptyState,
+  ErrorState,
   StatusBadge,
   type AppDialogMaxWidth,
 } from "@/components/app"
@@ -163,24 +165,10 @@ export function WorkbenchDialog({
 }
 
 export function ErrorNotice({ message }: { message: string | null }) {
-  if (!message) return null
-  return (
-    <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
-      {message}
-    </div>
-  )
+  return <ErrorState error={message} title="操作失败" />
 }
 
-export function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="text-muted-foreground rounded-md border border-dashed border-border bg-background/60 p-6 text-sm">
-      <p className="text-foreground font-medium">{title}</p>
-      <p className="mt-1">{detail}</p>
-    </div>
-  )
-}
-
-export { StatusBadge }
+export { EmptyState, StatusBadge }
 
 export function SearchBar({
   value,
