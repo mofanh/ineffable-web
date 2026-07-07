@@ -26,6 +26,7 @@ export type AppUser = {
   avatar_url?: string | null
   phone?: string | null
   status: string
+  role?: "user" | "admin" | string
 }
 
 export type Workspace = {
@@ -1057,6 +1058,245 @@ export function listModelProfiles(accessToken: string) {
     {
       accessToken,
     }
+  )
+}
+
+export type AdminModelProfile = {
+  id: string
+  display_name: string
+  endpoint_kind: string
+  upstream_model_name: string
+  upstream_base_url?: string | null
+  upstream_api_key_ref?: string | null
+  default_temperature?: number | null
+  default_top_p?: number | null
+  default_frequency_penalty?: number | null
+  default_presence_penalty?: number | null
+  default_max_tokens?: number | null
+  context_window_tokens?: number | null
+  max_output_tokens?: number | null
+  supports_tool_calls: boolean
+  supports_reasoning: boolean
+  supports_json_schema: boolean
+  supports_vision: boolean
+  usage_multiplier: number
+  enabled: boolean
+  sort_order: number
+  metadata_json: Record<string, unknown>
+}
+
+export type AdminPlan = {
+  id: string
+  name: string
+  display_name: string
+  monthly_credit_limit?: number | null
+  enabled: boolean
+}
+
+export type AdminPlanModelAccess = {
+  plan_id: string
+  model_profile_id: string
+  visible: boolean
+  usable: boolean
+  input_multiplier: number
+  output_multiplier: number
+  reasoning_multiplier: number
+  cached_input_multiplier: number
+  max_tokens_per_request?: number | null
+  max_requests_per_day?: number | null
+}
+
+export type AdminLlmSecret = {
+  secret_ref: string
+  status: string
+  has_secret: boolean
+  metadata_json: Record<string, unknown>
+  rotated_at?: string | null
+}
+
+export type AdminLlmSecretPayload = {
+  secret_ref: string
+  secret: string
+  status: string
+  metadata_json: Record<string, unknown>
+}
+
+export type AdminUser = AppUser & {
+  created_at?: string
+  updated_at?: string
+  archived_at?: string | null
+}
+
+export type AdminUserPlanAssignment = {
+  id: string
+  user_id: string
+  plan_id: string
+  status: string
+  effective_from: string
+  effective_until?: string | null
+}
+
+export type AdminUserMonthlyUsage = {
+  user_id: string
+  period_yyyymm: string
+  prompt_tokens: number
+  completion_tokens: number
+  reasoning_tokens: number
+  cached_input_tokens: number
+  raw_total_tokens: number
+  charged_credits: number
+  updated_at: string
+}
+
+export type AdminModelProfilePayload = AdminModelProfile
+
+export type AdminPlanPayload = AdminPlan
+
+export type AdminPlanModelAccessPayload = AdminPlanModelAccess
+
+export function listAdminModelProfiles(accessToken: string) {
+  return requestApiJson<{ profiles: AdminModelProfile[] }>(
+    "/gateway/v1/admin/models/profiles",
+    { accessToken },
+  )
+}
+
+export function upsertAdminModelProfile(
+  accessToken: string,
+  payload: AdminModelProfilePayload,
+) {
+  return requestApiJson<{ profile: AdminModelProfile }>(
+    "/gateway/v1/admin/models/profiles",
+    {
+      method: "PUT",
+      accessToken,
+      body: payload,
+    },
+  )
+}
+
+export function listAdminPlans(accessToken: string) {
+  return requestApiJson<{ plans: AdminPlan[] }>("/gateway/v1/admin/plans", {
+    accessToken,
+  })
+}
+
+export function listAdminLlmSecrets(accessToken: string) {
+  return requestApiJson<{ secrets: AdminLlmSecret[] }>(
+    "/gateway/v1/admin/llm/secrets",
+    { accessToken },
+  )
+}
+
+export function upsertAdminLlmSecret(
+  accessToken: string,
+  payload: AdminLlmSecretPayload,
+) {
+  return requestApiJson<{ secret: AdminLlmSecret }>(
+    "/gateway/v1/admin/llm/secrets",
+    {
+      method: "PUT",
+      accessToken,
+      body: payload,
+    },
+  )
+}
+
+export function upsertAdminPlan(accessToken: string, payload: AdminPlanPayload) {
+  return requestApiJson<{ plan: AdminPlan }>("/gateway/v1/admin/plans", {
+    method: "PUT",
+    accessToken,
+    body: payload,
+  })
+}
+
+export function listAdminPlanModelAccess(
+  accessToken: string,
+  planId: string,
+) {
+  return requestApiJson<{ access: AdminPlanModelAccess[] }>(
+    `/gateway/v1/admin/plans/${encodeURIComponent(planId)}/models`,
+    { accessToken },
+  )
+}
+
+export function upsertAdminPlanModelAccess(
+  accessToken: string,
+  payload: AdminPlanModelAccessPayload,
+) {
+  return requestApiJson<{ access: AdminPlanModelAccess }>(
+    "/gateway/v1/admin/plan-model-access",
+    {
+      method: "PUT",
+      accessToken,
+      body: payload,
+    },
+  )
+}
+
+export function listAdminUsers(accessToken: string, limit = 100, offset = 0) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  })
+  return requestApiJson<{ users: AdminUser[] }>(
+    `/gateway/v1/admin/users?${params.toString()}`,
+    { accessToken },
+  )
+}
+
+export function setAdminUserRole(
+  accessToken: string,
+  payload: { user_id: string; role: "user" | "admin" },
+) {
+  return requestApiJson<{ user: AdminUser }>("/gateway/v1/admin/users/role", {
+    method: "PUT",
+    accessToken,
+    body: payload,
+  })
+}
+
+export function listAdminUserPlanAssignments(
+  accessToken: string,
+  userId: string,
+) {
+  return requestApiJson<{ assignments: AdminUserPlanAssignment[] }>(
+    `/gateway/v1/admin/users/${encodeURIComponent(userId)}/plans`,
+    { accessToken },
+  )
+}
+
+export function assignAdminUserPlan(
+  accessToken: string,
+  payload: {
+    user_id: string
+    plan_id: string
+    status?: string
+    effective_until?: string | null
+  },
+) {
+  return requestApiJson<{ assignment: AdminUserPlanAssignment }>(
+    "/gateway/v1/admin/user-plan-assignments",
+    {
+      method: "POST",
+      accessToken,
+      body: {
+        status: "active",
+        effective_until: null,
+        ...payload,
+      },
+    },
+  )
+}
+
+export function listAdminUserMonthlyUsage(
+  accessToken: string,
+  userId: string,
+  limit = 12,
+) {
+  return requestApiJson<{ usage: AdminUserMonthlyUsage[] }>(
+    `/gateway/v1/admin/users/${encodeURIComponent(userId)}/usage/monthly?limit=${encodeURIComponent(String(limit))}`,
+    { accessToken },
   )
 }
 

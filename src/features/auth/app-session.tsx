@@ -498,6 +498,28 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+export function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { status, isBootstrapping, currentUser } = useAuthSession()
+
+  if (status === "loading" || isBootstrapping) {
+    return (
+      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+        正在加载账号会话…
+      </div>
+    )
+  }
+
+  if (status !== "authenticated") {
+    return <Navigate to="/login" replace />
+  }
+
+  if (currentUser?.role !== "admin") {
+    return <Navigate to={defaultPath} replace />
+  }
+
+  return <>{children}</>
+}
+
 export function RedirectIfAuthenticated({
   children,
 }: {

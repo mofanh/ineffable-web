@@ -82,6 +82,7 @@ import {
   PackageIcon,
   PencilIcon,
   PlusIcon,
+  ShieldIcon,
   SettingsIcon,
   SparklesIcon,
   Trash2Icon,
@@ -324,8 +325,10 @@ function SidebarEntryButton({
 }
 
 function PrimaryNav({
+  items,
   onSelectEntry,
 }: {
+  items: typeof primaryNavItems
   onSelectEntry: (entryId: string) => void
 }) {
   const location = useLocation()
@@ -335,7 +338,7 @@ function PrimaryNav({
     <SidebarGroup className="pt-1">
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
-          {primaryNavItems.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname === item.path.split("?")[0]
 
@@ -612,6 +615,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     () => workspaces.map((workspace) => workspace.id).sort().join("|"),
     [workspaces]
   )
+  const effectivePrimaryNavItems = React.useMemo(() => {
+    if (currentUser?.role !== "admin") {
+      return primaryNavItems
+    }
+
+    return [
+      ...primaryNavItems,
+      {
+        id: "system-management",
+        title: "系统管理",
+        icon: ShieldIcon,
+        path: "/system/models",
+      },
+    ]
+  }, [currentUser?.role])
 
   React.useEffect(() => {
     const match = location.pathname.match(/^\/workspace\/[^/]+\/objects\/([^/]+)/)
@@ -1232,6 +1250,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent className="px-0">
         <PrimaryNav
+          items={effectivePrimaryNavItems}
           onSelectEntry={setSelectedEntryId}
         />
         <SidebarSeparator />

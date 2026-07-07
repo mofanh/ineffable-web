@@ -162,6 +162,36 @@ routeMetaMap.set("/account", {
   breadcrumbs: [{ label: "账号" }],
 })
 
+routeMetaMap.set("/admin/llm", {
+  path: "/admin/llm",
+  title: "模型管理",
+  breadcrumbs: [{ label: "系统管理" }, { label: "模型管理" }],
+})
+
+routeMetaMap.set("/system/models", {
+  path: "/system/models",
+  title: "模型管理",
+  breadcrumbs: [{ label: "系统管理" }, { label: "模型管理" }],
+})
+
+routeMetaMap.set("/system/plans", {
+  path: "/system/plans",
+  title: "套餐管理",
+  breadcrumbs: [{ label: "系统管理" }, { label: "套餐管理" }],
+})
+
+routeMetaMap.set("/system/secrets", {
+  path: "/system/secrets",
+  title: "密钥管理",
+  breadcrumbs: [{ label: "系统管理" }, { label: "密钥管理" }],
+})
+
+routeMetaMap.set("/system/users", {
+  path: "/system/users",
+  title: "用户管理",
+  breadcrumbs: [{ label: "系统管理" }, { label: "用户管理" }],
+})
+
 routeMetaMap.set("/automation", {
   path: "/automation",
   title: "Automation",

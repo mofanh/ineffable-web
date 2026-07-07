@@ -3,10 +3,18 @@ import { Navigate, createBrowserRouter } from "react-router-dom"
 import App from "@/App"
 import {
   RedirectIfAuthenticated,
+  RequireAdmin,
   RequireAuth,
 } from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
 import { AccountPage } from "@/pages/account-pages"
+import {
+  AdminLlmSettingsPage,
+  SystemModelManagementPage,
+  SystemPlanManagementPage,
+  SystemSecretManagementPage,
+  SystemUserManagementPage,
+} from "@/pages/admin-llm-settings-page"
 import { AutomationPage } from "@/pages/agent-product-pages"
 import { LoginPage, RegisterPage } from "@/pages/auth-pages"
 import {
@@ -61,6 +69,31 @@ function PrototypeWorkbenchRedirect() {
 
 const routeElements: Record<string, React.ReactElement> = {
   "/account": <AccountPage />,
+  "/admin/llm": (
+    <RequireAdmin>
+      <AdminLlmSettingsPage />
+    </RequireAdmin>
+  ),
+  "/system/models": (
+    <RequireAdmin>
+      <SystemModelManagementPage />
+    </RequireAdmin>
+  ),
+  "/system/plans": (
+    <RequireAdmin>
+      <SystemPlanManagementPage />
+    </RequireAdmin>
+  ),
+  "/system/secrets": (
+    <RequireAdmin>
+      <SystemSecretManagementPage />
+    </RequireAdmin>
+  ),
+  "/system/users": (
+    <RequireAdmin>
+      <SystemUserManagementPage />
+    </RequireAdmin>
+  ),
   "/automation": <AutomationPage />,
   "/console/world": <ConsoleWorldHomePage />,
   "/console/world/collaboration": <CollaborationOverviewPage />,
