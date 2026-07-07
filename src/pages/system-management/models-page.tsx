@@ -67,7 +67,14 @@ export function SystemModelManagementPage() {
       const result = await listAdminModelProfiles(accessToken)
       setModels(result.profiles)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载失败")
+      const appError = normalizeAppError(loadError, {
+        fallbackMessage: "加载失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "加载模型失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
@@ -177,9 +184,20 @@ export function SystemModelManagementPage() {
         ...current.filter((item) => item.id !== result.profile.id),
       ])
       setMessage(`模型已保存：${result.profile.display_name}`)
+      notify.success({
+        title: "模型已保存",
+        description: result.profile.display_name,
+      })
       setDialogOpen(false)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存失败")
+      const appError = normalizeAppError(saveError, {
+        fallbackMessage: "保存失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "保存模型失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }

@@ -16,6 +16,8 @@ import {
   upsertAdminLlmSecret,
   type AdminLlmSecret,
 } from "@/lib/api/api-client"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
@@ -46,7 +48,14 @@ export function SystemSecretManagementPage() {
       const result = await listAdminLlmSecrets(accessToken)
       setSecrets(result.secrets)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载失败")
+      const appError = normalizeAppError(loadError, {
+        fallbackMessage: "加载失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "加载密钥失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
@@ -118,9 +127,20 @@ export function SystemSecretManagementPage() {
         ...current.filter((item) => item.secret_ref !== result.secret.secret_ref),
       ])
       setMessage(`密钥已保存：${result.secret.secret_ref}`)
+      notify.success({
+        title: "密钥已保存",
+        description: result.secret.secret_ref,
+      })
       setDialogOpen(false)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存失败")
+      const appError = normalizeAppError(saveError, {
+        fallbackMessage: "保存失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "保存密钥失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }

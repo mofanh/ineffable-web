@@ -22,6 +22,8 @@ import {
   type AdminUserMonthlyUsage,
   type AdminUserPlanAssignment,
 } from "@/lib/api/api-client"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
@@ -71,7 +73,14 @@ export function SystemUserManagementPage() {
           : (planResult.plans[0]?.id ?? ""),
       )
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载失败")
+      const appError = normalizeAppError(loadError, {
+        fallbackMessage: "加载失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "加载用户失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
@@ -101,7 +110,14 @@ export function SystemUserManagementPage() {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "加载失败")
+          const appError = normalizeAppError(loadError, {
+            fallbackMessage: "加载失败",
+          })
+          setError(appError.message)
+          notify.error({
+            title: "加载用户明细失败",
+            description: appError.message,
+          })
         }
       })
 
@@ -184,9 +200,20 @@ export function SystemUserManagementPage() {
       }
 
       setMessage(`用户已保存：${roleResult.user.email}`)
+      notify.success({
+        title: "用户已保存",
+        description: roleResult.user.email,
+      })
       setDialogOpen(false)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存失败")
+      const appError = normalizeAppError(saveError, {
+        fallbackMessage: "保存失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "保存用户失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }

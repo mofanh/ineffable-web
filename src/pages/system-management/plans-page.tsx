@@ -81,7 +81,14 @@ export function SystemPlanManagementPage() {
           : (planResult.plans.find((plan) => !plan.archived_at)?.id ?? "free"),
       )
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载失败")
+      const appError = normalizeAppError(loadError, {
+        fallbackMessage: "加载失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "加载套餐失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
@@ -104,7 +111,14 @@ export function SystemPlanManagementPage() {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "加载失败")
+          const appError = normalizeAppError(loadError, {
+            fallbackMessage: "加载失败",
+          })
+          setError(appError.message)
+          notify.error({
+            title: "加载套餐权限失败",
+            description: appError.message,
+          })
         }
       })
 
@@ -191,9 +205,20 @@ export function SystemPlanManagementPage() {
       ])
       setSelectedPlanId(result.plan.id)
       setMessage(`套餐已保存：${result.plan.display_name}`)
+      notify.success({
+        title: "套餐已保存",
+        description: result.plan.display_name,
+      })
       setDialogOpen(false)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存失败")
+      const appError = normalizeAppError(saveError, {
+        fallbackMessage: "保存失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "保存套餐失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
@@ -251,8 +276,19 @@ export function SystemPlanManagementPage() {
         ...current.filter((item) => item.model_profile_id !== modelId),
       ])
       setMessage(`权限已保存：${selectedPlanId} / ${modelId}`)
+      notify.success({
+        title: "套餐权限已保存",
+        description: `${selectedPlanId} / ${modelId}`,
+      })
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "保存失败")
+      const appError = normalizeAppError(saveError, {
+        fallbackMessage: "保存失败",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "保存套餐权限失败",
+        description: appError.message,
+      })
     } finally {
       setState("idle")
     }
