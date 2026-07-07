@@ -62,6 +62,9 @@ import {
   WORKSPACE_OBJECTS_CHANGED_EVENT,
   type WorkspaceObjectsChangedEvent,
 } from "@/lib/workspace-events"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
+import { notify } from "@/lib/app/notifications"
 import {
   BadgeCheckIcon,
   BellIcon,
@@ -719,6 +722,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [treeError, setTreeError] = React.useState<string | null>(null)
   const [pendingInvitationCount, setPendingInvitationCount] = React.useState(0)
   const loadedWorkspaceTreeKeyRef = React.useRef("")
+  const reportActionError = React.useCallback(
+    (caught: unknown, fallbackMessage: string, title: string) => {
+      const appError = normalizeAppError(caught, { fallbackMessage })
+      notify.error({
+        title,
+        description: appError.message,
+      })
+      return appError.message
+    },
+    []
+  )
   const workspaceTreeKey = React.useMemo(
     () => workspaces.map((workspace) => workspace.id).sort().join("|"),
     [workspaces]
@@ -924,7 +938,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const getSectionWorkspace = React.useCallback(
     (sectionWorkspaces: Workspace[]) => {
       if (!sectionWorkspaces.length) {
-        window.alert("No workspace available.")
+        notify.warning({ title: "No workspace available." })
         return null
       }
 
@@ -993,11 +1007,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           workspaceIds: [workspace.id],
           showLoading: false,
         })
+        notify.success({
+          title: kind === "file" ? "File created" : "Folder created",
+          description: response.object.name,
+        })
       } catch (error) {
-        window.alert(error instanceof Error ? error.message : "Create failed")
+        reportActionError(error, "Create failed", "Create failed")
       }
     },
-    [accessToken, navigate, refreshWorkspaceTrees]
+    [accessToken, navigate, refreshWorkspaceTrees, reportActionError]
   )
 
   const duplicateObject = React.useCallback(
@@ -1110,6 +1128,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
         if (action === "copy-link") {
           await navigator.clipboard?.writeText(url)
+          notify.info({ title: "Link copied" })
           return
         }
 
@@ -1126,6 +1145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               JSON.stringify({ workspace, objects }, null, 2),
               "application/json"
             )
+            notify.info({ title: "Workspace exported" })
             return
           }
 
@@ -1140,6 +1160,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               response.content,
               item.object.mime_type || "text/plain"
             )
+            notify.info({ title: "File exported" })
             return
           }
 
@@ -1152,6 +1173,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             JSON.stringify({ folder: item.object, objects }, null, 2),
             "application/json"
           )
+          notify.info({ title: "Folder exported" })
           return
         }
 
@@ -1165,6 +1187,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
+          notify.success({ title: "Object duplicated" })
           return
         }
 
@@ -1185,6 +1208,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           await refreshWorkspaceTrees({
             workspaceIds: [item.workspaceId],
             showLoading: false,
+          })
+          notify.success({
+            title: "Object renamed",
+            description: response.object.name,
           })
           return
         }
@@ -1207,7 +1234,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               )
             : null
           if (normalizedPath && !targetFolder) {
-            window.alert("Target folder not found.")
+            notify.error({
+              title: "Move failed",
+              description: "Target folder not found.",
+            })
             return
           }
 
@@ -1222,11 +1252,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
+          notify.success({
+            title: "Object moved",
+            description: response.object.path,
+          })
           return
         }
 
         if (action === "delete") {
-          const confirmed = window.confirm(`Delete "${item.object.name}"?`)
+          const confirmed = await confirm({
+            title: `Delete "${item.object.name}"?`,
+            description: "This object will be removed from the workspace.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+          })
           if (!confirmed) {
             return
           }
@@ -1237,9 +1276,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
+          notify.success({ title: "Object deleted" })
         }
       } catch (error) {
-        window.alert(error instanceof Error ? error.message : "Action failed")
+        reportActionError(error, "Action failed", "Action failed")
       }
     },
     [
@@ -1247,6 +1287,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       createObject,
       duplicateObject,
       refreshWorkspaceTrees,
+      reportActionError,
       workspaceTrees,
       workspaces,
     ]
@@ -1264,18 +1305,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       if (action === "copy-link") {
         if (!selectedTeam) {
-          window.alert("No team space available.")
+          notify.warning({ title: "No team space available." })
           return
         }
         void navigator.clipboard?.writeText(
           `${window.location.origin}?workspace=${selectedTeam.id}`
         )
+        notify.info({ title: "Team space link copied" })
         return
       }
 
       if (action === "open-new-tab") {
         if (!selectedTeam) {
-          window.alert("No team space available.")
+          notify.warning({ title: "No team space available." })
           return
         }
         window.open(
@@ -1300,7 +1342,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      window.alert("Team Space actions are coming next.")
+      notify.info({ title: "Team Space actions are coming next." })
     },
     [currentWorkspace, navigate, teamWorkspaces]
   )
