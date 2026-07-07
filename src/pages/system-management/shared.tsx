@@ -2,7 +2,6 @@ import * as React from "react"
 import { ShieldIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { WorkbenchPage, type MetricCard } from "@/components/workbench"
 import {
   type AdminModelProfilePayload,
@@ -106,31 +105,6 @@ export function Field({
     <label className="grid gap-1.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
       {children}
-    </label>
-  )
-}
-
-export function ToggleField({
-  label,
-  checked,
-  disabled,
-  onCheckedChange,
-}: {
-  label: string
-  checked: boolean
-  disabled?: boolean
-  onCheckedChange: (checked: boolean) => void
-}) {
-  return (
-    <label className="flex min-h-10 items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
-      <span className={disabled ? "text-muted-foreground" : undefined}>
-        {label}
-      </span>
-      <Switch
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-      />
     </label>
   )
 }

@@ -2,8 +2,11 @@ import * as React from "react"
 import { Search } from "lucide-react"
 
 import { useAppHeader } from "@/app/shell/app-header-context"
-import { AppDialog, type AppDialogMaxWidth } from "@/components/app"
-import { Badge } from "@/components/ui/badge"
+import {
+  AppDialog,
+  StatusBadge,
+  type AppDialogMaxWidth,
+} from "@/components/app"
 import {
   Card,
   CardContent,
@@ -177,27 +180,7 @@ export function EmptyState({ title, detail }: { title: string; detail: string })
   )
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  const active =
-    status === "active" || status === "triggered" || status === "enabled"
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "bg-background/70 text-xs",
-        active ? "text-emerald-500" : "text-muted-foreground",
-      )}
-    >
-      <span
-        className={cn(
-          "mr-1 size-1.5 rounded-full",
-          active ? "bg-emerald-500" : "bg-muted-foreground",
-        )}
-      />
-      {status}
-    </Badge>
-  )
-}
+export { StatusBadge }
 
 export function SearchBar({
   value,

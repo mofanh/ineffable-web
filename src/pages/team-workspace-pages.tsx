@@ -24,6 +24,7 @@ import {
   FormField,
   FormSection,
   Notice,
+  StatusBadge,
 } from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -667,20 +668,6 @@ function Metric({
         ) : null}
       </div>
     </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const color =
-    status === "active" || status === "accepted"
-      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-      : status === "pending"
-        ? "border-orange-500/20 bg-orange-500/10 text-orange-400"
-        : "border-destructive/20 bg-destructive/10 text-destructive"
-  return (
-    <span className={`inline-flex w-fit rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${color}`}>
-      {status}
-    </span>
   )
 }
 

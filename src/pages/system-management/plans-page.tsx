@@ -8,6 +8,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { ToggleField } from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -39,7 +40,6 @@ import {
   AdminAccessDenied,
   Field,
   SystemPageShell,
-  ToggleField,
   emptyPlan,
   modelAccessFor,
   normalizeAccess,

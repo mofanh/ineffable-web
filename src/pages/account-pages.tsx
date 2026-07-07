@@ -1,5 +1,21 @@
 import * as React from "react"
+import {
+  BadgeCheckIcon,
+  BellIcon,
+  LaptopIcon,
+  ShieldCheckIcon,
+  SmartphoneIcon,
+} from "lucide-react"
 
+import {
+  AppPage,
+  AsyncButton,
+  DataState,
+  FormField,
+  FormSection,
+  Notice,
+  StatusBadge,
+} from "@/components/app"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,13 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -25,13 +34,9 @@ import {
   revokeAuthSession,
   type UserSessionRecord,
 } from "@/features/auth/api/auth-api"
-import {
-  BadgeCheckIcon,
-  BellIcon,
-  LaptopIcon,
-  ShieldCheckIcon,
-  SmartphoneIcon,
-} from "lucide-react"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { notify } from "@/lib/app/notifications"
+import { useApiResource } from "@/lib/app/use-api-resource"
 
 function buildAvatarFallback(name: string, email: string) {
   const base = name || email || "IU"
@@ -62,18 +67,15 @@ function formatTimestamp(value?: string | null) {
   }).format(date)
 }
 
-function detectDeviceIcon(userAgent?: string | null) {
+function isMobileUserAgent(userAgent?: string | null) {
   const ua = (userAgent || "").toLowerCase()
-  if (ua.includes("iphone") || ua.includes("android") || ua.includes("mobile")) {
-    return SmartphoneIcon
-  }
-
-  return LaptopIcon
+  return ua.includes("iphone") || ua.includes("android") || ua.includes("mobile")
 }
 
 function buildSessionLabel(session: UserSessionRecord) {
   const userAgent = session.user_agent || "未知客户端"
-  const trimmedAgent = userAgent.length > 56 ? `${userAgent.slice(0, 56)}...` : userAgent
+  const trimmedAgent =
+    userAgent.length > 56 ? `${userAgent.slice(0, 56)}...` : userAgent
   const ip = session.ip_address ? ` · ${session.ip_address}` : ""
   return `${trimmedAgent}${ip}`
 }
@@ -86,45 +88,28 @@ export function AccountPage() {
     currentWorkspace,
     refreshAppData,
   } = useAppSession()
-
-  const [sessions, setSessions] = React.useState<UserSessionRecord[]>([])
-  const [sessionsError, setSessionsError] = React.useState<string | null>(null)
-  const [isLoadingSessions, setIsLoadingSessions] = React.useState(false)
-  const [revokingSessionId, setRevokingSessionId] = React.useState<string | null>(null)
+  const [actionError, setActionError] = React.useState<string | null>(null)
+  const [revokingSessionId, setRevokingSessionId] = React.useState<string | null>(
+    null
+  )
 
   const loadSessions = React.useCallback(async () => {
     if (!accessToken) {
-      setSessions([])
-      return
+      return { sessions: [] as UserSessionRecord[] }
     }
 
-    setIsLoadingSessions(true)
-    setSessionsError(null)
-
-    try {
-      const response = await fetchAuthSessions(accessToken, currentWorkspace?.id)
-      setSessions(response.sessions)
-    } catch (error) {
-      setSessionsError(error instanceof Error ? error.message : "加载登录会话失败。")
-    } finally {
-      setIsLoadingSessions(false)
-    }
+    return fetchAuthSessions(accessToken, currentWorkspace?.id)
   }, [accessToken, currentWorkspace?.id])
 
-  React.useEffect(() => {
-    void loadSessions()
-  }, [loadSessions])
+  const sessionsResource = useApiResource({
+    enabled: Boolean(accessToken),
+    load: loadSessions,
+    errorMessage: "加载登录会话失败。",
+  })
+  const sessions = sessionsResource.data?.sessions ?? []
 
-  if (!currentUser) {
-    return (
-      <div className="flex min-h-[320px] items-center justify-center text-sm text-muted-foreground">
-        正在加载账号资料…
-      </div>
-    )
-  }
-
-  const displayName = currentUser.display_name || currentUser.email
-  const avatarFallback = buildAvatarFallback(displayName, currentUser.email)
+  const displayName = currentUser?.display_name || currentUser?.email || ""
+  const avatarFallback = buildAvatarFallback(displayName, currentUser?.email || "")
 
   async function handleRevokeSession(sessionId: string) {
     if (!accessToken) {
@@ -132,26 +117,47 @@ export function AccountPage() {
     }
 
     setRevokingSessionId(sessionId)
-    setSessionsError(null)
+    setActionError(null)
 
     try {
       await revokeAuthSession(accessToken, sessionId, currentWorkspace?.id)
-      await Promise.all([loadSessions(), refreshAppData()])
+      await Promise.all([sessionsResource.reload(), refreshAppData()])
+      notify.success({ title: "登录会话已吊销" })
     } catch (error) {
-      setSessionsError(error instanceof Error ? error.message : "吊销会话失败。")
+      const appError = normalizeAppError(error, {
+        fallbackMessage: "吊销会话失败。",
+      })
+      setActionError(appError.message)
+      notify.error({
+        title: "吊销会话失败",
+        description: appError.message,
+      })
     } finally {
       setRevokingSessionId(null)
     }
   }
 
+  if (!currentUser) {
+    return (
+      <AppPage title="账号设置" description="正在读取当前登录用户和工作区上下文。">
+        <DataState state="loading" empty={false}>正在加载账号资料…</DataState>
+      </AppPage>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <AppPage
+      title="账号设置"
+      description="管理当前账号资料、登录会话和安全偏好。"
+    >
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="bg-muted/35">
-          <CardHeader className="gap-4 md:grid-cols-[auto_1fr_auto] md:items-center">
+          <CardHeader className="gap-4 md:grid md:grid-cols-[auto_1fr_auto] md:items-center">
             <Avatar className="size-16 rounded-2xl border border-border/80">
               <AvatarImage src={currentUser.avatar_url || ""} alt={displayName} />
-              <AvatarFallback className="rounded-2xl">{avatarFallback}</AvatarFallback>
+              <AvatarFallback className="rounded-2xl">
+                {avatarFallback}
+              </AvatarFallback>
             </Avatar>
             <div>
               <CardTitle className="text-xl">{displayName}</CardTitle>
@@ -163,120 +169,99 @@ export function AccountPage() {
               暂未开放资料修改
             </Button>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <FieldGroup>
+          <CardContent>
+            <FormSection>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="account-name">显示名称</FieldLabel>
-                  <FieldContent>
-                    <Input id="account-name" value={displayName} readOnly />
-                    <FieldDescription>当前直接读取 `/auth/me` 返回的用户资料。</FieldDescription>
-                  </FieldContent>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="account-phone">联系电话</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      id="account-phone"
-                      value={currentUser.phone || "未设置"}
-                      readOnly
-                    />
-                    <FieldDescription>后续可接真实资料更新接口。</FieldDescription>
-                  </FieldContent>
-                </Field>
-              </div>
-
-              <Field>
-                <FieldLabel htmlFor="account-email">登录邮箱</FieldLabel>
-                <FieldContent>
-                  <Input id="account-email" type="email" value={currentUser.email} readOnly />
-                  <FieldDescription>当前账号主标识。</FieldDescription>
-                </FieldContent>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="account-workspace">当前 Workspace</FieldLabel>
-                <FieldContent>
+                <FormField
+                  label="显示名称"
+                  description="当前直接读取 /auth/me 返回的用户资料。"
+                >
+                  <Input id="account-name" value={displayName} readOnly />
+                </FormField>
+                <FormField
+                  label="联系电话"
+                  description="后续可接真实资料更新接口。"
+                >
                   <Input
-                    id="account-workspace"
-                    value={currentWorkspace?.name || "未绑定"}
+                    id="account-phone"
+                    value={currentUser.phone || "未设置"}
                     readOnly
                   />
-                  <FieldDescription>Workspace 信息来自当前登录上下文。</FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldGroup>
+                </FormField>
+              </div>
+
+              <FormField label="登录邮箱" description="当前账号主标识。">
+                <Input
+                  id="account-email"
+                  type="email"
+                  value={currentUser.email}
+                  readOnly
+                />
+              </FormField>
+
+              <FormField
+                label="当前 Workspace"
+                description="Workspace 信息来自当前登录上下文。"
+              >
+                <Input
+                  id="account-workspace"
+                  value={currentWorkspace?.name || "未绑定"}
+                  readOnly
+                />
+              </FormField>
+            </FormSection>
           </CardContent>
         </Card>
 
         <div className="space-y-4">
-          <Card className="bg-muted/35">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldCheckIcon className="size-4" />
-                安全设置
-              </CardTitle>
-              <CardDescription>账号保护项和登录策略。</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium">双重验证</p>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    当前仅保留前端占位，后续接真实安全接口。
-                  </p>
-                </div>
-                <Switch checked={false} disabled />
-              </div>
-              <Separator />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium">陌生设备提醒</p>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    当前会话列表已接通，可作为风控基础数据来源。
-                  </p>
-                </div>
-                <Switch checked disabled />
-              </div>
-              <Separator />
+          <PreferenceCard
+            icon={ShieldCheckIcon}
+            title="安全设置"
+            description="账号保护项和登录策略。"
+            items={[
+              {
+                label: "双重验证",
+                description: "当前仅保留前端占位，后续接真实安全接口。",
+                checked: false,
+                disabled: true,
+              },
+              {
+                label: "陌生设备提醒",
+                description: "当前会话列表已接通，可作为风控基础数据来源。",
+                checked: true,
+                disabled: true,
+              },
+            ]}
+            footer={
               <Button variant="outline" className="w-full" disabled>
                 密码修改接口待接入
               </Button>
-            </CardContent>
-          </Card>
+            }
+          />
 
-          <Card className="bg-muted/35">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BellIcon className="size-4" />
-                通知偏好
-              </CardTitle>
-              <CardDescription>账号级别通知和审批提醒。</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium">邮件通知</p>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    后续可与 workspace 邀请、账单和权限变更联动。
-                  </p>
-                </div>
-                <Switch checked disabled />
-              </div>
-              <Separator />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium">产品内提醒</p>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    当前为静态配置位，待接偏好保存接口。
-                  </p>
-                </div>
-                <Switch checked disabled />
-              </div>
-            </CardContent>
-          </Card>
+          <PreferenceCard
+            icon={BellIcon}
+            title="通知偏好"
+            description="账号级别通知和审批提醒。"
+            items={[
+              {
+                label: "邮件通知",
+                description: "后续可与 workspace 邀请、账单和权限变更联动。",
+                checked: true,
+                disabled: true,
+              },
+              {
+                label: "产品内提醒",
+                description: "当前为静态配置位，待接偏好保存接口。",
+                checked: true,
+                disabled: true,
+              },
+            ]}
+          />
         </div>
       </div>
+
+      {actionError ? <Notice tone="error">{actionError}</Notice> : null}
 
       <Card className="bg-muted/35">
         <CardHeader>
@@ -284,71 +269,141 @@ export function AccountPage() {
             <BadgeCheckIcon className="size-4" />
             登录会话
           </CardTitle>
-          <CardDescription>当前直接读取 `/auth/sessions` 返回的真实会话列表。</CardDescription>
+          <CardDescription>
+            当前直接读取 /auth/sessions 返回的真实会话列表。
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {sessionsError ? (
-            <p className="text-sm text-destructive">{sessionsError}</p>
-          ) : null}
-
-          {isLoadingSessions ? (
-            <p className="text-sm text-muted-foreground">正在加载登录会话…</p>
-          ) : sessions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">当前没有可展示的登录会话。</p>
-          ) : (
+        <CardContent>
+          <DataState
+            state={sessionsResource.state}
+            error={sessionsResource.error}
+            empty={sessions.length === 0}
+            emptyTitle="当前没有可展示的登录会话。"
+            onRetry={() => void sessionsResource.reload()}
+          >
             <div className="grid gap-3">
-              {sessions.map((session) => {
-                const DeviceIcon = detectDeviceIcon(session.user_agent)
-                const isCurrent = currentSessionId === session.id
-
-                return (
-                  <div
-                    key={session.id}
-                    className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-background/80 p-4 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex size-10 items-center justify-center rounded-2xl bg-muted text-foreground">
-                        <DeviceIcon className="size-4" />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium">
-                            {isCurrent ? "当前会话" : "历史会话"}
-                          </p>
-                          <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                            {session.status}
-                          </span>
-                        </div>
-                        <p className="text-sm leading-6 text-muted-foreground">
-                          {buildSessionLabel(session)}
-                        </p>
-                        <p className="text-xs leading-5 text-muted-foreground">
-                          最近活跃：{formatTimestamp(session.last_seen_at)}
-                          {" · "}
-                          过期时间：{formatTimestamp(session.expires_at)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          void handleRevokeSession(session.id)
-                        }}
-                        disabled={revokingSessionId === session.id || isCurrent}
-                      >
-                        {revokingSessionId === session.id ? "处理中..." : isCurrent ? "当前会话" : "吊销"}
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
+              {sessions.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  isCurrent={currentSessionId === session.id}
+                  isRevoking={revokingSessionId === session.id}
+                  onRevoke={() => void handleRevokeSession(session.id)}
+                />
+              ))}
             </div>
-          )}
+          </DataState>
         </CardContent>
       </Card>
+    </AppPage>
+  )
+}
+
+function PreferenceCard({
+  icon: Icon,
+  title,
+  description,
+  items,
+  footer,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  description: string
+  items: Array<{
+    label: string
+    description: string
+    checked: boolean
+    disabled?: boolean
+  }>
+  footer?: React.ReactNode
+}) {
+  return (
+    <Card className="bg-muted/35">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Icon className="size-4" />
+          {title}
+        </CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {items.map((item, index) => (
+          <React.Fragment key={item.label}>
+            {index > 0 ? <Separator /> : null}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-medium">{item.label}</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {item.description}
+                </p>
+              </div>
+              <Switch checked={item.checked} disabled={item.disabled} />
+            </div>
+          </React.Fragment>
+        ))}
+        {footer ? (
+          <>
+            <Separator />
+            {footer}
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function SessionRow({
+  session,
+  isCurrent,
+  isRevoking,
+  onRevoke,
+}: {
+  session: UserSessionRecord
+  isCurrent: boolean
+  isRevoking: boolean
+  onRevoke: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-border/70 bg-background/80 p-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex items-start gap-3">
+        <div className="flex size-10 items-center justify-center rounded-md bg-muted text-foreground">
+          <SessionDeviceIcon userAgent={session.user_agent} />
+        </div>
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium">{isCurrent ? "当前会话" : "历史会话"}</p>
+            <StatusBadge status={session.status} />
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {buildSessionLabel(session)}
+          </p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            最近活跃：{formatTimestamp(session.last_seen_at)}
+            {" · "}
+            过期时间：{formatTimestamp(session.expires_at)}
+          </p>
+        </div>
+      </div>
+
+      <AsyncButton
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onRevoke}
+        isLoading={isRevoking}
+        loadingLabel="处理中..."
+        disabled={isCurrent}
+      >
+        {isCurrent ? "当前会话" : "吊销"}
+      </AsyncButton>
     </div>
   )
+}
+
+function SessionDeviceIcon({ userAgent }: { userAgent?: string | null }) {
+  if (isMobileUserAgent(userAgent)) {
+    return <SmartphoneIcon className="size-4" />
+  }
+
+  return <LaptopIcon className="size-4" />
 }
