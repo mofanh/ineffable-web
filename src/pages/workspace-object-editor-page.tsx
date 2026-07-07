@@ -61,6 +61,9 @@ import {
   WORKSPACE_OBJECTS_CHANGED_EVENT,
   type WorkspaceObjectsChangedEvent,
 } from "@/lib/workspace-events"
+import { normalizeAppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
+import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
 import { defaultPath } from "@/routes/navigation"
 
@@ -384,6 +387,19 @@ export function WorkspaceObjectEditorPage() {
         ? "Saved just now"
         : formatRelativeEditedAt(object?.updated_at, now)
 
+  const reportActionError = React.useCallback(
+    (caught: unknown, fallbackMessage: string, title: string) => {
+      const appError = normalizeAppError(caught, { fallbackMessage })
+      setError(appError.message)
+      notify.error({
+        title,
+        description: appError.message,
+      })
+      return appError.message
+    },
+    []
+  )
+
   const loadVersions = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) {
       return
@@ -539,15 +555,14 @@ export function WorkspaceObjectEditorPage() {
         source: "user",
       })
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "Save failed"
-      setError(message)
+      const message = reportActionError(saveError, "Save failed", "Save failed")
       if (message.toLowerCase().includes("conflict")) {
         setSaveState("conflict")
       }
     } finally {
       setIsSaving(false)
     }
-  }, [accessToken, content, isDirty, loadVersions, object, objectId, version, workspaceId])
+  }, [accessToken, content, isDirty, loadVersions, object, objectId, reportActionError, version, workspaceId])
 
   const previewHistoricalVersion = React.useCallback(
     async (targetVersion: WorkspaceObjectVersion) => {
@@ -566,16 +581,16 @@ export function WorkspaceObjectEditorPage() {
         setPreviewVersion(targetVersion)
         setPreviewContent(response.content)
       } catch (previewError) {
-        setError(
-          previewError instanceof Error
-            ? previewError.message
-            : "Failed to load version content"
+        reportActionError(
+          previewError,
+          "Failed to load version content",
+          "Preview failed"
         )
       } finally {
         setIsPreviewLoading(false)
       }
     },
-    [accessToken, workspaceId]
+    [accessToken, reportActionError, workspaceId]
   )
 
   const restoreHistoricalVersion = React.useCallback(
@@ -584,7 +599,11 @@ export function WorkspaceObjectEditorPage() {
         return
       }
 
-      const confirmed = window.confirm(`Restore v${targetVersion.version_no}?`)
+      const confirmed = await confirm({
+        title: `Restore v${targetVersion.version_no}?`,
+        description: "The current file content will be replaced by this version.",
+        confirmLabel: "Restore",
+      })
       if (!confirmed) {
         return
       }
@@ -626,10 +645,16 @@ export function WorkspaceObjectEditorPage() {
           versionId: response.version.id,
           source: "user",
         })
+        notify.success({
+          title: "Version restored",
+          description: `Restored v${targetVersion.version_no}.`,
+        })
       } catch (restoreError) {
-        const message =
-          restoreError instanceof Error ? restoreError.message : "Restore failed"
-        setError(message)
+        const message = reportActionError(
+          restoreError,
+          "Restore failed",
+          "Restore failed"
+        )
         if (message.toLowerCase().includes("conflict")) {
           setSaveState("conflict")
         }
@@ -637,7 +662,7 @@ export function WorkspaceObjectEditorPage() {
         setIsSaving(false)
       }
     },
-    [accessToken, loadVersions, objectId, version, workspaceId]
+    [accessToken, loadVersions, objectId, reportActionError, version, workspaceId]
   )
 
   const saveAsFile = React.useCallback(async () => {
@@ -674,13 +699,17 @@ export function WorkspaceObjectEditorPage() {
         versionId: response.version.id,
         source: "user",
       })
+      notify.success({
+        title: "File created",
+        description: `Created ${response.object.name}.`,
+      })
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (saveAsError) {
-      setError(saveAsError instanceof Error ? saveAsError.message : "Save as failed")
+      reportActionError(saveAsError, "Save as failed", "Save as failed")
     } finally {
       setIsSaving(false)
     }
-  }, [accessToken, content, navigate, object, workspaceId])
+  }, [accessToken, content, navigate, object, reportActionError, workspaceId])
 
   const duplicateObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -710,13 +739,15 @@ export function WorkspaceObjectEditorPage() {
         versionId: response.version.id,
         source: "user",
       })
+      notify.success({
+        title: "File duplicated",
+        description: `Created ${response.object.name}.`,
+      })
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (duplicateError) {
-      window.alert(
-        duplicateError instanceof Error ? duplicateError.message : "Duplicate failed"
-      )
+      reportActionError(duplicateError, "Duplicate failed", "Duplicate failed")
     }
-  }, [accessToken, navigate, object, savedContent, workspaceId, workspaceObjects])
+  }, [accessToken, navigate, object, reportActionError, savedContent, workspaceId, workspaceObjects])
 
   const renameObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -746,10 +777,14 @@ export function WorkspaceObjectEditorPage() {
         action: "rename_move",
         source: "user",
       })
+      notify.success({
+        title: "File renamed",
+        description: `Renamed to ${response.object.name}.`,
+      })
     } catch (renameError) {
-      window.alert(renameError instanceof Error ? renameError.message : "Rename failed")
+      reportActionError(renameError, "Rename failed", "Rename failed")
     }
-  }, [accessToken, loadWorkspaceTree, object, workspaceId])
+  }, [accessToken, loadWorkspaceTree, object, reportActionError, workspaceId])
 
   const moveObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -773,7 +808,8 @@ export function WorkspaceObjectEditorPage() {
         )
       : null
     if (normalizedPath && !targetFolder) {
-      window.alert("Target folder not found.")
+      setError("Target folder not found.")
+      notify.error({ title: "Move failed", description: "Target folder not found." })
       return
     }
 
@@ -794,17 +830,26 @@ export function WorkspaceObjectEditorPage() {
         action: "rename_move",
         source: "user",
       })
+      notify.success({
+        title: "File moved",
+        description: response.object.path,
+      })
     } catch (moveError) {
-      window.alert(moveError instanceof Error ? moveError.message : "Move failed")
+      reportActionError(moveError, "Move failed", "Move failed")
     }
-  }, [accessToken, loadWorkspaceTree, object, workspaceId, workspaceObjects])
+  }, [accessToken, loadWorkspaceTree, object, reportActionError, workspaceId, workspaceObjects])
 
   const deleteObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
       return
     }
 
-    const confirmed = window.confirm(`Delete "${object.name}"?`)
+    const confirmed = await confirm({
+      title: `Delete "${object.name}"?`,
+      description: "This file will be removed from the workspace.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
     if (!confirmed) {
       return
     }
@@ -821,9 +866,9 @@ export function WorkspaceObjectEditorPage() {
       })
       navigate(defaultPath)
     } catch (deleteError) {
-      window.alert(deleteError instanceof Error ? deleteError.message : "Delete failed")
+      reportActionError(deleteError, "Delete failed", "Delete failed")
     }
-  }, [accessToken, navigate, object, workspaceId])
+  }, [accessToken, navigate, object, reportActionError, workspaceId])
 
   const copyLink = React.useCallback(async () => {
     if (!workspaceId || !object) {
@@ -832,6 +877,7 @@ export function WorkspaceObjectEditorPage() {
 
     const url = `${window.location.origin}/workspace/${workspaceId}/objects/${object.id}`
     await navigator.clipboard?.writeText(url)
+    notify.info({ title: "Link copied" })
   }, [object, workspaceId])
 
   const openNewTab = React.useCallback(() => {
