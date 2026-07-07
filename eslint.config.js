@@ -19,5 +19,24 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'alert',
+          message:
+            'Use the app notification service from src/lib/app/notifications instead of window.alert.',
+        },
+        {
+          object: 'window',
+          property: 'confirm',
+          message:
+            'Use the app confirmation service from src/lib/app/confirm instead of window.confirm.',
+        },
+      ],
+    },
   },
 ])
