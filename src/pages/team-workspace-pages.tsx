@@ -16,6 +16,7 @@ import {
 
 import { AppPage, DataState, Notice } from "@/components/app"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   acceptWorkspaceInvitationById,
@@ -33,6 +34,7 @@ import {
   type WorkspaceMembership,
 } from "@/features/workspace/api/workspace-api"
 import { normalizeAppError, type AppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 
 const roleOptions = ["admin", "member", "viewer"] as const
@@ -58,53 +60,6 @@ function initials(value: string) {
     .map((part) => part[0]?.toUpperCase())
     .join("")
     .padEnd(2, "A")
-}
-
-function PageShell({
-  title,
-  description,
-  children,
-}: {
-  title: string
-  description: string
-  children: React.ReactNode
-}) {
-  return (
-    <main className="flex min-h-full flex-col overflow-y-auto bg-background px-6 py-8">
-      <div className="mx-auto w-full max-w-5xl space-y-8">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
-        </div>
-        {children}
-      </div>
-    </main>
-  )
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
-      {children}
-    </label>
-  )
-}
-
-function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={[
-        "h-11 w-full rounded-lg border border-border bg-muted/40 px-3 text-sm outline-none",
-        "transition-colors placeholder:text-muted-foreground/55 focus:border-foreground",
-        props.className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    />
-  )
 }
 
 export function CreateTeamWorkspacePage() {
@@ -163,9 +118,20 @@ export function CreateTeamWorkspacePage() {
         )
         await refreshAppData()
         await selectWorkspace(workspaceId)
+        notify.success({
+          title: "Workspace created",
+          description: `${name} is ready.`,
+        })
         navigate(`/team-spaces/${workspaceId}/members`)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Create workspace failed.")
+        const appError = normalizeAppError(err, {
+          fallbackMessage: "Create workspace failed.",
+        })
+        setError(appError.message)
+        notify.error({
+          title: "Create workspace failed",
+          description: appError.message,
+        })
       } finally {
         setIsSubmitting(false)
       }
@@ -174,22 +140,27 @@ export function CreateTeamWorkspacePage() {
   )
 
   return (
-    <PageShell
+    <AppPage
       title="Create Team Workspace"
       description="Initialize a shared environment for collaborators, workspace artifacts, and shared project context."
     >
       <form onSubmit={submit} className="max-w-2xl space-y-8">
         <div className="space-y-2">
-          <FieldLabel>Team Name</FieldLabel>
-          <TextInput
+          <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
+            Team Name
+          </label>
+          <Input
             value={teamName}
             onChange={(event) => setTeamName(event.target.value)}
             placeholder="e.g. Core Engineering"
+            className="h-11 bg-muted/40"
           />
         </div>
 
         <div className="space-y-3">
-          <FieldLabel>Primary Purpose</FieldLabel>
+          <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
+            Primary Purpose
+          </label>
           <div className="grid gap-3 sm:grid-cols-2">
             {purposeOptions.map((option) => (
               <button
@@ -217,13 +188,15 @@ export function CreateTeamWorkspacePage() {
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <FieldLabel>Initial Members</FieldLabel>
+            <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
+              Initial Members
+            </label>
             <span className="font-mono text-[11px] text-muted-foreground">
               {members.length}/20 USERS
             </span>
           </div>
           <div className="flex gap-2">
-            <TextInput
+            <Input
               value={memberEmail}
               onChange={(event) => setMemberEmail(event.target.value)}
               onKeyDown={(event) => {
@@ -234,14 +207,16 @@ export function CreateTeamWorkspacePage() {
               }}
               placeholder="Invite by email..."
               type="email"
+              className="h-11 bg-muted/40"
             />
-            <button
+            <Button
               type="button"
               onClick={addMember}
-              className="h-11 rounded-lg bg-muted px-5 text-sm font-semibold text-foreground hover:bg-muted/80"
+              variant="secondary"
+              className="h-11 px-5"
             >
               Add
-            </button>
+            </Button>
           </div>
           <div className="space-y-2">
             {members.map((email) => (
@@ -255,41 +230,42 @@ export function CreateTeamWorkspacePage() {
                   </div>
                   <span className="truncate text-sm">{email}</span>
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={() =>
                     setMembers((current) => current.filter((item) => item !== email))
                   }
-                  className="text-muted-foreground hover:text-foreground"
+                  variant="ghost"
+                  size="icon-sm"
                   aria-label={`Remove ${email}`}
                 >
                   <XIcon className="size-4" />
-                </button>
+                </Button>
               </div>
             ))}
           </div>
         </div>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
 
         <div className="flex justify-end gap-3 border-t border-border pt-6">
-          <button
+          <Button
             type="button"
             onClick={() => navigate(-1)}
-            className="h-10 px-5 text-sm font-semibold text-muted-foreground hover:text-foreground"
+            variant="ghost"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className="h-10 rounded-lg bg-foreground px-8 text-sm font-semibold text-background disabled:opacity-60"
+            className="px-8"
           >
             {isSubmitting ? "Creating..." : "Create Workspace"}
-          </button>
+          </Button>
         </div>
       </form>
-    </PageShell>
+    </AppPage>
   )
 }
 
@@ -302,7 +278,8 @@ export function TeamWorkspaceMembersPage() {
   const [inviteEmail, setInviteEmail] = React.useState("")
   const [inviteRole, setInviteRole] = React.useState("member")
   const [lastInviteUrl, setLastInviteUrl] = React.useState<string | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
+  const [loadError, setLoadError] = React.useState<AppError | null>(null)
+  const [actionError, setActionError] = React.useState<AppError | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
 
   const targetWorkspaceId = workspaceId || currentWorkspace?.id || ""
@@ -310,7 +287,7 @@ export function TeamWorkspaceMembersPage() {
   const load = React.useCallback(async () => {
     if (!accessToken || !targetWorkspaceId) return
     setIsLoading(true)
-    setError(null)
+    setLoadError(null)
     try {
       const [memberResponse, invitationResponse] = await Promise.all([
         listWorkspaceMembers(accessToken, targetWorkspaceId),
@@ -319,7 +296,11 @@ export function TeamWorkspaceMembersPage() {
       setMembers(memberResponse.members)
       setInvitations(invitationResponse.invitations)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load workspace members.")
+      setLoadError(
+        normalizeAppError(err, {
+          fallbackMessage: "Failed to load workspace members.",
+        })
+      )
     } finally {
       setIsLoading(false)
     }
@@ -333,7 +314,7 @@ export function TeamWorkspaceMembersPage() {
     async (event: React.FormEvent) => {
       event.preventDefault()
       if (!accessToken || !targetWorkspaceId) return
-      setError(null)
+      setActionError(null)
       try {
         const response = await inviteWorkspaceMember(accessToken, targetWorkspaceId, {
           email: inviteEmail,
@@ -343,11 +324,116 @@ export function TeamWorkspaceMembersPage() {
         setLastInviteUrl(response.invite_url)
         setInviteEmail("")
         await load()
+        notify.success({
+          title: "Invitation sent",
+          description: `Invite sent to ${inviteEmail}.`,
+        })
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Invite failed.")
+        const appError = normalizeAppError(err, {
+          fallbackMessage: "Invite failed.",
+        })
+        setActionError(appError)
+        notify.error({
+          title: "Invite failed",
+          description: appError.message,
+        })
       }
     },
     [accessToken, inviteEmail, inviteRole, load, targetWorkspaceId]
+  )
+
+  const updateMemberRole = React.useCallback(
+    async (member: WorkspaceMembership, role: string) => {
+      if (!accessToken || !targetWorkspaceId) return
+      setActionError(null)
+      try {
+        await updateWorkspaceMemberRole(
+          accessToken,
+          targetWorkspaceId,
+          member.user_id,
+          role
+        )
+        await load()
+        notify.success({
+          title: "Role updated",
+          description: `Member role changed to ${role}.`,
+        })
+      } catch (err) {
+        const appError = normalizeAppError(err, {
+          fallbackMessage: "Failed to update member role.",
+        })
+        setActionError(appError)
+        notify.error({
+          title: "Role update failed",
+          description: appError.message,
+        })
+      }
+    },
+    [accessToken, load, targetWorkspaceId]
+  )
+
+  const removeMember = React.useCallback(
+    async (member: WorkspaceMembership) => {
+      if (!accessToken || !targetWorkspaceId) return
+      const confirmed = await confirm({
+        title: "Remove workspace member?",
+        description: "This member will lose access to the team workspace.",
+        confirmLabel: "Remove",
+        variant: "destructive",
+      })
+      if (!confirmed) return
+
+      setActionError(null)
+      try {
+        await removeWorkspaceMember(accessToken, targetWorkspaceId, member.user_id)
+        await load()
+        notify.success({ title: "Member removed" })
+      } catch (err) {
+        const appError = normalizeAppError(err, {
+          fallbackMessage: "Failed to remove member.",
+        })
+        setActionError(appError)
+        notify.error({
+          title: "Remove member failed",
+          description: appError.message,
+        })
+      }
+    },
+    [accessToken, load, targetWorkspaceId]
+  )
+
+  const revokeInvitation = React.useCallback(
+    async (invitation: WorkspaceInvitation) => {
+      if (!accessToken || !targetWorkspaceId) return
+      const confirmed = await confirm({
+        title: "Revoke invitation?",
+        description: `The invitation for ${invitation.email} will stop working.`,
+        confirmLabel: "Revoke",
+        variant: "destructive",
+      })
+      if (!confirmed) return
+
+      setActionError(null)
+      try {
+        await revokeWorkspaceInvitation(
+          accessToken,
+          targetWorkspaceId,
+          invitation.id
+        )
+        await load()
+        notify.success({ title: "Invitation revoked" })
+      } catch (err) {
+        const appError = normalizeAppError(err, {
+          fallbackMessage: "Failed to revoke invitation.",
+        })
+        setActionError(appError)
+        notify.error({
+          title: "Revoke invitation failed",
+          description: appError.message,
+        })
+      }
+    },
+    [accessToken, load, targetWorkspaceId]
   )
 
   const filteredMembers = members.filter((member) => {
@@ -359,9 +445,14 @@ export function TeamWorkspaceMembersPage() {
     )
   })
   const pendingInvitations = invitations.filter((item) => item.status === "pending")
+  const dataState = loadError
+    ? "error"
+    : isLoading
+      ? "loading"
+      : "success"
 
   return (
-    <PageShell
+    <AppPage
       title="Team Workspace Members"
       description="Manage access for collaborators and keep pending invitations visible while Team Workspace work is shared across users."
     >
@@ -376,12 +467,12 @@ export function TeamWorkspaceMembersPage() {
         onSubmit={submitInvite}
         className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row"
       >
-        <TextInput
+        <Input
           value={inviteEmail}
           onChange={(event) => setInviteEmail(event.target.value)}
           placeholder="Invite by email..."
           type="email"
-          className="sm:flex-1"
+          className="h-11 bg-muted/40 sm:flex-1"
         />
         <select
           value={inviteRole}
@@ -394,115 +485,113 @@ export function TeamWorkspaceMembersPage() {
             </option>
           ))}
         </select>
-        <button className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-foreground px-5 text-sm font-semibold text-background">
+        <Button className="h-11 gap-2 px-5">
           <UserPlusIcon className="size-4" />
           Invite
-        </button>
+        </Button>
       </form>
 
       {lastInviteUrl ? (
-        <button
+        <Button
           type="button"
-          onClick={() => navigator.clipboard?.writeText(lastInviteUrl)}
-          className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/20 px-4 py-3 text-left text-sm"
+          variant="outline"
+          onClick={() => {
+            void navigator.clipboard?.writeText(lastInviteUrl)
+            notify.info({ title: "Invite link copied" })
+          }}
+          className="flex h-auto w-full justify-between px-4 py-3 text-left"
         >
           <span className="truncate text-muted-foreground">{lastInviteUrl}</span>
           <CopyIcon className="ml-3 size-4 shrink-0" />
-        </button>
+        </Button>
       ) : null}
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {actionError ? <Notice tone="error">{actionError.message}</Notice> : null}
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
           <h2 className="text-base font-semibold">Current Members</h2>
           <div className="relative">
             <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="h-9 w-64 rounded border border-border bg-background pl-9 pr-3 text-sm outline-none"
+              className="h-9 w-64 bg-background pl-9"
               placeholder="Search members..."
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-border bg-muted/20 text-[10px] uppercase text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">Member</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Joined</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredMembers.map((member) => (
-                <tr key={member.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black">
-                        {initials(member.user_id)}
-                      </div>
-                      <div>
-                        <div className="font-medium">{member.user_id.slice(0, 8)}</div>
-                        <div className="text-[11px] text-muted-foreground">{member.user_id}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={member.role}
-                      onChange={async (event) => {
-                        if (!accessToken || !targetWorkspaceId) return
-                        await updateWorkspaceMemberRole(
-                          accessToken,
-                          targetWorkspaceId,
-                          member.user_id,
-                          event.target.value
-                        )
-                        await load()
-                      }}
-                      className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
-                    >
-                      {["owner", ...roleOptions].map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={member.status} />
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(member.joined_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!accessToken || !targetWorkspaceId) return
-                        await removeWorkspaceMember(accessToken, targetWorkspaceId, member.user_id)
-                        await load()
-                      }}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2Icon className="size-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!filteredMembers.length ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-muted-foreground">
-                    {isLoading ? "Loading..." : "No members found."}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        <div className="p-4">
+          <DataState
+            state={dataState}
+            error={loadError}
+            empty={filteredMembers.length === 0}
+            emptyTitle="No members found."
+            onRetry={() => void load()}
+          >
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border bg-muted/20 text-[10px] uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3">Member</th>
+                    <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Joined</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredMembers.map((member) => (
+                    <tr key={member.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black">
+                            {initials(member.user_id)}
+                          </div>
+                          <div>
+                            <div className="font-medium">{member.user_id.slice(0, 8)}</div>
+                            <div className="text-[11px] text-muted-foreground">{member.user_id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={member.role}
+                          onChange={(event) => {
+                            void updateMemberRole(member, event.target.value)
+                          }}
+                          className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
+                        >
+                          {["owner", ...roleOptions].map((role) => (
+                            <option key={role} value={role}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={member.status} />
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(member.joined_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => void removeMember(member)}
+                          aria-label={`Remove ${member.user_id}`}
+                        >
+                          <Trash2Icon className="size-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </DataState>
         </div>
       </section>
 
@@ -513,44 +602,46 @@ export function TeamWorkspaceMembersPage() {
             {pendingInvitations.length} UNRESOLVED
           </span>
         </div>
-        <div className="divide-y divide-border">
-          {invitations.map((invitation) => (
-            <div
-              key={invitation.id}
-              className="grid gap-3 px-4 py-3 text-sm sm:grid-cols-[1fr_120px_120px_130px_auto]"
-            >
-              <div>
-                <div className="font-medium">{invitation.email}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  Invited by {invitation.invited_by.slice(0, 8)}
+        <div className="p-4">
+          <DataState
+            state={dataState}
+            error={loadError}
+            empty={invitations.length === 0}
+            emptyTitle="No invitations yet."
+            onRetry={() => void load()}
+          >
+            <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+              {invitations.map((invitation) => (
+                <div
+                  key={invitation.id}
+                  className="grid gap-3 px-4 py-3 text-sm sm:grid-cols-[1fr_120px_120px_130px_auto]"
+                >
+                  <div>
+                    <div className="font-medium">{invitation.email}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Invited by {invitation.invited_by.slice(0, 8)}
+                    </div>
+                  </div>
+                  <div>{invitation.role}</div>
+                  <StatusBadge status={invitation.status} />
+                  <div className="text-muted-foreground">
+                    {new Date(invitation.expires_at).toLocaleDateString()}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void revokeInvitation(invitation)}
+                  >
+                    Revoke
+                  </Button>
                 </div>
-              </div>
-              <div>{invitation.role}</div>
-              <StatusBadge status={invitation.status} />
-              <div className="text-muted-foreground">
-                {new Date(invitation.expires_at).toLocaleDateString()}
-              </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!accessToken || !targetWorkspaceId) return
-                  await revokeWorkspaceInvitation(accessToken, targetWorkspaceId, invitation.id)
-                  await load()
-                }}
-                className="text-xs font-semibold uppercase text-muted-foreground hover:text-destructive"
-              >
-                Revoke
-              </button>
+              ))}
             </div>
-          ))}
-          {!invitations.length ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">
-              No invitations yet.
-            </div>
-          ) : null}
+          </DataState>
         </div>
       </section>
-    </PageShell>
+    </AppPage>
   )
 }
 
@@ -742,14 +833,25 @@ export function AcceptWorkspaceInvitationPage() {
       await refreshAppData()
       await selectWorkspace(response.workspace.id)
       setStatus("accepted")
+      notify.success({
+        title: "Invitation accepted",
+        description: `Joined ${response.workspace.name}.`,
+      })
     } catch (err) {
       setStatus("error")
-      setError(err instanceof Error ? err.message : "Accept invitation failed.")
+      const appError = normalizeAppError(err, {
+        fallbackMessage: "Accept invitation failed.",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "Accept invitation failed",
+        description: appError.message,
+      })
     }
   }, [accessToken, refreshAppData, selectWorkspace, token])
 
   return (
-    <PageShell
+    <AppPage
       title="Incoming Invitation"
       description="Review and accept access to a shared Team Workspace. Your agent will use this workspace context after acceptance."
     >
@@ -782,36 +884,39 @@ export function AcceptWorkspaceInvitationPage() {
           <AccessRow icon={<UsersIcon className="size-5" />} title="Team Collaboration" />
         </div>
 
-        {error ? <p className="mt-5 text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <Notice tone="error" className="mt-5">
+            {error}
+          </Notice>
+        ) : null}
 
         <div className="mt-8 space-y-3">
           {status === "accepted" ? (
-            <button
+            <Button
+              type="button"
               onClick={() => navigate("/console/world")}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background"
+              className="h-12 w-full gap-2"
             >
               Continue
               <ArrowRightIcon className="size-4" />
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
+              type="button"
               onClick={accept}
               disabled={status === "accepting"}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-foreground text-sm font-semibold text-background disabled:opacity-60"
+              className="h-12 w-full gap-2"
             >
               {status === "accepting" ? "Accepting..." : "Accept and Setup Profile"}
               <ArrowRightIcon className="size-4" />
-            </button>
+            </Button>
           )}
-          <Link
-            to="/console/world"
-            className="flex h-11 items-center justify-center rounded-lg text-sm font-semibold text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-          >
-            Maybe later
-          </Link>
+          <Button asChild variant="ghost" className="h-11 w-full">
+            <Link to="/console/world">Maybe later</Link>
+          </Button>
         </div>
       </div>
-    </PageShell>
+    </AppPage>
   )
 }
 
