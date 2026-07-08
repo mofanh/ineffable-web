@@ -28,11 +28,13 @@ export type AppLineChartDatum = {
 export function AppLineChart({
   data,
   series,
+  height = 288,
   valueFormatter = formatCompactValue,
   className,
 }: {
   data: AppLineChartDatum[]
   series: AppLineChartSeries[]
+  height?: number
   valueFormatter?: (value: number) => string
   className?: string
 }) {
@@ -59,7 +61,11 @@ export function AppLineChart({
   }, {})
 
   return (
-    <ChartContainer config={config} className={cn("min-h-72 w-full", className)}>
+    <ChartContainer
+      config={config}
+      className={cn("w-full", className)}
+      style={{ height }}
+    >
       <LineChart data={data} margin={{ top: 16, right: 18, bottom: 4, left: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis

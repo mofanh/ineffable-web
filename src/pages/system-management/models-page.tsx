@@ -312,6 +312,7 @@ export function SystemModelManagementPage() {
         <AppLineChart
           data={usageSummary.chartData}
           series={usageSummary.chartSeries}
+          height={220}
           valueFormatter={formatNumber}
         />
       </AppSectionCard>
