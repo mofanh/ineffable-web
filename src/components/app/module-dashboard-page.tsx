@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import {
   Card,
   CardContent,
@@ -6,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-type Metric = {
+type ModuleDashboardMetric = {
   label: string
   value: string
   detail: string
@@ -15,7 +17,7 @@ type Metric = {
 type ModuleDashboardPageProps = {
   title: string
   subtitle: string
-  metrics: [Metric, Metric, Metric]
+  metrics: [ModuleDashboardMetric, ModuleDashboardMetric, ModuleDashboardMetric]
   highlights: string[]
   children?: React.ReactNode
 }

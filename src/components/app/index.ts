@@ -18,5 +18,6 @@ export {
   AppSectionCard,
   type AppMetricCard,
 } from "@/components/app/metric-page"
+export { ModuleDashboardPage } from "@/components/app/module-dashboard-page"
 export { Notice, type NoticeTone } from "@/components/app/notice"
 export { StatusBadge, type StatusBadgeTone } from "@/components/app/status-badge"

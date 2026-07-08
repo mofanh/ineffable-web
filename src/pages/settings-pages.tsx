@@ -1,4 +1,4 @@
-import { ModuleDashboardPage } from "@/pages/shared/module-dashboard-page"
+import { ModuleDashboardPage } from "@/components/app"
 
 export function SettingsCenterPage() {
   return (

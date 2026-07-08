@@ -33,7 +33,7 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  Field,
+  SystemField,
   SystemPageShell,
   emptyModel,
   isRawApiKey,
@@ -386,7 +386,7 @@ function ModelForm({
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2">
-        <Field label="展示名">
+        <SystemField label="展示名">
           <Input
             value={model.display_name}
             onChange={(event) =>
@@ -397,8 +397,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="Endpoint">
+        </SystemField>
+        <SystemField label="Endpoint">
           <Input
             value={model.endpoint_kind}
             onChange={(event) =>
@@ -409,8 +409,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="上游模型名">
+        </SystemField>
+        <SystemField label="上游模型名">
           <Input
             value={model.upstream_model_name}
             onChange={(event) =>
@@ -421,8 +421,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="Base URL">
+        </SystemField>
+        <SystemField label="Base URL">
           <Input
             value={model.upstream_base_url ?? ""}
             onChange={(event) =>
@@ -436,8 +436,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="密钥引用（secret_ref 或 env:NAME）">
+        </SystemField>
+        <SystemField label="密钥引用（secret_ref 或 env:NAME）">
           <Input
             value={model.upstream_api_key_ref ?? ""}
             placeholder="例如 deepseek-default 或 env:DEEPSEEK_API_KEY"
@@ -452,8 +452,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="上下文长度">
+        </SystemField>
+        <SystemField label="上下文长度">
           <Input
             type="number"
             value={model.context_window_tokens ?? ""}
@@ -468,8 +468,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="最大输出 tokens">
+        </SystemField>
+        <SystemField label="最大输出 tokens">
           <Input
             type="number"
             min={1}
@@ -487,8 +487,8 @@ function ModelForm({
               )
             }}
           />
-        </Field>
-        <Field label="使用倍率">
+        </SystemField>
+        <SystemField label="使用倍率">
           <Input
             type="number"
             step="0.01"
@@ -501,8 +501,8 @@ function ModelForm({
               )
             }
           />
-        </Field>
-        <Field label="排序">
+        </SystemField>
+        <SystemField label="排序">
           <Input
             type="number"
             value={model.sort_order}
@@ -514,7 +514,7 @@ function ModelForm({
               )
             }
           />
-        </Field>
+        </SystemField>
       </div>
       <div className="grid gap-2 md:grid-cols-4">
         <ToggleField

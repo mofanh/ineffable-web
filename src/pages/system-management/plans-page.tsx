@@ -38,7 +38,7 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  Field,
+  SystemField,
   SystemPageShell,
   emptyPlan,
   modelAccessFor,
@@ -510,7 +510,7 @@ function PlanForm({
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <div className="grid gap-3">
-        <Field label="内部名称">
+        <SystemField label="内部名称">
           <Input
             value={plan.name}
             onChange={(event) =>
@@ -519,8 +519,8 @@ function PlanForm({
               )
             }
           />
-        </Field>
-        <Field label="展示名">
+        </SystemField>
+        <SystemField label="展示名">
           <Input
             value={plan.display_name}
             onChange={(event) =>
@@ -531,8 +531,8 @@ function PlanForm({
               )
             }
           />
-        </Field>
-        <Field label="月额度">
+        </SystemField>
+        <SystemField label="月额度">
           <Input
             type="number"
             value={plan.monthly_credit_limit ?? ""}
@@ -547,7 +547,7 @@ function PlanForm({
               )
             }
           />
-        </Field>
+        </SystemField>
         <ToggleField
           label="启用套餐"
           checked={plan.enabled}

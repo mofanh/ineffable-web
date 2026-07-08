@@ -108,6 +108,7 @@
 禁止：
 
 - 页面之间互相依赖
+- 新增 `src/pages/shared` 这类跨页面共享组件目录
 - 新增只做 re-export 的 page 文件
 - 本地重复定义通用组件
 - 直接使用 `window.alert` / `window.confirm`
@@ -135,6 +136,7 @@ components/app -> pages
 components/app -> features
 features/a -> features/b internals
 pages/a -> pages/b
+pages/* -> pages/shared
 routes -> page barrel -> real page
 ```
 
@@ -155,6 +157,8 @@ routes -> page barrel -> real page
 - 让业务页面感知无意义的技术中间层。
 
 如果 `shared.tsx` 只是转发，应删除并让调用方直接依赖真实模块。
+
+跨页面复用的展示组件、页面壳、指标面板、搜索栏、空态和错误态必须进入 `src/components/app`，不要放在 `src/pages/shared`。
 
 ## 请求、错误和通知
 
@@ -271,6 +275,7 @@ npm run build
 前端底座已经完成 Phase 1-4 和后续精修：
 
 - `components/workbench` 已删除。
+- `src/pages/shared` 已删除，跨页面共享展示组件已迁入 `components/app`。
 - `router` 不再依赖只做 re-export 的 page barrel。
 - 页面和 feature 中不再直接解析 `instanceof Error`。
 - `window.alert` / `window.confirm` 已由 ESLint 禁止。

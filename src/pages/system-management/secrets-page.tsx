@@ -21,7 +21,7 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  Field,
+  SystemField,
   SystemPageShell,
   emptySecret,
   type LoadState,
@@ -250,7 +250,7 @@ function SecretForm({
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <div className="grid gap-3">
-        <Field label="密钥引用">
+        <SystemField label="密钥引用">
           <Input
             value={secret.secret_ref}
             onChange={(event) =>
@@ -259,8 +259,8 @@ function SecretForm({
               )
             }
           />
-        </Field>
-        <Field label="密钥值">
+        </SystemField>
+        <SystemField label="密钥值">
           <Input
             type="password"
             value={secret.secret}
@@ -271,8 +271,8 @@ function SecretForm({
               )
             }
           />
-        </Field>
-        <Field label="状态">
+        </SystemField>
+        <SystemField label="状态">
           <Input
             value={secret.status}
             onChange={(event) =>
@@ -281,7 +281,7 @@ function SecretForm({
               )
             }
           />
-        </Field>
+        </SystemField>
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>

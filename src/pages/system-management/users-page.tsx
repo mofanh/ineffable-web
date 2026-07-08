@@ -27,7 +27,7 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  Field,
+  SystemField,
   SystemPageShell,
   type LoadState,
 } from "./shared"
@@ -364,10 +364,10 @@ export function SystemUserManagementPage() {
         {editingUser ? (
           <form onSubmit={(event) => void saveUser(event)} className="space-y-4">
             <div className="grid gap-3">
-              <Field label="用户">
+              <SystemField label="用户">
                 <Input value={editingUser.email} readOnly />
-              </Field>
-              <Field label="角色">
+              </SystemField>
+              <SystemField label="角色">
                 <select
                   value={editingRole}
                   disabled={state !== "idle"}
@@ -381,8 +381,8 @@ export function SystemUserManagementPage() {
                   <option value="user">user</option>
                   <option value="admin">admin</option>
                 </select>
-              </Field>
-              <Field label="分配套餐">
+              </SystemField>
+              <SystemField label="分配套餐">
                 <select
                   value={selectedUserPlanId}
                   onChange={(event) => setSelectedUserPlanId(event.target.value)}
@@ -394,7 +394,7 @@ export function SystemUserManagementPage() {
                     </option>
                   ))}
                 </select>
-              </Field>
+              </SystemField>
             </div>
             <div className="flex justify-end gap-2">
               <Button
