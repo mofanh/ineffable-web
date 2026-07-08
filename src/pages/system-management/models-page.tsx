@@ -201,11 +201,22 @@ export function SystemModelManagementPage() {
       editingModel.upstream_api_key_ref &&
       isRawApiKey(editingModel.upstream_api_key_ref)
     ) {
-      setError("模型密钥字段只能填写 secret_ref 或 env:NAME，不能填写原始 API Key")
+      const validationMessage =
+        "模型密钥字段只能填写 secret_ref 或 env:NAME，不能填写原始 API Key"
+      setError(validationMessage)
+      notify.warning({
+        title: "模型配置不完整",
+        description: validationMessage,
+      })
       return
     }
     if (!editingModel.max_output_tokens || editingModel.max_output_tokens <= 0) {
-      setError("模型最大输出 tokens 必须填写，并且必须大于 0")
+      const validationMessage = "模型最大输出 tokens 必须填写，并且必须大于 0"
+      setError(validationMessage)
+      notify.warning({
+        title: "模型配置不完整",
+        description: validationMessage,
+      })
       return
     }
 

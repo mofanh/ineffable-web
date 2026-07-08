@@ -3,7 +3,6 @@ import { ShieldIcon } from "lucide-react"
 
 import {
   AppMetricPage,
-  ErrorState,
   Notice,
   type AppMetricCard,
 } from "@/components/app"
@@ -119,7 +118,6 @@ export function SystemPageShell({
   metrics,
   state,
   message,
-  error,
   onRefresh,
   children,
 }: {
@@ -150,7 +148,6 @@ export function SystemPageShell({
       }
     >
       {message ? <Notice tone="success">{message}</Notice> : null}
-      {error ? <ErrorState title="操作失败" error={error} /> : null}
       {children}
     </AppMetricPage>
   )
