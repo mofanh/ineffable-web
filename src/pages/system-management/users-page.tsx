@@ -1,13 +1,21 @@
 import * as React from "react"
-import { GaugeIcon, PackageIcon, SaveIcon, UsersIcon } from "lucide-react"
+import { ChevronDownIcon, Edit3Icon, GaugeIcon, PackageIcon, SaveIcon, UsersIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   AppDialog,
+  AppDisclosureSection,
+  AppExpandablePanel,
+  AppFieldGrid,
+  AppListToolbar,
   AppSearchBar,
   AppSectionCard,
+  DataTableBody,
+  DataTableHeader,
+  DataTableShell,
   EmptyState,
+  StatusBadge,
 } from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
@@ -43,6 +51,9 @@ export function SystemUserManagementPage() {
   >([])
   const [usage, setUsage] = React.useState<AdminUserMonthlyUsage[]>([])
   const [query, setQuery] = React.useState("")
+  const [expandedUserIds, setExpandedUserIds] = React.useState<Set<string>>(
+    () => new Set()
+  )
   const [editingUser, setEditingUser] = React.useState<AdminUser | null>(null)
   const [editingRole, setEditingRole] = React.useState<"user" | "admin">("user")
   const [dialogOpen, setDialogOpen] = React.useState(false)
@@ -136,8 +147,6 @@ export function SystemUserManagementPage() {
     )
   }, [query, users])
 
-  const selectedUser = users.find((user) => user.id === selectedUserId)
-
   const metrics = React.useMemo(
     () => [
       {
@@ -170,6 +179,19 @@ export function SystemUserManagementPage() {
     setEditingRole(user.role === "admin" ? "admin" : "user")
     setSelectedUserId(user.id)
     setDialogOpen(true)
+  }
+
+  function toggleExpandedUser(userId: string) {
+    setSelectedUserId(userId)
+    setExpandedUserIds((current) => {
+      const next = new Set(current)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
   }
 
   async function saveUser(event: React.FormEvent<HTMLFormElement>) {
@@ -231,129 +253,114 @@ export function SystemUserManagementPage() {
       error={error}
       onRefresh={() => void loadUsers()}
     >
-      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <AppSectionCard
-          title="用户列表"
-          description="每张卡片代表一个账号。点击编辑可调整角色并分配套餐。"
-          icon={UsersIcon}
-          actions={
-            <div className="hidden w-72 md:block">
-              <AppSearchBar
-                value={query}
-                onChange={setQuery}
-                placeholder="搜索用户..."
-              />
-            </div>
+      <AppSectionCard
+        title="用户列表"
+        description="主视图保持单列表格，用户套餐记录和月度用量通过行内展开查看。"
+        icon={UsersIcon}
+      >
+        <AppListToolbar
+          search={
+            <AppSearchBar
+              value={query}
+              onChange={setQuery}
+              placeholder="搜索用户..."
+            />
           }
-        >
-          <div className="mb-3 md:hidden">
-            <AppSearchBar value={query} onChange={setQuery} placeholder="搜索用户..." />
-          </div>
-          <div className="grid gap-3">
-            {filteredUsers.map((user) => (
-              <div
-                key={user.id}
-                className={`rounded-md border bg-background/60 p-4 text-sm transition-colors hover:bg-muted/60 ${
-                  user.id === selectedUserId ? "border-primary" : "border-border"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{user.display_name}</div>
-                    <div className="mt-1 truncate text-muted-foreground">
-                      {user.email}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <UserTag>{user.role ?? "user"}</UserTag>
-                      <UserTag>{user.status}</UserTag>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedUserId(user.id)}
-                  >
-                    查看
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(user)}
-                  >
-                    编辑
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {filteredUsers.length === 0 ? (
-              <EmptyState title="暂无用户" detail="有用户注册后会出现在这里。" />
-            ) : null}
-          </div>
-        </AppSectionCard>
+          className="-mx-4 -mt-4 mb-4"
+        />
+        <div className="grid gap-3">
+          {filteredUsers.length > 0 ? (
+            <DataTableShell>
+              <DataTableHeader>
+                <tr>
+                  <th className="w-10 px-4 py-3" />
+                  <th className="px-4 py-3">用户</th>
+                  <th className="px-4 py-3">角色</th>
+                  <th className="px-4 py-3">状态</th>
+                  <th className="px-4 py-3">当前套餐记录</th>
+                  <th className="px-4 py-3">本月用量记录</th>
+                  <th className="px-4 py-3 text-right">操作</th>
+                </tr>
+              </DataTableHeader>
+              <DataTableBody>
+                {filteredUsers.map((user) => {
+                  const expanded = expandedUserIds.has(user.id)
+                  const rowAssignments =
+                    user.id === selectedUserId ? assignments : []
+                  const rowUsage = user.id === selectedUserId ? usage : []
 
-        <div className="grid gap-4">
-          <AppSectionCard
-            title="套餐记录"
-            description={selectedUser?.email ?? "选择一个用户查看套餐记录。"}
-            icon={PackageIcon}
-          >
-            <div className="grid gap-2">
-              {assignments.map((assignment) => (
-                <div
-                  key={assignment.id}
-                  className="rounded-md border border-border bg-background/60 px-3 py-2 text-sm"
-                >
-                  <div className="font-medium">{assignment.plan_id}</div>
-                  <div className="text-muted-foreground">
-                    {assignment.status} / {assignment.effective_from}
-                  </div>
-                </div>
-              ))}
-              {assignments.length === 0 ? (
-                <EmptyState
-                  title="暂无套餐记录"
-                  detail="为选中用户分配套餐后会出现在这里。"
-                />
-              ) : null}
-            </div>
-          </AppSectionCard>
-
-          <AppSectionCard
-            title="月度用量"
-            description="用于核对用户维度 token 与 credit 消耗。"
-            icon={GaugeIcon}
-          >
-            <div className="grid gap-2">
-              {usage.map((item) => (
-                <div
-                  key={item.period_yyyymm}
-                  className="grid gap-2 rounded-md border border-border bg-background/60 px-3 py-2 text-sm md:grid-cols-[1fr_auto]"
-                >
-                  <div>
-                    <div className="font-medium">{item.period_yyyymm}</div>
-                    <div className="text-muted-foreground">
-                      token {item.raw_total_tokens}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {item.charged_credits.toFixed(4)} credits
-                  </div>
-                </div>
-              ))}
-              {usage.length === 0 ? (
-                <EmptyState
-                  title="暂无用量记录"
-                  detail="用户产生 LLM 调用后会按月汇总。"
-                />
-              ) : null}
-            </div>
-          </AppSectionCard>
+                  return (
+                    <React.Fragment key={user.id}>
+                      <tr className="hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={expanded ? "收起用户详情" : "展开用户详情"}
+                            onClick={() => toggleExpandedUser(user.id)}
+                          >
+                            <ChevronDownIcon
+                              className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{user.display_name || user.email}</div>
+                          <div className="mt-1 max-w-72 truncate text-xs text-muted-foreground">
+                            {user.email}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={user.role ?? "user"} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={user.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          {user.id === selectedUserId ? assignments.length : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {user.id === selectedUserId ? usage.length : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditDialog(user)}
+                            >
+                              <Edit3Icon />
+                              编辑
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr>
+                          <td colSpan={7} className="p-0">
+                            <AppExpandablePanel>
+                              <UserDetail
+                                assignments={rowAssignments}
+                                usage={rowUsage}
+                                user={user}
+                              />
+                            </AppExpandablePanel>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  )
+                })}
+              </DataTableBody>
+            </DataTableShell>
+          ) : null}
+          {filteredUsers.length === 0 ? (
+            <EmptyState title="暂无用户" detail="有用户注册后会出现在这里。" />
+          ) : null}
         </div>
-      </section>
+      </AppSectionCard>
 
       <AppDialog
         open={dialogOpen}
@@ -363,7 +370,8 @@ export function SystemUserManagementPage() {
       >
         {editingUser ? (
           <form onSubmit={(event) => void saveUser(event)} className="space-y-4">
-            <div className="grid gap-3">
+            <AppDisclosureSection title="用户角色和套餐">
+            <AppFieldGrid columns={1}>
               <SystemField label="用户">
                 <Input value={editingUser.email} readOnly />
               </SystemField>
@@ -395,7 +403,8 @@ export function SystemUserManagementPage() {
                   ))}
                 </select>
               </SystemField>
-            </div>
+            </AppFieldGrid>
+            </AppDisclosureSection>
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -416,10 +425,68 @@ export function SystemUserManagementPage() {
   )
 }
 
-function UserTag({ children }: { children: React.ReactNode }) {
+function UserDetail({
+  assignments,
+  usage,
+  user,
+}: {
+  assignments: AdminUserPlanAssignment[]
+  usage: AdminUserMonthlyUsage[]
+  user: AdminUser
+}) {
   return (
-    <span className="rounded-md border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-      {children}
-    </span>
+    <div className="grid gap-4">
+      <div className="grid gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <PackageIcon className="size-4 text-muted-foreground" />
+          套餐记录
+        </div>
+        {assignments.map((assignment) => (
+          <div
+            key={assignment.id}
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+          >
+            <div className="font-medium">{assignment.plan_id}</div>
+            <div className="text-muted-foreground">
+              {assignment.status} / {assignment.effective_from}
+            </div>
+          </div>
+        ))}
+        {assignments.length === 0 ? (
+          <EmptyState
+            title="暂无套餐记录"
+            detail={`为 ${user.email} 分配套餐后会出现在这里。`}
+          />
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <GaugeIcon className="size-4 text-muted-foreground" />
+          月度用量
+        </div>
+        {usage.map((item) => (
+          <div
+            key={item.period_yyyymm}
+            className="grid gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm md:grid-cols-[1fr_auto]"
+          >
+            <div>
+              <div className="font-medium">{item.period_yyyymm}</div>
+              <div className="text-muted-foreground">
+                token {item.raw_total_tokens}
+              </div>
+            </div>
+            <div className="text-right">
+              {item.charged_credits.toFixed(4)} credits
+            </div>
+          </div>
+        ))}
+        {usage.length === 0 ? (
+          <EmptyState
+            title="暂无用量记录"
+            detail="用户产生 LLM 调用后会按月汇总。"
+          />
+        ) : null}
+      </div>
+    </div>
   )
 }
