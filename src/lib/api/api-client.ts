@@ -1150,6 +1150,19 @@ export type AdminUserMonthlyUsage = {
   updated_at: string
 }
 
+export type AdminModelMonthlyUsage = {
+  model_profile_id: string
+  period_yyyymm: string
+  request_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  reasoning_tokens: number
+  cached_input_tokens: number
+  raw_total_tokens: number
+  charged_credits: number
+  updated_at: string
+}
+
 export type AdminModelProfilePayload = Omit<
   AdminModelProfile,
   "id" | "archived_at"
@@ -1202,6 +1215,13 @@ export function deleteAdminModelProfile(accessToken: string, modelId: string) {
       method: "DELETE",
       accessToken,
     },
+  )
+}
+
+export function listAdminModelMonthlyUsage(accessToken: string, limit = 6) {
+  return requestApiJson<{ usage: AdminModelMonthlyUsage[] }>(
+    `/gateway/v1/admin/models/usage/monthly?limit=${encodeURIComponent(String(limit))}`,
+    { accessToken },
   )
 }
 

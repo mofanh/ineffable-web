@@ -2,6 +2,11 @@ export { AppDialog, type AppDialogMaxWidth } from "@/components/app/app-dialog"
 export { AppDisclosureSection } from "@/components/app/disclosure-section"
 export { AppExpandablePanel } from "@/components/app/expandable-panel"
 export { AppFieldGrid } from "@/components/app/field-grid"
+export {
+  AppLineChart,
+  type AppLineChartDatum,
+  type AppLineChartSeries,
+} from "@/components/app/line-chart"
 export { AppListToolbar } from "@/components/app/list-toolbar"
 export { AppPage, PageHeader } from "@/components/app/app-page"
 export { AppToaster } from "@/components/app/app-toaster"

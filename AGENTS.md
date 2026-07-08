@@ -57,6 +57,7 @@
 - `ToggleField`
 - `DataTableShell`
 - `StatusBadge`
+- `AppLineChart`
 - `AppMetricPage`
 - `AppSectionCard`
 - `AppSearchBar`
@@ -238,6 +239,7 @@ const confirmed = await confirm({
 - 状态标签使用 `StatusBadge`
 - 表格外壳使用 `DataTableShell`
 - 列表页搜索、筛选和主操作使用 `AppListToolbar`
+- 趋势图表使用 app 层图表组件，底层基于 shadcn `ChartContainer` 和 `recharts`
 - 普通表单动作直接使用页面或弹窗现有布局，不新增无语义的按钮组壳
 
 不要在页面内新增本地 `Field`、`TextInput`、`ToggleField`、`StatusBadge`、`ErrorNotice`、`EmptyState`，除非它们有明确且不可复用的业务语义。

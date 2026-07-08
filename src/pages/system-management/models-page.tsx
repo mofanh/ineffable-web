@@ -1,12 +1,13 @@
 import * as React from "react"
 import {
+  ActivityIcon,
+  BarChart3Icon,
   BotIcon,
   ChevronDownIcon,
   Edit3Icon,
-  GaugeIcon,
   PlusIcon,
   SaveIcon,
-  ShieldIcon,
+  TrendingUpIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -17,6 +18,9 @@ import {
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
+  AppLineChart,
+  type AppLineChartDatum,
+  type AppLineChartSeries,
   AppListToolbar,
   AppSearchBar,
   AppSectionCard,
@@ -32,8 +36,10 @@ import { useAuthSession } from "@/features/auth/app-session"
 import {
   createAdminModelProfile,
   deleteAdminModelProfile,
+  listAdminModelMonthlyUsage,
   listAdminModelProfiles,
   updateAdminModelProfile,
+  type AdminModelMonthlyUsage,
   type AdminModelProfile,
   type AdminModelProfilePayload,
 } from "@/lib/api/api-client"
@@ -58,6 +64,7 @@ export function AdminLlmSettingsPage() {
 export function SystemModelManagementPage() {
   const { accessToken, currentUser } = useAuthSession()
   const [models, setModels] = React.useState<AdminModelProfile[]>([])
+  const [usageRows, setUsageRows] = React.useState<AdminModelMonthlyUsage[]>([])
   const [query, setQuery] = React.useState("")
   const [editingModel, setEditingModel] =
     React.useState<AdminModelProfilePayload | null>(null)
@@ -76,8 +83,12 @@ export function SystemModelManagementPage() {
     setState("loading")
     setError("")
     try {
-      const result = await listAdminModelProfiles(accessToken)
-      setModels(result.profiles)
+      const [modelResult, usageResult] = await Promise.all([
+        listAdminModelProfiles(accessToken),
+        listAdminModelMonthlyUsage(accessToken, 6),
+      ])
+      setModels(modelResult.profiles)
+      setUsageRows(usageResult.usage)
     } catch (loadError) {
       const appError = normalizeAppError(loadError, {
         fallbackMessage: "加载失败",
@@ -106,31 +117,36 @@ export function SystemModelManagementPage() {
     )
   }, [models, query])
 
+  const usageSummary = React.useMemo(
+    () => buildModelUsageSummary(models, usageRows),
+    [models, usageRows],
+  )
+
   const metrics = React.useMemo(
     () => [
       {
-        label: "Models",
-        value: String(models.length),
-        detail: `${models.filter((model) => model.enabled && !model.archived_at).length} enabled`,
-        icon: BotIcon,
+        label: "This Month Credits",
+        value: formatNumber(usageSummary.currentMonthCredits),
+        detail: "charged credits",
+        icon: ActivityIcon,
         tone: "blue" as const,
       },
       {
-        label: "Tool Ready",
-        value: String(models.filter((model) => model.supports_tool_calls).length),
-        detail: "support tool calls",
-        icon: GaugeIcon,
+        label: "This Month Requests",
+        value: formatNumber(usageSummary.currentMonthRequests),
+        detail: "model calls",
+        icon: BarChart3Icon,
         tone: "green" as const,
       },
       {
-        label: "Reasoning",
-        value: String(models.filter((model) => model.supports_reasoning).length),
-        detail: "reasoning capable",
-        icon: ShieldIcon,
+        label: "Top Model",
+        value: usageSummary.topModelCreditsLabel,
+        detail: usageSummary.topModelLabel,
+        icon: TrendingUpIcon,
         tone: "indigo" as const,
       },
     ],
-    [models],
+    [usageSummary],
   )
 
   function openCreateDialog() {
@@ -270,13 +286,25 @@ export function SystemModelManagementPage() {
   return (
     <SystemPageShell
       title="模型管理"
-      subtitle="维护可用模型、OpenAI-compatible 上游、能力标记、输出上限和用量倍率。"
+      subtitle="维护模型配置，并通过真实调用数据观察模型用量趋势和成本贡献。"
       metrics={metrics}
       state={state}
       message={message}
       error={error}
       onRefresh={() => void loadModels()}
     >
+      <AppSectionCard
+        title="模型用量趋势"
+        description="按模型聚合最近 6 个月 charged credits，来自后端 llm usage events。"
+        icon={TrendingUpIcon}
+      >
+        <AppLineChart
+          data={usageSummary.chartData}
+          series={usageSummary.chartSeries}
+          valueFormatter={formatNumber}
+        />
+      </AppSectionCard>
+
       <AppSectionCard
         title="模型列表"
         description="主视图保持单列表格，技术细节通过行内展开查看。"
@@ -458,6 +486,83 @@ function ModelDetail({ model }: { model: AdminModelProfile }) {
       />
     </div>
   )
+}
+
+function buildModelUsageSummary(
+  models: AdminModelProfile[],
+  usageRows: AdminModelMonthlyUsage[],
+) {
+  const modelNames = new Map(models.map((model) => [model.id, model.display_name]))
+  const periods = Array.from(
+    new Set(usageRows.map((row) => row.period_yyyymm)),
+  ).sort()
+  const recentPeriods = periods.slice(-6)
+  const currentPeriod = recentPeriods.at(-1) ?? ""
+  const currentRows = usageRows.filter((row) => row.period_yyyymm === currentPeriod)
+  const currentMonthCredits = currentRows.reduce(
+    (sum, row) => sum + row.charged_credits,
+    0,
+  )
+  const currentMonthRequests = currentRows.reduce(
+    (sum, row) => sum + row.request_count,
+    0,
+  )
+  const modelTotals = new Map<string, number>()
+  for (const row of usageRows) {
+    modelTotals.set(
+      row.model_profile_id,
+      (modelTotals.get(row.model_profile_id) ?? 0) + row.charged_credits,
+    )
+  }
+  const topModels = Array.from(modelTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+
+  const chartData: AppLineChartDatum[] = recentPeriods.map((period) => {
+    const datum: AppLineChartDatum = { label: formatPeriod(period) }
+    for (const [modelId] of topModels) {
+      const row = usageRows.find(
+        (item) =>
+          item.period_yyyymm === period && item.model_profile_id === modelId,
+      )
+      datum[chartKey(modelId)] = row?.charged_credits ?? 0
+    }
+    return datum
+  })
+  const chartSeries: AppLineChartSeries[] = topModels.map(([modelId], index) => ({
+    key: chartKey(modelId),
+    label: modelNames.get(modelId) ?? modelId,
+    color: `var(--chart-${(index % 5) + 1})`,
+  }))
+  const [topModelId, topModelCredits] = topModels[0] ?? []
+
+  return {
+    currentMonthCredits,
+    currentMonthRequests,
+    topModelLabel: topModelId ? (modelNames.get(topModelId) ?? topModelId) : "-",
+    topModelCreditsLabel:
+      topModelCredits == null
+        ? "-"
+        : formatNumber(topModelCredits),
+    chartData,
+    chartSeries,
+  }
+}
+
+function chartKey(modelId: string) {
+  return `model_${modelId.replace(/[^a-zA-Z0-9_]/g, "_")}`
+}
+
+function formatPeriod(period: string) {
+  if (period.length !== 6) return period
+  return `${period.slice(0, 4)}-${period.slice(4)}`
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: value >= 100 ? 1 : 2,
+  }).format(value)
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {
