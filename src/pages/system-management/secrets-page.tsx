@@ -1,12 +1,19 @@
 import * as React from "react"
-import { CheckIcon, KeyRoundIcon, PlusIcon, SaveIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, Edit3Icon, KeyRoundIcon, PlusIcon, SaveIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   AppDialog,
+  AppDisclosureSection,
+  AppExpandablePanel,
+  AppFieldGrid,
+  AppListToolbar,
   AppSearchBar,
   AppSectionCard,
+  DataTableBody,
+  DataTableHeader,
+  DataTableShell,
   EmptyState,
   StatusBadge,
 } from "@/components/app"
@@ -34,6 +41,9 @@ export function SystemSecretManagementPage() {
   const [secrets, setSecrets] = React.useState<AdminLlmSecret[]>([])
   const [query, setQuery] = React.useState("")
   const [editingSecret, setEditingSecret] = React.useState<SecretForm | null>(null)
+  const [expandedSecretRefs, setExpandedSecretRefs] = React.useState<Set<string>>(
+    () => new Set()
+  )
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [state, setState] = React.useState<LoadState>("idle")
   const [message, setMessage] = React.useState("")
@@ -115,6 +125,18 @@ export function SystemSecretManagementPage() {
     setDialogOpen(true)
   }
 
+  function toggleExpandedSecret(secretRef: string) {
+    setExpandedSecretRefs((current) => {
+      const next = new Set(current)
+      if (next.has(secretRef)) {
+        next.delete(secretRef)
+      } else {
+        next.add(secretRef)
+      }
+      return next
+    })
+  }
+
   async function saveSecret(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!accessToken || !editingSecret) return
@@ -160,54 +182,97 @@ export function SystemSecretManagementPage() {
     >
       <AppSectionCard
         title="密钥列表"
-        description="每张卡片代表一个上游密钥引用。密钥值保存后不会回显。"
+        description="主视图保持单列表格，安全说明和 metadata 通过行内展开查看。"
         icon={KeyRoundIcon}
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="hidden w-72 md:block">
-              <AppSearchBar
-                value={query}
-                onChange={setQuery}
-                placeholder="搜索密钥..."
-              />
-            </div>
+      >
+        <AppListToolbar
+          search={
+            <AppSearchBar
+              value={query}
+              onChange={setQuery}
+              placeholder="搜索密钥..."
+            />
+          }
+          actions={
             <Button type="button" onClick={openCreateDialog}>
               <PlusIcon />
               新增密钥
             </Button>
-          </div>
-        }
-      >
-        <div className="mb-3 md:hidden">
-          <AppSearchBar value={query} onChange={setQuery} placeholder="搜索密钥..." />
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filteredSecrets.map((secret) => (
-            <div
-              key={secret.secret_ref}
-              className="rounded-md border border-border bg-background/60 p-4 text-sm transition-colors hover:bg-muted/60"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{secret.secret_ref}</div>
-                  <div className="mt-1 truncate text-muted-foreground">
-                    {secret.has_secret ? "已保存" : "无密钥"}
-                  </div>
-                </div>
-                <StatusBadge status={secret.status} />
-              </div>
-              <div className="mt-4 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditDialog(secret)}
-                >
-                  编辑
-                </Button>
-              </div>
-            </div>
-          ))}
+          }
+          className="-mx-4 -mt-4 mb-4"
+        />
+        <div className="grid gap-3">
+          {filteredSecrets.length > 0 ? (
+            <DataTableShell>
+              <DataTableHeader>
+                <tr>
+                  <th className="w-10 px-4 py-3" />
+                  <th className="px-4 py-3">密钥引用</th>
+                  <th className="px-4 py-3">保存状态</th>
+                  <th className="px-4 py-3">状态</th>
+                  <th className="px-4 py-3 text-right">操作</th>
+                </tr>
+              </DataTableHeader>
+              <DataTableBody>
+                {filteredSecrets.map((secret) => {
+                  const expanded = expandedSecretRefs.has(secret.secret_ref)
+                  return (
+                    <React.Fragment key={secret.secret_ref}>
+                      <tr className="hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={expanded ? "收起密钥详情" : "展开密钥详情"}
+                            onClick={() => toggleExpandedSecret(secret.secret_ref)}
+                          >
+                            <ChevronDownIcon
+                              className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{secret.secret_ref}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            密钥值保存后不会回显
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={secret.has_secret ? "saved" : "missing"} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={secret.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditDialog(secret)}
+                            >
+                              <Edit3Icon />
+                              编辑
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr>
+                          <td colSpan={5} className="p-0">
+                            <AppExpandablePanel>
+                              <SecretDetail secret={secret} />
+                            </AppExpandablePanel>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  )
+                })}
+              </DataTableBody>
+            </DataTableShell>
+          ) : null}
           {filteredSecrets.length === 0 ? (
             <EmptyState title="暂无密钥" detail="新增上游密钥后会出现在这里。" />
           ) : null}
@@ -234,6 +299,38 @@ export function SystemSecretManagementPage() {
   )
 }
 
+function SecretDetail({ secret }: { secret: AdminLlmSecret }) {
+  const metadata =
+    secret.metadata_json && Object.keys(secret.metadata_json).length > 0
+      ? JSON.stringify(secret.metadata_json)
+      : "无 metadata"
+
+  return (
+    <div className="grid gap-3 md:grid-cols-3">
+      <div className="rounded-md border border-border bg-background px-3 py-2">
+        <div className="text-[11px] font-medium uppercase text-muted-foreground">
+          安全说明
+        </div>
+        <p className="mt-1 text-sm leading-6">
+          密钥值不会回显。编辑已有密钥时，留空表示不修改密钥内容。
+        </p>
+      </div>
+      <div className="rounded-md border border-border bg-background px-3 py-2">
+        <div className="text-[11px] font-medium uppercase text-muted-foreground">
+          Secret value
+        </div>
+        <div className="mt-1 text-sm">{secret.has_secret ? "已保存" : "未保存"}</div>
+      </div>
+      <div className="rounded-md border border-border bg-background px-3 py-2">
+        <div className="text-[11px] font-medium uppercase text-muted-foreground">
+          Metadata
+        </div>
+        <div className="mt-1 truncate text-sm">{metadata}</div>
+      </div>
+    </div>
+  )
+}
+
 function SecretForm({
   secret,
   state,
@@ -249,40 +346,50 @@ function SecretForm({
 }) {
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
-      <div className="grid gap-3">
-        <SystemField label="密钥引用">
-          <Input
-            value={secret.secret_ref}
-            onChange={(event) =>
-              onChange((current) =>
-                current ? { ...current, secret_ref: event.target.value } : current,
-              )
-            }
-          />
-        </SystemField>
-        <SystemField label="密钥值">
-          <Input
-            type="password"
-            value={secret.secret}
-            placeholder="保存后不会回显"
-            onChange={(event) =>
-              onChange((current) =>
-                current ? { ...current, secret: event.target.value } : current,
-              )
-            }
-          />
-        </SystemField>
-        <SystemField label="状态">
-          <Input
-            value={secret.status}
-            onChange={(event) =>
-              onChange((current) =>
-                current ? { ...current, status: event.target.value } : current,
-              )
-            }
-          />
-        </SystemField>
-      </div>
+      <AppDisclosureSection
+        title="安全说明"
+        description="密钥值不会回显；编辑已有密钥时留空表示不修改密钥内容。"
+      >
+        <p className="text-sm leading-6 text-muted-foreground">
+          这里只维护 secret ref 和密钥状态。模型档案应引用 secret ref 或 env:NAME，不应保存原始 API key。
+        </p>
+      </AppDisclosureSection>
+      <AppDisclosureSection title="密钥内容">
+        <AppFieldGrid columns={1}>
+          <SystemField label="密钥引用">
+            <Input
+              value={secret.secret_ref}
+              onChange={(event) =>
+                onChange((current) =>
+                  current ? { ...current, secret_ref: event.target.value } : current,
+                )
+              }
+            />
+          </SystemField>
+          <SystemField label="密钥值">
+            <Input
+              type="password"
+              value={secret.secret}
+              placeholder="保存后不会回显"
+              onChange={(event) =>
+                onChange((current) =>
+                  current ? { ...current, secret: event.target.value } : current,
+                )
+              }
+            />
+          </SystemField>
+          <SystemField label="状态">
+            <Input
+              value={secret.status}
+              onChange={(event) =>
+                onChange((current) =>
+                  current ? { ...current, status: event.target.value } : current,
+                )
+              }
+            />
+          </SystemField>
+        </AppFieldGrid>
+      </AppDisclosureSection>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           取消
