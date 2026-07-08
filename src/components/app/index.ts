@@ -3,10 +3,10 @@ export { AppDisclosureSection } from "@/components/app/disclosure-section"
 export { AppExpandablePanel } from "@/components/app/expandable-panel"
 export { AppFieldGrid } from "@/components/app/field-grid"
 export {
-  AppLineChart,
-  type AppLineChartDatum,
-  type AppLineChartSeries,
-} from "@/components/app/line-chart"
+  LineChartPanel as AppLineChart,
+  type UiLineChartDatum as AppLineChartDatum,
+  type UiLineChartSeries as AppLineChartSeries,
+} from "@/components/ui/line-chart"
 export { AppListToolbar } from "@/components/app/list-toolbar"
 export { AppPage, PageHeader } from "@/components/app/app-page"
 export { AppToaster } from "@/components/app/app-toaster"

@@ -6,7 +6,6 @@ import {
   YAxis,
 } from "recharts"
 
-import { EmptyState } from "@/components/app/empty-state"
 import {
   ChartContainer,
   ChartTooltip,
@@ -15,27 +14,31 @@ import {
 } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
 
-export type AppLineChartSeries = {
+export type UiLineChartSeries = {
   key: string
   label: string
   color: string
 }
 
-export type AppLineChartDatum = {
+export type UiLineChartDatum = {
   label: string
 } & Record<string, string | number>
 
-export function AppLineChart({
+export function LineChartPanel({
   data,
   series,
   height = 288,
   valueFormatter = formatCompactValue,
+  emptyTitle = "暂无趋势数据",
+  emptyDescription = "产生数据后，这里会展示按时间聚合的趋势。",
   className,
 }: {
-  data: AppLineChartDatum[]
-  series: AppLineChartSeries[]
+  data: UiLineChartDatum[]
+  series: UiLineChartSeries[]
   height?: number
   valueFormatter?: (value: number) => string
+  emptyTitle?: string
+  emptyDescription?: string
   className?: string
 }) {
   const hasData = data.some((datum) =>
@@ -44,11 +47,15 @@ export function AppLineChart({
 
   if (!hasData) {
     return (
-      <EmptyState
-        title="暂无趋势数据"
-        detail="产生模型调用后，这里会展示按月聚合的真实用量趋势。"
-        className={className}
-      />
+      <div
+        className={cn(
+          "rounded-md border border-dashed border-border bg-background/60 p-6 text-sm text-muted-foreground",
+          className,
+        )}
+      >
+        <p className="font-medium text-foreground">{emptyTitle}</p>
+        <p className="mt-1 leading-6">{emptyDescription}</p>
+      </div>
     )
   }
 

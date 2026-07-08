@@ -14,6 +14,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   AppDialog,
   AppDisclosureSection,
   AppExpandablePanel,
@@ -57,6 +64,25 @@ import {
   type LoadState,
 } from "./shared"
 
+type ModelStatusFilter = "active" | "enabled" | "disabled" | "archived" | "all"
+type ModelCapabilityFilter = "tool" | "reasoning" | "vision" | "json"
+type ModelSortKey =
+  | "sort_order"
+  | "name"
+  | "current_credits"
+  | "current_requests"
+  | "range_credits"
+
+const capabilityFilters: Array<{
+  value: ModelCapabilityFilter
+  label: string
+}> = [
+  { value: "tool", label: "Tool" },
+  { value: "reasoning", label: "Reasoning" },
+  { value: "vision", label: "Vision" },
+  { value: "json", label: "JSON" },
+]
+
 export function AdminLlmSettingsPage() {
   return <SystemModelManagementPage />
 }
@@ -66,6 +92,12 @@ export function SystemModelManagementPage() {
   const [models, setModels] = React.useState<AdminModelProfile[]>([])
   const [usageRows, setUsageRows] = React.useState<AdminModelMonthlyUsage[]>([])
   const [query, setQuery] = React.useState("")
+  const [statusFilter, setStatusFilter] =
+    React.useState<ModelStatusFilter>("active")
+  const [selectedCapabilities, setSelectedCapabilities] = React.useState<
+    ModelCapabilityFilter[]
+  >([])
+  const [sortKey, setSortKey] = React.useState<ModelSortKey>("sort_order")
   const [editingModel, setEditingModel] =
     React.useState<AdminModelProfilePayload | null>(null)
   const [editingModelId, setEditingModelId] = React.useState<string | null>(null)
@@ -107,20 +139,24 @@ export function SystemModelManagementPage() {
     void loadModels()
   }, [loadModels])
 
-  const filteredModels = React.useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    if (!keyword) return models
-    return models.filter((model) =>
-      `${model.id} ${model.display_name} ${model.upstream_model_name} ${model.upstream_base_url ?? ""}`
-        .toLowerCase()
-        .includes(keyword),
-    )
-  }, [models, query])
-
   const usageSummary = React.useMemo(
     () => buildModelUsageSummary(models, usageRows),
     [models, usageRows],
   )
+
+  const filteredModels = React.useMemo(() => {
+    const keyword = query.trim().toLowerCase()
+    return models
+      .filter((model) => matchesStatusFilter(model, statusFilter))
+      .filter((model) => matchesCapabilityFilters(model, selectedCapabilities))
+      .filter((model) => {
+        if (!keyword) return true
+        return `${model.id} ${model.display_name} ${model.upstream_model_name} ${model.upstream_base_url ?? ""}`
+          .toLowerCase()
+          .includes(keyword)
+      })
+      .sort((a, b) => compareModels(a, b, sortKey, usageSummary))
+  }, [models, query, selectedCapabilities, sortKey, statusFilter, usageSummary])
 
   const metrics = React.useMemo(
     () => [
@@ -149,6 +185,12 @@ export function SystemModelManagementPage() {
     [usageSummary],
   )
 
+  const hasModelFilters =
+    query.trim() ||
+    statusFilter !== "active" ||
+    selectedCapabilities.length > 0 ||
+    sortKey !== "sort_order"
+
   function openCreateDialog() {
     setEditingModel({ ...emptyModel, metadata_json: {} })
     setEditingModelId(null)
@@ -165,6 +207,21 @@ export function SystemModelManagementPage() {
       }
       return next
     })
+  }
+
+  function toggleCapabilityFilter(capability: ModelCapabilityFilter) {
+    setSelectedCapabilities((current) =>
+      current.includes(capability)
+        ? current.filter((item) => item !== capability)
+        : [...current, capability],
+    )
+  }
+
+  function resetModelFilters() {
+    setQuery("")
+    setStatusFilter("active")
+    setSelectedCapabilities([])
+    setSortKey("sort_order")
   }
 
   function openEditDialog(model: AdminModelProfile) {
@@ -336,6 +393,59 @@ export function SystemModelManagementPage() {
               新增模型
             </Button>
           }
+          filters={
+            <>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) =>
+                  setStatusFilter(value as ModelStatusFilter)
+                }
+              >
+                <SelectTrigger size="sm" className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">未删除</SelectItem>
+                  <SelectItem value="enabled">仅启用</SelectItem>
+                  <SelectItem value="disabled">已禁用</SelectItem>
+                  <SelectItem value="archived">已删除</SelectItem>
+                  <SelectItem value="all">全部</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={sortKey}
+                onValueChange={(value) => setSortKey(value as ModelSortKey)}
+              >
+                <SelectTrigger size="sm" className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sort_order">默认排序</SelectItem>
+                  <SelectItem value="current_credits">本月 Credits</SelectItem>
+                  <SelectItem value="current_requests">本月 Requests</SelectItem>
+                  <SelectItem value="range_credits">近 6 月 Credits</SelectItem>
+                  <SelectItem value="name">名称</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {capabilityFilters.map((filter) => (
+                  <Button
+                    key={filter.value}
+                    type="button"
+                    variant={
+                      selectedCapabilities.includes(filter.value)
+                        ? "secondary"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => toggleCapabilityFilter(filter.value)}
+                  >
+                    {filter.label}
+                  </Button>
+                ))}
+              </div>
+            </>
+          }
           className="-mx-4 -mt-4 mb-4"
         />
         <div className="grid gap-3">
@@ -444,7 +554,21 @@ export function SystemModelManagementPage() {
             </DataTableShell>
           ) : null}
           {filteredModels.length === 0 ? (
-            <EmptyState title="暂无模型" detail="新增模型后会出现在这里。" />
+            <EmptyState
+              title={hasModelFilters ? "无匹配模型" : "暂无模型"}
+              detail={
+                hasModelFilters
+                  ? "调整搜索、状态、能力或排序条件后再查看。"
+                  : "新增模型后会出现在这里。"
+              }
+              action={
+                hasModelFilters ? (
+                  <Button type="button" variant="outline" onClick={resetModelFilters}>
+                    重置筛选
+                  </Button>
+                ) : null
+              }
+            />
           ) : null}
         </div>
       </AppSectionCard>
@@ -551,6 +675,13 @@ function buildModelUsageSummary(
   return {
     currentMonthCredits,
     currentMonthRequests,
+    currentCreditsByModel: new Map(
+      currentRows.map((row) => [row.model_profile_id, row.charged_credits]),
+    ),
+    currentRequestsByModel: new Map(
+      currentRows.map((row) => [row.model_profile_id, row.request_count]),
+    ),
+    rangeCreditsByModel: modelTotals,
     topModelLabel: topModelId ? (modelNames.get(topModelId) ?? topModelId) : "-",
     topModelCreditsLabel:
       topModelCredits == null
@@ -558,6 +689,74 @@ function buildModelUsageSummary(
         : formatNumber(topModelCredits),
     chartData,
     chartSeries,
+  }
+}
+
+function matchesStatusFilter(
+  model: AdminModelProfile,
+  statusFilter: ModelStatusFilter,
+) {
+  switch (statusFilter) {
+    case "active":
+      return !model.archived_at
+    case "enabled":
+      return model.enabled && !model.archived_at
+    case "disabled":
+      return !model.enabled && !model.archived_at
+    case "archived":
+      return Boolean(model.archived_at)
+    case "all":
+      return true
+  }
+}
+
+function matchesCapabilityFilters(
+  model: AdminModelProfile,
+  selectedCapabilities: ModelCapabilityFilter[],
+) {
+  return selectedCapabilities.every((capability) => {
+    switch (capability) {
+      case "tool":
+        return model.supports_tool_calls
+      case "reasoning":
+        return model.supports_reasoning
+      case "vision":
+        return model.supports_vision
+      case "json":
+        return model.supports_json_schema
+    }
+  })
+}
+
+function compareModels(
+  a: AdminModelProfile,
+  b: AdminModelProfile,
+  sortKey: ModelSortKey,
+  usageSummary: ReturnType<typeof buildModelUsageSummary>,
+) {
+  switch (sortKey) {
+    case "name":
+      return a.display_name.localeCompare(b.display_name)
+    case "current_credits":
+      return (
+        (usageSummary.currentCreditsByModel.get(b.id) ?? 0) -
+        (usageSummary.currentCreditsByModel.get(a.id) ?? 0)
+      )
+    case "current_requests":
+      return (
+        (usageSummary.currentRequestsByModel.get(b.id) ?? 0) -
+        (usageSummary.currentRequestsByModel.get(a.id) ?? 0)
+      )
+    case "range_credits":
+      return (
+        (usageSummary.rangeCreditsByModel.get(b.id) ?? 0) -
+        (usageSummary.rangeCreditsByModel.get(a.id) ?? 0)
+      )
+    case "sort_order":
+      return (
+        a.sort_order - b.sort_order ||
+        a.display_name.localeCompare(b.display_name)
+      )
   }
 }
 
