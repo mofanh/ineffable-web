@@ -15,6 +15,7 @@ import {
   DataTableHeader,
   DataTableShell,
   EmptyState,
+  FormField,
   StatusBadge,
 } from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
@@ -28,7 +29,6 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  SystemField,
   SystemPageShell,
   emptySecret,
   type LoadState,
@@ -356,7 +356,7 @@ function SecretForm({
       </AppDisclosureSection>
       <AppDisclosureSection title="密钥内容">
         <AppFieldGrid columns={1}>
-          <SystemField label="密钥引用">
+          <FormField label="密钥引用">
             <Input
               value={secret.secret_ref}
               onChange={(event) =>
@@ -365,8 +365,8 @@ function SecretForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="密钥值">
+          </FormField>
+          <FormField label="密钥值">
             <Input
               type="password"
               value={secret.secret}
@@ -377,8 +377,8 @@ function SecretForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="状态">
+          </FormField>
+          <FormField label="状态">
             <Input
               value={secret.status}
               onChange={(event) =>
@@ -387,7 +387,7 @@ function SecretForm({
                 )
               }
             />
-          </SystemField>
+          </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
       <div className="flex justify-end gap-2">

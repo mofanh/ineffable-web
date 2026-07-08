@@ -1,7 +1,12 @@
 import * as React from "react"
 import { ShieldIcon } from "lucide-react"
 
-import { AppMetricPage, type AppMetricCard } from "@/components/app"
+import {
+  AppMetricPage,
+  ErrorState,
+  Notice,
+  type AppMetricCard,
+} from "@/components/app"
 import { Button } from "@/components/ui/button"
 import {
   type AdminModelProfilePayload,
@@ -94,21 +99,6 @@ export function normalizeAccess(
   }
 }
 
-export function SystemField({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="grid gap-1.5 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      {children}
-    </label>
-  )
-}
-
 export function AdminAccessDenied() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
@@ -159,16 +149,8 @@ export function SystemPageShell({
         </Button>
       }
     >
-      {message ? (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          {message}
-        </div>
-      ) : null}
-      {error ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
+      {message ? <Notice tone="success">{message}</Notice> : null}
+      {error ? <ErrorState title="操作失败" error={error} /> : null}
       {children}
     </AppMetricPage>
   )

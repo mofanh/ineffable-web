@@ -146,7 +146,9 @@
 - `Notice`：提示信息
 - `ToggleField`：开关字段
 - `FormField`：通用字段
-- `ActionToolbar`：操作按钮组
+- `AppListToolbar`：列表页搜索、筛选、刷新、新增的工具条
+- `AppDisclosureSection`：弹窗或详情中的折叠分组
+- `AppFieldGrid`：弹窗或详情中的字段网格
 
 如果设计需要调整这些元素，优先输出为组件级规范，而不是只给某个页面单独样式。
 

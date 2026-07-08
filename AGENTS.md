@@ -57,7 +57,6 @@
 - `ToggleField`
 - `DataTableShell`
 - `StatusBadge`
-- `ActionToolbar`
 - `AppMetricPage`
 - `AppSectionCard`
 - `AppSearchBar`
@@ -238,7 +237,8 @@ const confirmed = await confirm({
 - 资源态使用 `DataState`
 - 状态标签使用 `StatusBadge`
 - 表格外壳使用 `DataTableShell`
-- 页面动作栏使用 `ActionToolbar`
+- 列表页搜索、筛选和主操作使用 `AppListToolbar`
+- 普通表单动作直接使用页面或弹窗现有布局，不新增无语义的按钮组壳
 
 不要在页面内新增本地 `Field`、`TextInput`、`ToggleField`、`StatusBadge`、`ErrorNotice`、`EmptyState`，除非它们有明确且不可复用的业务语义。
 

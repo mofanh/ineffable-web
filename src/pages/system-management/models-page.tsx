@@ -10,7 +10,6 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { ToggleField } from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -25,7 +24,9 @@ import {
   DataTableHeader,
   DataTableShell,
   EmptyState,
+  FormField,
   StatusBadge,
+  ToggleField,
 } from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
@@ -42,7 +43,6 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  SystemField,
   SystemPageShell,
   emptyModel,
   isRawApiKey,
@@ -496,7 +496,7 @@ function ModelForm({
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <AppDisclosureSection title="基础信息" description="控制模型在管理端和套餐授权中的展示方式。">
         <AppFieldGrid>
-          <SystemField label="展示名">
+          <FormField label="展示名">
             <Input
               value={model.display_name}
               onChange={(event) =>
@@ -505,8 +505,8 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="Endpoint">
+          </FormField>
+          <FormField label="Endpoint">
             <Input
               value={model.endpoint_kind}
               onChange={(event) =>
@@ -515,13 +515,13 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
+          </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
 
       <AppDisclosureSection title="上游连接" description="只保存上游连接信息和密钥引用，不保存明文 API key。">
         <AppFieldGrid>
-          <SystemField label="上游模型名">
+          <FormField label="上游模型名">
             <Input
               value={model.upstream_model_name}
               onChange={(event) =>
@@ -530,8 +530,8 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="Base URL">
+          </FormField>
+          <FormField label="Base URL">
             <Input
               value={model.upstream_base_url ?? ""}
               onChange={(event) =>
@@ -542,8 +542,8 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="密钥引用（secret_ref 或 env:NAME）">
+          </FormField>
+          <FormField label="密钥引用（secret_ref 或 env:NAME）">
             <Input
               value={model.upstream_api_key_ref ?? ""}
               placeholder="例如 deepseek-default 或 env:DEEPSEEK_API_KEY"
@@ -555,13 +555,13 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
+          </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
 
       <AppDisclosureSection title="上下文限制">
         <AppFieldGrid>
-          <SystemField label="上下文长度">
+          <FormField label="上下文长度">
             <Input
               type="number"
               value={model.context_window_tokens ?? ""}
@@ -573,8 +573,8 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="最大输出 tokens">
+          </FormField>
+          <FormField label="最大输出 tokens">
             <Input
               type="number"
               min={1}
@@ -588,7 +588,7 @@ function ModelForm({
                 )
               }}
             />
-          </SystemField>
+          </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
 
@@ -603,7 +603,7 @@ function ModelForm({
 
       <AppDisclosureSection title="计费和排序">
         <AppFieldGrid>
-          <SystemField label="使用倍率">
+          <FormField label="使用倍率">
             <Input
               type="number"
               step="0.01"
@@ -614,8 +614,8 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
-          <SystemField label="排序">
+          </FormField>
+          <FormField label="排序">
             <Input
               type="number"
               value={model.sort_order}
@@ -625,7 +625,7 @@ function ModelForm({
                 )
               }
             />
-          </SystemField>
+          </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
       <div className="flex justify-end gap-2">

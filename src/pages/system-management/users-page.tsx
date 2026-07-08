@@ -15,6 +15,7 @@ import {
   DataTableHeader,
   DataTableShell,
   EmptyState,
+  FormField,
   StatusBadge,
 } from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
@@ -35,7 +36,6 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  SystemField,
   SystemPageShell,
   type LoadState,
 } from "./shared"
@@ -184,13 +184,7 @@ export function SystemUserManagementPage() {
   function toggleExpandedUser(userId: string) {
     setSelectedUserId(userId)
     setExpandedUserIds((current) => {
-      const next = new Set(current)
-      if (next.has(userId)) {
-        next.delete(userId)
-      } else {
-        next.add(userId)
-      }
-      return next
+      return current.has(userId) ? new Set() : new Set([userId])
     })
   }
 
@@ -371,39 +365,41 @@ export function SystemUserManagementPage() {
         {editingUser ? (
           <form onSubmit={(event) => void saveUser(event)} className="space-y-4">
             <AppDisclosureSection title="用户角色和套餐">
-            <AppFieldGrid columns={1}>
-              <SystemField label="用户">
-                <Input value={editingUser.email} readOnly />
-              </SystemField>
-              <SystemField label="角色">
-                <select
-                  value={editingRole}
-                  disabled={state !== "idle"}
-                  onChange={(event) =>
-                    setEditingRole(
-                      event.target.value === "admin" ? "admin" : "user",
-                    )
-                  }
-                  className="h-9 rounded-md border bg-background px-2 text-sm"
-                >
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-              </SystemField>
-              <SystemField label="分配套餐">
-                <select
-                  value={selectedUserPlanId}
-                  onChange={(event) => setSelectedUserPlanId(event.target.value)}
-                  className="h-9 rounded-md border bg-background px-2 text-sm"
-                >
-                  {plans.map((plan) => (
-                    <option key={plan.id} value={plan.id}>
-                      {plan.display_name}
-                    </option>
-                  ))}
-                </select>
-              </SystemField>
-            </AppFieldGrid>
+              <AppFieldGrid columns={1}>
+                <FormField label="用户">
+                  <Input value={editingUser.email} readOnly />
+                </FormField>
+                <FormField label="角色">
+                  <select
+                    value={editingRole}
+                    disabled={state !== "idle"}
+                    onChange={(event) =>
+                      setEditingRole(
+                        event.target.value === "admin" ? "admin" : "user",
+                      )
+                    }
+                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                  >
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </FormField>
+                <FormField label="分配套餐">
+                  <select
+                    value={selectedUserPlanId}
+                    onChange={(event) =>
+                      setSelectedUserPlanId(event.target.value)
+                    }
+                    className="h-9 rounded-md border bg-background px-2 text-sm"
+                  >
+                    {plans.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              </AppFieldGrid>
             </AppDisclosureSection>
             <div className="flex justify-end gap-2">
               <Button

@@ -1,4 +1,3 @@
-export { ActionToolbar } from "@/components/app/action-toolbar"
 export { AppDialog, type AppDialogMaxWidth } from "@/components/app/app-dialog"
 export { AppDisclosureSection } from "@/components/app/disclosure-section"
 export { AppExpandablePanel } from "@/components/app/expandable-panel"

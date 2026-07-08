@@ -10,7 +10,6 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { ToggleField } from "@/components/app"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -25,7 +24,9 @@ import {
   DataTableHeader,
   DataTableShell,
   EmptyState,
+  FormField,
   StatusBadge,
+  ToggleField,
 } from "@/components/app"
 import { useAuthSession } from "@/features/auth/app-session"
 import {
@@ -47,7 +48,6 @@ import { notify } from "@/lib/app/notifications"
 
 import {
   AdminAccessDenied,
-  SystemField,
   SystemPageShell,
   emptyPlan,
   modelAccessFor,
@@ -200,13 +200,7 @@ export function SystemPlanManagementPage() {
   function toggleExpandedPlan(planId: string) {
     setSelectedPlanId(planId)
     setExpandedPlanIds((current) => {
-      const next = new Set(current)
-      if (next.has(planId)) {
-        next.delete(planId)
-      } else {
-        next.add(planId)
-      }
-      return next
+      return current.has(planId) ? new Set() : new Set([planId])
     })
   }
 
@@ -562,55 +556,55 @@ function PlanForm({
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <AppDisclosureSection title="套餐基础信息">
-      <AppFieldGrid columns={1}>
-        <SystemField label="内部名称">
-          <Input
-            value={plan.name}
-            onChange={(event) =>
+        <AppFieldGrid columns={1}>
+          <FormField label="内部名称">
+            <Input
+              value={plan.name}
+              onChange={(event) =>
+                onChange((current) =>
+                  current ? { ...current, name: event.target.value } : current,
+                )
+              }
+            />
+          </FormField>
+          <FormField label="展示名">
+            <Input
+              value={plan.display_name}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? { ...current, display_name: event.target.value }
+                    : current,
+                )
+              }
+            />
+          </FormField>
+          <FormField label="月额度">
+            <Input
+              type="number"
+              value={plan.monthly_credit_limit ?? ""}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? {
+                        ...current,
+                        monthly_credit_limit: numberOrNull(event.target.value),
+                      }
+                    : current,
+                )
+              }
+            />
+          </FormField>
+          <ToggleField
+            label="启用套餐"
+            checked={plan.enabled}
+            onCheckedChange={(checked) =>
               onChange((current) =>
-                current ? { ...current, name: event.target.value } : current,
+                current ? { ...current, enabled: checked } : current,
               )
             }
           />
-        </SystemField>
-        <SystemField label="展示名">
-          <Input
-            value={plan.display_name}
-            onChange={(event) =>
-              onChange((current) =>
-                current
-                  ? { ...current, display_name: event.target.value }
-                  : current,
-              )
-            }
-          />
-        </SystemField>
-        <SystemField label="月额度">
-          <Input
-            type="number"
-            value={plan.monthly_credit_limit ?? ""}
-            onChange={(event) =>
-              onChange((current) =>
-                current
-                  ? {
-                      ...current,
-                      monthly_credit_limit: numberOrNull(event.target.value),
-                    }
-                  : current,
-              )
-            }
-          />
-        </SystemField>
-        <ToggleField
-          label="启用套餐"
-          checked={plan.enabled}
-          onCheckedChange={(checked) =>
-            onChange((current) =>
-              current ? { ...current, enabled: checked } : current,
-            )
-          }
-        />
-      </AppFieldGrid>
+        </AppFieldGrid>
       </AppDisclosureSection>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
