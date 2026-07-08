@@ -242,6 +242,44 @@ const confirmed = await confirm({
 
 不要在页面内新增本地 `Field`、`TextInput`、`ToggleField`、`StatusBadge`、`ErrorNotice`、`EmptyState`，除非它们有明确且不可复用的业务语义。
 
+## 系统管理页面设计约束
+
+系统管理页面包括：
+
+- `/system/models`
+- `/system/plans`
+- `/system/secrets`
+- `/system/users`
+
+这组页面采用统一的单列管理页模板：
+
+```text
+页面标题区
+指标区
+工具条
+主列表 / 表格
+行内展开详情 / 折叠区 / 弹窗编辑
+```
+
+规则：
+
+1. 不做左右分栏，不常驻右侧详情面板。
+2. 主视图始终是列表或表格。
+3. 轻量详情使用行内展开或折叠区。
+4. 新增和编辑使用 `AppDialog`。
+5. 危险操作使用 `confirm`。
+6. 状态、空态、错误态、加载态继续使用 app 底座组件。
+7. 页面级工具条、展开详情、折叠分组和字段网格如需抽象，应进入 `components/app`。
+
+推荐后续底座组件：
+
+- `AppListToolbar`
+- `AppExpandablePanel`
+- `AppDisclosureSection`
+- `AppFieldGrid`
+
+这些组件应先在系统管理页面验证，再推广到其他功能。
+
 ## 提交和验证
 
 每个 phase 或清晰闭环的架构改动都应提交一个中文分点 commit。
