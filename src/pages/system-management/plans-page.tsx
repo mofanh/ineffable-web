@@ -1,7 +1,9 @@
 import * as React from "react"
 import {
   BotIcon,
+  ChevronDownIcon,
   CheckIcon,
+  Edit3Icon,
   PackageIcon,
   PlusIcon,
   SaveIcon,
@@ -13,8 +15,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   AppDialog,
+  AppDisclosureSection,
+  AppExpandablePanel,
+  AppFieldGrid,
+  AppListToolbar,
   AppSearchBar,
   AppSectionCard,
+  DataTableBody,
+  DataTableHeader,
+  DataTableShell,
   EmptyState,
   StatusBadge,
 } from "@/components/app"
@@ -54,6 +63,9 @@ export function SystemPlanManagementPage() {
   const [selectedPlanId, setSelectedPlanId] = React.useState("free")
   const [accessRows, setAccessRows] = React.useState<AdminPlanModelAccess[]>([])
   const [query, setQuery] = React.useState("")
+  const [expandedPlanIds, setExpandedPlanIds] = React.useState<Set<string>>(
+    () => new Set()
+  )
   const [editingPlan, setEditingPlan] = React.useState<AdminPlanPayload | null>(
     null,
   )
@@ -140,11 +152,6 @@ export function SystemPlanManagementPage() {
     [models],
   )
 
-  const activePlans = React.useMemo(
-    () => plans.filter((plan) => !plan.archived_at),
-    [plans],
-  )
-
   const metrics = React.useMemo(
     () => [
       {
@@ -188,6 +195,19 @@ export function SystemPlanManagementPage() {
     setEditingPlanId(plan.id)
     setSelectedPlanId(plan.id)
     setDialogOpen(true)
+  }
+
+  function toggleExpandedPlan(planId: string) {
+    setSelectedPlanId(planId)
+    setExpandedPlanIds((current) => {
+      const next = new Set(current)
+      if (next.has(planId)) {
+        next.delete(planId)
+      } else {
+        next.add(planId)
+      }
+      return next
+    })
   }
 
   async function savePlan(event: React.FormEvent<HTMLFormElement>) {
@@ -306,173 +326,134 @@ export function SystemPlanManagementPage() {
       error={error}
       onRefresh={() => void loadPlans()}
     >
-      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <AppSectionCard
-          title="套餐列表"
-          description="每张卡片代表一个套餐。点击编辑可调整基础额度。"
-          icon={PackageIcon}
-          actions={
-            <div className="flex items-center gap-2">
-              <div className="hidden w-64 md:block">
-                <AppSearchBar
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="搜索套餐..."
-                />
-              </div>
-              <Button type="button" onClick={openCreateDialog}>
-                <PlusIcon />
-                新增套餐
-              </Button>
-            </div>
+      <AppSectionCard
+        title="套餐列表"
+        description="主视图保持单列表格，模型权限配置通过行内展开维护。"
+        icon={PackageIcon}
+      >
+        <AppListToolbar
+          search={
+            <AppSearchBar
+              value={query}
+              onChange={setQuery}
+              placeholder="搜索套餐..."
+            />
           }
-        >
-          <div className="mb-3 md:hidden">
-            <AppSearchBar value={query} onChange={setQuery} placeholder="搜索套餐..." />
-          </div>
-          <div className="grid gap-3">
-            {filteredPlans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`rounded-md border bg-background/60 p-4 text-sm transition-colors hover:bg-muted/60 ${
-                  plan.id === selectedPlanId ? "border-primary" : "border-border"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{plan.display_name}</div>
-                    <div className="mt-1 truncate text-muted-foreground">
-                      {plan.id} / {plan.monthly_credit_limit ?? "不限额"}
-                    </div>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      内部名称：{plan.name}
-                    </div>
-                  </div>
-                  <StatusBadge
-                    status={
-                      plan.archived_at
-                        ? "archived"
-                        : plan.enabled
-                          ? "enabled"
-                          : "disabled"
-                    }
-                  />
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedPlanId(plan.id)}
-                    disabled={Boolean(plan.archived_at)}
-                  >
-                    权限
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void deletePlan(plan)}
-                    disabled={
-                      state !== "idle" || plan.id === "free" || Boolean(plan.archived_at)
-                    }
-                  >
-                    <Trash2Icon />
-                    删除
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(plan)}
-                    disabled={Boolean(plan.archived_at)}
-                  >
-                    编辑
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {filteredPlans.length === 0 ? (
-              <EmptyState title="暂无套餐" detail="新增套餐后会出现在这里。" />
-            ) : null}
-          </div>
-        </AppSectionCard>
-
-        <AppSectionCard
-          title="套餐模型权限"
-          description="不可见的模型会自动变成不可用。"
-          icon={BotIcon}
           actions={
-            <select
-              value={selectedPlanId}
-              onChange={(event) => setSelectedPlanId(event.target.value)}
-              className="h-8 rounded-md border bg-background px-2 text-sm"
-            >
-              {activePlans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.display_name}
-                </option>
-              ))}
-            </select>
+            <Button type="button" onClick={openCreateDialog}>
+              <PlusIcon />
+              新增套餐
+            </Button>
           }
-        >
-          <div className="grid gap-2">
-            {activeModels.map((model) => {
-              const existing = accessRows.find(
-                (item) => item.model_profile_id === model.id,
-              )
-              const access = normalizeAccess(
-                existing ?? modelAccessFor(selectedPlanId, model.id),
-              )
-
-              return (
-                <div
-                  key={model.id}
-                  className="grid gap-3 rounded-md border border-border bg-background/60 p-3 md:grid-cols-[1fr_auto_auto_auto]"
-                >
-                  <div>
-                    <div className="font-medium">{model.display_name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {model.id} / {model.upstream_model_name}
-                    </div>
-                  </div>
-                  <ToggleField
-                    label="可见"
-                    checked={access.visible}
-                    onCheckedChange={(checked) =>
-                      void saveAccess(model.id, {
-                        ...access,
-                        visible: checked,
-                        usable: checked ? access.usable : false,
-                      })
-                    }
-                  />
-                  <ToggleField
-                    label="可用"
-                    checked={access.usable}
-                    disabled={!access.visible}
-                    onCheckedChange={(checked) =>
-                      void saveAccess(model.id, { ...access, usable: checked })
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void saveAccess(model.id, access)}
-                    disabled={state !== "idle"}
-                  >
-                    <CheckIcon />
-                    授权
-                  </Button>
-                </div>
-              )
-            })}
-            {activeModels.length === 0 ? (
-              <EmptyState title="暂无模型" detail="先创建模型档案后再配置套餐权限。" />
-            ) : null}
-          </div>
-        </AppSectionCard>
-      </section>
+          className="-mx-4 -mt-4 mb-4"
+        />
+        <div className="grid gap-3">
+          {filteredPlans.length > 0 ? (
+            <DataTableShell>
+              <DataTableHeader>
+                <tr>
+                  <th className="w-10 px-4 py-3" />
+                  <th className="px-4 py-3">套餐</th>
+                  <th className="px-4 py-3">月额度</th>
+                  <th className="px-4 py-3">模型权限</th>
+                  <th className="px-4 py-3">状态</th>
+                  <th className="px-4 py-3 text-right">操作</th>
+                </tr>
+              </DataTableHeader>
+              <DataTableBody>
+                {filteredPlans.map((plan) => {
+                  const expanded = expandedPlanIds.has(plan.id)
+                  const accessCount =
+                    plan.id === selectedPlanId
+                      ? accessRows.filter((item) => item.visible).length
+                      : "-"
+                  return (
+                    <React.Fragment key={plan.id}>
+                      <tr className="hover:bg-muted/20">
+                        <td className="px-4 py-3">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={expanded ? "收起套餐权限" : "展开套餐权限"}
+                            disabled={Boolean(plan.archived_at)}
+                            onClick={() => toggleExpandedPlan(plan.id)}
+                          >
+                            <ChevronDownIcon
+                              className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{plan.display_name}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {plan.id} / {plan.name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">{plan.monthly_credit_limit ?? "不限额"}</td>
+                        <td className="px-4 py-3">{accessCount}</td>
+                        <td className="px-4 py-3">
+                          <StatusBadge
+                            status={
+                              plan.archived_at
+                                ? "archived"
+                                : plan.enabled
+                                  ? "enabled"
+                                  : "disabled"
+                            }
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditDialog(plan)}
+                              disabled={Boolean(plan.archived_at)}
+                            >
+                              <Edit3Icon />
+                              编辑
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void deletePlan(plan)}
+                              disabled={state !== "idle" || plan.id === "free" || Boolean(plan.archived_at)}
+                            >
+                              <Trash2Icon />
+                              删除
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr>
+                          <td colSpan={6} className="p-0">
+                            <AppExpandablePanel>
+                              <PlanAccessPanel
+                                activeModels={activeModels}
+                                accessRows={plan.id === selectedPlanId ? accessRows : []}
+                                planId={plan.id}
+                                state={state}
+                                onSaveAccess={saveAccess}
+                              />
+                            </AppExpandablePanel>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  )
+                })}
+              </DataTableBody>
+            </DataTableShell>
+          ) : null}
+          {filteredPlans.length === 0 ? (
+            <EmptyState title="暂无套餐" detail="新增套餐后会出现在这里。" />
+          ) : null}
+        </div>
+      </AppSectionCard>
 
       <AppDialog
         open={dialogOpen}
@@ -494,6 +475,77 @@ export function SystemPlanManagementPage() {
   )
 }
 
+function PlanAccessPanel({
+  activeModels,
+  accessRows,
+  planId,
+  state,
+  onSaveAccess,
+}: {
+  activeModels: AdminModelProfile[]
+  accessRows: AdminPlanModelAccess[]
+  planId: string
+  state: LoadState
+  onSaveAccess: (modelId: string, next: AdminPlanModelAccess) => Promise<void>
+}) {
+  return (
+    <div className="grid gap-3">
+      <div className="text-sm text-muted-foreground">
+        不可见的模型会自动变成不可用。当前配置套餐：{planId}
+      </div>
+      {activeModels.map((model) => {
+        const existing = accessRows.find((item) => item.model_profile_id === model.id)
+        const access = normalizeAccess(existing ?? modelAccessFor(planId, model.id))
+
+        return (
+          <div
+            key={model.id}
+            className="grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto_auto_auto]"
+          >
+            <div>
+              <div className="font-medium">{model.display_name}</div>
+              <div className="text-sm text-muted-foreground">
+                {model.id} / {model.upstream_model_name}
+              </div>
+            </div>
+            <ToggleField
+              label="可见"
+              checked={access.visible}
+              onCheckedChange={(checked) =>
+                void onSaveAccess(model.id, {
+                  ...access,
+                  visible: checked,
+                  usable: checked ? access.usable : false,
+                })
+              }
+            />
+            <ToggleField
+              label="可用"
+              checked={access.usable}
+              disabled={!access.visible}
+              onCheckedChange={(checked) =>
+                void onSaveAccess(model.id, { ...access, usable: checked })
+              }
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void onSaveAccess(model.id, access)}
+              disabled={state !== "idle"}
+            >
+              <CheckIcon />
+              授权
+            </Button>
+          </div>
+        )
+      })}
+      {activeModels.length === 0 ? (
+        <EmptyState title="暂无模型" detail="先创建模型档案后再配置套餐权限。" />
+      ) : null}
+    </div>
+  )
+}
+
 function PlanForm({
   plan,
   state,
@@ -509,7 +561,8 @@ function PlanForm({
 }) {
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
-      <div className="grid gap-3">
+      <AppDisclosureSection title="套餐基础信息">
+      <AppFieldGrid columns={1}>
         <SystemField label="内部名称">
           <Input
             value={plan.name}
@@ -557,7 +610,8 @@ function PlanForm({
             )
           }
         />
-      </div>
+      </AppFieldGrid>
+      </AppDisclosureSection>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           取消
