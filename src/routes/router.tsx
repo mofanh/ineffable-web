@@ -18,15 +18,6 @@ import { SystemUserManagementPage } from "@/pages/system-management/users-page"
 import { AutomationPage } from "@/pages/agent-products/automation-page"
 import { LoginPage, RegisterPage } from "@/pages/auth-pages"
 import {
-  ApiDebugPage,
-  CliChatPage,
-  CliDirectPage,
-  CollaborationOverviewPage,
-  ConsoleWorldHomePage,
-  RealtimeTasksPage,
-  ResourceBoardPage,
-} from "@/pages/console-pages"
-import {
   DocsCenterPage,
   DocsChangelogPage,
   DocsGetStartedPage,
@@ -90,13 +81,6 @@ const routeElements: Record<string, React.ReactElement> = {
     </RequireAdmin>
   ),
   "/automation": <AutomationPage />,
-  "/console/world": <ConsoleWorldHomePage />,
-  "/console/world/collaboration": <CollaborationOverviewPage />,
-  "/console/world/tasks": <RealtimeTasksPage />,
-  "/console/world/resources": <ResourceBoardPage />,
-  "/console/world/cli-direct": <CliDirectPage />,
-  "/console/world/cli-chat": <CliChatPage />,
-  "/console/world/api-debug": <ApiDebugPage />,
   "/models": <ModelCenterPage />,
   "/models/genesis": <GenesisPage />,
   "/models/explorer": <ExplorerPage />,

@@ -43,7 +43,7 @@ function AppShellContent() {
   const breadcrumbs =
     getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces) ??
     routeMeta?.breadcrumbs ??
-    [{ label: "World 控制台" }]
+    [{ label: "Automation" }]
   const { headerContent } = useAppHeader()
   const {
     isRightSidebarOpen,

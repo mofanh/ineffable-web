@@ -7,7 +7,6 @@ import {
   PieChartIcon,
   SendIcon,
   Settings2Icon,
-  TerminalSquareIcon,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -34,23 +33,10 @@ export type SimpleNavItem = {
   icon: LucideIcon
 }
 
-export const defaultPath = "/console/world/collaboration"
+export const defaultPath = "/automation"
 
 export const navigation = {
   main: [
-    {
-      title: "World 控制台",
-      path: "/console/world",
-      icon: TerminalSquareIcon,
-      items: [
-        { title: "协作总览", path: "/console/world/collaboration" },
-        { title: "实时任务", path: "/console/world/tasks" },
-        { title: "资源看板", path: "/console/world/resources" },
-        { title: "CLI 直连", path: "/console/world/cli-direct" },
-        { title: "CLI Chat", path: "/console/world/cli-chat" },
-        { title: "接口调试", path: "/console/world/api-debug" },
-      ],
-    },
     {
       title: "模型中心",
       path: "/models",

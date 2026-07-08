@@ -48,6 +48,7 @@ import { normalizeAppError, type AppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { useApiResource } from "@/lib/app/use-api-resource"
+import { defaultPath } from "@/routes/navigation"
 
 const roleOptions = ["admin", "member", "viewer"] as const
 const purposeOptions = ["Engineering", "Marketing", "Operations", "Research"] as const
@@ -863,7 +864,7 @@ export function AcceptWorkspaceInvitationPage() {
           {status === "accepted" ? (
             <Button
               type="button"
-              onClick={() => navigate("/console/world")}
+              onClick={() => navigate(defaultPath)}
               className="h-12 w-full gap-2"
             >
               Continue
@@ -881,7 +882,7 @@ export function AcceptWorkspaceInvitationPage() {
             </Button>
           )}
           <Button asChild variant="ghost" className="h-11 w-full">
-            <Link to="/console/world">Maybe later</Link>
+            <Link to={defaultPath}>Maybe later</Link>
           </Button>
         </div>
       </div>
