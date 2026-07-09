@@ -61,7 +61,9 @@ export function SystemPlanManagementPage() {
   const [models, setModels] = React.useState<AdminModelProfile[]>([])
   const [plans, setPlans] = React.useState<AdminPlan[]>([])
   const [selectedPlanId, setSelectedPlanId] = React.useState("free")
-  const [accessRows, setAccessRows] = React.useState<AdminPlanModelAccess[]>([])
+  const [accessRowsByPlanId, setAccessRowsByPlanId] = React.useState<
+    Record<string, AdminPlanModelAccess[]>
+  >({})
   const [query, setQuery] = React.useState("")
   const [expandedPlanIds, setExpandedPlanIds] = React.useState<Set<string>>(
     () => new Set()
@@ -112,14 +114,19 @@ export function SystemPlanManagementPage() {
 
   React.useEffect(() => {
     if (!accessToken || !isAdmin || !selectedPlanId) {
-      setAccessRows([])
       return
     }
 
     let cancelled = false
+    const planId = selectedPlanId
     void listAdminPlanModelAccess(accessToken, selectedPlanId)
       .then((result) => {
-        if (!cancelled) setAccessRows(result.access.map(normalizeAccess))
+        if (!cancelled) {
+          setAccessRowsByPlanId((current) => ({
+            ...current,
+            [planId]: result.access.map(normalizeAccess),
+          }))
+        }
       })
       .catch((loadError) => {
         if (!cancelled) {
@@ -285,14 +292,19 @@ export function SystemPlanManagementPage() {
     try {
       const result = await upsertAdminPlanModelAccess(accessToken, payload)
       const normalized = normalizeAccess(result.access)
-      setAccessRows((current) => [
-        normalized,
-        ...current.filter((item) => item.model_profile_id !== modelId),
-      ])
-      setMessage(`权限已保存：${selectedPlanId} / ${modelId}`)
+      setAccessRowsByPlanId((current) => ({
+        ...current,
+        [payload.plan_id]: [
+          normalized,
+          ...(current[payload.plan_id] ?? []).filter(
+            (item) => item.model_profile_id !== modelId,
+          ),
+        ],
+      }))
+      setMessage(`权限已保存：${payload.plan_id} / ${modelId}`)
       notify.success({
         title: "套餐权限已保存",
-        description: `${selectedPlanId} / ${modelId}`,
+        description: `${payload.plan_id} / ${modelId}`,
       })
     } catch (saveError) {
       const appError = normalizeAppError(saveError, {
@@ -357,10 +369,10 @@ export function SystemPlanManagementPage() {
               <DataTableBody>
                 {filteredPlans.map((plan) => {
                   const expanded = expandedPlanIds.has(plan.id)
-                  const accessCount =
-                    plan.id === selectedPlanId
-                      ? accessRows.filter((item) => item.visible).length
-                      : "-"
+                  const accessRows = accessRowsByPlanId[plan.id]
+                  const accessCount = accessRows
+                    ? accessRows.filter((item) => item.visible).length
+                    : "-"
                   return (
                     <React.Fragment key={plan.id}>
                       <tr className="hover:bg-muted/20">
@@ -428,7 +440,7 @@ export function SystemPlanManagementPage() {
                             <AppExpandablePanel>
                               <PlanAccessPanel
                                 activeModels={activeModels}
-                                accessRows={plan.id === selectedPlanId ? accessRows : []}
+                                accessRows={accessRows}
                                 planId={plan.id}
                                 state={state}
                                 onSaveAccess={saveAccess}
@@ -477,11 +489,15 @@ function PlanAccessPanel({
   onSaveAccess,
 }: {
   activeModels: AdminModelProfile[]
-  accessRows: AdminPlanModelAccess[]
+  accessRows?: AdminPlanModelAccess[]
   planId: string
   state: LoadState
   onSaveAccess: (modelId: string, next: AdminPlanModelAccess) => Promise<void>
 }) {
+  if (!accessRows) {
+    return <EmptyState title="正在加载套餐权限" detail="权限数据返回后再维护模型可见和可用范围。" />
+  }
+
   return (
     <div className="grid gap-3">
       <div className="text-sm text-muted-foreground">

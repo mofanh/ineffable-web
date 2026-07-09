@@ -40,23 +40,27 @@ import {
   type LoadState,
 } from "./shared"
 
+type UserDetails = {
+  assignments: AdminUserPlanAssignment[]
+  usage: AdminUserMonthlyUsage[]
+}
+
 export function SystemUserManagementPage() {
   const { accessToken, currentUser } = useAuthSession()
   const [users, setUsers] = React.useState<AdminUser[]>([])
   const [plans, setPlans] = React.useState<AdminPlan[]>([])
-  const [selectedUserId, setSelectedUserId] = React.useState("")
-  const [selectedUserPlanId, setSelectedUserPlanId] = React.useState("")
-  const [assignments, setAssignments] = React.useState<
-    AdminUserPlanAssignment[]
-  >([])
-  const [usage, setUsage] = React.useState<AdminUserMonthlyUsage[]>([])
+  const [userDetailsByUserId, setUserDetailsByUserId] = React.useState<
+    Record<string, UserDetails>
+  >({})
   const [query, setQuery] = React.useState("")
   const [expandedUserIds, setExpandedUserIds] = React.useState<Set<string>>(
     () => new Set()
   )
   const [editingUser, setEditingUser] = React.useState<AdminUser | null>(null)
   const [editingRole, setEditingRole] = React.useState<"user" | "admin">("user")
+  const [editingUserPlanId, setEditingUserPlanId] = React.useState("")
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const editingUserIdRef = React.useRef("")
   const [state, setState] = React.useState<LoadState>("idle")
   const [message, setMessage] = React.useState("")
   const [error, setError] = React.useState("")
@@ -73,12 +77,7 @@ export function SystemUserManagementPage() {
       ])
       setUsers(userResult.users)
       setPlans(planResult.plans)
-      setSelectedUserId((current) =>
-        userResult.users.some((user) => user.id === current)
-          ? current
-          : (userResult.users[0]?.id ?? ""),
-      )
-      setSelectedUserPlanId((current) =>
+      setEditingUserPlanId((current) =>
         planResult.plans.some((plan) => plan.id === current)
           ? current
           : (planResult.plans[0]?.id ?? ""),
@@ -101,41 +100,37 @@ export function SystemUserManagementPage() {
     void loadUsers()
   }, [loadUsers])
 
-  React.useEffect(() => {
-    if (!accessToken || !isAdmin || !selectedUserId) {
-      setAssignments([])
-      setUsage([])
-      return
-    }
-
-    let cancelled = false
-    void Promise.all([
-      listAdminUserPlanAssignments(accessToken, selectedUserId),
-      listAdminUserMonthlyUsage(accessToken, selectedUserId),
-    ])
-      .then(([planResult, usageResult]) => {
-        if (!cancelled) {
-          setAssignments(planResult.assignments)
-          setUsage(usageResult.usage)
+  const loadUserDetails = React.useCallback(
+    async (userId: string) => {
+      if (!accessToken || !isAdmin || !userId) return null
+      try {
+        const [planResult, usageResult] = await Promise.all([
+          listAdminUserPlanAssignments(accessToken, userId),
+          listAdminUserMonthlyUsage(accessToken, userId),
+        ])
+        const details = {
+          assignments: planResult.assignments,
+          usage: usageResult.usage,
         }
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          const appError = normalizeAppError(loadError, {
-            fallbackMessage: "加载失败",
-          })
-          setError(appError.message)
-          notify.error({
-            title: "加载用户明细失败",
-            description: appError.message,
-          })
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken, isAdmin, selectedUserId])
+        setUserDetailsByUserId((current) => ({
+          ...current,
+          [userId]: details,
+        }))
+        return details
+      } catch (loadError) {
+        const appError = normalizeAppError(loadError, {
+          fallbackMessage: "加载失败",
+        })
+        setError(appError.message)
+        notify.error({
+          title: "加载用户明细失败",
+          description: appError.message,
+        })
+        return null
+      }
+    },
+    [accessToken, isAdmin],
+  )
 
   const filteredUsers = React.useMemo(() => {
     const keyword = query.trim().toLowerCase()
@@ -148,43 +143,71 @@ export function SystemUserManagementPage() {
   }, [query, users])
 
   const metrics = React.useMemo(
-    () => [
-      {
-        label: "Users",
-        value: String(users.length),
-        detail: `${users.filter((user) => user.role === "admin").length} admins`,
-        icon: UsersIcon,
-        tone: "blue" as const,
-      },
-      {
-        label: "Assignments",
-        value: String(assignments.length),
-        detail: "for selected user",
-        icon: PackageIcon,
-        tone: "green" as const,
-      },
-      {
-        label: "Usage",
-        value: String(usage.length),
-        detail: "monthly records",
-        icon: GaugeIcon,
-        tone: "amber" as const,
-      },
-    ],
-    [assignments.length, usage.length, users],
+    () => {
+      const cachedDetails = Object.values(userDetailsByUserId)
+      return [
+        {
+          label: "Users",
+          value: String(users.length),
+          detail: `${users.filter((user) => user.role === "admin").length} admins`,
+          icon: UsersIcon,
+          tone: "blue" as const,
+        },
+        {
+          label: "Assignments",
+          value: String(
+            cachedDetails.reduce(
+              (total, details) => total + details.assignments.length,
+              0,
+            ),
+          ),
+          detail: "cached records",
+          icon: PackageIcon,
+          tone: "green" as const,
+        },
+        {
+          label: "Usage",
+          value: String(
+            cachedDetails.reduce(
+              (total, details) => total + details.usage.length,
+              0,
+            ),
+          ),
+          detail: "cached records",
+          icon: GaugeIcon,
+          tone: "amber" as const,
+        },
+      ]
+    },
+    [userDetailsByUserId, users],
   )
 
   function openEditDialog(user: AdminUser) {
+    const cachedDetails = userDetailsByUserId[user.id]
+    editingUserIdRef.current = user.id
     setEditingUser(user)
     setEditingRole(user.role === "admin" ? "admin" : "user")
-    setSelectedUserId(user.id)
+    setEditingUserPlanId(
+      getActiveUserPlanId(cachedDetails?.assignments) ?? plans[0]?.id ?? "",
+    )
     setDialogOpen(true)
+
+    void loadUserDetails(user.id).then((details) => {
+      if (!details) return
+      if (editingUserIdRef.current !== user.id) return
+      setEditingUserPlanId(
+        getActiveUserPlanId(details.assignments) ?? plans[0]?.id ?? "",
+      )
+    })
   }
 
   function toggleExpandedUser(userId: string) {
-    setSelectedUserId(userId)
     setExpandedUserIds((current) => {
-      return current.has(userId) ? new Set() : new Set([userId])
+      const next = current.has(userId) ? new Set<string>() : new Set([userId])
+      if (next.has(userId) && !userDetailsByUserId[userId]) {
+        void loadUserDetails(userId)
+      }
+      return next
     })
   }
 
@@ -204,15 +227,29 @@ export function SystemUserManagementPage() {
         ),
       )
 
-      if (selectedUserPlanId) {
+      if (editingUserPlanId) {
         const planResult = await assignAdminUserPlan(accessToken, {
           user_id: editingUser.id,
-          plan_id: selectedUserPlanId,
+          plan_id: editingUserPlanId,
         })
-        setAssignments((current) => [
-          planResult.assignment,
-          ...current.filter((item) => item.id !== planResult.assignment.id),
-        ])
+        setUserDetailsByUserId((current) => {
+          const details = current[editingUser.id] ?? {
+            assignments: [],
+            usage: [],
+          }
+          return {
+            ...current,
+            [editingUser.id]: {
+              ...details,
+              assignments: [
+                planResult.assignment,
+                ...details.assignments.filter(
+                  (item) => item.id !== planResult.assignment.id,
+                ),
+              ],
+            },
+          }
+        })
       }
 
       setMessage(`用户已保存：${roleResult.user.email}`)
@@ -279,9 +316,9 @@ export function SystemUserManagementPage() {
               <DataTableBody>
                 {filteredUsers.map((user) => {
                   const expanded = expandedUserIds.has(user.id)
-                  const rowAssignments =
-                    user.id === selectedUserId ? assignments : []
-                  const rowUsage = user.id === selectedUserId ? usage : []
+                  const userDetails = userDetailsByUserId[user.id]
+                  const rowAssignments = userDetails?.assignments ?? []
+                  const rowUsage = userDetails?.usage ?? []
 
                   return (
                     <React.Fragment key={user.id}>
@@ -312,10 +349,10 @@ export function SystemUserManagementPage() {
                           <StatusBadge status={user.status} />
                         </td>
                         <td className="hidden px-4 py-3 @3xl/table:table-cell">
-                          {user.id === selectedUserId ? assignments.length : "-"}
+                          {userDetails ? rowAssignments.length : "-"}
                         </td>
                         <td className="hidden px-4 py-3 @4xl/table:table-cell">
-                          {user.id === selectedUserId ? usage.length : "-"}
+                          {userDetails ? rowUsage.length : "-"}
                         </td>
                         <td className="px-3 py-3 sm:px-4">
                           <div className="flex justify-end">
@@ -335,11 +372,18 @@ export function SystemUserManagementPage() {
                         <tr>
                           <td colSpan={7} className="p-0">
                             <AppExpandablePanel>
-                              <UserDetail
-                                assignments={rowAssignments}
-                                usage={rowUsage}
-                                user={user}
-                              />
+                              {userDetails ? (
+                                <UserDetail
+                                  assignments={rowAssignments}
+                                  usage={rowUsage}
+                                  user={user}
+                                />
+                              ) : (
+                                <EmptyState
+                                  title="正在加载用户明细"
+                                  detail="套餐记录和月度用量返回后会显示在这里。"
+                                />
+                              )}
                             </AppExpandablePanel>
                           </td>
                         </tr>
@@ -386,9 +430,9 @@ export function SystemUserManagementPage() {
                 </FormField>
                 <FormField label="分配套餐">
                   <select
-                    value={selectedUserPlanId}
+                    value={editingUserPlanId}
                     onChange={(event) =>
-                      setSelectedUserPlanId(event.target.value)
+                      setEditingUserPlanId(event.target.value)
                     }
                     className="h-9 rounded-md border bg-background px-2 text-sm"
                   >
@@ -419,6 +463,12 @@ export function SystemUserManagementPage() {
       </AppDialog>
     </SystemPageShell>
   )
+}
+
+function getActiveUserPlanId(assignments?: AdminUserPlanAssignment[]) {
+  return assignments
+    ?.filter((assignment) => assignment.status === "active")
+    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]?.plan_id
 }
 
 function UserDetail({
