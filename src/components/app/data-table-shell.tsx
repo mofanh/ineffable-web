@@ -5,13 +5,27 @@ import { cn } from "@/lib/utils"
 export function DataTableShell({
   children,
   className,
+  tableClassName,
 }: {
   children: React.ReactNode
   className?: string
+  tableClassName?: string
 }) {
   return (
-    <div className={cn("overflow-x-auto rounded-md border border-border", className)}>
-      <table className="w-full text-left text-sm">{children}</table>
+    <div
+      className={cn(
+        "@container/table w-full max-w-full overflow-x-auto rounded-md border border-border",
+        className
+      )}
+    >
+      <table
+        className={cn(
+          "w-full min-w-[30rem] table-fixed text-left text-sm sm:min-w-0",
+          tableClassName
+        )}
+      >
+        {children}
+      </table>
     </div>
   )
 }

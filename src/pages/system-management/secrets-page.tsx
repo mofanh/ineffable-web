@@ -206,11 +206,11 @@ export function SystemSecretManagementPage() {
             <DataTableShell>
               <DataTableHeader>
                 <tr>
-                  <th className="w-10 px-4 py-3" />
-                  <th className="px-4 py-3">密钥引用</th>
-                  <th className="px-4 py-3">保存状态</th>
-                  <th className="px-4 py-3">状态</th>
-                  <th className="px-4 py-3 text-right">操作</th>
+                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-auto px-3 py-3 sm:px-4">密钥引用</th>
+                  <th className="hidden w-28 px-4 py-3 @xl/table:table-cell">保存状态</th>
+                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
+                  <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">操作</th>
                 </tr>
               </DataTableHeader>
               <DataTableBody>
@@ -219,7 +219,7 @@ export function SystemSecretManagementPage() {
                   return (
                     <React.Fragment key={secret.secret_ref}>
                       <tr className="hover:bg-muted/20">
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -232,19 +232,19 @@ export function SystemSecretManagementPage() {
                             />
                           </Button>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{secret.secret_ref}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                        <td className="min-w-0 px-3 py-3 sm:px-4">
+                          <div className="truncate font-medium">{secret.secret_ref}</div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
                             密钥值保存后不会回显
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 @xl/table:table-cell">
                           <StatusBadge status={secret.has_secret ? "saved" : "missing"} />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <StatusBadge status={secret.status} />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <div className="flex justify-end">
                             <Button
                               type="button"
@@ -253,7 +253,7 @@ export function SystemSecretManagementPage() {
                               onClick={() => openEditDialog(secret)}
                             >
                               <Edit3Icon />
-                              编辑
+                              <span className="hidden sm:inline">编辑</span>
                             </Button>
                           </div>
                         </td>

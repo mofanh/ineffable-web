@@ -267,13 +267,13 @@ export function SystemUserManagementPage() {
             <DataTableShell>
               <DataTableHeader>
                 <tr>
-                  <th className="w-10 px-4 py-3" />
-                  <th className="px-4 py-3">用户</th>
-                  <th className="px-4 py-3">角色</th>
-                  <th className="px-4 py-3">状态</th>
-                  <th className="px-4 py-3">当前套餐记录</th>
-                  <th className="px-4 py-3">本月用量记录</th>
-                  <th className="px-4 py-3 text-right">操作</th>
+                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-auto px-3 py-3 sm:px-4">用户</th>
+                  <th className="hidden w-20 px-4 py-3 @xl/table:table-cell">角色</th>
+                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
+                  <th className="hidden w-28 px-4 py-3 @3xl/table:table-cell">套餐记录</th>
+                  <th className="hidden w-28 px-4 py-3 @4xl/table:table-cell">本月用量</th>
+                  <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">操作</th>
                 </tr>
               </DataTableHeader>
               <DataTableBody>
@@ -286,7 +286,7 @@ export function SystemUserManagementPage() {
                   return (
                     <React.Fragment key={user.id}>
                       <tr className="hover:bg-muted/20">
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -299,25 +299,25 @@ export function SystemUserManagementPage() {
                             />
                           </Button>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{user.display_name || user.email}</div>
-                          <div className="mt-1 max-w-72 truncate text-xs text-muted-foreground">
+                        <td className="min-w-0 px-3 py-3 sm:px-4">
+                          <div className="truncate font-medium">{user.display_name || user.email}</div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
                             {user.email}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 @xl/table:table-cell">
                           <StatusBadge status={user.role ?? "user"} />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <StatusBadge status={user.status} />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 @3xl/table:table-cell">
                           {user.id === selectedUserId ? assignments.length : "-"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 @4xl/table:table-cell">
                           {user.id === selectedUserId ? usage.length : "-"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <div className="flex justify-end">
                             <Button
                               type="button"
@@ -326,7 +326,7 @@ export function SystemUserManagementPage() {
                               onClick={() => openEditDialog(user)}
                             >
                               <Edit3Icon />
-                              编辑
+                              <span className="hidden sm:inline">编辑</span>
                             </Button>
                           </div>
                         </td>

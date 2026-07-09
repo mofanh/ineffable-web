@@ -453,13 +453,13 @@ export function SystemModelManagementPage() {
             <DataTableShell>
               <DataTableHeader>
                 <tr>
-                  <th className="w-10 px-4 py-3" />
-                  <th className="px-4 py-3">模型</th>
-                  <th className="px-4 py-3">上游</th>
-                  <th className="px-4 py-3">能力</th>
-                  <th className="px-4 py-3">状态</th>
-                  <th className="px-4 py-3">倍率</th>
-                  <th className="px-4 py-3 text-right">操作</th>
+                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-auto px-3 py-3 sm:px-4">模型</th>
+                  <th className="hidden w-1/4 px-4 py-3 @4xl/table:table-cell">上游</th>
+                  <th className="hidden w-1/4 px-4 py-3 @3xl/table:table-cell">能力</th>
+                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
+                  <th className="hidden w-20 px-4 py-3 @xl/table:table-cell">倍率</th>
+                  <th className="w-24 px-3 py-3 text-right sm:w-40 sm:px-4">操作</th>
                 </tr>
               </DataTableHeader>
               <DataTableBody>
@@ -468,7 +468,7 @@ export function SystemModelManagementPage() {
                   return (
                     <React.Fragment key={model.id}>
                       <tr className="align-top hover:bg-muted/20">
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -481,19 +481,19 @@ export function SystemModelManagementPage() {
                             />
                           </Button>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{model.display_name}</div>
-                          <div className="mt-1 max-w-64 truncate text-xs text-muted-foreground">
+                        <td className="min-w-0 px-3 py-3 sm:px-4">
+                          <div className="truncate font-medium">{model.display_name}</div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
                             {model.id}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div>{model.upstream_model_name}</div>
-                          <div className="mt-1 max-w-64 truncate text-xs text-muted-foreground">
+                        <td className="hidden px-4 py-3 @4xl/table:table-cell">
+                          <div className="truncate">{model.upstream_model_name}</div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
                             {model.endpoint_kind}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 @3xl/table:table-cell">
                           <div className="flex flex-wrap gap-1.5">
                             {model.supports_tool_calls ? <CapabilityTag>Tool</CapabilityTag> : null}
                             {model.supports_reasoning ? <CapabilityTag>Reasoning</CapabilityTag> : null}
@@ -501,7 +501,7 @@ export function SystemModelManagementPage() {
                             {model.max_output_tokens ? <CapabilityTag>max {model.max_output_tokens}</CapabilityTag> : null}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <StatusBadge
                             status={
                               model.archived_at
@@ -512,9 +512,9 @@ export function SystemModelManagementPage() {
                             }
                           />
                         </td>
-                        <td className="px-4 py-3">{model.usage_multiplier}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-2">
+                        <td className="hidden px-4 py-3 @xl/table:table-cell">{model.usage_multiplier}</td>
+                        <td className="px-3 py-3 sm:px-4">
+                          <div className="flex justify-end gap-1 sm:gap-2">
                             <Button
                               type="button"
                               variant="outline"
@@ -523,7 +523,7 @@ export function SystemModelManagementPage() {
                               disabled={Boolean(model.archived_at)}
                             >
                               <Edit3Icon />
-                              编辑
+                              <span className="hidden sm:inline">编辑</span>
                             </Button>
                             <Button
                               type="button"
@@ -533,7 +533,7 @@ export function SystemModelManagementPage() {
                               disabled={state !== "idle" || Boolean(model.archived_at)}
                             >
                               <Trash2Icon />
-                              删除
+                              <span className="hidden sm:inline">删除</span>
                             </Button>
                           </div>
                         </td>

@@ -346,12 +346,12 @@ export function SystemPlanManagementPage() {
             <DataTableShell>
               <DataTableHeader>
                 <tr>
-                  <th className="w-10 px-4 py-3" />
-                  <th className="px-4 py-3">套餐</th>
-                  <th className="px-4 py-3">月额度</th>
-                  <th className="px-4 py-3">模型权限</th>
-                  <th className="px-4 py-3">状态</th>
-                  <th className="px-4 py-3 text-right">操作</th>
+                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-auto px-3 py-3 sm:px-4">套餐</th>
+                  <th className="hidden w-32 px-4 py-3 @xl/table:table-cell">月额度</th>
+                  <th className="hidden w-24 px-4 py-3 @3xl/table:table-cell">模型权限</th>
+                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
+                  <th className="w-24 px-3 py-3 text-right sm:w-40 sm:px-4">操作</th>
                 </tr>
               </DataTableHeader>
               <DataTableBody>
@@ -364,7 +364,7 @@ export function SystemPlanManagementPage() {
                   return (
                     <React.Fragment key={plan.id}>
                       <tr className="hover:bg-muted/20">
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -378,15 +378,15 @@ export function SystemPlanManagementPage() {
                             />
                           </Button>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{plan.display_name}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">
+                        <td className="min-w-0 px-3 py-3 sm:px-4">
+                          <div className="truncate font-medium">{plan.display_name}</div>
+                          <div className="mt-1 truncate text-xs text-muted-foreground">
                             {plan.id} / {plan.name}
                           </div>
                         </td>
-                        <td className="px-4 py-3">{plan.monthly_credit_limit ?? "不限额"}</td>
-                        <td className="px-4 py-3">{accessCount}</td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 @xl/table:table-cell">{plan.monthly_credit_limit ?? "不限额"}</td>
+                        <td className="hidden px-4 py-3 @3xl/table:table-cell">{accessCount}</td>
+                        <td className="px-3 py-3 sm:px-4">
                           <StatusBadge
                             status={
                               plan.archived_at
@@ -397,8 +397,8 @@ export function SystemPlanManagementPage() {
                             }
                           />
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-2">
+                        <td className="px-3 py-3 sm:px-4">
+                          <div className="flex justify-end gap-1 sm:gap-2">
                             <Button
                               type="button"
                               variant="outline"
@@ -407,7 +407,7 @@ export function SystemPlanManagementPage() {
                               disabled={Boolean(plan.archived_at)}
                             >
                               <Edit3Icon />
-                              编辑
+                              <span className="hidden sm:inline">编辑</span>
                             </Button>
                             <Button
                               type="button"
@@ -417,7 +417,7 @@ export function SystemPlanManagementPage() {
                               disabled={state !== "idle" || plan.id === "free" || Boolean(plan.archived_at)}
                             >
                               <Trash2Icon />
-                              删除
+                              <span className="hidden sm:inline">删除</span>
                             </Button>
                           </div>
                         </td>
