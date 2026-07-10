@@ -69,6 +69,14 @@ export type WorkspaceMembership = {
   updated_at: string
 }
 
+export type WorkspaceUsage = {
+  workspace_id: string
+  plan_id: string
+  storage_bytes: number
+  storage_limit_bytes?: number | null
+  storage_usage_ratio?: number | null
+}
+
 export type WorkspaceInvitation = {
   id: string
   workspace_id: string
@@ -604,6 +612,16 @@ export function listWorkspaces(accessToken: string) {
 export function listWorkspaceMembers(accessToken: string, workspaceId: string) {
   return requestApiJson<{ members: WorkspaceMembership[] }>(
     `/gateway/v1/workspaces/${workspaceId}/members`,
+    {
+      accessToken,
+      workspaceId,
+    }
+  )
+}
+
+export function getWorkspaceUsage(accessToken: string, workspaceId: string) {
+  return requestApiJson<{ usage: WorkspaceUsage }>(
+    `/gateway/v1/workspaces/${workspaceId}/usage`,
     {
       accessToken,
       workspaceId,

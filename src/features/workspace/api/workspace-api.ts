@@ -7,6 +7,7 @@ export {
   deleteWorkspaceObject,
   getWorkspaceObjectContent,
   getWorkspaceObjectVersionContent,
+  getWorkspaceUsage,
   inviteWorkspaceMember,
   listIncomingWorkspaceInvitations,
   listWorkspaceInvitations,
@@ -26,6 +27,7 @@ export {
   type WorkspaceMembership,
   type WorkspaceObject,
   type WorkspaceObjectContentResponse,
+  type WorkspaceUsage,
   type WorkspaceObjectVersion,
   type WorkspaceTreeResponse,
 } from "@/lib/api/api-client"

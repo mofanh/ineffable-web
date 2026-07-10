@@ -33,6 +33,7 @@ import {
   acceptWorkspaceInvitationById,
   acceptWorkspaceInvitation,
   createWorkspace,
+  getWorkspaceUsage,
   inviteWorkspaceMember,
   listIncomingWorkspaceInvitations,
   listWorkspaceInvitations,
@@ -43,6 +44,7 @@ import {
   type IncomingWorkspaceInvitation,
   type WorkspaceInvitation,
   type WorkspaceMembership,
+  type WorkspaceUsage,
 } from "@/features/workspace/api/workspace-api"
 import { normalizeAppError, type AppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -293,16 +295,19 @@ export function TeamWorkspaceMembersPage() {
       return {
         members: [] as WorkspaceMembership[],
         invitations: [] as WorkspaceInvitation[],
+        usage: null as WorkspaceUsage | null,
       }
     }
 
-    const [memberResponse, invitationResponse] = await Promise.all([
+    const [memberResponse, invitationResponse, usageResponse] = await Promise.all([
       listWorkspaceMembers(accessToken, targetWorkspaceId),
       listWorkspaceInvitations(accessToken, targetWorkspaceId),
+      getWorkspaceUsage(accessToken, targetWorkspaceId),
     ])
     return {
       members: memberResponse.members,
       invitations: invitationResponse.invitations,
+      usage: usageResponse.usage,
     }
   }, [accessToken, targetWorkspaceId])
   const memberResource = useApiResource({
@@ -318,6 +323,7 @@ export function TeamWorkspaceMembersPage() {
   } = memberResource
   const members = memberData?.members ?? []
   const invitations = memberData?.invitations ?? []
+  const usage = memberData?.usage ?? null
 
   const submitInvite = React.useCallback(
     async (event: React.FormEvent) => {
@@ -459,10 +465,16 @@ export function TeamWorkspaceMembersPage() {
       title="Team Workspace Members"
       description="Manage access for collaborators and keep pending invitations visible while Team Workspace work is shared across users."
     >
-      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-5">
         <Metric label="Total Seats" value={`${members.length}`} suffix="/ 50" />
         <Metric label="Active Now" value={String(Math.min(members.length, 12))} />
         <Metric label="Pending Invites" value={String(pendingInvitations.length)} />
+        <Metric
+          label="Storage"
+          value={formatWorkspaceStorage(usage)}
+          suffix={formatWorkspaceStorageSuffix(usage)}
+          compact
+        />
         <Metric label="Workspace" value={currentWorkspace?.name || "Team"} compact />
       </div>
 
@@ -670,6 +682,45 @@ function Metric({
       </div>
     </div>
   )
+}
+
+function formatWorkspaceStorage(usage: WorkspaceUsage | null) {
+  if (!usage) return "-"
+  if (usage.storage_limit_bytes && usage.storage_limit_bytes > 0) {
+    const ratio =
+      usage.storage_usage_ratio == null
+        ? usage.storage_bytes / usage.storage_limit_bytes
+        : usage.storage_usage_ratio
+    return `${Math.round(ratio * 100)}%`
+  }
+  return formatBytes(usage.storage_bytes)
+}
+
+function formatWorkspaceStorageSuffix(usage: WorkspaceUsage | null) {
+  if (!usage) return undefined
+  if (usage.storage_limit_bytes && usage.storage_limit_bytes > 0) {
+    return `${formatBytes(usage.storage_bytes)} / ${formatBytes(usage.storage_limit_bytes)}`
+  }
+  return "used"
+}
+
+function formatBytes(value: number) {
+  if (value >= 1024 * 1024 * 1024) {
+    return `${formatMetricNumber(value / 1024 / 1024 / 1024)} GB`
+  }
+  if (value >= 1024 * 1024) {
+    return `${formatMetricNumber(value / 1024 / 1024)} MB`
+  }
+  if (value >= 1024) {
+    return `${formatMetricNumber(value / 1024)} KB`
+  }
+  return `${formatMetricNumber(value)} B`
+}
+
+function formatMetricNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value >= 10 ? 1 : 2,
+  }).format(value)
 }
 
 export function WorkspaceNotificationsPage() {
