@@ -198,6 +198,10 @@ export function SystemPlanManagementPage() {
       display_name: plan.display_name,
       monthly_credit_limit: plan.monthly_credit_limit ?? null,
       workspace_storage_limit_bytes: plan.workspace_storage_limit_bytes ?? null,
+      max_workspace_count: plan.max_workspace_count ?? null,
+      max_members_per_workspace: plan.max_members_per_workspace ?? null,
+      workspace_object_count_limit: plan.workspace_object_count_limit ?? null,
+      max_file_size_bytes: plan.max_file_size_bytes ?? null,
       enabled: plan.enabled,
     })
     setEditingPlanId(plan.id)
@@ -400,7 +404,15 @@ export function SystemPlanManagementPage() {
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">{plan.monthly_credit_limit ?? "不限额"}</td>
                         <td className="hidden px-4 py-3 @3xl/table:table-cell">
-                          {formatBytesLimit(plan.workspace_storage_limit_bytes)}
+                          <div>{formatBytesLimit(plan.workspace_storage_limit_bytes)}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {formatLimitCount(plan.max_workspace_count)} 空间 /{" "}
+                            {formatLimitCount(plan.max_members_per_workspace)} 成员
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {formatLimitCount(plan.workspace_object_count_limit)} 对象 /{" "}
+                            {formatBytesLimit(plan.max_file_size_bytes)} 单文件
+                          </div>
                         </td>
                         <td className="hidden px-4 py-3 @4xl/table:table-cell">{accessCount}</td>
                         <td className="px-3 py-3 sm:px-4">
@@ -631,7 +643,7 @@ function PlanForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <AppDisclosureSection title="Workspace 限额" description="控制 workspace 未清理文件版本占用的总存储容量。">
+      <AppDisclosureSection title="Workspace 限额" description="控制 workspace 数量、成员数、对象数、单文件大小和总存储容量。">
         <AppFieldGrid columns={1}>
           <FormField label="存储容量（GB）">
             <Input
@@ -645,6 +657,82 @@ function PlanForm({
                     ? {
                         ...current,
                         workspace_storage_limit_bytes: gigabytesToBytesOrNull(
+                          event.target.value,
+                        ),
+                      }
+                    : current,
+                )
+              }
+            />
+          </FormField>
+          <FormField label="Workspace 数量">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={plan.max_workspace_count ?? ""}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? {
+                        ...current,
+                        max_workspace_count: numberOrNull(event.target.value),
+                      }
+                    : current,
+                )
+              }
+            />
+          </FormField>
+          <FormField label="每个 Workspace 成员数">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={plan.max_members_per_workspace ?? ""}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? {
+                        ...current,
+                        max_members_per_workspace: numberOrNull(event.target.value),
+                      }
+                    : current,
+                )
+              }
+            />
+          </FormField>
+          <FormField label="每个 Workspace 对象数">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={plan.workspace_object_count_limit ?? ""}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? {
+                        ...current,
+                        workspace_object_count_limit: numberOrNull(
+                          event.target.value,
+                        ),
+                      }
+                    : current,
+                )
+              }
+            />
+          </FormField>
+          <FormField label="单文件大小（MB）">
+            <Input
+              type="number"
+              min={0}
+              step="0.1"
+              value={bytesToMegabytesInput(plan.max_file_size_bytes)}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? {
+                        ...current,
+                        max_file_size_bytes: megabytesToBytesOrNull(
                           event.target.value,
                         ),
                       }
@@ -679,6 +767,17 @@ function gigabytesToBytesOrNull(value: string) {
   return Math.round(parsed * 1024 * 1024 * 1024)
 }
 
+function bytesToMegabytesInput(value?: number | null) {
+  if (value == null) return ""
+  return String(Number((value / 1024 / 1024).toFixed(2)))
+}
+
+function megabytesToBytesOrNull(value: string) {
+  const parsed = numberOrNull(value)
+  if (parsed == null) return null
+  return Math.round(parsed * 1024 * 1024)
+}
+
 function formatBytesLimit(value?: number | null) {
   if (value == null) return "不限额"
   if (value >= 1024 * 1024 * 1024) {
@@ -688,6 +787,10 @@ function formatBytesLimit(value?: number | null) {
     return `${formatCompactNumber(value / 1024 / 1024)} MB`
   }
   return `${formatCompactNumber(value)} B`
+}
+
+function formatLimitCount(value?: number | null) {
+  return value == null ? "不限额" : formatCompactNumber(value)
 }
 
 function formatCompactNumber(value: number) {

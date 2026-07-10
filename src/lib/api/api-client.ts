@@ -1110,6 +1110,10 @@ export type AdminPlan = {
   display_name: string
   monthly_credit_limit?: number | null
   workspace_storage_limit_bytes?: number | null
+  max_workspace_count?: number | null
+  max_members_per_workspace?: number | null
+  workspace_object_count_limit?: number | null
+  max_file_size_bytes?: number | null
   enabled: boolean
   archived_at?: string | null
 }
