@@ -75,6 +75,8 @@ export type WorkspaceUsage = {
   storage_bytes: number
   storage_limit_bytes?: number | null
   storage_usage_ratio?: number | null
+  recalculated_at?: string
+  updated_at?: string
 }
 
 export type WorkspaceInvitation = {

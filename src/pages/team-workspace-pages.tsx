@@ -698,10 +698,23 @@ function formatWorkspaceStorage(usage: WorkspaceUsage | null) {
 
 function formatWorkspaceStorageSuffix(usage: WorkspaceUsage | null) {
   if (!usage) return undefined
+  const recalculated = formatUsageRecalculatedAt(usage)
   if (usage.storage_limit_bytes && usage.storage_limit_bytes > 0) {
-    return `${formatBytes(usage.storage_bytes)} / ${formatBytes(usage.storage_limit_bytes)}`
+    return `${formatBytes(usage.storage_bytes)} / ${formatBytes(usage.storage_limit_bytes)}${recalculated}`
   }
-  return "used"
+  return `used${recalculated}`
+}
+
+function formatUsageRecalculatedAt(usage: WorkspaceUsage) {
+  if (!usage.recalculated_at) return ""
+  const date = new Date(usage.recalculated_at)
+  if (Number.isNaN(date.getTime())) return ""
+  return ` · ${date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`
 }
 
 function formatBytes(value: number) {
