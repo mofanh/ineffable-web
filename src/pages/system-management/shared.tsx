@@ -42,6 +42,7 @@ export const emptyPlan: AdminPlanPayload = {
   name: "pro",
   display_name: "Pro",
   monthly_credit_limit: 100000,
+  workspace_storage_limit_bytes: 10 * 1024 * 1024 * 1024,
   enabled: true,
 }
 

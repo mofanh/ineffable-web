@@ -197,6 +197,7 @@ export function SystemPlanManagementPage() {
       name: plan.name,
       display_name: plan.display_name,
       monthly_credit_limit: plan.monthly_credit_limit ?? null,
+      workspace_storage_limit_bytes: plan.workspace_storage_limit_bytes ?? null,
       enabled: plan.enabled,
     })
     setEditingPlanId(plan.id)
@@ -361,7 +362,8 @@ export function SystemPlanManagementPage() {
                   <th className="w-12 px-3 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">套餐</th>
                   <th className="hidden w-32 px-4 py-3 @xl/table:table-cell">月额度</th>
-                  <th className="hidden w-24 px-4 py-3 @3xl/table:table-cell">模型权限</th>
+                  <th className="hidden w-32 px-4 py-3 @3xl/table:table-cell">Workspace</th>
+                  <th className="hidden w-24 px-4 py-3 @4xl/table:table-cell">模型权限</th>
                   <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
                   <th className="w-24 px-3 py-3 text-right sm:w-40 sm:px-4">操作</th>
                 </tr>
@@ -397,7 +399,10 @@ export function SystemPlanManagementPage() {
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">{plan.monthly_credit_limit ?? "不限额"}</td>
-                        <td className="hidden px-4 py-3 @3xl/table:table-cell">{accessCount}</td>
+                        <td className="hidden px-4 py-3 @3xl/table:table-cell">
+                          {formatBytesLimit(plan.workspace_storage_limit_bytes)}
+                        </td>
+                        <td className="hidden px-4 py-3 @4xl/table:table-cell">{accessCount}</td>
                         <td className="px-3 py-3 sm:px-4">
                           <StatusBadge
                             status={
@@ -436,7 +441,7 @@ export function SystemPlanManagementPage() {
                       </tr>
                       {expanded ? (
                         <tr>
-                          <td colSpan={6} className="p-0">
+                          <td colSpan={7} className="p-0">
                             <AppExpandablePanel>
                               <PlanAccessPanel
                                 activeModels={activeModels}
@@ -595,6 +600,19 @@ function PlanForm({
               }
             />
           </FormField>
+          <ToggleField
+            label="启用套餐"
+            checked={plan.enabled}
+            onCheckedChange={(checked) =>
+              onChange((current) =>
+                current ? { ...current, enabled: checked } : current,
+              )
+            }
+          />
+        </AppFieldGrid>
+      </AppDisclosureSection>
+      <AppDisclosureSection title="Credit 限额" description="控制用户每个自然月可消耗的 LLM credits。">
+        <AppFieldGrid columns={1}>
           <FormField label="月额度">
             <Input
               type="number"
@@ -611,15 +629,30 @@ function PlanForm({
               }
             />
           </FormField>
-          <ToggleField
-            label="启用套餐"
-            checked={plan.enabled}
-            onCheckedChange={(checked) =>
-              onChange((current) =>
-                current ? { ...current, enabled: checked } : current,
-              )
-            }
-          />
+        </AppFieldGrid>
+      </AppDisclosureSection>
+      <AppDisclosureSection title="Workspace 限额" description="控制 workspace 未清理文件版本占用的总存储容量。">
+        <AppFieldGrid columns={1}>
+          <FormField label="存储容量（GB）">
+            <Input
+              type="number"
+              min={0}
+              step="0.1"
+              value={bytesToGigabytesInput(plan.workspace_storage_limit_bytes)}
+              onChange={(event) =>
+                onChange((current) =>
+                  current
+                    ? {
+                        ...current,
+                        workspace_storage_limit_bytes: gigabytesToBytesOrNull(
+                          event.target.value,
+                        ),
+                      }
+                    : current,
+                )
+              }
+            />
+          </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
       <div className="flex justify-end gap-2">
@@ -633,4 +666,32 @@ function PlanForm({
       </div>
     </form>
   )
+}
+
+function bytesToGigabytesInput(value?: number | null) {
+  if (value == null) return ""
+  return String(Number((value / 1024 / 1024 / 1024).toFixed(2)))
+}
+
+function gigabytesToBytesOrNull(value: string) {
+  const parsed = numberOrNull(value)
+  if (parsed == null) return null
+  return Math.round(parsed * 1024 * 1024 * 1024)
+}
+
+function formatBytesLimit(value?: number | null) {
+  if (value == null) return "不限额"
+  if (value >= 1024 * 1024 * 1024) {
+    return `${formatCompactNumber(value / 1024 / 1024 / 1024)} GB`
+  }
+  if (value >= 1024 * 1024) {
+    return `${formatCompactNumber(value / 1024 / 1024)} MB`
+  }
+  return `${formatCompactNumber(value)} B`
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value >= 10 ? 1 : 2,
+  }).format(value)
 }

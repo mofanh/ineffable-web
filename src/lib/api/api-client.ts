@@ -1091,6 +1091,7 @@ export type AdminPlan = {
   name: string
   display_name: string
   monthly_credit_limit?: number | null
+  workspace_storage_limit_bytes?: number | null
   enabled: boolean
   archived_at?: string | null
 }
