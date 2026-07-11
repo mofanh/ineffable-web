@@ -273,6 +273,29 @@ const confirmed = await confirm({
 6. 状态、空态、错误态、加载态继续使用 app 底座组件。
 7. 页面级工具条、展开详情、折叠分组和字段网格如需抽象，应进入 `components/app`。
 
+### 用户管理展示口径
+
+用户管理页面向管理员排查账号、套餐、usage 和 quota 问题，主表应优先支持快速扫描，不把所有明细摊平到表格。
+
+主表推荐列：
+
+- 用户：展示昵称/邮箱，必要时只在详情里展示 user_id。
+- 角色/状态：使用 `StatusBadge`。
+- 套餐：展示当前套餐或已缓存套餐记录数量。
+- 本月用量：展示月度 usage 汇总或记录数量。
+- Workspace：展示该用户拥有 workspace 的总存储占用和数量。
+- 操作：编辑角色、套餐等管理动作。
+
+详情区使用行内展开或 `AppDialog`，按折叠分组展示：
+
+- 账号信息：user_id、email、role、status、created_at、last_seen_at。
+- 套餐信息：plan、assignment source、effective period、workspace/model/credit policy。
+- Usage：本月 tokens、credits、requests、按模型拆分和趋势。
+- Workspace：workspace 列表、storage、objects、files、versions、quota ratio、recalculated_at。
+- 风险事件：后续可接入结构化 quota exceeded 日志和审计记录。
+
+不要在用户管理主表中直接展开所有 workspace usage 明细；主表展示汇总，详情展示明细。
+
 推荐后续底座组件：
 
 - `AppListToolbar`

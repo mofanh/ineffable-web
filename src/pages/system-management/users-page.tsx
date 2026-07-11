@@ -1,5 +1,13 @@
 import * as React from "react"
-import { ChevronDownIcon, Edit3Icon, GaugeIcon, PackageIcon, SaveIcon, UsersIcon } from "lucide-react"
+import {
+  ChevronDownIcon,
+  Edit3Icon,
+  GaugeIcon,
+  HardDriveIcon,
+  PackageIcon,
+  SaveIcon,
+  UsersIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,11 +33,13 @@ import {
   listAdminUserMonthlyUsage,
   listAdminUserPlanAssignments,
   listAdminUsers,
+  listAdminWorkspaceUsage,
   setAdminUserRole,
   type AdminPlan,
   type AdminUser,
   type AdminUserMonthlyUsage,
   type AdminUserPlanAssignment,
+  type AdminWorkspaceUsage,
 } from "@/lib/api/api-client"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
@@ -49,6 +59,7 @@ export function SystemUserManagementPage() {
   const { accessToken, currentUser } = useAuthSession()
   const [users, setUsers] = React.useState<AdminUser[]>([])
   const [plans, setPlans] = React.useState<AdminPlan[]>([])
+  const [workspaceUsage, setWorkspaceUsage] = React.useState<AdminWorkspaceUsage[]>([])
   const [userDetailsByUserId, setUserDetailsByUserId] = React.useState<
     Record<string, UserDetails>
   >({})
@@ -71,12 +82,14 @@ export function SystemUserManagementPage() {
     setState("loading")
     setError("")
     try {
-      const [userResult, planResult] = await Promise.all([
+      const [userResult, planResult, workspaceUsageResult] = await Promise.all([
         listAdminUsers(accessToken),
         listAdminPlans(accessToken),
+        listAdminWorkspaceUsage(accessToken),
       ])
       setUsers(userResult.users)
       setPlans(planResult.plans)
+      setWorkspaceUsage(workspaceUsageResult.usage)
       setEditingUserPlanId((current) =>
         planResult.plans.some((plan) => plan.id === current)
           ? current
@@ -142,6 +155,16 @@ export function SystemUserManagementPage() {
     )
   }, [query, users])
 
+  const workspaceUsageByOwnerId = React.useMemo(() => {
+    const grouped = new Map<string, AdminWorkspaceUsage[]>()
+    for (const item of workspaceUsage) {
+      const rows = grouped.get(item.owner_user_id) ?? []
+      rows.push(item)
+      grouped.set(item.owner_user_id, rows)
+    }
+    return grouped
+  }, [workspaceUsage])
+
   const metrics = React.useMemo(
     () => {
       const cachedDetails = Object.values(userDetailsByUserId)
@@ -177,9 +200,18 @@ export function SystemUserManagementPage() {
           icon: GaugeIcon,
           tone: "amber" as const,
         },
+        {
+          label: "Workspace",
+          value: formatBytes(
+            workspaceUsage.reduce((total, item) => total + item.storage_bytes, 0),
+          ),
+          detail: `${workspaceUsage.length} tracked`,
+          icon: HardDriveIcon,
+          tone: "indigo" as const,
+        },
       ]
     },
-    [userDetailsByUserId, users],
+    [userDetailsByUserId, users, workspaceUsage],
   )
 
   function openEditDialog(user: AdminUser) {
@@ -310,6 +342,7 @@ export function SystemUserManagementPage() {
                   <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
                   <th className="hidden w-28 px-4 py-3 @3xl/table:table-cell">套餐记录</th>
                   <th className="hidden w-28 px-4 py-3 @4xl/table:table-cell">本月用量</th>
+                  <th className="hidden w-36 px-4 py-3 @5xl/table:table-cell">Workspace</th>
                   <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">操作</th>
                 </tr>
               </DataTableHeader>
@@ -319,6 +352,8 @@ export function SystemUserManagementPage() {
                   const userDetails = userDetailsByUserId[user.id]
                   const rowAssignments = userDetails?.assignments ?? []
                   const rowUsage = userDetails?.usage ?? []
+                  const rowWorkspaceUsage =
+                    workspaceUsageByOwnerId.get(user.id) ?? []
 
                   return (
                     <React.Fragment key={user.id}>
@@ -354,6 +389,19 @@ export function SystemUserManagementPage() {
                         <td className="hidden px-4 py-3 @4xl/table:table-cell">
                           {userDetails ? rowUsage.length : "-"}
                         </td>
+                        <td className="hidden px-4 py-3 @5xl/table:table-cell">
+                          <div className="text-sm font-medium">
+                            {formatBytes(
+                              rowWorkspaceUsage.reduce(
+                                (total, item) => total + item.storage_bytes,
+                                0,
+                              ),
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {rowWorkspaceUsage.length} workspaces
+                          </div>
+                        </td>
                         <td className="px-3 py-3 sm:px-4">
                           <div className="flex justify-end">
                             <Button
@@ -370,12 +418,13 @@ export function SystemUserManagementPage() {
                       </tr>
                       {expanded ? (
                         <tr>
-                          <td colSpan={7} className="p-0">
+                          <td colSpan={8} className="p-0">
                             <AppExpandablePanel>
                               {userDetails ? (
                                 <UserDetail
                                   assignments={rowAssignments}
                                   usage={rowUsage}
+                                  workspaceUsage={rowWorkspaceUsage}
                                   user={user}
                                 />
                               ) : (
@@ -474,10 +523,12 @@ function getActiveUserPlanId(assignments?: AdminUserPlanAssignment[]) {
 function UserDetail({
   assignments,
   usage,
+  workspaceUsage,
   user,
 }: {
   assignments: AdminUserPlanAssignment[]
   usage: AdminUserMonthlyUsage[]
+  workspaceUsage: AdminWorkspaceUsage[]
   user: AdminUser
 }) {
   return (
@@ -502,6 +553,38 @@ function UserDetail({
           <EmptyState
             title="暂无套餐记录"
             detail={`为 ${user.email} 分配套餐后会出现在这里。`}
+          />
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <HardDriveIcon className="size-4 text-muted-foreground" />
+          Workspace 用量
+        </div>
+        {workspaceUsage.map((item) => (
+          <div
+            key={item.workspace_id}
+            className="grid gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm md:grid-cols-[1fr_auto]"
+          >
+            <div>
+              <div className="font-medium">{item.workspace_name}</div>
+              <div className="text-muted-foreground">
+                {item.workspace_type} / {item.plan_id} / {item.object_count} objects /{" "}
+                {item.version_count} versions
+              </div>
+            </div>
+            <div className="text-right">
+              <div>{formatWorkspaceStorage(item)}</div>
+              <div className="text-xs text-muted-foreground">
+                recalculated {formatDateTime(item.recalculated_at)}
+              </div>
+            </div>
+          </div>
+        ))}
+        {workspaceUsage.length === 0 ? (
+          <EmptyState
+            title="暂无 Workspace 用量"
+            detail="该用户拥有 workspace 并产生文件版本后会出现在这里。"
           />
         ) : null}
       </div>
@@ -535,4 +618,46 @@ function UserDetail({
       </div>
     </div>
   )
+}
+
+function formatWorkspaceStorage(item: AdminWorkspaceUsage) {
+  if (item.storage_limit_bytes && item.storage_limit_bytes > 0) {
+    const ratio =
+      item.storage_usage_ratio == null
+        ? item.storage_bytes / item.storage_limit_bytes
+        : item.storage_usage_ratio
+    return `${Math.round(ratio * 100)}% · ${formatBytes(item.storage_bytes)} / ${formatBytes(item.storage_limit_bytes)}`
+  }
+  return `${formatBytes(item.storage_bytes)} used`
+}
+
+function formatBytes(value: number) {
+  if (value >= 1024 * 1024 * 1024) {
+    return `${formatMetricNumber(value / 1024 / 1024 / 1024)} GB`
+  }
+  if (value >= 1024 * 1024) {
+    return `${formatMetricNumber(value / 1024 / 1024)} MB`
+  }
+  if (value >= 1024) {
+    return `${formatMetricNumber(value / 1024)} KB`
+  }
+  return `${formatMetricNumber(value)} B`
+}
+
+function formatMetricNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value >= 10 ? 1 : 2,
+  }).format(value)
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "-"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "-"
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }

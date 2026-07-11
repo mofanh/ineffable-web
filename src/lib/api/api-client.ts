@@ -75,8 +75,18 @@ export type WorkspaceUsage = {
   storage_bytes: number
   storage_limit_bytes?: number | null
   storage_usage_ratio?: number | null
+  object_count: number
+  file_count: number
+  folder_count: number
+  version_count: number
   recalculated_at?: string
   updated_at?: string
+}
+
+export type AdminWorkspaceUsage = WorkspaceUsage & {
+  workspace_name: string
+  workspace_type: string
+  owner_user_id: string
 }
 
 export type WorkspaceInvitation = {
@@ -1396,6 +1406,13 @@ export function listAdminUserMonthlyUsage(
 ) {
   return requestApiJson<{ usage: AdminUserMonthlyUsage[] }>(
     `/gateway/v1/admin/users/${encodeURIComponent(userId)}/usage/monthly?limit=${encodeURIComponent(String(limit))}`,
+    { accessToken },
+  )
+}
+
+export function listAdminWorkspaceUsage(accessToken: string, limit = 100) {
+  return requestApiJson<{ usage: AdminWorkspaceUsage[] }>(
+    `/gateway/v1/admin/workspaces/usage?limit=${encodeURIComponent(String(limit))}`,
     { accessToken },
   )
 }
