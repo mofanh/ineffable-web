@@ -60,6 +60,8 @@
 - `AppMetricPage`
 - `AppSectionCard`
 - `AppSearchBar`
+- `AppLineChart`
+- `AppBarChart`
 
 新页面默认优先复用这里的组件，不要在 page 内重新定义通用 shell、field、dialog、empty、error、status badge、table shell。
 
@@ -239,7 +241,7 @@ const confirmed = await confirm({
 - 表格外壳使用 `DataTableShell`
 - 数据表格按表格容器宽度设置列优先级：核心列始终展示，次要列使用命名容器查询渐进展示，极窄宽度由横向滚动兜底
 - 列表页搜索、筛选和主操作使用 `AppListToolbar`
-- 趋势图表使用 `components/ui` 图表组件，底层基于 shadcn `ChartContainer` 和 `recharts`
+- 趋势和概览图表使用 `AppLineChart` / `AppBarChart`，底层基于 shadcn `ChartContainer` 和 `recharts`
 - 普通表单动作直接使用页面或弹窗现有布局，不新增无语义的按钮组壳
 
 不要在页面内新增本地 `Field`、`TextInput`、`ToggleField`、`StatusBadge`、`ErrorNotice`、`EmptyState`，除非它们有明确且不可复用的业务语义。

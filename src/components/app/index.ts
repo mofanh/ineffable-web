@@ -7,6 +7,11 @@ export {
   type UiLineChartDatum as AppLineChartDatum,
   type UiLineChartSeries as AppLineChartSeries,
 } from "@/components/ui/line-chart"
+export {
+  BarChartPanel as AppBarChart,
+  type UiBarChartDatum as AppBarChartDatum,
+  type UiBarChartSeries as AppBarChartSeries,
+} from "@/components/ui/bar-chart"
 export { AppListToolbar } from "@/components/app/list-toolbar"
 export { AppPage, PageHeader } from "@/components/app/app-page"
 export { AppToaster } from "@/components/app/app-toaster"

@@ -13,6 +13,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  AppBarChart,
+  type AppBarChartDatum,
+  type AppBarChartSeries,
   AppDialog,
   AppDisclosureSection,
   AppExpandablePanel,
@@ -32,6 +35,10 @@ import { useAuthSession } from "@/features/auth/app-session"
 import {
   createAdminPlan,
   deleteAdminPlan,
+  listAdminUserMonthlyUsage,
+  listAdminUserPlanAssignments,
+  listAdminUsers,
+  listAdminWorkspaceUsage,
   listAdminModelProfiles,
   listAdminPlanModelAccess,
   listAdminPlans,
@@ -41,6 +48,10 @@ import {
   type AdminPlan,
   type AdminPlanPayload,
   type AdminPlanModelAccess,
+  type AdminUser,
+  type AdminUserMonthlyUsage,
+  type AdminUserPlanAssignment,
+  type AdminWorkspaceUsage,
 } from "@/lib/api/api-client"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -56,10 +67,29 @@ import {
   type LoadState,
 } from "./shared"
 
+type PlanInsight = {
+  planId: string
+  assignedUsers: number
+  currentCredits: number
+  storageBytes: number
+  creditPressurePercent: number
+  storagePressurePercent?: number
+}
+
 export function SystemPlanManagementPage() {
   const { accessToken, currentUser } = useAuthSession()
   const [models, setModels] = React.useState<AdminModelProfile[]>([])
   const [plans, setPlans] = React.useState<AdminPlan[]>([])
+  const [users, setUsers] = React.useState<AdminUser[]>([])
+  const [userAssignments, setUserAssignments] = React.useState<
+    AdminUserPlanAssignment[]
+  >([])
+  const [userUsageRows, setUserUsageRows] = React.useState<
+    AdminUserMonthlyUsage[]
+  >([])
+  const [workspaceUsage, setWorkspaceUsage] = React.useState<
+    AdminWorkspaceUsage[]
+  >([])
   const [selectedPlanId, setSelectedPlanId] = React.useState("free")
   const [accessRowsByPlanId, setAccessRowsByPlanId] = React.useState<
     Record<string, AdminPlanModelAccess[]>
@@ -83,12 +113,33 @@ export function SystemPlanManagementPage() {
     setState("loading")
     setError("")
     try {
-      const [modelResult, planResult] = await Promise.all([
+      const [modelResult, planResult, userResult, workspaceUsageResult] =
+        await Promise.all([
         listAdminModelProfiles(accessToken),
         listAdminPlans(accessToken),
+          listAdminUsers(accessToken),
+          listAdminWorkspaceUsage(accessToken),
       ])
+      const userDetailResults = await Promise.all(
+        userResult.users.map(async (user) => {
+          const [assignmentResult, usageResult] = await Promise.all([
+            listAdminUserPlanAssignments(accessToken, user.id),
+            listAdminUserMonthlyUsage(accessToken, user.id, 1),
+          ])
+          return {
+            assignments: assignmentResult.assignments,
+            usage: usageResult.usage,
+          }
+        }),
+      )
       setModels(modelResult.profiles)
       setPlans(planResult.plans)
+      setUsers(userResult.users)
+      setWorkspaceUsage(workspaceUsageResult.usage)
+      setUserAssignments(
+        userDetailResults.flatMap((result) => result.assignments),
+      )
+      setUserUsageRows(userDetailResults.flatMap((result) => result.usage))
       setSelectedPlanId((current) =>
         planResult.plans.some((plan) => plan.id === current && !plan.archived_at)
           ? current
@@ -159,6 +210,18 @@ export function SystemPlanManagementPage() {
     [models],
   )
 
+  const planInsights = React.useMemo(
+    () =>
+      buildPlanInsights({
+        assignments: userAssignments,
+        plans,
+        userUsageRows,
+        users,
+        workspaceUsage,
+      }),
+    [plans, userAssignments, userUsageRows, users, workspaceUsage],
+  )
+
   const metrics = React.useMemo(
     () => [
       {
@@ -182,8 +245,15 @@ export function SystemPlanManagementPage() {
         icon: CheckIcon,
         tone: "amber" as const,
       },
+      {
+        label: "Assigned",
+        value: formatCompactNumber(planInsights.assignedUsers),
+        detail: "active users",
+        icon: PackageIcon,
+        tone: "indigo" as const,
+      },
     ],
-    [models.length, plans, selectedPlanId],
+    [models.length, planInsights.assignedUsers, plans, selectedPlanId],
   )
 
   function openCreateDialog() {
@@ -338,6 +408,21 @@ export function SystemPlanManagementPage() {
       onRefresh={() => void loadPlans()}
     >
       <AppSectionCard
+        title="套餐压力概览"
+        description="按套餐聚合 active 用户数、本月 credits 和 workspace storage，用于判断 quota 与套餐设计是否匹配。"
+        icon={PackageIcon}
+      >
+        <AppBarChart
+          data={planInsights.chartData}
+          series={planInsights.chartSeries}
+          height={220}
+          valueFormatter={formatCompactNumber}
+          emptyTitle="暂无套餐压力数据"
+          emptyDescription="产生用户分配、usage 或 workspace storage 后，这里会展示套餐压力。"
+        />
+      </AppSectionCard>
+
+      <AppSectionCard
         title="套餐列表"
         description="主视图保持单列表格，模型权限配置通过行内展开维护。"
         icon={PackageIcon}
@@ -368,6 +453,7 @@ export function SystemPlanManagementPage() {
                   <th className="hidden w-32 px-4 py-3 @xl/table:table-cell">月额度</th>
                   <th className="hidden w-32 px-4 py-3 @3xl/table:table-cell">Workspace</th>
                   <th className="hidden w-24 px-4 py-3 @4xl/table:table-cell">模型权限</th>
+                  <th className="hidden w-32 px-4 py-3 @5xl/table:table-cell">消耗压力</th>
                   <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
                   <th className="w-24 px-3 py-3 text-right sm:w-40 sm:px-4">操作</th>
                 </tr>
@@ -376,6 +462,7 @@ export function SystemPlanManagementPage() {
                 {filteredPlans.map((plan) => {
                   const expanded = expandedPlanIds.has(plan.id)
                   const accessRows = accessRowsByPlanId[plan.id]
+                  const insight = planInsights.byPlanId.get(plan.id)
                   const accessCount = accessRows
                     ? accessRows.filter((item) => item.visible).length
                     : "-"
@@ -415,6 +502,15 @@ export function SystemPlanManagementPage() {
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 @4xl/table:table-cell">{accessCount}</td>
+                        <td className="hidden px-4 py-3 @5xl/table:table-cell">
+                          <div>{formatCompactNumber(insight?.assignedUsers ?? 0)} users</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {formatCompactNumber(insight?.currentCredits ?? 0)} credits
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {formatBytesLimit(insight?.storageBytes ?? 0)} used
+                          </div>
+                        </td>
                         <td className="px-3 py-3 sm:px-4">
                           <StatusBadge
                             status={
@@ -453,11 +549,13 @@ export function SystemPlanManagementPage() {
                       </tr>
                       {expanded ? (
                         <tr>
-                          <td colSpan={7} className="p-0">
+                          <td colSpan={8} className="p-0">
                             <AppExpandablePanel>
                               <PlanAccessPanel
                                 activeModels={activeModels}
                                 accessRows={accessRows}
+                                insight={insight}
+                                plan={plan}
                                 planId={plan.id}
                                 state={state}
                                 onSaveAccess={saveAccess}
@@ -498,15 +596,144 @@ export function SystemPlanManagementPage() {
   )
 }
 
+function buildPlanInsights({
+  assignments,
+  plans,
+  userUsageRows,
+  users,
+  workspaceUsage,
+}: {
+  assignments: AdminUserPlanAssignment[]
+  plans: AdminPlan[]
+  userUsageRows: AdminUserMonthlyUsage[]
+  users: AdminUser[]
+  workspaceUsage: AdminWorkspaceUsage[]
+}) {
+  const byPlanId = new Map<string, PlanInsight>()
+  const activePlanByUserId = new Map<string, string>()
+  const userIds = new Set(users.map((user) => user.id))
+
+  for (const assignment of assignments) {
+    if (assignment.status !== "active" || !userIds.has(assignment.user_id)) {
+      continue
+    }
+    const currentPlanId = activePlanByUserId.get(assignment.user_id)
+    if (!currentPlanId) {
+      activePlanByUserId.set(assignment.user_id, assignment.plan_id)
+      continue
+    }
+    const currentAssignment = assignments.find(
+      (item) =>
+        item.user_id === assignment.user_id &&
+        item.plan_id === currentPlanId &&
+        item.status === "active",
+    )
+    if (
+      currentAssignment &&
+      assignment.effective_from.localeCompare(currentAssignment.effective_from) > 0
+    ) {
+      activePlanByUserId.set(assignment.user_id, assignment.plan_id)
+    }
+  }
+
+  for (const plan of plans) {
+    const assignedUsers = Array.from(activePlanByUserId.values()).filter(
+      (planId) => planId === plan.id,
+    ).length
+    const assignedUserIds = new Set(
+      Array.from(activePlanByUserId.entries())
+        .filter(([, planId]) => planId === plan.id)
+        .map(([userId]) => userId),
+    )
+    const currentCredits = userUsageRows
+      .filter((row) => assignedUserIds.has(row.user_id))
+      .reduce((total, row) => total + row.charged_credits, 0)
+    const storageBytes = workspaceUsage
+      .filter((row) => row.plan_id === plan.id)
+      .reduce((total, row) => total + row.storage_bytes, 0)
+    const aggregateCreditLimit =
+      plan.monthly_credit_limit == null
+        ? null
+        : plan.monthly_credit_limit * Math.max(assignedUsers, 1)
+    const aggregateStorageLimit =
+      plan.workspace_storage_limit_bytes == null
+        ? null
+        : plan.workspace_storage_limit_bytes *
+          Math.max(
+            workspaceUsage.filter((row) => row.plan_id === plan.id).length,
+            1,
+          )
+
+    byPlanId.set(plan.id, {
+      planId: plan.id,
+      assignedUsers,
+      currentCredits,
+      storageBytes,
+      creditPressurePercent:
+        aggregateCreditLimit && aggregateCreditLimit > 0
+          ? Math.round((currentCredits / aggregateCreditLimit) * 100)
+          : 0,
+      storagePressurePercent:
+        aggregateStorageLimit && aggregateStorageLimit > 0
+          ? Math.round((storageBytes / aggregateStorageLimit) * 100)
+          : undefined,
+    })
+  }
+
+  const chartData: AppBarChartDatum[] = plans
+    .filter((plan) => !plan.archived_at)
+    .slice(0, 8)
+    .map((plan) => {
+      const insight = byPlanId.get(plan.id)
+      return {
+        label: plan.display_name,
+        users: insight?.assignedUsers ?? 0,
+        credits: insight?.currentCredits ?? 0,
+        storage_gb: (insight?.storageBytes ?? 0) / 1024 / 1024 / 1024,
+      }
+    })
+  const chartSeries: AppBarChartSeries[] = [
+    {
+      key: "users",
+      label: "Users",
+      color: "var(--chart-1)",
+    },
+    {
+      key: "credits",
+      label: "Credits",
+      color: "var(--chart-2)",
+    },
+    {
+      key: "storage_gb",
+      label: "Storage GB",
+      color: "var(--chart-3)",
+    },
+  ]
+
+  return {
+    assignedUsers: Array.from(byPlanId.values()).reduce(
+      (total, item) => total + item.assignedUsers,
+      0,
+    ),
+    byPlanId,
+    chartData,
+    chartSeries,
+  }
+}
+
 function PlanAccessPanel({
   activeModels,
   accessRows,
+  insight,
+  plan,
   planId,
   state,
   onSaveAccess,
 }: {
   activeModels: AdminModelProfile[]
   accessRows?: AdminPlanModelAccess[]
+  insight?: PlanInsight
+  plan: AdminPlan
   planId: string
   state: LoadState
   onSaveAccess: (modelId: string, next: AdminPlanModelAccess) => Promise<void>
@@ -517,6 +744,31 @@ function PlanAccessPanel({
 
   return (
     <div className="grid gap-3">
+      <div className="grid gap-2 md:grid-cols-3">
+        <InsightItem
+          label="分配用户"
+          value={formatCompactNumber(insight?.assignedUsers ?? 0)}
+          detail="active assignments"
+        />
+        <InsightItem
+          label="本月 Credits"
+          value={formatCompactNumber(insight?.currentCredits ?? 0)}
+          detail={
+            plan.monthly_credit_limit
+              ? `${formatCompactNumber(insight?.creditPressurePercent ?? 0)}% of aggregate limit`
+              : "未设置 credit limit"
+          }
+        />
+        <InsightItem
+          label="Workspace Storage"
+          value={formatBytesLimit(insight?.storageBytes ?? 0)}
+          detail={
+            insight?.storagePressurePercent == null
+              ? "未设置 storage limit"
+              : `${formatCompactNumber(insight.storagePressurePercent)}% of aggregate limit`
+          }
+        />
+      </div>
       <div className="text-sm text-muted-foreground">
         不可见的模型会自动变成不可用。当前配置套餐：{planId}
       </div>
@@ -569,6 +821,26 @@ function PlanAccessPanel({
       {activeModels.length === 0 ? (
         <EmptyState title="暂无模型" detail="先创建模型档案后再配置套餐权限。" />
       ) : null}
+    </div>
+  )
+}
+
+function InsightItem({
+  detail,
+  label,
+  value,
+}: {
+  detail: string
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+      <div className="text-[11px] font-medium uppercase text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 font-medium">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{detail}</div>
     </div>
   )
 }

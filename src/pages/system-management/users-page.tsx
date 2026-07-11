@@ -16,6 +16,9 @@ import {
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
+  AppLineChart,
+  type AppLineChartDatum,
+  type AppLineChartSeries,
   AppListToolbar,
   AppSearchBar,
   AppSectionCard,
@@ -531,8 +534,45 @@ function UserDetail({
   workspaceUsage: AdminWorkspaceUsage[]
   user: AdminUser
 }) {
+  const usageTrend = React.useMemo(() => buildUserUsageTrend(usage), [usage])
+  const riskItems = React.useMemo(
+    () => buildUserRiskItems(assignments, usage, workspaceUsage),
+    [assignments, usage, workspaceUsage],
+  )
+
   return (
     <div className="grid gap-4">
+      <div className="grid gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <GaugeIcon className="size-4 text-muted-foreground" />
+          Usage 趋势
+        </div>
+        <AppLineChart
+          data={usageTrend.chartData}
+          series={usageTrend.chartSeries}
+          height={180}
+          valueFormatter={formatMetricNumber}
+          emptyTitle="暂无用户 usage 趋势"
+          emptyDescription="用户产生 LLM 调用后，这里会展示最近月度 credits 和 tokens 趋势。"
+        />
+      </div>
+      <div className="grid gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <UsersIcon className="size-4 text-muted-foreground" />
+          风险信号
+        </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          {riskItems.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+              <div className="font-medium">{item.label}</div>
+              <div className="mt-1 text-muted-foreground">{item.detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="grid gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <PackageIcon className="size-4 text-muted-foreground" />
@@ -620,6 +660,70 @@ function UserDetail({
   )
 }
 
+function buildUserUsageTrend(usage: AdminUserMonthlyUsage[]) {
+  const rows = [...usage].sort((a, b) =>
+    a.period_yyyymm.localeCompare(b.period_yyyymm),
+  )
+  const chartData: AppLineChartDatum[] = rows.slice(-12).map((item) => ({
+    label: formatPeriod(item.period_yyyymm),
+    credits: item.charged_credits,
+    tokens: item.raw_total_tokens,
+  }))
+  const chartSeries: AppLineChartSeries[] = [
+    {
+      key: "credits",
+      label: "Credits",
+      color: "var(--chart-1)",
+    },
+    {
+      key: "tokens",
+      label: "Tokens",
+      color: "var(--chart-2)",
+    },
+  ]
+  return { chartData, chartSeries }
+}
+
+function buildUserRiskItems(
+  assignments: AdminUserPlanAssignment[],
+  usage: AdminUserMonthlyUsage[],
+  workspaceUsage: AdminWorkspaceUsage[],
+) {
+  const activePlanId = getActiveUserPlanId(assignments)
+  const maxWorkspaceRatio = workspaceUsage.reduce((max, item) => {
+    if (item.storage_usage_ratio == null) return max
+    return Math.max(max, item.storage_usage_ratio)
+  }, 0)
+  const sortedUsage = [...usage].sort((a, b) =>
+    a.period_yyyymm.localeCompare(b.period_yyyymm),
+  )
+  const latest = sortedUsage.at(-1)?.charged_credits ?? 0
+  const previous = sortedUsage.at(-2)?.charged_credits ?? 0
+  const growth =
+    previous > 0 ? Math.round(((latest - previous) / previous) * 100) : null
+
+  return [
+    {
+      label: activePlanId ? "套餐正常" : "缺少套餐",
+      detail: activePlanId ? `当前 active plan: ${activePlanId}` : "未找到 active plan assignment",
+    },
+    {
+      label: maxWorkspaceRatio >= 0.9 ? "Workspace 接近上限" : "Workspace 正常",
+      detail:
+        maxWorkspaceRatio > 0
+          ? `最高存储使用率 ${Math.round(maxWorkspaceRatio * 100)}%`
+          : "暂无可计算 quota ratio",
+    },
+    {
+      label: growth != null && growth > 50 ? "Usage 增长较快" : "Usage 趋势正常",
+      detail:
+        growth == null
+          ? "暂无可比较的相邻月份"
+          : `最近月度 credits 环比 ${growth}%`,
+    },
+  ]
+}
+
 function formatWorkspaceStorage(item: AdminWorkspaceUsage) {
   if (item.storage_limit_bytes && item.storage_limit_bytes > 0) {
     const ratio =
@@ -660,4 +764,9 @@ function formatDateTime(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   })
+}
+
+function formatPeriod(period: string) {
+  if (period.length !== 6) return period
+  return `${period.slice(0, 4)}-${period.slice(4)}`
 }
