@@ -1,5 +1,10 @@
 import * as React from "react"
-import { CheckCircle2Icon, LogInIcon, UserPlusIcon } from "lucide-react"
+import {
+  CheckCircle2Icon,
+  LogInIcon,
+  MailCheckIcon,
+  UserPlusIcon,
+} from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { AsyncButton, FormField, FormSection, Notice } from "@/components/app"
@@ -12,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { requestEmailVerificationCode } from "@/features/auth/api/auth-api"
 import { useAppSession } from "@/features/auth/app-session"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
@@ -24,6 +30,7 @@ type AuthFormState = {
   displayName: string
   email: string
   password: string
+  verificationCode: string
   company: string
 }
 
@@ -31,6 +38,7 @@ const initialFormState: AuthFormState = {
   displayName: "",
   email: "",
   password: "",
+  verificationCode: "",
   company: "",
 }
 
@@ -40,7 +48,19 @@ function AuthPage({ mode }: AuthPageProps) {
   const isLogin = mode === "login"
   const [form, setForm] = React.useState<AuthFormState>(initialFormState)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isSendingCode, setIsSendingCode] = React.useState(false)
+  const [codeCooldownSeconds, setCodeCooldownSeconds] = React.useState(0)
   const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (codeCooldownSeconds <= 0) {
+      return
+    }
+    const timer = window.setTimeout(() => {
+      setCodeCooldownSeconds((current) => Math.max(0, current - 1))
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [codeCooldownSeconds])
 
   function updateField(name: keyof AuthFormState, value: string) {
     setForm((current) => ({ ...current, [name]: value }))
@@ -59,6 +79,11 @@ function AuthPage({ mode }: AuthPageProps) {
       return
     }
 
+    if (!isLogin && !form.verificationCode.trim()) {
+      setError("请先填写邮箱验证码。")
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
 
@@ -73,6 +98,7 @@ function AuthPage({ mode }: AuthPageProps) {
           email: form.email.trim(),
           display_name: form.displayName.trim(),
           password: form.password,
+          email_verification_code: form.verificationCode.trim(),
         })
       }
 
@@ -92,6 +118,39 @@ function AuthPage({ mode }: AuthPageProps) {
       })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleSendVerificationCode = async () => {
+    if (!form.email.trim()) {
+      setError("请先填写邮箱地址。")
+      return
+    }
+
+    setIsSendingCode(true)
+    setError(null)
+
+    try {
+      await requestEmailVerificationCode({
+        email: form.email.trim(),
+        purpose: "register",
+      })
+      setCodeCooldownSeconds(60)
+      notify.success({
+        title: "验证码已发送",
+        description: "请查看邮箱并在注册时填写 6 位验证码。",
+      })
+    } catch (sendError) {
+      const appError = normalizeAppError(sendError, {
+        fallbackMessage: "验证码发送失败。",
+      })
+      setError(appError.message)
+      notify.error({
+        title: "验证码发送失败",
+        description: appError.message,
+      })
+    } finally {
+      setIsSendingCode(false)
     }
   }
 
@@ -167,6 +226,42 @@ function AuthPage({ mode }: AuthPageProps) {
                 disabled={isSubmitting}
               />
             </FormField>
+
+            {!isLogin ? (
+              <FormField
+                label="邮箱验证码"
+                description="验证码有效期为 10 分钟。"
+              >
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Input
+                    id="auth-verification-code"
+                    inputMode="numeric"
+                    value={form.verificationCode}
+                    onChange={(event) =>
+                      updateField("verificationCode", event.target.value)
+                    }
+                    placeholder="6 位验证码"
+                    disabled={isSubmitting}
+                    maxLength={6}
+                  />
+                  <AsyncButton
+                    type="button"
+                    variant="outline"
+                    isLoading={isSendingCode}
+                    loadingLabel="发送中..."
+                    disabled={
+                      isSubmitting || isSendingCode || codeCooldownSeconds > 0
+                    }
+                    onClick={handleSendVerificationCode}
+                  >
+                    <MailCheckIcon />
+                    {codeCooldownSeconds > 0
+                      ? `${codeCooldownSeconds}s`
+                      : "发送验证码"}
+                  </AsyncButton>
+                </div>
+              </FormField>
+            ) : null}
 
             {!isLogin ? (
               <FormField

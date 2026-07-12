@@ -31,6 +31,7 @@ type AuthSessionContextValue = {
     email: string
     display_name: string
     password: string
+    email_verification_code: string
   }) => Promise<void>
   logout: () => Promise<void>
   refreshAppData: () => Promise<void>
@@ -303,6 +304,7 @@ export function AppSessionProvider({
       email: string
       display_name: string
       password: string
+      email_verification_code: string
     }) => {
       const response = await registerUser(payload)
       persistTokens(

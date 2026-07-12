@@ -5,6 +5,7 @@ export {
   logoutUser,
   refreshToken,
   registerUser,
+  requestEmailVerificationCode,
   revokeAuthSession,
   type AppUser,
   type AuthResponse,

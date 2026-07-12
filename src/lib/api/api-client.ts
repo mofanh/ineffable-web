@@ -534,10 +534,25 @@ export function registerUser(payload: {
   email: string
   display_name: string
   password: string
+  email_verification_code: string
   avatar_url?: string | null
   phone?: string | null
 }) {
   return requestApiJson<AuthResponse>("/gateway/v1/users/register", {
+    method: "POST",
+    body: payload,
+  })
+}
+
+export function requestEmailVerificationCode(payload: {
+  email: string
+  purpose: "register"
+}) {
+  return requestApiJson<{
+    status: "sent"
+    purpose: "register"
+    expires_at?: string | null
+  }>("/gateway/v1/auth/email-verification/request", {
     method: "POST",
     body: payload,
   })
