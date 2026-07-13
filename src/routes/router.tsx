@@ -1,3 +1,4 @@
+import { lazy } from "react"
 import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import App from "@/App"
@@ -7,32 +8,72 @@ import {
   RequireAuth,
 } from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
-import { AccountPage } from "@/pages/account-pages"
-import {
-  AdminLlmSettingsPage,
-  SystemModelManagementPage,
-} from "@/pages/system-management/models-page"
-import { SystemPlanManagementPage } from "@/pages/system-management/plans-page"
-import { SystemSecretManagementPage } from "@/pages/system-management/secrets-page"
-import { SystemUserManagementPage } from "@/pages/system-management/users-page"
-import { AutomationPage } from "@/pages/agent-products/automation-page"
-import { LoginPage, RegisterPage } from "@/pages/auth-pages"
-import {
-  DocsCenterPage,
-} from "@/pages/docs-pages"
-import { ModelCenterPage } from "@/pages/model-pages"
-import {
-  ProjectsHomePage,
-} from "@/pages/project-pages"
-import { FeedbackPage, SupportPage } from "@/pages/support-pages"
-import {
-  AcceptWorkspaceInvitationPage,
-  CreateTeamWorkspacePage,
-  TeamWorkspaceMembersPage,
-  WorkspaceNotificationsPage,
-} from "@/pages/team-workspace-pages"
-import { WorkspaceObjectEditorPage } from "@/pages/workspace-object-editor-page"
 import { defaultPath } from "@/routes/navigation"
+
+const AccountPage = lazy(async () => ({
+  default: (await import("@/pages/account-pages")).AccountPage,
+}))
+const AutomationPage = lazy(async () => ({
+  default: (await import("@/pages/agent-products/automation-page")).AutomationPage,
+}))
+const LoginPage = lazy(async () => ({
+  default: (await import("@/pages/auth-pages")).LoginPage,
+}))
+const RegisterPage = lazy(async () => ({
+  default: (await import("@/pages/auth-pages")).RegisterPage,
+}))
+const DocsCenterPage = lazy(async () => ({
+  default: (await import("@/pages/docs-pages")).DocsCenterPage,
+}))
+const ModelCenterPage = lazy(async () => ({
+  default: (await import("@/pages/model-pages")).ModelCenterPage,
+}))
+const ProjectsHomePage = lazy(async () => ({
+  default: (await import("@/pages/project-pages")).ProjectsHomePage,
+}))
+const FeedbackPage = lazy(async () => ({
+  default: (await import("@/pages/support-pages")).FeedbackPage,
+}))
+const SupportPage = lazy(async () => ({
+  default: (await import("@/pages/support-pages")).SupportPage,
+}))
+const AcceptWorkspaceInvitationPage = lazy(async () => ({
+  default: (await import("@/pages/team-workspace-pages"))
+    .AcceptWorkspaceInvitationPage,
+}))
+const CreateTeamWorkspacePage = lazy(async () => ({
+  default: (await import("@/pages/team-workspace-pages")).CreateTeamWorkspacePage,
+}))
+const TeamWorkspaceMembersPage = lazy(async () => ({
+  default: (await import("@/pages/team-workspace-pages")).TeamWorkspaceMembersPage,
+}))
+const WorkspaceNotificationsPage = lazy(async () => ({
+  default: (await import("@/pages/team-workspace-pages")).WorkspaceNotificationsPage,
+}))
+const WorkspaceObjectEditorPage = lazy(async () => ({
+  default: (await import("@/pages/workspace-object-editor-page"))
+    .WorkspaceObjectEditorPage,
+}))
+const AdminLlmSettingsPage = lazy(async () => ({
+  default: (await import("@/pages/system-management/models-page"))
+    .AdminLlmSettingsPage,
+}))
+const SystemModelManagementPage = lazy(async () => ({
+  default: (await import("@/pages/system-management/models-page"))
+    .SystemModelManagementPage,
+}))
+const SystemPlanManagementPage = lazy(async () => ({
+  default: (await import("@/pages/system-management/plans-page"))
+    .SystemPlanManagementPage,
+}))
+const SystemSecretManagementPage = lazy(async () => ({
+  default: (await import("@/pages/system-management/secrets-page"))
+    .SystemSecretManagementPage,
+}))
+const SystemUserManagementPage = lazy(async () => ({
+  default: (await import("@/pages/system-management/users-page"))
+    .SystemUserManagementPage,
+}))
 
 const routeElements: Record<string, React.ReactElement> = {
   "/account": <AccountPage />,

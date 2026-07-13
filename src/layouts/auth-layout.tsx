@@ -4,8 +4,10 @@ import {
   FolderIcon,
   MessageSquareTextIcon,
 } from "lucide-react"
+import { Suspense } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 
+import { RouteLoading } from "@/components/app"
 import { IneffableLogo } from "@/components/ineffable-logo"
 import { Button } from "@/components/ui/button"
 
@@ -132,7 +134,9 @@ export function AuthLayout() {
           </section>
 
           <section className="mx-auto w-full min-w-0 max-w-full sm:max-w-md">
-            <Outlet />
+            <Suspense fallback={<RouteLoading />}>
+              <Outlet />
+            </Suspense>
           </section>
         </main>
 

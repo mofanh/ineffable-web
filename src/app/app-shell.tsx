@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/features/workspace/app-sidebar"
-import { RightSidebar } from "@/components/right-sidebar"
+import { RouteLoading } from "@/components/app"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,7 +11,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import {
+  Sidebar,
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 import {
   RIGHT_SIDEBAR_DEFAULT_WIDTH,
   RIGHT_SIDEBAR_MIN_WIDTH,
@@ -21,10 +27,14 @@ import { useAppSession } from "@/features/auth/app-session"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { Fragment, Suspense, lazy, useCallback, useEffect, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties, SetStateAction } from "react"
 import { PanelRightIcon } from "lucide-react"
+
+const RightSidebar = lazy(async () => ({
+  default: (await import("@/components/right-sidebar")).RightSidebar,
+}))
 
 export function AppShell() {
   return (
@@ -174,7 +184,9 @@ function AppShellContent() {
           </header>
 
           <main className="min-w-0 flex-1 p-4 pt-0">
-            <Outlet />
+            <Suspense fallback={<RouteLoading className="pt-4" />}>
+              <Outlet />
+            </Suspense>
           </main>
         </SidebarInset>
       </SidebarProvider>
@@ -213,16 +225,35 @@ function AppShellContent() {
           } as CSSProperties
         }
       >
-        <RightSidebar
-          isFullScreen={isRightSidebarFullScreen}
-          onFullScreenChange={setIsRightSidebarFullScreen}
-        />
+        <Suspense fallback={<RightSidebarLoading />}>
+          <RightSidebar
+            isFullScreen={isRightSidebarFullScreen}
+            onFullScreenChange={setIsRightSidebarFullScreen}
+          />
+        </Suspense>
       </SidebarProvider>
     </div>
   )
 }
 
 export default AppShell
+
+function RightSidebarLoading() {
+  return (
+    <Sidebar side="right" variant="inset" mobileMode="full" className="p-0">
+      <div
+        role="status"
+        aria-label="正在加载 AI 助手"
+        className="space-y-4 p-4"
+      >
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <span className="sr-only">正在加载 AI 助手...</span>
+      </div>
+    </Sidebar>
+  )
+}
 
 function getWorkspaceBreadcrumbs(
   pathname: string,
