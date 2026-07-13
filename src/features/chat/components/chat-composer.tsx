@@ -55,11 +55,13 @@ type ChatComposerProps = {
   modelOptions: ModelProfileOption[]
   selectedModelProfileId: string
   sandboxOptions: { environmentId: string; label: string; status: string }[]
+  isRefreshingSandboxOptions: boolean
   selectedSandboxEnvironmentId: string
   onComposerChange: (value: string) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onModelProfileChange: (value: string) => void
   onSandboxEnvironmentChange: (value: string) => void
+  onSandboxOptionsRefresh: () => void
   onSend: () => void
   onStop: () => void
   onPromoteToGuided: (id: string) => void
@@ -75,11 +77,13 @@ export function ChatComposer({
   modelOptions,
   selectedModelProfileId,
   sandboxOptions,
+  isRefreshingSandboxOptions,
   selectedSandboxEnvironmentId,
   onComposerChange,
   onComposerKeyDown,
   onModelProfileChange,
   onSandboxEnvironmentChange,
+  onSandboxOptionsRefresh,
   onSend,
   onStop,
   onPromoteToGuided,
@@ -340,6 +344,11 @@ export function ChatComposer({
               </Select>
               <Select
                 value={selectedSandboxEnvironmentId || "__auto__"}
+                onOpenChange={(open) => {
+                  if (open) {
+                    onSandboxOptionsRefresh()
+                  }
+                }}
                 onValueChange={(value) =>
                   onSandboxEnvironmentChange(value === "__auto__" ? "" : value)
                 }
@@ -347,6 +356,12 @@ export function ChatComposer({
                 <SelectTrigger
                   size="sm"
                   className="h-7 w-full min-w-0 rounded-md bg-background text-xs"
+                  aria-busy={isRefreshingSandboxOptions}
+                  title={
+                    isRefreshingSandboxOptions
+                      ? "正在同步 Sandbox 环境"
+                      : "选择 Sandbox 环境；展开时自动刷新"
+                  }
                 >
                   <SelectValue placeholder="沙箱" />
                 </SelectTrigger>

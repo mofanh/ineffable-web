@@ -235,6 +235,8 @@ export function GatewayChatSidebar({
   const [sandboxOptions, setSandboxOptions] = React.useState<
     { environmentId: string; label: string; status: string }[]
   >([])
+  const [isRefreshingSandboxOptions, setIsRefreshingSandboxOptions] =
+    React.useState(false)
   const [modelProfiles, setModelProfiles] = React.useState<ModelProfile[]>([])
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
@@ -289,6 +291,7 @@ export function GatewayChatSidebar({
   } | null>(null)
   const olderMessagesInFlightCursorRef = React.useRef<string | null>(null)
   const olderLoadResetTimerRef = React.useRef<number | null>(null)
+  const sandboxOptionsRequestRef = React.useRef(0)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
 
@@ -379,50 +382,94 @@ export function GatewayChatSidebar({
     }
   }, [accessToken])
 
-  React.useEffect(() => {
+  const refreshSandboxOptions = React.useCallback(async () => {
     if (!accessToken || !currentWorkspace) {
+      sandboxOptionsRequestRef.current += 1
       setSandboxOptions([])
+      setIsRefreshingSandboxOptions(false)
       return
     }
 
-    let cancelled = false
-    listSandboxWorkspaceEnvironments(accessToken, currentWorkspace.id)
-      .then((response) => {
-        if (cancelled) {
-          return
-        }
-        const providersById = new Map(
-          response.providers.map((provider) => [provider.provider_id, provider])
-        )
-        setSandboxOptions(
-          response.environments
-            .filter((environment) => {
-              const provider = providersById.get(environment.provider_id)
-              return (
-                provider?.status === "online" &&
-                ["bound", "ready", "busy"].includes(environment.status)
-              )
-            })
-            .map((environment) => ({
-              environmentId: environment.environment_id,
-              label: sandboxOptionLabel(
-                environment,
-                providersById.get(environment.provider_id)
-              ),
-              status: environment.status,
-            }))
-        )
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSandboxOptions([])
-        }
-      })
+    const requestId = sandboxOptionsRequestRef.current + 1
+    sandboxOptionsRequestRef.current = requestId
+    setIsRefreshingSandboxOptions(true)
 
-    return () => {
-      cancelled = true
+    try {
+      const response = await listSandboxWorkspaceEnvironments(
+        accessToken,
+        currentWorkspace.id
+      )
+      if (sandboxOptionsRequestRef.current !== requestId) {
+        return
+      }
+
+      const providersById = new Map(
+        response.providers.map((provider) => [provider.provider_id, provider])
+      )
+      const nextOptions = response.environments
+        .filter((environment) => {
+          const provider = providersById.get(environment.provider_id)
+          return (
+            provider?.status === "online" &&
+            ["bound", "ready", "busy"].includes(environment.status)
+          )
+        })
+        .map((environment) => ({
+          environmentId: environment.environment_id,
+          label: sandboxOptionLabel(
+            environment,
+            providersById.get(environment.provider_id)
+          ),
+          status: environment.status,
+        }))
+
+      setSandboxOptions(nextOptions)
+      setSelectedSandboxEnvironmentId((current) => {
+        if (
+          !current ||
+          nextOptions.some((option) => option.environmentId === current)
+        ) {
+          return current
+        }
+        window.localStorage.removeItem(
+          sandboxStorageKey(currentConversationIdRef.current)
+        )
+        return ""
+      })
+    } catch {
+      // Keep the last successful options when a background refresh fails.
+    } finally {
+      if (sandboxOptionsRequestRef.current === requestId) {
+        setIsRefreshingSandboxOptions(false)
+      }
     }
   }, [accessToken, currentWorkspace])
+
+  React.useEffect(() => {
+    void refreshSandboxOptions()
+
+    return () => {
+      sandboxOptionsRequestRef.current += 1
+    }
+  }, [refreshSandboxOptions])
+
+  React.useEffect(() => {
+    function refreshWhenActive() {
+      if (document.visibilityState === "visible") {
+        void refreshSandboxOptions()
+      }
+    }
+
+    window.addEventListener("focus", refreshWhenActive)
+    window.addEventListener("online", refreshWhenActive)
+    document.addEventListener("visibilitychange", refreshWhenActive)
+
+    return () => {
+      window.removeEventListener("focus", refreshWhenActive)
+      window.removeEventListener("online", refreshWhenActive)
+      document.removeEventListener("visibilitychange", refreshWhenActive)
+    }
+  }, [refreshSandboxOptions])
 
   React.useEffect(() => {
     if (!accessToken || !workspaces.length) {
@@ -2362,11 +2409,15 @@ export function GatewayChatSidebar({
         modelOptions={modelOptions}
         selectedModelProfileId={selectedModelProfileId}
         sandboxOptions={sandboxOptions}
+        isRefreshingSandboxOptions={isRefreshingSandboxOptions}
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
         onModelProfileChange={setSelectedModelProfileId}
         onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
+        onSandboxOptionsRefresh={() => {
+          void refreshSandboxOptions()
+        }}
         onSend={() => {
           void handleSend()
         }}

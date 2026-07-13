@@ -194,6 +194,17 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 
 待有副作用的手动验证：Automation 实际运行、Chat 发送/停止/审批、文件保存/恢复，以及管理员增删改提交；执行前需要明确测试数据与清理范围。
 
+### Phase 10：Sandbox 选择项实时同步
+
+- [x] 将 Sandbox 环境加载收口为可重复调用的 Chat feature 刷新函数。
+- [x] Sandbox 选择框展开时主动请求最新环境列表。
+- [x] 浏览器重新聚焦、恢复可见和网络恢复时同步环境列表。
+- [x] 后台刷新失败时保留上一次成功选项，并清理已失效的会话选择。
+
+自动验证：`npm run lint`、`npm run build` 已通过。
+
+运行时验证：使用真实普通账号和浏览器网络监听确认，Sandbox 选择框通过真实指针展开后会重新请求 `/gateway/v1/sandbox/environments`；窗口重新聚焦也会触发同步。该账号当前没有已绑定环境，因此刷新后的下拉框仅展示“自动选择沙箱”。
+
 ## 全局完成标准
 
 - lint 0 errors、0 warnings；build 通过。
