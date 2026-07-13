@@ -54,10 +54,10 @@ export function AuthLayout() {
                 Ineffable Identity
               </p>
               <h1 className="max-w-xl text-5xl leading-[1.08] font-semibold tracking-[-0.04em]">
-                把用户身份、访问控制和工作台体验放在同一条链路里。
+                和 AI 在同一个工作区里，把对话变成真正的项目进展。
               </h1>
               <p className="max-w-xl text-base leading-7 text-muted-foreground">
-                登录后继续处理工作区文件、团队协作与 AI 会话，不打断正在推进的上下文。
+                浏览和编辑文件，延续可恢复的 AI 会话；代理产生的修改会直接回到工作区，让上下文与成果始终同步。
               </p>
               <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm text-muted-foreground">
                 {productCapabilities.map((capability) => (
