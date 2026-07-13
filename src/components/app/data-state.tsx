@@ -13,7 +13,7 @@ export function DataState({
   empty,
   emptyTitle,
   emptyDescription,
-  loadingLabel = "Loading...",
+  loadingLabel = "正在加载...",
   onRetry,
   children,
 }: {
@@ -39,8 +39,8 @@ export function DataState({
   if (state === "error") {
     return (
       <ErrorState
-        error={error || "Request failed."}
-        title="Something went wrong"
+        error={error || "请求失败。"}
+        title="加载失败"
         className="items-start"
         onRetry={onRetry}
       />
@@ -50,7 +50,7 @@ export function DataState({
   if (empty) {
     return (
       <EmptyState
-        title={emptyTitle ?? "No data"}
+        title={emptyTitle ?? "暂无数据"}
         description={emptyDescription}
       />
     )

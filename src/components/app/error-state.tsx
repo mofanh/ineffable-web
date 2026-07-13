@@ -4,8 +4,8 @@ import type { AppError } from "@/lib/app/api-errors"
 
 export function ErrorState({
   error,
-  title = "Something went wrong",
-  retryLabel = "Retry",
+  title = "操作失败",
+  retryLabel = "重试",
   onRetry,
   className,
 }: {
