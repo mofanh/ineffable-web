@@ -39,12 +39,14 @@ export function FormSection({
 
 export function FormField({
   label,
+  htmlFor,
   description,
   error,
   children,
   className,
 }: {
   label: string
+  htmlFor?: string
   description?: string
   error?: string | null
   children: React.ReactNode
@@ -52,7 +54,7 @@ export function FormField({
 }) {
   return (
     <Field className={className} data-invalid={Boolean(error)}>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
       {children}
       {description ? <FieldDescription>{description}</FieldDescription> : null}
       {error ? <FieldError>{error}</FieldError> : null}

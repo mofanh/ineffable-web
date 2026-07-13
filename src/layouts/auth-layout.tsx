@@ -1,81 +1,145 @@
-import { IneffableLogo } from "@/components/ineffable-logo"
-import { Button } from "@/components/ui/button"
-import { ArrowRightIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react"
+import {
+  BotIcon,
+  FileTextIcon,
+  FolderIcon,
+  MessageSquareTextIcon,
+} from "lucide-react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 
-const authHighlights = [
-  {
-    title: "统一身份入口",
-    description: "登录、注册与账号管理使用同一套品牌与表单体验。",
-    icon: ShieldCheckIcon,
-  },
-  {
-    title: "协作信息可见",
-    description: "在进入工作台前先展示团队、权限和审计相关上下文。",
-    icon: SparklesIcon,
-  },
-]
+import { IneffableLogo } from "@/components/ineffable-logo"
+import { Button } from "@/components/ui/button"
+
+const productCapabilities = ["工作区协作", "持续 AI 会话", "安全身份访问"]
 
 export function AuthLayout() {
   const { pathname } = useLocation()
   const isLogin = pathname === "/login"
 
   return (
-    <div className="relative min-h-svh overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_32%),linear-gradient(135deg,_hsl(var(--background))_0%,_hsl(var(--muted))_100%)]">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,transparent_0,transparent_calc(100%-1px),hsl(var(--border))_calc(100%-1px)),linear-gradient(to_bottom,transparent_0,transparent_calc(100%-1px),hsl(var(--border))_calc(100%-1px))] bg-[size:72px_72px] opacity-35" />
-      <div className="relative mx-auto flex min-h-svh max-w-7xl flex-col px-6 py-6 lg:px-10">
-        <header className="flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center">
-            <IneffableLogo className="h-9" />
+    <div className="relative min-h-svh overflow-x-hidden bg-background">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,var(--muted),transparent_30%),radial-gradient(circle_at_88%_82%,var(--accent),transparent_26%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:64px_64px] opacity-30 [mask-image:linear-gradient(to_bottom,black,transparent_80%)]"
+      />
+
+      <div className="relative mx-auto flex min-h-svh w-full max-w-7xl flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-7">
+        <header className="flex items-center justify-between gap-4">
+          <Link
+            to="/login"
+            className="inline-flex rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            aria-label="返回 Ineffable 登录页"
+          >
+            <IneffableLogo className="h-8" />
           </Link>
-          <Button variant="ghost" asChild>
-            <Link to={isLogin ? "/register" : "/login"}>
-              {isLogin ? "创建账号" : "返回登录"}
-              <ArrowRightIcon />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span className="hidden sm:inline">
+              {isLogin ? "还没有账号？" : "已经有账号？"}
+            </span>
+            <Button variant="ghost" asChild>
+              <Link to={isLogin ? "/register" : "/login"}>
+                {isLogin ? "创建账号" : "返回登录"}
+              </Link>
+            </Button>
+          </div>
         </header>
 
-        <div className="grid flex-1 items-center gap-10 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:py-12">
-          <section className="hidden lg:flex lg:flex-col lg:justify-between">
-            <div className="max-w-xl space-y-6">
-              <p className="text-sm font-medium tracking-[0.22em] text-muted-foreground uppercase">
+        <main className="grid flex-1 items-center gap-12 py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.72fr)] lg:py-12">
+          <section className="hidden min-w-0 lg:block">
+            <div className="max-w-2xl space-y-5">
+              <p className="text-xs font-semibold tracking-[0.24em] text-muted-foreground uppercase">
                 Ineffable Identity
               </p>
-              <div className="space-y-4">
-                <h1 className="max-w-lg text-5xl leading-tight font-semibold tracking-tight">
-                  把用户身份、访问控制和工作台体验放在同一条链路里。
-                </h1>
-                <p className="max-w-xl text-base leading-7 text-muted-foreground">
-                  这套认证入口面向内部协作产品设计，保持信息密度、品牌一致性和移动端可访问性。
-                </p>
+              <h1 className="max-w-xl text-5xl leading-[1.08] font-semibold tracking-[-0.04em]">
+                把用户身份、访问控制和工作台体验放在同一条链路里。
+              </h1>
+              <p className="max-w-xl text-base leading-7 text-muted-foreground">
+                登录后继续处理工作区文件、团队协作与 AI 会话，不打断正在推进的上下文。
+              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm text-muted-foreground">
+                {productCapabilities.map((capability) => (
+                  <span key={capability} className="inline-flex items-center gap-2">
+                    <span className="size-1.5 rounded-full bg-foreground" />
+                    {capability}
+                  </span>
+                ))}
               </div>
             </div>
 
-            <div className="grid gap-4">
-              {authHighlights.map((item) => (
-                <div
-                  key={item.title}
-                  className="flex max-w-xl items-start gap-4 rounded-3xl border border-border/70 bg-background/85 p-5 backdrop-blur-sm"
-                >
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-foreground text-background">
-                    <item.icon className="size-5" />
+            <div className="mt-9 max-w-2xl overflow-hidden rounded-3xl border border-border/80 bg-card/80 shadow-[0_30px_90px_-48px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+              <div className="flex h-11 items-center justify-between border-b px-4">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-border" />
+                  <span className="size-2 rounded-full bg-border" />
+                  <span className="size-2 rounded-full bg-border" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Ineffable Workspace
+                </span>
+              </div>
+              <div className="grid min-h-56 grid-cols-[172px_minmax(0,1fr)_180px]">
+                <div className="space-y-2 border-r bg-muted/35 p-4 text-xs">
+                  <p className="mb-3 font-medium text-muted-foreground">
+                    PERSONAL SPACE
+                  </p>
+                  <div className="flex items-center gap-2 rounded-lg bg-accent px-2.5 py-2 font-medium">
+                    <FolderIcon className="size-3.5" />
+                    Product
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-base font-medium">{item.title}</p>
-                    <p className="text-sm leading-6 text-muted-foreground">
-                      {item.description}
-                    </p>
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 text-muted-foreground">
+                    <FileTextIcon className="size-3.5" />
+                    roadmap.md
+                  </div>
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 text-muted-foreground">
+                    <FileTextIcon className="size-3.5" />
+                    research.md
                   </div>
                 </div>
-              ))}
+                <div className="min-w-0 p-5">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <FileTextIcon className="size-4" />
+                    product-brief.md
+                  </div>
+                  <div className="mt-5 space-y-3">
+                    <div className="h-3 w-2/3 rounded-full bg-foreground/80" />
+                    <div className="h-2 w-full rounded-full bg-muted" />
+                    <div className="h-2 w-5/6 rounded-full bg-muted" />
+                    <div className="h-2 w-11/12 rounded-full bg-muted" />
+                    <div className="pt-3">
+                      <div className="h-2 w-full rounded-full bg-muted" />
+                      <div className="mt-3 h-2 w-4/5 rounded-full bg-muted" />
+                    </div>
+                  </div>
+                </div>
+                <div className="border-l bg-muted/20 p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium">
+                    <MessageSquareTextIcon className="size-3.5" />
+                    AI 会话
+                  </div>
+                  <div className="mt-4 rounded-xl border bg-background p-3 text-xs leading-5 text-muted-foreground">
+                    <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
+                      <BotIcon className="size-3.5" />
+                      Ineffable
+                    </div>
+                    已结合当前文件上下文整理下一步任务。
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
-          <section className="mx-auto w-full max-w-md">
+          <section className="mx-auto w-full min-w-0 max-w-md">
             <Outlet />
           </section>
-        </div>
+        </main>
+
+        <footer className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+          <span>© {new Date().getFullYear()} Ineffable</span>
+          <span>Identity · Workspace · AI</span>
+        </footer>
       </div>
     </div>
   )
