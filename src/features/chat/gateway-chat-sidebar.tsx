@@ -523,7 +523,7 @@ export function GatewayChatSidebar({
   const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
   const isSending = streamStatus === "streaming" || streamStatus === "recovering"
   const selectedConversationTitle =
-    selectedConversation?.title || "New Chat"
+    selectedConversation?.title || "新对话"
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {

@@ -31,7 +31,7 @@ type ChatMessageListProps = {
 
 function StreamingTailDot() {
   return (
-    <span className="relative flex size-3 items-center justify-center" aria-label="Streaming">
+    <span className="relative flex size-3 items-center justify-center" aria-label="正在生成">
       <span className="absolute inline-flex size-3 rounded-full bg-emerald-500/35 animate-ping" />
       <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
     </span>
@@ -59,9 +59,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           <SparklesIcon className="size-5" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium">还没有对话</p>
+          <p className="text-sm font-medium">从一个任务开始</p>
           <p className="text-sidebar-foreground/70 text-xs leading-5">
-            在这里直接和后端 LLM 对话，新会话会自动初始化。
+            让 AI 结合工作区文件分析内容、推进任务，或输入 @ 引用 Agent 描述文件。
           </p>
         </div>
       </div>
@@ -115,7 +115,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           if (entry.role === "user") {
             return (
               <div key={entry.id} className="flex justify-end">
-                <div className="max-w-[82%] rounded-[28px] bg-black/6 px-5 py-4 text-[15px] leading-8 text-foreground shadow-sm">
+                <div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
                   <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
                 </div>
               </div>

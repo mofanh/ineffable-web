@@ -20,7 +20,6 @@ import {
   PlusIcon,
   RefreshCcwIcon,
   SearchIcon,
-  SquareArrowOutUpRightIcon,
 } from "lucide-react"
 
 type ChatSidebarHeaderProps = {
@@ -67,12 +66,12 @@ function HeaderActionButton({
 
 function getConversationGroupLabel(updatedAt?: string | null) {
   if (!updatedAt) {
-    return "Older"
+    return "更早"
   }
 
   const updatedDate = new Date(updatedAt)
   if (Number.isNaN(updatedDate.getTime())) {
-    return "Older"
+    return "更早"
   }
 
   const now = new Date()
@@ -81,21 +80,21 @@ function getConversationGroupLabel(updatedAt?: string | null) {
   const diffDays = Math.floor(diffMs / 86400000)
 
   if (diffDays <= 0) {
-    return "Today"
+    return "今天"
   }
   if (diffDays <= 7) {
-    return "Previous 7 Days"
+    return "最近 7 天"
   }
   if (diffDays <= 30) {
-    return "Previous 30 Days"
+    return "最近 30 天"
   }
-  return "Older"
+  return "更早"
 }
 
 function groupConversations(
   conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
 ) {
-  const order = ["Today", "Previous 7 Days", "Previous 30 Days", "Older"]
+  const order = ["今天", "最近 7 天", "最近 30 天", "更早"]
   const grouped = new Map<string, ConversationGroup>()
 
   for (const conversation of conversations) {
@@ -166,13 +165,13 @@ export function ChatSidebarHeader({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="group mr-4 flex min-w-0 flex-1 items-center gap-2 rounded py-0.5 pr-0 pl-0.5 text-left"
+              className="group flex min-w-0 flex-1 items-center gap-2 rounded py-0.5 pr-1 pl-0.5 text-left"
               aria-expanded={open}
               title={selectedConversationTitle}
             >
               <span
                 className="flex size-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground"
-                title="Chat"
+                title="AI 助手"
               >
                 <BotIcon className="size-3.5" />
               </span>
@@ -192,7 +191,7 @@ export function ChatSidebarHeader({
             align="start"
             side="bottom"
             sideOffset={10}
-            className="w-[340px] min-w-[340px] overflow-hidden rounded-xl p-0"
+            className="w-[min(340px,calc(100vw-2rem))] min-w-0 overflow-hidden rounded-xl p-0"
           >
             <div className="rounded-lg bg-popover">
               <div className="flex items-center gap-1.5 border-b border-sidebar-border px-4 py-2.5">
@@ -200,9 +199,20 @@ export function ChatSidebarHeader({
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search..."
+                  placeholder="搜索历史对话…"
                   className="h-auto border-0 bg-transparent px-0 py-0 text-[13px] shadow-none focus-visible:ring-0"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title="刷新会话列表"
+                  aria-label="刷新会话列表"
+                  onClick={onRefreshConversations}
+                  className="ml-auto shrink-0"
+                >
+                  <RefreshCcwIcon className="size-3.5" />
+                </Button>
               </div>
 
               <div className="max-h-[360px] overflow-y-auto">
@@ -214,7 +224,7 @@ export function ChatSidebarHeader({
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <PlusIcon className="size-4 text-muted-foreground" />
-                      <span className="truncate">New Chat</span>
+                      <span className="truncate">新对话</span>
                     </div>
                   </button>
                 </div>
@@ -270,20 +280,11 @@ export function ChatSidebarHeader({
         </DropdownMenu>
 
         <div className="flex shrink-0 items-center gap-1">
-          <HeaderActionButton title="刷新会话列表" onClick={onRefreshConversations}>
-            <RefreshCcwIcon className="size-3.5 opacity-80" />
-          </HeaderActionButton>
           <HeaderActionButton title="新对话" onClick={handleStartNewChat}>
             <PlusIcon className="size-4" />
           </HeaderActionButton>
           <HeaderActionButton
-            title="打开会话面板"
-            onClick={() => setOpen((current) => !current)}
-          >
-            <SquareArrowOutUpRightIcon className="size-4" />
-          </HeaderActionButton>
-          <HeaderActionButton
-            title={isFullScreen ? "退出全屏" : "全屏右侧栏"}
+            title={isFullScreen ? "退出全屏" : "全屏使用 AI 助手"}
             onClick={() => onFullScreenChange(!isFullScreen)}
           >
             {isFullScreen ? (

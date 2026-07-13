@@ -296,11 +296,11 @@ export function ChatComposer({
 
         <InputGroup className="h-auto overflow-hidden rounded-2xl border border-sidebar-border bg-background shadow-xs">
           <InputGroupTextarea
-            aria-label="Chat message"
+            aria-label="对话消息"
             placeholder={
               isSending
-                ? "预输入 → 排队等待当前任务完成..."
-                : "给 LLM 发送消息..."
+                ? "继续输入，消息将在当前任务完成后发送…"
+                : "描述任务，或输入 @ 引用 Agent 文件…"
             }
             rows={2}
             value={composer}
@@ -314,7 +314,7 @@ export function ChatComposer({
             align="block-end"
             className="justify-between border-t border-sidebar-border bg-sidebar-accent/15 px-2 py-1.5 [.border-t]:pt-1.5"
           >
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
               <Select
                 value={selectedModelProfileId || "__default__"}
                 onValueChange={(value) =>
@@ -323,13 +323,13 @@ export function ChatComposer({
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-7 w-[150px] max-w-[42vw] rounded-md bg-background text-xs"
+                  className="h-7 w-full min-w-0 rounded-md bg-background text-xs"
                 >
                   <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Model" />
+                  <SelectValue placeholder="模型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">Model: Default</SelectItem>
+                  <SelectItem value="__default__">默认模型</SelectItem>
                   {modelOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.displayName}
@@ -345,12 +345,12 @@ export function ChatComposer({
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-7 w-[160px] max-w-full rounded-md bg-background text-xs"
+                  className="h-7 w-full min-w-0 rounded-md bg-background text-xs"
                 >
-                  <SelectValue placeholder="Sandbox" />
+                  <SelectValue placeholder="沙箱" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__auto__">Sandbox: Auto</SelectItem>
+                  <SelectItem value="__auto__">自动选择沙箱</SelectItem>
                   {sandboxOptions.map((option) => (
                     <SelectItem
                       key={option.environmentId}
@@ -362,7 +362,7 @@ export function ChatComposer({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="ml-1 flex shrink-0 items-center gap-1">
               {isSending ? (
                 <Button
                   size="sm"
@@ -385,7 +385,7 @@ export function ChatComposer({
                 title={isSending ? "加入预输入队列" : "发送消息"}
               >
                 <ArrowUpIcon />
-                <span className="sr-only">Send</span>
+                <span className="sr-only">{isSending ? "加入队列" : "发送"}</span>
               </InputGroupButton>
             </div>
           </InputGroupAddon>
