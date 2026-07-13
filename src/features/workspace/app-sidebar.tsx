@@ -112,6 +112,12 @@ const primaryNavItems: Array<{
     icon: ZapIcon,
     path: "/automation",
   },
+  {
+    id: "models",
+    title: "模型中心",
+    icon: BotIcon,
+    path: "/models",
+  },
 ]
 
 const systemManagementNavItems = [
@@ -1423,7 +1429,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }}
           onAction={handleObjectAction}
         />
-        <NavSecondary items={navSecondary} className="mt-auto" />
+        {navSecondary.length ? (
+          <NavSecondary items={navSecondary} className="mt-auto" />
+        ) : null}
       </SidebarContent>
       <SidebarFooter className="gap-2">
         <SidebarSeparator className="mx-0" />

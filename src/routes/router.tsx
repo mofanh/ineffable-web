@@ -19,25 +19,11 @@ import { AutomationPage } from "@/pages/agent-products/automation-page"
 import { LoginPage, RegisterPage } from "@/pages/auth-pages"
 import {
   DocsCenterPage,
-  DocsChangelogPage,
-  DocsGetStartedPage,
-  DocsIntroductionPage,
-  DocsTutorialsPage,
 } from "@/pages/docs-pages"
 import { ModelCenterPage } from "@/pages/model-pages"
 import {
-  DesignEngineeringPage,
   ProjectsHomePage,
-  SalesMarketingPage,
-  TravelProjectPage,
 } from "@/pages/project-pages"
-import {
-  SettingsBillingPage,
-  SettingsCenterPage,
-  SettingsGeneralPage,
-  SettingsLimitsPage,
-  SettingsTeamPage,
-} from "@/pages/settings-pages"
 import { FeedbackPage, SupportPage } from "@/pages/support-pages"
 import {
   AcceptWorkspaceInvitationPage,
@@ -82,19 +68,19 @@ const routeElements: Record<string, React.ReactElement> = {
   "/models/quantum": <Navigate to="/models" replace />,
   "/notifications": <WorkspaceNotificationsPage />,
   "/docs": <DocsCenterPage />,
-  "/docs/introduction": <DocsIntroductionPage />,
-  "/docs/get-started": <DocsGetStartedPage />,
-  "/docs/tutorials": <DocsTutorialsPage />,
-  "/docs/changelog": <DocsChangelogPage />,
-  "/settings": <SettingsCenterPage />,
-  "/settings/general": <SettingsGeneralPage />,
-  "/settings/team": <SettingsTeamPage />,
-  "/settings/billing": <SettingsBillingPage />,
-  "/settings/limits": <SettingsLimitsPage />,
+  "/docs/introduction": <Navigate to="/docs" replace />,
+  "/docs/get-started": <Navigate to="/docs" replace />,
+  "/docs/tutorials": <Navigate to="/docs" replace />,
+  "/docs/changelog": <Navigate to="/docs" replace />,
+  "/settings": <Navigate to="/account" replace />,
+  "/settings/general": <Navigate to="/account" replace />,
+  "/settings/team": <Navigate to="/account" replace />,
+  "/settings/billing": <Navigate to="/account" replace />,
+  "/settings/limits": <Navigate to="/account" replace />,
   "/projects": <ProjectsHomePage />,
-  "/projects/design-engineering": <DesignEngineeringPage />,
-  "/projects/sales-marketing": <SalesMarketingPage />,
-  "/projects/travel": <TravelProjectPage />,
+  "/projects/design-engineering": <Navigate to="/projects" replace />,
+  "/projects/sales-marketing": <Navigate to="/projects" replace />,
+  "/projects/travel": <Navigate to="/projects" replace />,
   "/support": <SupportPage />,
   "/feedback": <FeedbackPage />,
 }

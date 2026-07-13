@@ -1,13 +1,4 @@
-import {
-  BookOpenIcon,
-  BotIcon,
-  FrameIcon,
-  LifeBuoyIcon,
-  MapIcon,
-  PieChartIcon,
-  SendIcon,
-  Settings2Icon,
-} from "lucide-react"
+import { BotIcon } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 export type BreadcrumbEntry = {
@@ -43,58 +34,9 @@ export const navigation = {
       icon: BotIcon,
       items: [],
     },
-    {
-      title: "文档中心",
-      path: "/docs",
-      icon: BookOpenIcon,
-      items: [
-        { title: "产品介绍", path: "/docs/introduction" },
-        { title: "快速开始", path: "/docs/get-started" },
-        { title: "使用教程", path: "/docs/tutorials" },
-        { title: "更新记录", path: "/docs/changelog" },
-      ],
-    },
-    {
-      title: "系统设置",
-      path: "/settings",
-      icon: Settings2Icon,
-      items: [
-        { title: "通用设置", path: "/settings/general" },
-        { title: "团队设置", path: "/settings/team" },
-        { title: "账单与套餐", path: "/settings/billing" },
-        { title: "使用限制", path: "/settings/limits" },
-      ],
-    },
   ] as MainNavGroup[],
-  projects: [
-    {
-      title: "设计工程",
-      path: "/projects/design-engineering",
-      icon: FrameIcon,
-    },
-    {
-      title: "销售与市场",
-      path: "/projects/sales-marketing",
-      icon: PieChartIcon,
-    },
-    {
-      title: "差旅",
-      path: "/projects/travel",
-      icon: MapIcon,
-    },
-  ] as SimpleNavItem[],
-  secondary: [
-    {
-      title: "帮助支持",
-      path: "/support",
-      icon: LifeBuoyIcon,
-    },
-    {
-      title: "提交反馈",
-      path: "/feedback",
-      icon: SendIcon,
-    },
-  ] as SimpleNavItem[],
+  projects: [] as SimpleNavItem[],
+  secondary: [] as SimpleNavItem[],
 }
 
 export type RouteMeta = {
@@ -142,6 +84,24 @@ routeMetaMap.set("/account", {
   path: "/account",
   title: "账号",
   breadcrumbs: [{ label: "账号" }],
+})
+
+routeMetaMap.set("/docs", {
+  path: "/docs",
+  title: "产品文档",
+  breadcrumbs: [{ label: "产品文档" }],
+})
+
+routeMetaMap.set("/support", {
+  path: "/support",
+  title: "帮助支持",
+  breadcrumbs: [{ label: "帮助支持" }],
+})
+
+routeMetaMap.set("/feedback", {
+  path: "/feedback",
+  title: "提交反馈",
+  breadcrumbs: [{ label: "提交反馈" }],
 })
 
 routeMetaMap.set("/admin/llm", {
