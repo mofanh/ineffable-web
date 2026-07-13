@@ -47,7 +47,7 @@ export function AuthLayout() {
           </div>
         </header>
 
-        <main className="grid flex-1 items-center gap-12 py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.72fr)] lg:py-12">
+        <main className="grid flex-1 grid-cols-[minmax(0,1fr)] items-center gap-12 py-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.72fr)] lg:py-12">
           <section className="hidden min-w-0 lg:block">
             <div className="max-w-2xl space-y-5">
               <p className="text-xs font-semibold tracking-[0.24em] text-muted-foreground uppercase">
@@ -131,14 +131,14 @@ export function AuthLayout() {
             </div>
           </section>
 
-          <section className="mx-auto w-full min-w-0 max-w-md">
+          <section className="mx-auto w-full min-w-0 max-w-full sm:max-w-md">
             <Outlet />
           </section>
         </main>
 
         <footer className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
           <span>© {new Date().getFullYear()} Ineffable</span>
-          <span>Identity · Workspace · AI</span>
+          <span className="hidden sm:inline">Identity · Workspace · AI</span>
         </footer>
       </div>
     </div>
