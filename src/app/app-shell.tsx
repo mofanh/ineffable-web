@@ -43,7 +43,7 @@ function AppShellContent() {
   const breadcrumbs =
     getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces) ??
     routeMeta?.breadcrumbs ??
-    [{ label: "Automation" }]
+    [{ label: "自动任务" }]
   const { headerContent } = useAppHeader()
   const {
     isRightSidebarOpen,
@@ -165,7 +165,8 @@ function AppShellContent() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setRightSidebarOpen((open) => !open)}
-                aria-label="Toggle right sidebar"
+                aria-label={isRightSidebarOpen ? "收起 AI 助手" : "打开 AI 助手"}
+                title={isRightSidebarOpen ? "收起 AI 助手" : "打开 AI 助手"}
               >
                 <PanelRightIcon />
               </Button>
@@ -181,7 +182,7 @@ function AppShellContent() {
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize right sidebar"
+        aria-label="调整 AI 助手宽度"
         tabIndex={isRightSidebarOpen && !isRightSidebarFullScreen ? 0 : -1}
         aria-valuemin={RIGHT_SIDEBAR_MIN_WIDTH}
         aria-valuemax={Math.round(rightSidebarMaxWidth)}
@@ -229,11 +230,11 @@ function getWorkspaceBreadcrumbs(
   workspaces: ReturnType<typeof useAppSession>["workspaces"]
 ): BreadcrumbEntry[] | null {
   if (pathname === "/team-spaces/new") {
-    return [{ label: "Team Spaces" }, { label: "Create Workspace" }]
+    return [{ label: "团队空间" }, { label: "创建空间" }]
   }
 
   if (pathname === "/notifications") {
-    return [{ label: "Notifications" }]
+    return [{ label: "邀请通知" }]
   }
 
   const membersMatch = pathname.match(/^\/team-spaces\/([^/]+)\/members$/)
@@ -243,17 +244,17 @@ function getWorkspaceBreadcrumbs(
       workspaces.find((candidate) => candidate.id === workspaceId) ??
       (currentWorkspace?.id === workspaceId ? currentWorkspace : null)
     return [
-      { label: "Team Spaces" },
+      { label: "团队空间" },
       {
-        label: workspace?.name || "Team Workspace",
+        label: workspace?.name || "团队空间",
         path: `/team-spaces/${workspaceId}/members`,
       },
-      { label: "Members" },
+      { label: "成员管理" },
     ]
   }
 
   if (pathname.startsWith("/workspace-invitations/")) {
-    return [{ label: "Team Spaces" }, { label: "Invitation" }]
+    return [{ label: "团队空间" }, { label: "邀请确认" }]
   }
 
   return null

@@ -72,7 +72,6 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
-  CreditCardIcon,
   DownloadIcon,
   ExternalLinkIcon,
   FileCodeIcon,
@@ -88,8 +87,6 @@ import {
   PencilIcon,
   PlusIcon,
   ShieldIcon,
-  SettingsIcon,
-  SparklesIcon,
   Trash2Icon,
   UserPlusIcon,
   UsersIcon,
@@ -111,7 +108,7 @@ const primaryNavItems: Array<{
 }> = [
   {
     id: "automation",
-    title: "Automation",
+    title: "自动任务",
     icon: ZapIcon,
     path: "/automation",
   },
@@ -207,7 +204,7 @@ function WorkspaceObjectMenu({
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction
           showOnHover
-          aria-label={`${item.title} actions`}
+          aria-label={`${item.title} 操作`}
           onClick={(event) => {
             event.stopPropagation()
           }}
@@ -218,22 +215,22 @@ function WorkspaceObjectMenu({
       <DropdownMenuContent side="right" align="start" className="w-56">
         <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
           <LinkIcon />
-          <span>Copy Link</span>
+          <span>复制链接</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onAction("open-new-tab", item)}>
           <ExternalLinkIcon />
-          <span>Open in New Tab</span>
+          <span>在新标签页打开</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {item.kind === "folder" ? (
           <>
             <DropdownMenuItem onClick={() => onAction("new-file", item)}>
               <FilePlusIcon />
-              <span>New File</span>
+              <span>新建文件</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAction("new-folder", item)}>
               <FolderPlusIcon />
-              <span>New Folder</span>
+              <span>新建文件夹</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -241,24 +238,24 @@ function WorkspaceObjectMenu({
         {!item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("duplicate", item)}>
             <CopyIcon />
-            <span>Duplicate</span>
+            <span>创建副本</span>
           </DropdownMenuItem>
         ) : null}
         {!item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("rename", item)}>
             <PencilIcon />
-            <span>Rename</span>
+            <span>重命名</span>
           </DropdownMenuItem>
         ) : null}
         {!item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("move", item)}>
             <FolderInputIcon />
-            <span>Move To...</span>
+            <span>移动到…</span>
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onClick={() => onAction("export", item)}>
           <DownloadIcon />
-          <span>Export</span>
+          <span>导出</span>
         </DropdownMenuItem>
         {!item.isWorkspaceRoot ? (
           <>
@@ -268,7 +265,7 @@ function WorkspaceObjectMenu({
               onClick={() => onAction("delete", item)}
             >
               <Trash2Icon />
-              <span>Delete</span>
+              <span>删除</span>
             </DropdownMenuItem>
           </>
         ) : null}
@@ -289,7 +286,7 @@ function TeamWorkspaceMenu({
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction
           showOnHover
-          aria-label={`${item.title} actions`}
+          aria-label={`${item.title} 操作`}
           onClick={(event) => {
             event.stopPropagation()
           }}
@@ -300,20 +297,20 @@ function TeamWorkspaceMenu({
       <DropdownMenuContent side="right" align="start" className="w-56">
         <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
           <LinkIcon />
-          <span>Copy Link</span>
+          <span>复制链接</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onAction("open-new-tab", item)}>
           <ExternalLinkIcon />
-          <span>Open in New Tab</span>
+          <span>在新标签页打开</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onAction("invite-members", item)}>
           <UserPlusIcon />
-          <span>Invite Members</span>
+          <span>邀请成员</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onAction("manage-members", item)}>
           <UsersIcon />
-          <span>Manage Members</span>
+          <span>管理成员</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -511,16 +508,16 @@ function SpaceSection({
   onTeamAction?: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
   return (
-    <SidebarGroup className="gap-2">
+    <SidebarGroup className="gap-1.5 py-2">
       <div className="flex h-8 items-center gap-1 px-2">
-        <SidebarGroupLabel className="h-auto min-w-0 flex-1 px-0 py-1 text-sm font-normal tracking-[0.12em] text-sidebar-foreground/50">
+        <SidebarGroupLabel className="h-auto min-w-0 flex-1 px-0 py-1 text-xs font-semibold tracking-normal text-sidebar-foreground/55">
           {title}
         </SidebarGroupLabel>
         {actionMenu}
         {canCreate && createMode === "team" ? (
           <button
             type="button"
-            aria-label={`Create ${title}`}
+            aria-label={`创建${title}`}
             className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             onClick={onCreateTeam}
           >
@@ -531,7 +528,7 @@ function SpaceSection({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={`Create in ${title}`}
+                aria-label={`在${title}中新建`}
                 className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <PlusIcon className="size-4" />
@@ -540,11 +537,11 @@ function SpaceSection({
             <DropdownMenuContent side="right" align="start">
               <DropdownMenuItem onClick={() => onCreate("file")}>
                 <FilePlusIcon />
-                <span>New File</span>
+                <span>新建文件</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onCreate("folder")}>
                 <FolderPlusIcon />
-                <span>New Folder</span>
+                <span>新建文件夹</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -566,8 +563,8 @@ function SpaceSection({
             ))
           ) : (
             <SidebarMenuItem>
-              <div className="px-2 py-1.5 text-sm text-sidebar-foreground/45">
-                {isLoading ? "Loading..." : error || emptyLabel || "Empty"}
+              <div className="mx-2 rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs leading-5 text-sidebar-foreground/45">
+                {isLoading ? "正在加载…" : error || emptyLabel || "暂无内容"}
               </div>
             </SidebarMenuItem>
           )}
@@ -635,39 +632,17 @@ function WorkspaceAccountSwitcher({
             </div>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuItem>
-          <PackageIcon />
-          <span>Integrations</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <SettingsIcon />
-          <span>Settings</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <SparklesIcon />
-            <span>Upgrade to Pro</span>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link to="/account">
               <BadgeCheckIcon />
-              <span>Account</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/settings/billing">
-              <CreditCardIcon />
-              <span>Billing</span>
+              <span>账号与登录设备</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/notifications">
               <BellIcon />
-              <span>Notifications</span>
+              <span>邀请通知</span>
               {pendingInvitationCount > 0 ? (
                 <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
                   {pendingInvitationCount > 99 ? "99+" : pendingInvitationCount}
@@ -694,7 +669,7 @@ function WorkspaceAccountSwitcher({
             }}
           >
             <LogOutIcon />
-            <span>Sign out</span>
+            <span>退出登录</span>
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -806,7 +781,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setWorkspaceTrees((current) =>
         workspaceIds ? { ...current, ...nextTrees } : nextTrees
       )
-      setTreeError(failed ? "Failed to load files" : null)
+      setTreeError(failed ? "文件列表加载失败，请稍后重试。" : null)
       setIsTreeLoading(false)
     },
     [accessToken, workspaces]
@@ -938,7 +913,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const getSectionWorkspace = React.useCallback(
     (sectionWorkspaces: Workspace[]) => {
       if (!sectionWorkspaces.length) {
-        notify.warning({ title: "No workspace available." })
+        notify.warning({ title: "暂无可用工作区" })
         return null
       }
 
@@ -947,7 +922,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
 
       const input = window.prompt(
-        `Workspace name:\n${sectionWorkspaces.map((workspace) => workspace.name).join("\n")}`,
+        `请输入工作区名称：\n${sectionWorkspaces.map((workspace) => workspace.name).join("\n")}`,
         sectionWorkspaces[0].name
       )
       if (!input) {
@@ -979,7 +954,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      const name = window.prompt(kind === "file" ? "File name" : "Folder name")
+      const name = window.prompt(kind === "file" ? "文件名称" : "文件夹名称")
       const normalizedName = name?.trim()
       if (!normalizedName) {
         return
@@ -1008,11 +983,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           showLoading: false,
         })
         notify.success({
-          title: kind === "file" ? "File created" : "Folder created",
+          title: kind === "file" ? "文件已创建" : "文件夹已创建",
           description: response.object.name,
         })
       } catch (error) {
-        reportActionError(error, "Create failed", "Create failed")
+        reportActionError(error, "创建失败，请稍后重试。", "创建失败")
       }
     },
     [accessToken, navigate, refreshWorkspaceTrees, reportActionError]
@@ -1128,7 +1103,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
         if (action === "copy-link") {
           await navigator.clipboard?.writeText(url)
-          notify.info({ title: "Link copied" })
+          notify.info({ title: "链接已复制" })
           return
         }
 
@@ -1145,7 +1120,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               JSON.stringify({ workspace, objects }, null, 2),
               "application/json"
             )
-            notify.info({ title: "Workspace exported" })
+            notify.info({ title: "工作区已导出" })
             return
           }
 
@@ -1160,7 +1135,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               response.content,
               item.object.mime_type || "text/plain"
             )
-            notify.info({ title: "File exported" })
+            notify.info({ title: "文件已导出" })
             return
           }
 
@@ -1173,7 +1148,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             JSON.stringify({ folder: item.object, objects }, null, 2),
             "application/json"
           )
-          notify.info({ title: "Folder exported" })
+          notify.info({ title: "文件夹已导出" })
           return
         }
 
@@ -1187,12 +1162,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
-          notify.success({ title: "Object duplicated" })
+          notify.success({ title: "副本已创建" })
           return
         }
 
         if (action === "rename") {
-          const name = window.prompt("Rename", item.object.name)
+          const name = window.prompt("输入新名称", item.object.name)
           const normalizedName = name?.trim()
           if (!normalizedName || normalizedName === item.object.name) {
             return
@@ -1210,7 +1185,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             showLoading: false,
           })
           notify.success({
-            title: "Object renamed",
+            title: "名称已更新",
             description: response.object.name,
           })
           return
@@ -1218,7 +1193,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         if (action === "move") {
           const targetPath = window.prompt(
-            "Move to folder path. Leave blank for workspace root.",
+            "输入目标文件夹路径，留空将移动到工作区根目录。",
             ""
           )
           if (targetPath === null) {
@@ -1235,8 +1210,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : null
           if (normalizedPath && !targetFolder) {
             notify.error({
-              title: "Move failed",
-              description: "Target folder not found.",
+              title: "移动失败",
+              description: "未找到目标文件夹。",
             })
             return
           }
@@ -1253,7 +1228,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             showLoading: false,
           })
           notify.success({
-            title: "Object moved",
+            title: "对象已移动",
             description: response.object.path,
           })
           return
@@ -1261,9 +1236,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         if (action === "delete") {
           const confirmed = await confirm({
-            title: `Delete "${item.object.name}"?`,
-            description: "This object will be removed from the workspace.",
-            confirmLabel: "Delete",
+            title: `删除「${item.object.name}」？`,
+            description: "该对象将从工作区中移除，此操作无法撤销。",
+            confirmLabel: "删除",
             variant: "destructive",
           })
           if (!confirmed) {
@@ -1276,10 +1251,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
-          notify.success({ title: "Object deleted" })
+          notify.success({ title: "对象已删除" })
         }
       } catch (error) {
-        reportActionError(error, "Action failed", "Action failed")
+        reportActionError(error, "操作失败，请稍后重试。", "操作失败")
       }
     },
     [
@@ -1305,19 +1280,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       if (action === "copy-link") {
         if (!selectedTeam) {
-          notify.warning({ title: "No team space available." })
+          notify.warning({ title: "暂无可用团队空间" })
           return
         }
         void navigator.clipboard?.writeText(
           `${window.location.origin}?workspace=${selectedTeam.id}`
         )
-        notify.info({ title: "Team space link copied" })
+        notify.info({ title: "团队空间链接已复制" })
         return
       }
 
       if (action === "open-new-tab") {
         if (!selectedTeam) {
-          notify.warning({ title: "No team space available." })
+          notify.warning({ title: "暂无可用团队空间" })
           return
         }
         window.open(
@@ -1342,7 +1317,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      notify.info({ title: "Team Space actions are coming next." })
+      notify.info({ title: "该团队空间操作暂未开放" })
     },
     [currentWorkspace, navigate, teamWorkspaces]
   )
@@ -1392,8 +1367,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               tooltip={`Ineffable · ${getLogoName(logoVariant)}`}
             >
-              <Link to={defaultPath} className="flex w-full justify-center">
-                <IneffableLogo variant={logoVariant} className="h-8 max-w-[132px] w-auto" />
+              <Link to={defaultPath} className="flex w-full justify-start">
+                <IneffableLogo variant={logoVariant} className="h-8 w-auto max-w-[132px]" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -1406,9 +1381,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         />
         <SidebarSeparator />
         <SpaceSection
-          title="Team Spaces"
+          title="团队空间"
           entries={teamSpaceEntries}
-          emptyLabel="No team spaces"
+          emptyLabel="还没有团队空间，可从右侧加号创建。"
           isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
           error={treeError}
           canCreate
@@ -1429,9 +1404,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           onTeamAction={handleTeamWorkspaceAction}
         />
         <SpaceSection
-          title="Personal Space"
+          title="个人空间"
           entries={personalSpaceEntries}
-          emptyLabel="No files"
+          emptyLabel="还没有文件，可从右侧加号新建。"
           isLoading={isTreeLoading && Boolean(personalWorkspaces.length)}
           error={treeError}
           canCreate={Boolean(personalWorkspaces.length)}
@@ -1456,7 +1431,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <WorkspaceAccountSwitcher
               user={{
-                name: currentUser?.display_name || currentUser?.email || "Workspace User",
+                name: currentUser?.display_name || currentUser?.email || "工作区用户",
                 email: currentUser?.email || "未登录",
                 avatar: currentUser?.avatar_url || "",
               }}

@@ -52,10 +52,10 @@ export const navigation = {
       path: "/docs",
       icon: BookOpenIcon,
       items: [
-        { title: "Introduction", path: "/docs/introduction" },
-        { title: "Get Started", path: "/docs/get-started" },
-        { title: "Tutorials", path: "/docs/tutorials" },
-        { title: "Changelog", path: "/docs/changelog" },
+        { title: "产品介绍", path: "/docs/introduction" },
+        { title: "快速开始", path: "/docs/get-started" },
+        { title: "使用教程", path: "/docs/tutorials" },
+        { title: "更新记录", path: "/docs/changelog" },
       ],
     },
     {
@@ -63,38 +63,38 @@ export const navigation = {
       path: "/settings",
       icon: Settings2Icon,
       items: [
-        { title: "General", path: "/settings/general" },
-        { title: "Team", path: "/settings/team" },
-        { title: "Billing", path: "/settings/billing" },
-        { title: "Limits", path: "/settings/limits" },
+        { title: "通用设置", path: "/settings/general" },
+        { title: "团队设置", path: "/settings/team" },
+        { title: "账单与套餐", path: "/settings/billing" },
+        { title: "使用限制", path: "/settings/limits" },
       ],
     },
   ] as MainNavGroup[],
   projects: [
     {
-      title: "Design Engineering",
+      title: "设计工程",
       path: "/projects/design-engineering",
       icon: FrameIcon,
     },
     {
-      title: "Sales & Marketing",
+      title: "销售与市场",
       path: "/projects/sales-marketing",
       icon: PieChartIcon,
     },
     {
-      title: "Travel",
+      title: "差旅",
       path: "/projects/travel",
       icon: MapIcon,
     },
   ] as SimpleNavItem[],
   secondary: [
     {
-      title: "Support",
+      title: "帮助支持",
       path: "/support",
       icon: LifeBuoyIcon,
     },
     {
-      title: "Feedback",
+      title: "提交反馈",
       path: "/feedback",
       icon: SendIcon,
     },
@@ -180,8 +180,8 @@ routeMetaMap.set("/system/users", {
 
 routeMetaMap.set("/automation", {
   path: "/automation",
-  title: "Automation",
-  breadcrumbs: [{ label: "Automation" }],
+  title: "自动任务",
+  breadcrumbs: [{ label: "自动任务" }],
 })
 
 navigation.secondary.forEach((item) => {
@@ -198,8 +198,8 @@ export function getRouteMeta(pathname: string) {
   if (pathname.startsWith("/workspace/")) {
     return {
       path: pathname,
-      title: "Workspace File",
-      breadcrumbs: [{ label: "Workspace" }, { label: "File" }],
+      title: "工作区文件",
+      breadcrumbs: [{ label: "工作区" }, { label: "文件" }],
     }
   }
 
