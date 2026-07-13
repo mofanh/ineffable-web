@@ -19,7 +19,10 @@ function getRightSidebarReservedWidth(viewportWidth: number) {
 }
 
 function getRightSidebarMaxWidth(viewportWidth: number, leftBoundaryX: number) {
-  return Math.max(RIGHT_SIDEBAR_MIN_WIDTH, viewportWidth - leftBoundaryX)
+  return Math.max(
+    RIGHT_SIDEBAR_MIN_WIDTH,
+    viewportWidth - leftBoundaryX - RIGHT_SIDEBAR_MIN_REMAINING_WIDTH
+  )
 }
 
 function clampRightSidebarWidth(

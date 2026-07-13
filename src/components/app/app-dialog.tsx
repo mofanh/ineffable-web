@@ -5,7 +5,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-export type AppDialogMaxWidth = "lg" | "xl" | "2xl" | "3xl"
+export type AppDialogMaxWidth = "lg" | "xl" | "2xl" | "3xl" | "6xl"
 
 export function AppDialog({
   open,
@@ -32,7 +32,8 @@ export function AppDialog({
             maxWidth === "lg" && "max-w-lg",
             maxWidth === "xl" && "max-w-xl",
             maxWidth === "2xl" && "max-w-2xl",
-            maxWidth === "3xl" && "max-w-3xl"
+            maxWidth === "3xl" && "max-w-3xl",
+            maxWidth === "6xl" && "max-w-6xl"
           )}
         >
           <div className="pr-8">
@@ -54,7 +55,7 @@ export function AppDialog({
               className="absolute top-4 right-4"
             >
               <XIcon className="size-4" />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">关闭</span>
             </Button>
           </DialogPrimitive.Close>
         </DialogPrimitive.Content>
