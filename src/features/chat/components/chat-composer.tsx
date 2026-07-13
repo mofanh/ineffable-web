@@ -191,6 +191,7 @@ export function ChatComposer({
               >
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground/80">
                   {item.status === "pending" ? "预进入中 · " : ""}
+                  {item.status === "queued" ? "排队中 · " : ""}
                   {item.status === "promoting" ? "引导中 · " : ""}
                   {item.status === "deleting" ? "删除中 · " : ""}
                   {item.content.length > 100

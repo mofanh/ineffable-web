@@ -13,6 +13,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { AgentPane } from "@/features/chat/components/agent-pane"
+import { cn } from "@/lib/utils"
 
 type ChatMessageListProps = {
   entries: ChatEntry[]
@@ -226,8 +227,23 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       return (
                         <div
                           key={subagentId}
-                          className="space-y-3 rounded-2xl bg-black/2.5 px-3 py-3"
+                          className="space-y-3 rounded-xl border border-sidebar-border/70 bg-black/2.5 px-3 py-3"
                         >
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="min-w-0 truncate font-medium text-foreground/75">
+                              子任务 · {subagent.name}
+                            </span>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
+                                subagent.status === "streaming"
+                                  ? "bg-sky-500/10 text-sky-700"
+                                  : "bg-emerald-500/10 text-emerald-700"
+                              )}
+                            >
+                              {subagent.status === "streaming" ? "执行中" : "已完成"}
+                            </span>
+                          </div>
                           <AgentPane pane={subagent} />
                         </div>
                       )

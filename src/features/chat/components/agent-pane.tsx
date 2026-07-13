@@ -122,6 +122,28 @@ function terminalStatusTone(status: string) {
   return "border-black/10 text-foreground/65"
 }
 
+function terminalStatusLabel(status: string) {
+  switch (status.toLowerCase()) {
+    case "running":
+      return "运行中"
+    case "exited":
+    case "completed":
+    case "succeeded":
+      return "已完成"
+    case "interrupted":
+    case "cancelled":
+    case "canceled":
+      return "已中止"
+    case "timed_out":
+      return "已超时"
+    case "failed":
+    case "error":
+      return "失败"
+    default:
+      return status
+  }
+}
+
 function TerminalMetaItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="min-w-0">
@@ -174,7 +196,7 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-foreground/75">
           <TerminalIcon className="size-3.5 flex-none" />
-          <span className="truncate">{command || sessionId || "Terminal session"}</span>
+          <span className="truncate">{command || sessionId || "终端会话"}</span>
         </span>
         {status ? (
           <Badge
@@ -184,7 +206,7 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
               terminalStatusTone(status)
             )}
           >
-            {status}
+            {terminalStatusLabel(status)}
           </Badge>
         ) : null}
         {tty ? (
@@ -198,17 +220,17 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        {sessionId ? <TerminalMetaItem label="Session" value={sessionId} /> : null}
-        {cwd ? <TerminalMetaItem label="CWD" value={cwd} /> : null}
-        {cursor !== null ? <TerminalMetaItem label="Cursor" value={cursor} /> : null}
-        {lineRange ? <TerminalMetaItem label="Lines" value={lineRange} /> : null}
-        {exitCode !== null ? <TerminalMetaItem label="Exit" value={exitCode} /> : null}
+        {sessionId ? <TerminalMetaItem label="会话" value={sessionId} /> : null}
+        {cwd ? <TerminalMetaItem label="工作目录" value={cwd} /> : null}
+        {cursor !== null ? <TerminalMetaItem label="游标" value={cursor} /> : null}
+        {lineRange ? <TerminalMetaItem label="行范围" value={lineRange} /> : null}
+        {exitCode !== null ? <TerminalMetaItem label="退出码" value={exitCode} /> : null}
       </div>
 
-      <TerminalOutputBlock label="Output" content={output} />
-      <TerminalOutputBlock label="Stderr" content={stderr} />
-      <TerminalOutputBlock label="Failure" content={failureReason} />
-      <TerminalOutputBlock label="Next" content={nextAction} />
+      <TerminalOutputBlock label="输出" content={output} />
+      <TerminalOutputBlock label="错误输出" content={stderr} />
+      <TerminalOutputBlock label="失败原因" content={failureReason} />
+      <TerminalOutputBlock label="下一步" content={nextAction} />
     </div>
   )
 }
@@ -221,7 +243,7 @@ function TerminalListResult({ result }: { result: JsonObject }) {
   if (!sessions.length) {
     return (
       <div className="rounded-md border border-black/6 bg-background/45 px-2.5 py-2 text-[11px] text-foreground/60">
-        No terminal sessions.
+        暂无终端会话。
       </div>
     )
   }
@@ -249,16 +271,16 @@ function TerminalListResult({ result }: { result: JsonObject }) {
                     terminalStatusTone(status)
                   )}
                 >
-                  {status}
+                  {terminalStatusLabel(status)}
                 </Badge>
               ) : null}
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <TerminalMetaItem label="Session" value={sessionId} />
-              <TerminalMetaItem label="CWD" value={stringValue(session.cwd) || "-"} />
+              <TerminalMetaItem label="会话" value={sessionId} />
+              <TerminalMetaItem label="工作目录" value={stringValue(session.cwd) || "-"} />
             </div>
             <TerminalOutputBlock
-              label="Tail"
+              label="最近输出"
               content={stringValue(session.last_output_tail)}
             />
           </div>
@@ -316,7 +338,7 @@ function ThinkBlockView({ block }: { block: ThinkBlock }) {
         >
           <span className="inline-flex items-center gap-1.5">
             <BrainCircuitIcon className="size-3.5" />
-            <span>Thinking</span>
+            <span>思考过程</span>
           </span>
           <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
         </button>
@@ -395,7 +417,7 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
       <CollapsibleContent className="animated-collapsible-content relative ml-[6.5px] border-l-[0.5px] border-border/50 pt-2 pl-3.5 text-xs text-foreground/65">
         {tool.input.trim() ? (
           <div className="space-y-1">
-            <p className="text-[10px] font-medium tracking-wide opacity-55">Input</p>
+            <p className="text-[10px] font-medium tracking-wide opacity-55">输入</p>
             <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
               {tool.input}
             </pre>
@@ -404,7 +426,7 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
 
         {tool.output.trim() ? (
           <div className={cn("space-y-1", tool.input.trim() ? "mt-2" : "")}>
-            <p className="text-[10px] font-medium tracking-wide opacity-55">Output</p>
+            <p className="text-[10px] font-medium tracking-wide opacity-55">输出</p>
             {terminalResult || (
               <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
                 {tool.output}

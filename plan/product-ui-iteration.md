@@ -117,13 +117,15 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 
 ### Phase 4：Gateway Chat
 
-- [ ] 优化会话选择、空态、消息层级、Thinking、tool call、subagent 和 approval。
-- [ ] 保持 streaming、recovering、queued、completed、error 与去重逻辑。
-- [ ] 优化窄栏、全屏移动模式和键盘操作。
+- [x] 优化会话选择、空态、消息层级、Thinking、tool call、subagent 和 approval。
+- [x] 保持 streaming、recovering、queued、completed、error 与去重逻辑。
+- [x] 优化窄栏、全屏移动模式和键盘操作。
 
 自动验证：`npm run lint`、`npm run build`。
 
 入口层自动验证：`npm run lint`、`npm run build` 已通过；已优化会话搜索/分组、空态、用户消息与窄栏输入区，事件详情与运行状态继续在下一闭环处理。
+
+事件层自动验证：`npm run lint`、`npm run build` 已通过；统一 Thinking、tool call、终端结果和 subagent 的状态层级，未改动流式事件聚合与去重逻辑。
 
 手动验证：新会话、历史恢复、流断开恢复、预输入队列、停止、审批和 workspace 写入刷新。
 
