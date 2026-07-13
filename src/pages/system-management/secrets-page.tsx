@@ -63,6 +63,9 @@ export function SystemSecretManagementPage() {
   const [models, setModels] = React.useState<AdminModelProfile[]>([])
   const [query, setQuery] = React.useState("")
   const [editingSecret, setEditingSecret] = React.useState<SecretForm | null>(null)
+  const [secretDialogMode, setSecretDialogMode] = React.useState<
+    "create" | "edit"
+  >("create")
   const [expandedSecretRefs, setExpandedSecretRefs] = React.useState<Set<string>>(
     () => new Set()
   )
@@ -151,11 +154,13 @@ export function SystemSecretManagementPage() {
   )
 
   function openCreateDialog() {
+    setSecretDialogMode("create")
     setEditingSecret({ ...emptySecret, secret: "" })
     setDialogOpen(true)
   }
 
   function openEditDialog(secret: AdminLlmSecret) {
+    setSecretDialogMode("edit")
     setEditingSecret({
       secret_ref: secret.secret_ref,
       secret: "",
@@ -351,8 +356,12 @@ export function SystemSecretManagementPage() {
 
       <AppDialog
         open={dialogOpen}
-        title={editingSecret?.secret_ref ? "编辑密钥" : "新增密钥"}
-        description="编辑已有密钥时，密钥值留空表示不修改密钥内容。"
+        title={secretDialogMode === "create" ? "新增密钥" : "编辑密钥"}
+        description={
+          secretDialogMode === "create"
+            ? "新增可供模型配置引用的上游密钥。"
+            : "编辑已有密钥时，密钥值留空表示不修改密钥内容。"
+        }
         onOpenChange={setDialogOpen}
       >
         {editingSecret ? (
