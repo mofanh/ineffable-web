@@ -5,7 +5,6 @@ import {
   CheckCircle2Icon,
   CopyIcon,
   MailIcon,
-  SearchIcon,
   ShieldCheckIcon,
   SparklesIcon,
   Trash2Icon,
@@ -16,6 +15,8 @@ import {
 
 import {
   AppPage,
+  AppListToolbar,
+  AppSearchBar,
   AsyncButton,
   DataState,
   DataTableBody,
@@ -70,6 +71,7 @@ function roleLabel(role: string) {
 }
 
 function invitationStatusLabel(status: string) {
+  if (status === "active") return "正常"
   if (status === "pending") return "待接受"
   if (status === "accepted") return "已接受"
   if (status === "expired") return "已过期"
@@ -308,14 +310,21 @@ export function CreateTeamWorkspacePage() {
 
 export function TeamWorkspaceMembersPage() {
   const { workspaceId } = useParams()
-  const { accessToken, currentWorkspace } = useAppSession()
+  const { accessToken, currentWorkspace, workspaces } = useAppSession()
   const [query, setQuery] = React.useState("")
   const [inviteEmail, setInviteEmail] = React.useState("")
   const [inviteRole, setInviteRole] = React.useState("member")
   const [lastInviteUrl, setLastInviteUrl] = React.useState<string | null>(null)
   const [actionError, setActionError] = React.useState<AppError | null>(null)
+  const [isInviting, setIsInviting] = React.useState(false)
+  const [updatingMemberId, setUpdatingMemberId] = React.useState<string | null>(null)
+  const [removingMemberId, setRemovingMemberId] = React.useState<string | null>(null)
+  const [revokingInvitationId, setRevokingInvitationId] = React.useState<string | null>(null)
 
   const targetWorkspaceId = workspaceId || currentWorkspace?.id || ""
+  const targetWorkspace =
+    workspaces.find((workspace) => workspace.id === targetWorkspaceId) ??
+    currentWorkspace
 
   const loadMemberResource = React.useCallback(async () => {
     if (!accessToken || !targetWorkspaceId) {
@@ -340,7 +349,7 @@ export function TeamWorkspaceMembersPage() {
   const memberResource = useApiResource({
     enabled: Boolean(accessToken && targetWorkspaceId),
     load: loadMemberResource,
-    errorMessage: "Failed to load workspace members.",
+    errorMessage: "加载团队成员失败。",
   })
   const {
     data: memberData,
@@ -356,10 +365,20 @@ export function TeamWorkspaceMembersPage() {
     async (event: React.FormEvent) => {
       event.preventDefault()
       if (!accessToken || !targetWorkspaceId) return
+      const email = inviteEmail.trim().toLowerCase()
+      if (!email) {
+        setActionError(
+          normalizeAppError("请输入邀请邮箱。", {
+            fallbackMessage: "请输入邀请邮箱。",
+          }),
+        )
+        return
+      }
       setActionError(null)
+      setIsInviting(true)
       try {
         const response = await inviteWorkspaceMember(accessToken, targetWorkspaceId, {
-          email: inviteEmail,
+          email,
           role: inviteRole,
           invite_base_url: `${window.location.origin}/workspace-invitations`,
         })
@@ -367,18 +386,20 @@ export function TeamWorkspaceMembersPage() {
         setInviteEmail("")
         await reloadMembers()
         notify.success({
-          title: "Invitation sent",
-          description: `Invite sent to ${inviteEmail}.`,
+          title: "邀请已发送",
+          description: `已邀请 ${email} 加入团队空间。`,
         })
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "Invite failed.",
+          fallbackMessage: "发送邀请失败。",
         })
         setActionError(appError)
         notify.error({
-          title: "Invite failed",
+          title: "发送邀请失败",
           description: appError.message,
         })
+      } finally {
+        setIsInviting(false)
       }
     },
     [accessToken, inviteEmail, inviteRole, reloadMembers, targetWorkspaceId]
@@ -388,6 +409,7 @@ export function TeamWorkspaceMembersPage() {
     async (member: WorkspaceMembership, role: string) => {
       if (!accessToken || !targetWorkspaceId) return
       setActionError(null)
+      setUpdatingMemberId(member.id)
       try {
         await updateWorkspaceMemberRole(
           accessToken,
@@ -397,18 +419,20 @@ export function TeamWorkspaceMembersPage() {
         )
         await reloadMembers()
         notify.success({
-          title: "Role updated",
-          description: `Member role changed to ${role}.`,
+          title: "成员角色已更新",
+          description: `角色已调整为${roleLabel(role)}。`,
         })
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "Failed to update member role.",
+          fallbackMessage: "更新成员角色失败。",
         })
         setActionError(appError)
         notify.error({
-          title: "Role update failed",
+          title: "更新角色失败",
           description: appError.message,
         })
+      } finally {
+        setUpdatingMemberId(null)
       }
     },
     [accessToken, reloadMembers, targetWorkspaceId]
@@ -418,27 +442,30 @@ export function TeamWorkspaceMembersPage() {
     async (member: WorkspaceMembership) => {
       if (!accessToken || !targetWorkspaceId) return
       const confirmed = await confirm({
-        title: "Remove workspace member?",
-        description: "This member will lose access to the team workspace.",
-        confirmLabel: "Remove",
+        title: "移除这个团队成员？",
+        description: "移除后，该成员将无法继续访问这个团队空间。",
+        confirmLabel: "移除成员",
         variant: "destructive",
       })
       if (!confirmed) return
 
       setActionError(null)
+      setRemovingMemberId(member.id)
       try {
         await removeWorkspaceMember(accessToken, targetWorkspaceId, member.user_id)
         await reloadMembers()
-        notify.success({ title: "Member removed" })
+        notify.success({ title: "团队成员已移除" })
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "Failed to remove member.",
+          fallbackMessage: "移除团队成员失败。",
         })
         setActionError(appError)
         notify.error({
-          title: "Remove member failed",
+          title: "移除成员失败",
           description: appError.message,
         })
+      } finally {
+        setRemovingMemberId(null)
       }
     },
     [accessToken, reloadMembers, targetWorkspaceId]
@@ -448,14 +475,15 @@ export function TeamWorkspaceMembersPage() {
     async (invitation: WorkspaceInvitation) => {
       if (!accessToken || !targetWorkspaceId) return
       const confirmed = await confirm({
-        title: "Revoke invitation?",
-        description: `The invitation for ${invitation.email} will stop working.`,
-        confirmLabel: "Revoke",
+        title: "撤销这份邀请？",
+        description: `${invitation.email} 将无法再通过原邀请加入团队空间。`,
+        confirmLabel: "撤销邀请",
         variant: "destructive",
       })
       if (!confirmed) return
 
       setActionError(null)
+      setRevokingInvitationId(invitation.id)
       try {
         await revokeWorkspaceInvitation(
           accessToken,
@@ -463,16 +491,18 @@ export function TeamWorkspaceMembersPage() {
           invitation.id
         )
         await reloadMembers()
-        notify.success({ title: "Invitation revoked" })
+        notify.success({ title: "团队邀请已撤销" })
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "Failed to revoke invitation.",
+          fallbackMessage: "撤销团队邀请失败。",
         })
         setActionError(appError)
         notify.error({
-          title: "Revoke invitation failed",
+          title: "撤销邀请失败",
           description: appError.message,
         })
+      } finally {
+        setRevokingInvitationId(null)
       }
     },
     [accessToken, reloadMembers, targetWorkspaceId]
@@ -489,49 +519,66 @@ export function TeamWorkspaceMembersPage() {
   const pendingInvitations = invitations.filter((item) => item.status === "pending")
   return (
     <AppPage
-      title="Team Workspace Members"
-      description="Manage access for collaborators and keep pending invitations visible while Team Workspace work is shared across users."
+      title="团队成员"
+      description={`管理 ${targetWorkspace?.name || "当前团队空间"} 的成员权限、存储用量和待处理邀请。`}
     >
-      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-5">
-        <Metric label="Total Seats" value={`${members.length}`} suffix="/ 50" />
-        <Metric label="Active Now" value={String(Math.min(members.length, 12))} />
-        <Metric label="Pending Invites" value={String(pendingInvitations.length)} />
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
+        <Metric label="当前成员" value={`${members.length}`} suffix="人" />
+        <Metric label="待处理邀请" value={String(pendingInvitations.length)} suffix="条" />
         <Metric
-          label="Storage"
+          label="存储用量"
           value={formatWorkspaceStorage(usage)}
           suffix={formatWorkspaceStorageSuffix(usage)}
           compact
         />
-        <Metric label="Workspace" value={currentWorkspace?.name || "Team"} compact />
+        <Metric
+          label="文件"
+          value={usage ? String(usage.file_count) : "—"}
+          suffix={usage ? `${usage.object_count} 个对象` : undefined}
+        />
       </div>
 
-      <form
-        onSubmit={submitInvite}
-        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row"
-      >
-        <Input
-          value={inviteEmail}
-          onChange={(event) => setInviteEmail(event.target.value)}
-          placeholder="Invite by email..."
-          type="email"
-          className="h-11 bg-muted/40 sm:flex-1"
-        />
-        <select
-          value={inviteRole}
-          onChange={(event) => setInviteRole(event.target.value)}
-          className="h-11 rounded-lg border border-border bg-muted/40 px-3 text-sm outline-none"
+      <section className="overflow-hidden rounded-xl border">
+        <div className="border-b bg-muted/20 px-4 py-3">
+          <h2 className="font-medium">邀请成员</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            邀请邮件会包含加入当前团队空间的链接。
+          </p>
+        </div>
+        <form
+          onSubmit={submitInvite}
+          className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_140px_auto]"
         >
-          {roleOptions.map((role) => (
-            <option key={role} value={role}>
-              {role}
-            </option>
-          ))}
-        </select>
-        <Button className="h-11 gap-2 px-5">
-          <UserPlusIcon className="size-4" />
-          Invite
-        </Button>
-      </form>
+          <Input
+            value={inviteEmail}
+            onChange={(event) => setInviteEmail(event.target.value)}
+            placeholder="成员邮箱"
+            type="email"
+            className="h-10"
+            aria-label="成员邮箱"
+          />
+          <select
+            value={inviteRole}
+            onChange={(event) => setInviteRole(event.target.value)}
+            className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-label="邀请角色"
+          >
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>
+                {roleLabel(role)}
+              </option>
+            ))}
+          </select>
+          <AsyncButton
+            className="h-10"
+            isLoading={isInviting}
+            loadingLabel="发送中..."
+          >
+            <UserPlusIcon className="size-4" />
+            发送邀请
+          </AsyncButton>
+        </form>
+      </section>
 
       {lastInviteUrl ? (
         <Button
@@ -539,11 +586,13 @@ export function TeamWorkspaceMembersPage() {
           variant="outline"
           onClick={() => {
             void navigator.clipboard?.writeText(lastInviteUrl)
-            notify.info({ title: "Invite link copied" })
+            notify.info({ title: "邀请链接已复制" })
           }}
           className="flex h-auto w-full justify-between px-4 py-3 text-left"
         >
-          <span className="truncate text-muted-foreground">{lastInviteUrl}</span>
+          <span className="truncate text-muted-foreground">
+            复制最近生成的邀请链接
+          </span>
           <CopyIcon className="ml-3 size-4 shrink-0" />
         </Button>
       ) : null}
@@ -551,33 +600,33 @@ export function TeamWorkspaceMembersPage() {
       {actionError ? <Notice tone="error">{actionError.message}</Notice> : null}
 
       <section className="overflow-hidden rounded-lg border border-border">
-        <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
-          <h2 className="text-base font-semibold">Current Members</h2>
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="h-9 w-64 bg-background pl-9"
-              placeholder="Search members..."
-            />
-          </div>
+        <div className="border-b bg-muted/25 px-4 py-3">
+          <h2 className="text-base font-semibold">当前成员</h2>
         </div>
+        <AppListToolbar
+          search={
+            <AppSearchBar
+              value={query}
+              onChange={setQuery}
+              placeholder="搜索成员 ID 或角色..."
+            />
+          }
+        />
         <div className="p-4">
           <DataState
             state={memberState}
             error={memberLoadError}
             empty={filteredMembers.length === 0}
-            emptyTitle="No members found."
+            emptyTitle="没有匹配的成员"
             onRetry={() => void reloadMembers()}
           >
             <DataTableShell>
               <DataTableHeader>
                 <tr>
-                  <th className="px-4 py-3">Member</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3">成员</th>
+                  <th className="px-4 py-3">角色</th>
+                  <th className="hidden px-4 py-3 @[36rem]/table:table-cell">状态</th>
+                  <th className="hidden px-4 py-3 @[46rem]/table:table-cell">加入时间</th>
                   <th className="px-4 py-3" />
                 </tr>
               </DataTableHeader>
@@ -586,12 +635,12 @@ export function TeamWorkspaceMembersPage() {
                   <tr key={member.id} className="hover:bg-muted/20">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex size-8 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-black">
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold">
                           {initials(member.user_id)}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="font-medium">{member.user_id.slice(0, 8)}</div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="truncate text-[11px] text-muted-foreground">
                             {member.user_id}
                           </div>
                         </div>
@@ -604,30 +653,43 @@ export function TeamWorkspaceMembersPage() {
                           void updateMemberRole(member, event.target.value)
                         }}
                         className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
+                        disabled={
+                          member.role === "owner" || updatingMemberId === member.id
+                        }
+                        aria-label={`调整 ${member.user_id} 的角色`}
                       >
-                        {["owner", ...roleOptions].map((role) => (
+                        {[
+                          ...(member.role === "owner" ? ["owner"] : []),
+                          ...roleOptions,
+                        ].map((role) => (
                           <option key={role} value={role}>
-                            {role}
+                            {roleLabel(role)}
                           </option>
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={member.status} />
+                    <td className="hidden px-4 py-3 @[36rem]/table:table-cell">
+                      <StatusBadge
+                        status={member.status}
+                        label={invitationStatusLabel(member.status)}
+                      />
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(member.joined_at).toLocaleDateString()}
+                    <td className="hidden px-4 py-3 text-muted-foreground @[46rem]/table:table-cell">
+                      {new Date(member.joined_at).toLocaleDateString("zh-CN")}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button
+                      <AsyncButton
                         type="button"
                         variant="ghost"
-                        size="icon-sm"
+                        size="sm"
                         onClick={() => void removeMember(member)}
-                        aria-label={`Remove ${member.user_id}`}
+                        isLoading={removingMemberId === member.id}
+                        loadingLabel="移除中..."
+                        disabled={member.role === "owner"}
                       >
                         <Trash2Icon className="size-4" />
-                      </Button>
+                        <span className="hidden @[32rem]/table:inline">移除</span>
+                      </AsyncButton>
                     </td>
                   </tr>
                 ))}
@@ -639,9 +701,9 @@ export function TeamWorkspaceMembersPage() {
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
-          <h2 className="text-base font-semibold">Pending Invitations</h2>
+          <h2 className="text-base font-semibold">邀请记录</h2>
           <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-            {pendingInvitations.length} UNRESOLVED
+            {pendingInvitations.length} 条待处理
           </span>
         </div>
         <div className="p-4">
@@ -649,7 +711,7 @@ export function TeamWorkspaceMembersPage() {
             state={memberState}
             error={memberLoadError}
             empty={invitations.length === 0}
-            emptyTitle="No invitations yet."
+            emptyTitle="还没有邀请记录"
             onRetry={() => void reloadMembers()}
           >
             <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
@@ -661,22 +723,28 @@ export function TeamWorkspaceMembersPage() {
                   <div>
                     <div className="font-medium">{invitation.email}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      Invited by {invitation.invited_by.slice(0, 8)}
+                      邀请人 {invitation.invited_by.slice(0, 8)}
                     </div>
                   </div>
-                  <div>{invitation.role}</div>
-                  <StatusBadge status={invitation.status} />
+                  <div>{roleLabel(invitation.role)}</div>
+                  <StatusBadge
+                    status={invitation.status}
+                    label={invitationStatusLabel(invitation.status)}
+                  />
                   <div className="text-muted-foreground">
-                    {new Date(invitation.expires_at).toLocaleDateString()}
+                    {new Date(invitation.expires_at).toLocaleDateString("zh-CN")}
                   </div>
-                  <Button
+                  <AsyncButton
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => void revokeInvitation(invitation)}
+                    isLoading={revokingInvitationId === invitation.id}
+                    loadingLabel="撤销中..."
+                    disabled={invitation.status !== "pending"}
                   >
-                    Revoke
-                  </Button>
+                    撤销
+                  </AsyncButton>
                 </div>
               ))}
             </div>
@@ -699,12 +767,12 @@ function Metric({
   compact?: boolean
 }) {
   return (
-    <div className="bg-background p-5">
+    <div className="min-w-0 bg-background p-4 sm:p-5">
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className={compact ? "mt-1 truncate text-lg font-semibold" : "mt-1 text-2xl font-semibold"}>
+      <div className={compact ? "mt-1 truncate text-base font-semibold sm:text-lg" : "mt-1 text-2xl font-semibold"}>
         {value}
         {suffix ? (
-          <span className="ml-1 text-sm font-normal text-muted-foreground">{suffix}</span>
+          <span className="ml-1 text-xs font-normal text-muted-foreground sm:text-sm">{suffix}</span>
         ) : null}
       </div>
     </div>
@@ -729,15 +797,15 @@ function formatWorkspaceStorageSuffix(usage: WorkspaceUsage | null) {
   if (usage.storage_limit_bytes && usage.storage_limit_bytes > 0) {
     return `${formatBytes(usage.storage_bytes)} / ${formatBytes(usage.storage_limit_bytes)}${recalculated}`
   }
-  return `used${recalculated}`
+  return `已使用${recalculated}`
 }
 
 function formatUsageRecalculatedAt(usage: WorkspaceUsage) {
   if (!usage.recalculated_at) return ""
   const date = new Date(usage.recalculated_at)
   if (Number.isNaN(date.getTime())) return ""
-  return ` · ${date.toLocaleString(undefined, {
-    month: "short",
+  return ` · ${date.toLocaleString("zh-CN", {
+    month: "2-digit",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
