@@ -60,6 +60,7 @@ import {
   emptyModel,
   isRawApiKey,
   numberOrNull,
+  systemStatusLabel,
   textOrNull,
   type LoadState,
 } from "./shared"
@@ -77,10 +78,10 @@ const capabilityFilters: Array<{
   value: ModelCapabilityFilter
   label: string
 }> = [
-  { value: "tool", label: "Tool" },
-  { value: "reasoning", label: "Reasoning" },
-  { value: "vision", label: "Vision" },
-  { value: "json", label: "JSON" },
+  { value: "tool", label: "工具调用" },
+  { value: "reasoning", label: "深度推理" },
+  { value: "vision", label: "视觉理解" },
+  { value: "json", label: "结构化输出" },
 ]
 
 export function AdminLlmSettingsPage() {
@@ -161,21 +162,21 @@ export function SystemModelManagementPage() {
   const metrics = React.useMemo(
     () => [
       {
-        label: "This Month Credits",
+        label: "本月点数",
         value: formatNumber(usageSummary.currentMonthCredits),
-        detail: "charged credits",
+        detail: "实际计费点数",
         icon: ActivityIcon,
         tone: "blue" as const,
       },
       {
-        label: "This Month Requests",
+        label: "本月请求",
         value: formatNumber(usageSummary.currentMonthRequests),
-        detail: "model calls",
+        detail: "模型调用次数",
         icon: BarChart3Icon,
         tone: "green" as const,
       },
       {
-        label: "Top Model",
+        label: "用量最高模型",
         value: usageSummary.topModelCreditsLabel,
         detail: usageSummary.topModelLabel,
         icon: TrendingUpIcon,
@@ -363,7 +364,7 @@ export function SystemModelManagementPage() {
     >
       <AppSectionCard
         title="模型用量趋势"
-        description="按模型聚合最近 6 个月 charged credits，来自后端 llm usage events。"
+        description="按模型聚合最近 6 个月的实际计费点数，数据来自后端用量事件。"
         icon={TrendingUpIcon}
       >
         <AppLineChart
@@ -421,9 +422,9 @@ export function SystemModelManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sort_order">默认排序</SelectItem>
-                  <SelectItem value="current_credits">本月 Credits</SelectItem>
-                  <SelectItem value="current_requests">本月 Requests</SelectItem>
-                  <SelectItem value="range_credits">近 6 月 Credits</SelectItem>
+                  <SelectItem value="current_credits">本月点数</SelectItem>
+                  <SelectItem value="current_requests">本月请求</SelectItem>
+                  <SelectItem value="range_credits">近 6 月点数</SelectItem>
                   <SelectItem value="name">名称</SelectItem>
                 </SelectContent>
               </Select>
@@ -495,9 +496,9 @@ export function SystemModelManagementPage() {
                         </td>
                         <td className="hidden px-4 py-3 @3xl/table:table-cell">
                           <div className="flex flex-wrap gap-1.5">
-                            {model.supports_tool_calls ? <CapabilityTag>Tool</CapabilityTag> : null}
-                            {model.supports_reasoning ? <CapabilityTag>Reasoning</CapabilityTag> : null}
-                            {model.supports_vision ? <CapabilityTag>Vision</CapabilityTag> : null}
+                            {model.supports_tool_calls ? <CapabilityTag>工具</CapabilityTag> : null}
+                            {model.supports_reasoning ? <CapabilityTag>推理</CapabilityTag> : null}
+                            {model.supports_vision ? <CapabilityTag>视觉</CapabilityTag> : null}
                             {model.max_output_tokens ? <CapabilityTag>max {model.max_output_tokens}</CapabilityTag> : null}
                           </div>
                         </td>
@@ -510,6 +511,13 @@ export function SystemModelManagementPage() {
                                   ? "enabled"
                                   : "disabled"
                             }
+                            label={systemStatusLabel(
+                              model.archived_at
+                                ? "archived"
+                                : model.enabled
+                                  ? "enabled"
+                                  : "disabled"
+                            )}
                           />
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">{model.usage_multiplier}</td>

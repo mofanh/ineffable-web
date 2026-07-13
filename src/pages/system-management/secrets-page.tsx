@@ -44,6 +44,7 @@ import {
   AdminAccessDenied,
   SystemPageShell,
   emptySecret,
+  systemStatusLabel,
   type LoadState,
 } from "./shared"
 
@@ -118,30 +119,30 @@ export function SystemSecretManagementPage() {
   const metrics = React.useMemo(
     () => [
       {
-        label: "Secrets",
+        label: "密钥引用",
         value: String(secrets.length),
-        detail: `${secrets.filter((secret) => secret.has_secret).length} stored`,
+        detail: `${secrets.filter((secret) => secret.has_secret).length} 个已保存`,
         icon: KeyRoundIcon,
         tone: "blue" as const,
       },
       {
-        label: "Active",
+        label: "正常可用",
         value: String(secrets.filter((secret) => secret.status === "active").length),
-        detail: "ready references",
+        detail: "可供模型引用",
         icon: CheckIcon,
         tone: "green" as const,
       },
       {
-        label: "Missing",
+        label: "缺少密钥",
         value: String(secrets.filter((secret) => !secret.has_secret).length),
-        detail: "without secret value",
+        detail: "未保存密钥值",
         icon: KeyRoundIcon,
         tone: "amber" as const,
       },
       {
-        label: "Risk",
+        label: "需要关注",
         value: String(secretInsights.riskySecrets),
-        detail: "need attention",
+        detail: "状态或引用异常",
         icon: AlertTriangleIcon,
         tone: "indigo" as const,
       },
@@ -221,7 +222,7 @@ export function SystemSecretManagementPage() {
     >
       <AppSectionCard
         title="密钥健康概览"
-        description="基于密钥状态和模型引用关系聚合；secret 级调用量和错误率需要后端日志聚合后接入。"
+        description="基于密钥状态和模型引用关系聚合；单个密钥的调用量和错误率需等待后端日志聚合能力。"
         icon={KeyRoundIcon}
       >
         <AppBarChart
@@ -236,7 +237,7 @@ export function SystemSecretManagementPage() {
 
       <AppSectionCard
         title="密钥列表"
-        description="主视图保持单列表格，安全说明和 metadata 通过行内展开查看。"
+        description="主视图保持单列表格，安全说明和元数据通过行内展开查看。"
         icon={KeyRoundIcon}
       >
         <AppListToolbar
@@ -262,7 +263,7 @@ export function SystemSecretManagementPage() {
                 <tr>
                   <th className="w-12 px-3 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">密钥引用</th>
-                  <th className="hidden w-28 px-4 py-3 @2xl/table:table-cell">Provider</th>
+                  <th className="hidden w-28 px-4 py-3 @2xl/table:table-cell">服务商</th>
                   <th className="hidden w-24 px-4 py-3 @3xl/table:table-cell">引用</th>
                   <th className="hidden w-28 px-4 py-3 @xl/table:table-cell">保存状态</th>
                   <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
@@ -299,13 +300,16 @@ export function SystemSecretManagementPage() {
                           {insight?.provider ?? "-"}
                         </td>
                         <td className="hidden px-4 py-3 @3xl/table:table-cell">
-                          {insight?.referencedModels.length ?? 0} models
+                          {insight?.referencedModels.length ?? 0} 个模型
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">
-                          <StatusBadge status={secret.has_secret ? "saved" : "missing"} />
+                          <StatusBadge
+                            status={secret.has_secret ? "saved" : "missing"}
+                            label={systemStatusLabel(secret.has_secret ? "saved" : "missing")}
+                          />
                         </td>
                         <td className="px-3 py-3 sm:px-4">
-                          <StatusBadge status={secret.status} />
+                          <StatusBadge status={secret.status} label={systemStatusLabel(secret.status)} />
                         </td>
                         <td className="px-3 py-3 sm:px-4">
                           <div className="flex justify-end">
@@ -433,7 +437,7 @@ function SecretDetail({
             <div>
               <div className="font-medium">{model.display_name}</div>
               <div className="text-muted-foreground">
-                {model.upstream_model_name} / {model.upstream_base_url ?? "no base url"}
+                {model.upstream_model_name} / {model.upstream_base_url ?? "未配置基础地址"}
               </div>
             </div>
             <StatusBadge
@@ -444,6 +448,13 @@ function SecretDetail({
                     ? "enabled"
                     : "disabled"
               }
+              label={systemStatusLabel(
+                model.archived_at
+                  ? "archived"
+                  : model.enabled
+                    ? "enabled"
+                    : "disabled"
+              )}
             />
           </div>
         ))}
@@ -500,7 +511,7 @@ function buildSecretInsights(
   ).length
   const chartData: AppBarChartDatum[] = [
     {
-      label: "Keys",
+      label: "密钥",
       healthy,
       missing,
       inactive,
@@ -508,10 +519,10 @@ function buildSecretInsights(
     },
   ]
   const chartSeries: AppBarChartSeries[] = [
-    { key: "healthy", label: "Healthy", color: "var(--chart-1)" },
-    { key: "missing", label: "Missing", color: "var(--chart-2)" },
-    { key: "inactive", label: "Inactive", color: "var(--chart-3)" },
-    { key: "unused", label: "Unused", color: "var(--chart-4)" },
+    { key: "healthy", label: "正常", color: "var(--chart-1)" },
+    { key: "missing", label: "缺少密钥", color: "var(--chart-2)" },
+    { key: "inactive", label: "已停用", color: "var(--chart-3)" },
+    { key: "unused", label: "未引用", color: "var(--chart-4)" },
   ]
 
   return {

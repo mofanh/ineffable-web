@@ -50,6 +50,7 @@ import { notify } from "@/lib/app/notifications"
 import {
   AdminAccessDenied,
   SystemPageShell,
+  systemStatusLabel,
   type LoadState,
 } from "./shared"
 
@@ -173,42 +174,42 @@ export function SystemUserManagementPage() {
       const cachedDetails = Object.values(userDetailsByUserId)
       return [
         {
-          label: "Users",
+          label: "用户数量",
           value: String(users.length),
-          detail: `${users.filter((user) => user.role === "admin").length} admins`,
+          detail: `${users.filter((user) => user.role === "admin").length} 位管理员`,
           icon: UsersIcon,
           tone: "blue" as const,
         },
         {
-          label: "Assignments",
+          label: "套餐记录",
           value: String(
             cachedDetails.reduce(
               (total, details) => total + details.assignments.length,
               0,
             ),
           ),
-          detail: "cached records",
+          detail: "已加载用户明细",
           icon: PackageIcon,
           tone: "green" as const,
         },
         {
-          label: "Usage",
+          label: "用量记录",
           value: String(
             cachedDetails.reduce(
               (total, details) => total + details.usage.length,
               0,
             ),
           ),
-          detail: "cached records",
+          detail: "已加载月度记录",
           icon: GaugeIcon,
           tone: "amber" as const,
         },
         {
-          label: "Workspace",
+          label: "工作区存储",
           value: formatBytes(
             workspaceUsage.reduce((total, item) => total + item.storage_bytes, 0),
           ),
-          detail: `${workspaceUsage.length} tracked`,
+          detail: `${workspaceUsage.length} 个工作区`,
           icon: HardDriveIcon,
           tone: "indigo" as const,
         },
@@ -312,7 +313,7 @@ export function SystemUserManagementPage() {
   return (
     <SystemPageShell
       title="用户管理"
-      subtitle="管理用户角色、套餐分配和月度 token/credit 使用情况。"
+      subtitle="管理用户角色、套餐分配，以及月度 Token、点数和工作区用量。"
       metrics={metrics}
       state={state}
       message={message}
@@ -345,7 +346,7 @@ export function SystemUserManagementPage() {
                   <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
                   <th className="hidden w-28 px-4 py-3 @3xl/table:table-cell">套餐记录</th>
                   <th className="hidden w-28 px-4 py-3 @4xl/table:table-cell">本月用量</th>
-                  <th className="hidden w-36 px-4 py-3 @5xl/table:table-cell">Workspace</th>
+                  <th className="hidden w-36 px-4 py-3 @5xl/table:table-cell">工作区</th>
                   <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">操作</th>
                 </tr>
               </DataTableHeader>
@@ -381,10 +382,13 @@ export function SystemUserManagementPage() {
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">
-                          <StatusBadge status={user.role ?? "user"} />
+                          <StatusBadge
+                            status={user.role ?? "user"}
+                            label={systemStatusLabel(user.role ?? "user")}
+                          />
                         </td>
                         <td className="px-3 py-3 sm:px-4">
-                          <StatusBadge status={user.status} />
+                          <StatusBadge status={user.status} label={systemStatusLabel(user.status)} />
                         </td>
                         <td className="hidden px-4 py-3 @3xl/table:table-cell">
                           {userDetails ? rowAssignments.length : "-"}
@@ -476,8 +480,8 @@ export function SystemUserManagementPage() {
                     }
                     className="h-9 rounded-md border bg-background px-2 text-sm"
                   >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
+                    <option value="user">普通用户</option>
+                    <option value="admin">管理员</option>
                   </select>
                 </FormField>
                 <FormField label="分配套餐">
@@ -672,12 +676,12 @@ function buildUserUsageTrend(usage: AdminUserMonthlyUsage[]) {
   const chartSeries: AppLineChartSeries[] = [
     {
       key: "credits",
-      label: "Credits",
+      label: "点数",
       color: "var(--chart-1)",
     },
     {
       key: "tokens",
-      label: "Tokens",
+      label: "Token 数量",
       color: "var(--chart-2)",
     },
   ]
@@ -705,21 +709,21 @@ function buildUserRiskItems(
   return [
     {
       label: activePlanId ? "套餐正常" : "缺少套餐",
-      detail: activePlanId ? `当前 active plan: ${activePlanId}` : "未找到 active plan assignment",
+      detail: activePlanId ? `当前有效套餐：${activePlanId}` : "未找到有效套餐分配",
     },
     {
-      label: maxWorkspaceRatio >= 0.9 ? "Workspace 接近上限" : "Workspace 正常",
+      label: maxWorkspaceRatio >= 0.9 ? "工作区接近上限" : "工作区正常",
       detail:
         maxWorkspaceRatio > 0
           ? `最高存储使用率 ${Math.round(maxWorkspaceRatio * 100)}%`
-          : "暂无可计算 quota ratio",
+          : "暂无可计算的额度使用率",
     },
     {
-      label: growth != null && growth > 50 ? "Usage 增长较快" : "Usage 趋势正常",
+      label: growth != null && growth > 50 ? "用量增长较快" : "用量趋势正常",
       detail:
         growth == null
           ? "暂无可比较的相邻月份"
-          : `最近月度 credits 环比 ${growth}%`,
+          : `最近月度点数环比 ${growth}%`,
     },
   ]
 }
@@ -732,7 +736,7 @@ function formatWorkspaceStorage(item: AdminWorkspaceUsage) {
         : item.storage_usage_ratio
     return `${Math.round(ratio * 100)}% · ${formatBytes(item.storage_bytes)} / ${formatBytes(item.storage_limit_bytes)}`
   }
-  return `${formatBytes(item.storage_bytes)} used`
+  return `已使用 ${formatBytes(item.storage_bytes)}`
 }
 
 function formatBytes(value: number) {

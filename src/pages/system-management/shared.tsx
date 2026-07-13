@@ -15,6 +15,22 @@ import {
 
 export type LoadState = "idle" | "loading" | "saving"
 
+const systemStatusLabels: Record<string, string> = {
+  active: "正常",
+  admin: "管理员",
+  archived: "已删除",
+  disabled: "已停用",
+  enabled: "已启用",
+  inactive: "已停用",
+  missing: "缺少密钥",
+  saved: "已保存",
+  user: "普通用户",
+}
+
+export function systemStatusLabel(status: string) {
+  return systemStatusLabels[status.trim().toLowerCase()] ?? status
+}
+
 export const emptyModel: AdminModelProfilePayload = {
   display_name: "DeepSeek Chat",
   endpoint_kind: "openai_compatible",
@@ -123,6 +139,7 @@ export function SystemPageShell({
   metrics,
   state,
   message,
+  error,
   onRefresh,
   children,
 }: {
@@ -137,10 +154,14 @@ export function SystemPageShell({
 }) {
   return (
     <AppMetricPage
-      eyebrow="System Management"
+      eyebrow="系统管理"
       title={title}
       subtitle={subtitle}
-      metrics={metrics}
+      metrics={
+        state === "loading"
+          ? metrics.map((metric) => ({ ...metric, value: "—", detail: "正在加载" }))
+          : metrics
+      }
       headerActions={
         <Button
           type="button"
@@ -153,6 +174,7 @@ export function SystemPageShell({
       }
     >
       {message ? <Notice tone="success">{message}</Notice> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
       {children}
     </AppMetricPage>
   )

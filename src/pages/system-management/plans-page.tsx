@@ -64,6 +64,7 @@ import {
   modelAccessFor,
   normalizeAccess,
   numberOrNull,
+  systemStatusLabel,
   type LoadState,
 } from "./shared"
 
@@ -225,30 +226,30 @@ export function SystemPlanManagementPage() {
   const metrics = React.useMemo(
     () => [
       {
-        label: "Plans",
+        label: "套餐数量",
         value: String(plans.length),
-        detail: `${plans.filter((plan) => plan.enabled && !plan.archived_at).length} enabled`,
+        detail: `${plans.filter((plan) => plan.enabled && !plan.archived_at).length} 个已启用`,
         icon: PackageIcon,
         tone: "blue" as const,
       },
       {
-        label: "Models",
+        label: "模型数量",
         value: String(models.length),
-        detail: "available for grants",
+        detail: "可配置授权",
         icon: BotIcon,
         tone: "green" as const,
       },
       {
-        label: "Current",
+        label: "当前查看",
         value: selectedPlanId || "-",
-        detail: "selected plan",
+        detail: "已选择套餐",
         icon: CheckIcon,
         tone: "amber" as const,
       },
       {
-        label: "Assigned",
+        label: "已分配用户",
         value: formatCompactNumber(planInsights.assignedUsers),
-        detail: "active users",
+        detail: "有效分配",
         icon: PackageIcon,
         tone: "indigo" as const,
       },
@@ -409,7 +410,7 @@ export function SystemPlanManagementPage() {
     >
       <AppSectionCard
         title="套餐压力概览"
-        description="按套餐聚合 active 用户数、本月 credits 和 workspace storage，用于判断 quota 与套餐设计是否匹配。"
+        description="按套餐聚合有效用户数、本月点数和工作区存储，用于判断额度与套餐设计是否匹配。"
         icon={PackageIcon}
       >
         <AppBarChart
@@ -451,7 +452,7 @@ export function SystemPlanManagementPage() {
                   <th className="w-12 px-3 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">套餐</th>
                   <th className="hidden w-32 px-4 py-3 @xl/table:table-cell">月额度</th>
-                  <th className="hidden w-32 px-4 py-3 @3xl/table:table-cell">Workspace</th>
+                  <th className="hidden w-32 px-4 py-3 @3xl/table:table-cell">工作区</th>
                   <th className="hidden w-24 px-4 py-3 @4xl/table:table-cell">模型权限</th>
                   <th className="hidden w-32 px-4 py-3 @5xl/table:table-cell">消耗压力</th>
                   <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
@@ -520,6 +521,13 @@ export function SystemPlanManagementPage() {
                                   ? "enabled"
                                   : "disabled"
                             }
+                            label={systemStatusLabel(
+                              plan.archived_at
+                                ? "archived"
+                                : plan.enabled
+                                  ? "enabled"
+                                  : "disabled"
+                            )}
                           />
                         </td>
                         <td className="px-3 py-3 sm:px-4">
@@ -695,17 +703,17 @@ function buildPlanInsights({
   const chartSeries: AppBarChartSeries[] = [
     {
       key: "users",
-      label: "Users",
+      label: "用户",
       color: "var(--chart-1)",
     },
     {
       key: "credits",
-      label: "Credits",
+      label: "点数",
       color: "var(--chart-2)",
     },
     {
       key: "storage_gb",
-      label: "Storage GB",
+      label: "存储 GB",
       color: "var(--chart-3)",
     },
   ]
@@ -895,7 +903,7 @@ function PlanForm({
           />
         </AppFieldGrid>
       </AppDisclosureSection>
-      <AppDisclosureSection title="Credit 限额" description="控制用户每个自然月可消耗的 LLM credits。">
+      <AppDisclosureSection title="点数限额" description="控制用户每个自然月可消耗的 LLM 计费点数。">
         <AppFieldGrid columns={1}>
           <FormField label="月额度">
             <Input
@@ -915,7 +923,7 @@ function PlanForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <AppDisclosureSection title="Workspace 限额" description="控制 workspace 数量、成员数、对象数、单文件大小和总存储容量。">
+      <AppDisclosureSection title="工作区限额" description="控制工作区数量、成员数、对象数、单文件大小和总存储容量。">
         <AppFieldGrid columns={1}>
           <FormField label="存储容量（GB）">
             <Input
