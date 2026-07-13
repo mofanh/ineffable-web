@@ -7,7 +7,7 @@ import {
 import { Suspense } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 
-import { RouteLoading } from "@/components/app"
+import { RouteLoading } from "@/components/app/route-loading"
 import { IneffableLogo } from "@/components/ineffable-logo"
 import { Button } from "@/components/ui/button"
 

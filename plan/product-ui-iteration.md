@@ -205,6 +205,20 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 
 运行时验证：使用真实普通账号和浏览器网络监听确认，Sandbox 选择框通过真实指针展开后会重新请求 `/gateway/v1/sandbox/environments`；窗口重新聚焦也会触发同步。该账号当前没有已绑定环境，因此刷新后的下拉框仅展示“自动选择沙箱”。
 
+### Phase 11：公共入口依赖瘦身
+
+- [x] 使用生产 sourcemap 盘点公共入口和大体积动态 chunk 的依赖来源。
+- [x] 认证入口直接引用所需 app 组件，避免通过聚合导出提前触达图表模块。
+- [x] 将认证页不使用的 Tooltip 和确认弹窗 Provider 移入动态工作台边界。
+- [x] 文件预览与 CodeMirror 编辑器分离，仅在进入编辑模式时加载编辑器和语言包。
+- [x] 根据文件类型动态加载 Markdown、HTML、JSON 或 JavaScript 语言支持。
+- [x] 确认 Recharts、Redux Toolkit 与 D3 不再进入未登录公共入口。
+- [x] 对比优化前后的入口体积与 gzip 体积。
+
+自动验证：`npm run lint`、`npm run build` 已通过。正式生产构建显示公共入口由约 692 KiB / 222 KiB gzip 降至约 385 KiB / 122 KiB gzip，减少约 45%；Recharts 及其 Redux/D3 依赖已移入约 241 KiB 的图表动态 chunk。CodeMirror 基础编辑器由约 604 KiB 降至约 408 KiB，各语言支持拆为约 22–85 KiB 的按需 chunk，构建不再出现 500 KiB 大 chunk 警告。
+
+运行时验证：使用真实管理员账号打开现有文本文件，预览阶段未请求编辑器模块；点击“编辑文件”后才加载 Workspace 编辑器且 `.cm-editor` 正常挂载，无控制台异常。
+
 ## 全局完成标准
 
 - lint 0 errors、0 warnings；build 通过。

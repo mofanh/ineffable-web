@@ -1,9 +1,4 @@
 import * as React from "react"
-import CodeMirror from "@uiw/react-codemirror"
-import { html } from "@codemirror/lang-html"
-import { javascript } from "@codemirror/lang-javascript"
-import { json } from "@codemirror/lang-json"
-import { markdown } from "@codemirror/lang-markdown"
 import MarkdownIt from "markdown-it"
 import {
   CopyIcon,
@@ -22,7 +17,6 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
-import type { Extension } from "@codemirror/state"
 
 import { useAppHeader } from "@/app/shell/app-header-context"
 import { AppDialog } from "@/components/app"
@@ -69,39 +63,14 @@ const markdownIt = new MarkdownIt({
   linkify: true,
 })
 
+const WorkspaceCodeEditor = React.lazy(async () => ({
+  default: (
+    await import("@/features/workspace/components/workspace-code-editor")
+  ).WorkspaceCodeEditor,
+}))
+
 const DOCUMENT_CLASS =
   "mx-auto w-full max-w-4xl px-6 py-12 text-foreground md:px-10 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_h1]:mb-6 [&_h1]:text-4xl [&_h1]:font-bold [&_h1]:leading-tight [&_h2]:mb-4 [&_h2]:mt-8 [&_h2]:text-2xl [&_h2]:font-semibold [&_h3]:mb-3 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-semibold [&_p]:my-3 [&_p]:text-base [&_p]:leading-7 [&_ul]:my-4 [&_ol]:my-4 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_li]:my-2 [&_li]:text-base [&_li]:leading-7 [&_pre]:my-5 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:bg-muted/40 [&_pre]:p-4 [&_pre]:text-sm [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:my-5 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_a]:underline [&_a]:underline-offset-4"
-
-function getLanguageExtensions(object: WorkspaceObject | null): Extension[] {
-  const name = object?.name.toLowerCase() ?? ""
-  const mimeType = object?.mime_type?.toLowerCase() ?? ""
-
-  if (name.endsWith(".md") || name.endsWith(".markdown")) {
-    return [markdown()]
-  }
-  if (name.endsWith(".html") || name.endsWith(".htm") || mimeType.includes("html")) {
-    return [html()]
-  }
-  if (name.endsWith(".json") || mimeType.includes("json")) {
-    return [json()]
-  }
-  if (
-    name.endsWith(".js") ||
-    name.endsWith(".jsx") ||
-    name.endsWith(".ts") ||
-    name.endsWith(".tsx") ||
-    mimeType.includes("javascript")
-  ) {
-    return [
-      javascript({
-        jsx: true,
-        typescript: name.endsWith(".ts") || name.endsWith(".tsx"),
-      }),
-    ]
-  }
-
-  return []
-}
 
 function getFileKind(object: WorkspaceObject | null) {
   const name = object?.name.toLowerCase() ?? ""
@@ -344,7 +313,6 @@ export function WorkspaceObjectEditorPage() {
 
   const workspace = workspaces.find((candidate) => candidate.id === workspaceId)
   const isDirty = content !== savedContent
-  const languageExtensions = React.useMemo(() => getLanguageExtensions(object), [object])
   const breadcrumbParts = React.useMemo(() => {
     const pathParts = (object?.path || object?.name || "文件").split("/").filter(Boolean)
 
@@ -1012,19 +980,22 @@ export function WorkspaceObjectEditorPage() {
             正在加载文件…
           </div>
         ) : isEditing ? (
-          <CodeMirror
-            value={content}
-            height="100%"
-            basicSetup={{
-              foldGutter: true,
-              lineNumbers: true,
-              highlightActiveLine: true,
-              highlightSelectionMatches: true,
-            }}
-            extensions={languageExtensions}
-            onChange={setContent}
-            className="h-full min-h-[560px] text-sm [&_.cm-editor]:min-h-[560px] [&_.cm-scroller]:font-mono"
-          />
+          <React.Suspense
+            fallback={
+              <div
+                role="status"
+                className="flex h-full min-h-[560px] items-center justify-center text-sm text-muted-foreground"
+              >
+                正在加载编辑器…
+              </div>
+            }
+          >
+            <WorkspaceCodeEditor
+              object={object}
+              value={content}
+              onChange={setContent}
+            />
+          </React.Suspense>
         ) : (
           <div className={cn("mx-auto min-h-full", isFullWidth ? "max-w-none" : "max-w-6xl")}>
             <FilePreview object={object} content={savedContent} compact={isCompact} />

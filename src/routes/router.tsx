@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react"
 import { Navigate, createBrowserRouter } from "react-router-dom"
 
-import { FullPageLoading } from "@/components/app"
+import { FullPageLoading } from "@/components/app/route-loading"
 import {
   RedirectIfAuthenticated,
   RequireAdmin,

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Navigate } from "react-router-dom"
 
-import { FullPageLoading } from "@/components/app"
+import { FullPageLoading } from "@/components/app/route-loading"
 import {
   fetchMe,
   loginUser,

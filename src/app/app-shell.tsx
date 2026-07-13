@@ -1,5 +1,5 @@
 import { AppSidebar } from "@/features/workspace/app-sidebar"
-import { RouteLoading } from "@/components/app"
+import { RouteLoading } from "@/components/app/route-loading"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
