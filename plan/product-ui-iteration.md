@@ -167,6 +167,19 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 
 手动验证：登录与注册路由切换、登录后页面首次进入及管理员页面权限保护。
 
+### Phase 8：认证与工作台加载边界
+
+- [x] 将登录后应用 Shell 从公共入口移入认证成功后的动态加载边界。
+- [x] 保持 session 恢复和 `RequireAuth` 权限判断先于工作台资源加载。
+- [x] 统一 session 恢复、受保护路由和管理员权限检查期间的产品化加载状态。
+- [x] 对比构建清单，确认未登录入口不再同步依赖工作区导航与 AI 会话实现。
+
+自动验证：`npm run lint`、`npm run build` 已通过。Vite manifest 中工作台 `App` 已成为动态导入，公共入口由约 765 KB 降至约 692 KB；认证页面可在 session 判断后独立渲染，工作区 Shell 和 AI 会话继续位于后续动态加载边界。
+
+运行时验证：未登录访问登录/注册页正常，未登录访问 `/automation` 会在 session 判断后回到完整登录页。
+
+待真实账号手动验证：恢复 session 后进入默认页，并检查工作台首次加载占位。
+
 ## 全局完成标准
 
 - lint 0 errors、0 warnings；build 通过。

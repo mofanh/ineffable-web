@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Navigate } from "react-router-dom"
 
+import { FullPageLoading } from "@/components/app"
 import {
   fetchMe,
   loginUser,
@@ -485,11 +486,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { status, isBootstrapping } = useAuthSession()
 
   if (status === "loading" || isBootstrapping) {
-    return (
-      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-        正在加载账号会话…
-      </div>
-    )
+    return <FullPageLoading />
   }
 
   if (status !== "authenticated") {
@@ -503,11 +500,7 @@ export function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { status, isBootstrapping, currentUser } = useAuthSession()
 
   if (status === "loading" || isBootstrapping) {
-    return (
-      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-        正在加载账号会话…
-      </div>
-    )
+    return <FullPageLoading />
   }
 
   if (status !== "authenticated") {
@@ -529,11 +522,7 @@ export function RedirectIfAuthenticated({
   const { status, isBootstrapping } = useAuthSession()
 
   if (status === "loading" || isBootstrapping) {
-    return (
-      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-        正在加载账号会话…
-      </div>
-    )
+    return <FullPageLoading />
   }
 
   if (status === "authenticated") {

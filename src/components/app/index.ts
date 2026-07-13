@@ -36,5 +36,8 @@ export {
   type ModuleStatusLink,
 } from "@/components/app/module-status-page"
 export { Notice, type NoticeTone } from "@/components/app/notice"
-export { RouteLoading } from "@/components/app/route-loading"
+export {
+  FullPageLoading,
+  RouteLoading,
+} from "@/components/app/route-loading"
 export { StatusBadge, type StatusBadgeTone } from "@/components/app/status-badge"

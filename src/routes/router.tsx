@@ -1,7 +1,7 @@
-import { lazy } from "react"
+import { Suspense, lazy } from "react"
 import { Navigate, createBrowserRouter } from "react-router-dom"
 
-import App from "@/App"
+import { FullPageLoading } from "@/components/app"
 import {
   RedirectIfAuthenticated,
   RequireAdmin,
@@ -10,6 +10,7 @@ import {
 import { AuthLayout } from "@/layouts/auth-layout"
 import { defaultPath } from "@/routes/navigation"
 
+const App = lazy(() => import("@/App"))
 const AccountPage = lazy(async () => ({
   default: (await import("@/pages/account-pages")).AccountPage,
 }))
@@ -153,7 +154,9 @@ export const router = createBrowserRouter([
     path: "/",
     element: (
       <RequireAuth>
-        <App />
+        <Suspense fallback={<FullPageLoading />}>
+          <App />
+        </Suspense>
       </RequireAuth>
     ),
     children: [
