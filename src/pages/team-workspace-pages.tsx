@@ -54,6 +54,28 @@ import { defaultPath } from "@/routes/navigation"
 
 const roleOptions = ["admin", "member", "viewer"] as const
 const purposeOptions = ["Engineering", "Marketing", "Operations", "Research"] as const
+const purposeLabels: Record<(typeof purposeOptions)[number], string> = {
+  Engineering: "工程研发",
+  Marketing: "市场营销",
+  Operations: "运营协作",
+  Research: "研究分析",
+}
+
+function roleLabel(role: string) {
+  if (role === "owner") return "所有者"
+  if (role === "admin") return "管理员"
+  if (role === "member") return "成员"
+  if (role === "viewer") return "访客"
+  return role
+}
+
+function invitationStatusLabel(status: string) {
+  if (status === "pending") return "待接受"
+  if (status === "accepted") return "已接受"
+  if (status === "expired") return "已过期"
+  if (status === "revoked") return "已撤销"
+  return status
+}
 
 function slugify(value: string) {
   const slug = value
@@ -91,7 +113,7 @@ export function CreateTeamWorkspacePage() {
   const addMember = React.useCallback(() => {
     const email = memberEmail.trim().toLowerCase()
     if (!email || !email.includes("@")) {
-      setError("Enter a valid email address.")
+      setError("请输入有效的邮箱地址。")
       return
     }
     setMembers((current) =>
@@ -107,7 +129,7 @@ export function CreateTeamWorkspacePage() {
       if (!accessToken) return
       const name = teamName.trim()
       if (!name) {
-        setError("Team name is required.")
+        setError("请输入团队空间名称。")
         return
       }
 
@@ -134,17 +156,17 @@ export function CreateTeamWorkspacePage() {
         await refreshAppData()
         await selectWorkspace(workspaceId)
         notify.success({
-          title: "Workspace created",
-          description: `${name} is ready.`,
+          title: "团队空间已创建",
+          description: `${name} 已可以开始协作。`,
         })
         navigate(`/team-spaces/${workspaceId}/members`)
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "Create workspace failed.",
+          fallbackMessage: "创建团队空间失败。",
         })
         setError(appError.message)
         notify.error({
-          title: "Create workspace failed",
+          title: "创建团队空间失败",
           description: appError.message,
         })
       } finally {
@@ -156,20 +178,25 @@ export function CreateTeamWorkspacePage() {
 
   return (
     <AppPage
-      title="Create Team Workspace"
-      description="Initialize a shared environment for collaborators, workspace artifacts, and shared project context."
+      title="创建团队空间"
+      description="为团队文件、成员协作和共享的 AI 工作上下文创建独立空间。"
     >
-      <form onSubmit={submit} className="max-w-2xl space-y-8">
-        <FormField label="Team Name">
+      <form
+        onSubmit={submit}
+        className="max-w-2xl space-y-7 rounded-xl border bg-card p-5 sm:p-6"
+      >
+        <FormField htmlFor="team-workspace-name" label="空间名称">
           <Input
+            id="team-workspace-name"
             value={teamName}
             onChange={(event) => setTeamName(event.target.value)}
-            placeholder="e.g. Core Engineering"
-            className="h-11 bg-muted/40"
+            placeholder="例如：核心研发团队"
+            autoComplete="organization"
+            className="h-10"
           />
         </FormField>
 
-        <FormSection title="Primary Purpose">
+        <FormSection title="主要用途" description="用于初始化空间的基础分类。">
           <div className="grid gap-3 sm:grid-cols-2">
             {purposeOptions.map((option) => (
               <button
@@ -189,7 +216,7 @@ export function CreateTeamWorkspacePage() {
                     purpose === option ? "border-4 border-foreground" : "border-border",
                   ].join(" ")}
                 />
-                {option}
+                {purposeLabels[option]}
               </button>
             ))}
           </div>
@@ -198,10 +225,10 @@ export function CreateTeamWorkspacePage() {
         <FormSection>
           <div className="flex items-center justify-between gap-3">
             <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
-              Initial Members
+              初始成员（可选）
             </label>
             <span className="font-mono text-[11px] text-muted-foreground">
-              {members.length}/20 USERS
+              {members.length}/20 人
             </span>
           </div>
           <div className="flex gap-2">
@@ -214,7 +241,7 @@ export function CreateTeamWorkspacePage() {
                   addMember()
                 }
               }}
-              placeholder="Invite by email..."
+              placeholder="输入成员邮箱"
               type="email"
               className="h-11 bg-muted/40"
             />
@@ -224,7 +251,7 @@ export function CreateTeamWorkspacePage() {
               variant="secondary"
               className="h-11 px-5"
             >
-              Add
+              添加
             </Button>
           </div>
           <div className="space-y-2">
@@ -246,7 +273,7 @@ export function CreateTeamWorkspacePage() {
                   }
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={`Remove ${email}`}
+                  aria-label={`移除 ${email}`}
                 >
                   <XIcon className="size-4" />
                 </Button>
@@ -263,15 +290,15 @@ export function CreateTeamWorkspacePage() {
             onClick={() => navigate(-1)}
             variant="ghost"
           >
-            Cancel
+            取消
           </Button>
           <AsyncButton
             type="submit"
             isLoading={isSubmitting}
-            loadingLabel="Creating..."
+            loadingLabel="创建中..."
             className="px-8"
           >
-            Create Workspace
+            创建团队空间
           </AsyncButton>
         </div>
       </form>
@@ -749,7 +776,7 @@ export function WorkspaceNotificationsPage() {
   const invitationsResource = useApiResource({
     enabled: Boolean(accessToken),
     load: loadInvitations,
-    errorMessage: "Failed to load notifications.",
+    errorMessage: "加载团队邀请失败。",
   })
   const {
     data: invitationsData,
@@ -774,17 +801,17 @@ export function WorkspaceNotificationsPage() {
         await selectWorkspace(response.workspace.id)
         await reloadInvitations()
         notify.success({
-          title: "Invitation accepted",
-          description: `Joined ${response.workspace.name}.`,
+          title: "已加入团队空间",
+          description: `你现在可以访问 ${response.workspace.name}。`,
         })
         navigate(`/team-spaces/${response.workspace.id}/members`)
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "Accept invitation failed.",
+          fallbackMessage: "接受邀请失败。",
         })
         setActionError(appError)
         notify.error({
-          title: "Accept invitation failed",
+          title: "接受邀请失败",
           description: appError.message,
         })
       } finally {
@@ -796,16 +823,16 @@ export function WorkspaceNotificationsPage() {
 
   return (
     <AppPage
-      title="Notifications"
-      description="Review workspace invitations that are addressed to your account and accept access inside Ineffable."
+      title="通知"
+      description="查看发送到当前账号的团队空间邀请。"
     >
       {actionError ? <Notice tone="error">{actionError.message}</Notice> : null}
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
-          <h2 className="text-base font-semibold">Workspace Invitations</h2>
+          <h2 className="text-base font-semibold">团队空间邀请</h2>
           <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-            {items.length} PENDING
+            {items.length} 条待处理
           </span>
         </div>
         <div className="p-4">
@@ -813,7 +840,8 @@ export function WorkspaceNotificationsPage() {
             state={invitationsState}
             error={invitationsError}
             empty={items.length === 0}
-            emptyTitle="No pending workspace invitations."
+            emptyTitle="没有待处理的团队邀请"
+            emptyDescription="新的团队空间邀请会出现在这里。"
             onRetry={() => void reloadInvitations()}
           >
             <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
@@ -825,20 +853,24 @@ export function WorkspaceNotificationsPage() {
                   <div className="min-w-0">
                     <div className="truncate font-medium">{item.workspace.name}</div>
                     <div className="mt-1 truncate text-xs text-muted-foreground">
-                      Invited as {item.invitation.role} · {item.invitation.email}
+                      邀请角色：{roleLabel(item.invitation.role)} · {item.invitation.email}
                     </div>
                   </div>
-                  <StatusBadge status={item.invitation.status} />
+                  <StatusBadge
+                    status={item.invitation.status}
+                    label={invitationStatusLabel(item.invitation.status)}
+                  />
                   <div className="text-muted-foreground">
-                    {new Date(item.invitation.expires_at).toLocaleDateString()}
+                    有效期至 {new Date(item.invitation.expires_at).toLocaleDateString("zh-CN")}
                   </div>
-                  <Button
+                  <AsyncButton
                     type="button"
                     onClick={() => void acceptInvitation(item)}
-                    disabled={acceptingId === item.invitation.id}
+                    isLoading={acceptingId === item.invitation.id}
+                    loadingLabel="接受中..."
                   >
-                    {acceptingId === item.invitation.id ? "Accepting..." : "Accept"}
-                  </Button>
+                    接受邀请
+                  </AsyncButton>
                 </div>
               ))}
             </div>
@@ -855,7 +887,7 @@ export function AcceptWorkspaceInvitationPage() {
   const { accessToken, refreshAppData, selectWorkspace } = useAppSession()
   const [status, setStatus] = React.useState<"idle" | "accepting" | "accepted" | "error">("idle")
   const [error, setError] = React.useState<string | null>(null)
-  const [workspaceName, setWorkspaceName] = React.useState("Team Workspace")
+  const [workspaceName, setWorkspaceName] = React.useState("团队空间")
 
   const accept = React.useCallback(async () => {
     if (!accessToken || !token) return
@@ -868,17 +900,17 @@ export function AcceptWorkspaceInvitationPage() {
       await selectWorkspace(response.workspace.id)
       setStatus("accepted")
       notify.success({
-        title: "Invitation accepted",
-        description: `Joined ${response.workspace.name}.`,
+        title: "邀请已接受",
+        description: `你现在可以访问 ${response.workspace.name}。`,
       })
     } catch (err) {
       setStatus("error")
       const appError = normalizeAppError(err, {
-        fallbackMessage: "Accept invitation failed.",
+        fallbackMessage: "接受邀请失败。",
       })
       setError(appError.message)
       notify.error({
-        title: "Accept invitation failed",
+        title: "接受邀请失败",
         description: appError.message,
       })
     }
@@ -886,10 +918,10 @@ export function AcceptWorkspaceInvitationPage() {
 
   return (
     <AppPage
-      title="Incoming Invitation"
-      description="Review and accept access to a shared Team Workspace. Your agent will use this workspace context after acceptance."
+      title="团队邀请"
+      description="接受邀请后，你和 Agent 都可以在该团队空间的权限范围内继续工作。"
     >
-      <div className="mx-auto max-w-xl rounded-xl border border-border bg-muted/20 p-8 shadow-2xl">
+      <div className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col items-center text-center">
           <div className="flex size-20 items-center justify-center rounded-full border border-border bg-muted">
             {status === "accepted" ? (
@@ -899,23 +931,34 @@ export function AcceptWorkspaceInvitationPage() {
             )}
           </div>
           <p className="mt-6 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-            Workspace Access Level
+            Team Workspace
           </p>
           <h1 className="mt-2 text-2xl font-semibold">
             {status === "accepted"
-              ? `You're in ${workspaceName}`
-              : "You've been invited to join a Team Workspace"}
+              ? `已加入 ${workspaceName}`
+              : "你收到了一份团队空间邀请"}
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Team Workspace access enables shared files, artifacts, member context,
-            and selected sandbox collaboration for your own agent.
+            加入后可以访问团队共享文件、成员协作信息，并让 Agent 在该空间上下文中继续任务。
           </p>
         </div>
 
         <div className="mt-8 grid gap-3">
-          <AccessRow icon={<ShieldCheckIcon className="size-5" />} title="Workspace Context" />
-          <AccessRow icon={<SparklesIcon className="size-5" />} title="Shared Agent Memory" />
-          <AccessRow icon={<UsersIcon className="size-5" />} title="Team Collaboration" />
+          <AccessRow
+            icon={<ShieldCheckIcon className="size-5" />}
+            title="空间权限"
+            description="按邀请角色访问团队空间。"
+          />
+          <AccessRow
+            icon={<SparklesIcon className="size-5" />}
+            title="Agent 上下文"
+            description="在共享文件范围内延续 AI 任务。"
+          />
+          <AccessRow
+            icon={<UsersIcon className="size-5" />}
+            title="团队协作"
+            description="与空间成员共同维护项目内容。"
+          />
         </div>
 
         {error ? (
@@ -931,22 +974,23 @@ export function AcceptWorkspaceInvitationPage() {
               onClick={() => navigate(defaultPath)}
               className="h-12 w-full gap-2"
             >
-              Continue
+              进入工作台
               <ArrowRightIcon className="size-4" />
             </Button>
           ) : (
-            <Button
+            <AsyncButton
               type="button"
               onClick={accept}
-              disabled={status === "accepting"}
+              isLoading={status === "accepting"}
+              loadingLabel="接受中..."
               className="h-12 w-full gap-2"
             >
-              {status === "accepting" ? "Accepting..." : "Accept and Setup Profile"}
+              接受邀请
               <ArrowRightIcon className="size-4" />
-            </Button>
+            </AsyncButton>
           )}
           <Button asChild variant="ghost" className="h-11 w-full">
-            <Link to={defaultPath}>Maybe later</Link>
+            <Link to={defaultPath}>稍后处理</Link>
           </Button>
         </div>
       </div>
@@ -954,7 +998,15 @@ export function AcceptWorkspaceInvitationPage() {
   )
 }
 
-function AccessRow({ icon, title }: { icon: React.ReactNode; title: string }) {
+function AccessRow({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode
+  title: string
+  description: string
+}) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-background/60 p-4">
       <div className="flex size-9 items-center justify-center rounded bg-muted text-muted-foreground">
@@ -962,7 +1014,7 @@ function AccessRow({ icon, title }: { icon: React.ReactNode; title: string }) {
       </div>
       <div>
         <div className="text-sm font-semibold">{title}</div>
-        <div className="text-xs text-muted-foreground">Granted after invitation acceptance.</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
       </div>
     </div>
   )
