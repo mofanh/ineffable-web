@@ -41,11 +41,7 @@ export const navigation = {
       title: "模型中心",
       path: "/models",
       icon: BotIcon,
-      items: [
-        { title: "Genesis", path: "/models/genesis" },
-        { title: "Explorer", path: "/models/explorer" },
-        { title: "Quantum", path: "/models/quantum" },
-      ],
+      items: [],
     },
     {
       title: "文档中心",

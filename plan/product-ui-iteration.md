@@ -131,11 +131,13 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 
 ### Phase 5：模型中心与系统管理
 
-- [ ] `/models` 接入真实 Model Profile 列表，移除虚构指标。
-- [ ] 明确 Genesis、Explorer、Quantum 固定路由与真实 profile 的关系。
+- [x] `/models` 接入真实 Model Profile 列表，移除虚构指标。
+- [x] 明确 Genesis、Explorer、Quantum 固定路由与真实 profile 的关系。
 - [ ] 对模型、套餐、密钥、用户管理页做一致性精修。
 
 自动验证：`npm run lint`、`npm run build`。
+
+模型目录自动验证：`npm run lint`、`npm run build` 已通过；普通用户页面仅展示当前套餐可见的真实 Model Profile，旧 Genesis、Explorer、Quantum 示例路由兼容重定向到真实目录。
 
 手动验证：普通用户模型目录；管理员增删改模型、套餐、密钥、用户角色和套餐分配。
 

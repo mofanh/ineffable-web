@@ -24,12 +24,7 @@ import {
   DocsIntroductionPage,
   DocsTutorialsPage,
 } from "@/pages/docs-pages"
-import {
-  ExplorerPage,
-  GenesisPage,
-  ModelCenterPage,
-  QuantumPage,
-} from "@/pages/model-pages"
+import { ModelCenterPage } from "@/pages/model-pages"
 import {
   DesignEngineeringPage,
   ProjectsHomePage,
@@ -82,9 +77,9 @@ const routeElements: Record<string, React.ReactElement> = {
   ),
   "/automation": <AutomationPage />,
   "/models": <ModelCenterPage />,
-  "/models/genesis": <GenesisPage />,
-  "/models/explorer": <ExplorerPage />,
-  "/models/quantum": <QuantumPage />,
+  "/models/genesis": <Navigate to="/models" replace />,
+  "/models/explorer": <Navigate to="/models" replace />,
+  "/models/quantum": <Navigate to="/models" replace />,
   "/notifications": <WorkspaceNotificationsPage />,
   "/docs": <DocsCenterPage />,
   "/docs/introduction": <DocsIntroductionPage />,
