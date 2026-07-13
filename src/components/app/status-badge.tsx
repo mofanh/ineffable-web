@@ -78,10 +78,12 @@ function inferStatusTone(status: string): StatusBadgeTone {
 
 export function StatusBadge({
   status,
+  label,
   tone,
   className,
 }: {
   status: string
+  label?: string
   tone?: StatusBadgeTone
   className?: string
 }) {
@@ -94,7 +96,7 @@ export function StatusBadge({
       className={cn("bg-background/70 text-xs", styles.text, className)}
     >
       <span className={cn("mr-1 size-1.5 rounded-full", styles.dot)} />
-      {status}
+      {label ?? status}
     </Badge>
   )
 }

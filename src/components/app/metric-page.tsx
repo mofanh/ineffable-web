@@ -54,7 +54,7 @@ export function AppMetricPage({
         </p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-3 gap-2 sm:gap-4">
         {metrics.map((metric) => (
           <MetricPanel key={metric.label} metric={metric} />
         ))}
@@ -69,8 +69,8 @@ function MetricPanel({ metric }: { metric: AppMetricCard }) {
   const Icon = metric.icon
   return (
     <Card className="border-border/80 bg-muted/40 shadow-none transition-colors hover:bg-muted/60">
-      <CardContent className="p-5">
-        <div className="text-muted-foreground flex items-center justify-between text-xs font-semibold tracking-wider uppercase">
+      <CardContent className="p-3 sm:p-5">
+        <div className="text-muted-foreground flex items-start justify-between gap-1 text-[10px] font-semibold tracking-wide uppercase sm:text-xs sm:tracking-wider">
           <span>{metric.label}</span>
           <Icon
             className={cn(
@@ -82,8 +82,12 @@ function MetricPanel({ metric }: { metric: AppMetricCard }) {
             )}
           />
         </div>
-        <p className="mt-3 text-3xl font-semibold">{metric.value}</p>
-        <p className="text-muted-foreground mt-1 text-xs">{metric.detail}</p>
+        <p className="mt-2 text-2xl font-semibold sm:mt-3 sm:text-3xl">
+          {metric.value}
+        </p>
+        <p className="text-muted-foreground mt-1 text-[11px] leading-4 sm:text-xs">
+          {metric.detail}
+        </p>
       </CardContent>
     </Card>
   )
