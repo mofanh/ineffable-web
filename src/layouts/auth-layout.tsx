@@ -5,16 +5,19 @@ import {
   MessageSquareTextIcon,
 } from "lucide-react"
 import { Suspense } from "react"
+import { useTranslation } from "react-i18next"
 import { Link, Outlet, useLocation } from "react-router-dom"
 
 import { RouteLoading } from "@/components/app/route-loading"
 import { IneffableLogo } from "@/components/ineffable-logo"
+import { LanguageToggle } from "@/components/language-toggle"
 import { Button } from "@/components/ui/button"
 
-const productCapabilities = ["工作区协作", "持续 AI 会话", "安全身份访问"]
+const productCapabilityKeys = [0, 1, 2] as const
 
 export function AuthLayout() {
   const { pathname } = useLocation()
+  const { t } = useTranslation()
   const isLogin = pathname === "/login"
 
   return (
@@ -33,19 +36,26 @@ export function AuthLayout() {
           <Link
             to="/login"
             className="inline-flex rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-            aria-label="返回 Ineffable 登录页"
+            aria-label={t("auth.layout.backToLogin")}
           >
             <IneffableLogo className="h-8" />
           </Link>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <span className="hidden sm:inline">
-              {isLogin ? "还没有账号？" : "已经有账号？"}
-            </span>
-            <Button variant="ghost" asChild>
-              <Link to={isLogin ? "/register" : "/login"}>
-                {isLogin ? "创建账号" : "返回登录"}
-              </Link>
-            </Button>
+          <div className="flex items-center gap-1">
+            <LanguageToggle />
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <span className="hidden sm:inline">
+                {isLogin
+                  ? t("auth.layout.noAccount")
+                  : t("auth.layout.hasAccount")}
+              </span>
+              <Button variant="ghost" asChild>
+                <Link to={isLogin ? "/register" : "/login"}>
+                  {isLogin
+                    ? t("auth.layout.createAccount")
+                    : t("auth.layout.backToLoginAction")}
+                </Link>
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -53,19 +63,19 @@ export function AuthLayout() {
           <section className="hidden min-w-0 lg:block">
             <div className="max-w-2xl space-y-5">
               <p className="text-xs font-semibold tracking-[0.24em] text-muted-foreground uppercase">
-                Ineffable Identity
+                {t("auth.layout.eyebrow")}
               </p>
               <h1 className="max-w-xl text-5xl leading-[1.08] font-semibold tracking-[-0.04em]">
-                和 AI 在同一个工作区里，把对话变成真正的项目进展。
+                {t("auth.layout.headline")}
               </h1>
               <p className="max-w-xl text-base leading-7 text-muted-foreground">
-                浏览和编辑文件，延续可恢复的 AI 会话；代理产生的修改会直接回到工作区，让上下文与成果始终同步。
+                {t("auth.layout.description")}
               </p>
               <div className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm text-muted-foreground">
-                {productCapabilities.map((capability) => (
-                  <span key={capability} className="inline-flex items-center gap-2">
+                {productCapabilityKeys.map((index) => (
+                  <span key={index} className="inline-flex items-center gap-2">
                     <span className="size-1.5 rounded-full bg-foreground" />
-                    {capability}
+                    {t(`auth.layout.capabilities.${index}`)}
                   </span>
                 ))}
               </div>
@@ -85,7 +95,7 @@ export function AuthLayout() {
               <div className="grid min-h-56 grid-cols-[172px_minmax(0,1fr)_180px]">
                 <div className="space-y-2 border-r bg-muted/35 p-4 text-xs">
                   <p className="mb-3 font-medium text-muted-foreground">
-                    PERSONAL SPACE
+                    {t("auth.layout.personalSpace")}
                   </p>
                   <div className="flex items-center gap-2 rounded-lg bg-accent px-2.5 py-2 font-medium">
                     <FolderIcon className="size-3.5" />
@@ -119,14 +129,14 @@ export function AuthLayout() {
                 <div className="border-l bg-muted/20 p-4">
                   <div className="flex items-center gap-2 text-xs font-medium">
                     <MessageSquareTextIcon className="size-3.5" />
-                    AI 会话
+                    {t("auth.layout.aiConversation")}
                   </div>
                   <div className="mt-4 rounded-xl border bg-background p-3 text-xs leading-5 text-muted-foreground">
                     <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
                       <BotIcon className="size-3.5" />
                       Ineffable
                     </div>
-                    已结合当前文件上下文整理下一步任务。
+                    {t("auth.layout.aiMessage")}
                   </div>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { RouterProvider } from "react-router-dom"
 
 import "./index.css"
+import "@/lib/i18n/i18n"
 import { AppToaster } from "@/components/app/app-toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppSessionProvider } from "@/features/auth/app-session"

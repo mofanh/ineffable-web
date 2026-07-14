@@ -6,6 +6,7 @@ import {
   MailCheckIcon,
   UserPlusIcon,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
 import { AsyncButton, FormField, FormSection, Notice } from "@/components/app"
@@ -45,6 +46,7 @@ const initialFormState: AuthFormState = {
 
 function AuthPage({ mode }: AuthPageProps) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { login, register } = useAppSession()
   const isLogin = mode === "login"
   const [form, setForm] = React.useState<AuthFormState>(initialFormState)
@@ -75,18 +77,18 @@ function AuthPage({ mode }: AuthPageProps) {
     const nextErrors: AuthFieldErrors = {}
 
     if (!isLogin && !form.displayName.trim()) {
-      nextErrors.displayName = "请输入姓名。"
+      nextErrors.displayName = t("auth.validation.nameRequired")
     }
     if (!form.email.trim()) {
-      nextErrors.email = "请输入邮箱地址。"
+      nextErrors.email = t("auth.validation.emailRequired")
     }
     if (!form.password) {
-      nextErrors.password = "请输入密码。"
+      nextErrors.password = t("auth.validation.passwordRequired")
     } else if (!isLogin && form.password.length < 8) {
-      nextErrors.password = "密码至少需要 8 位。"
+      nextErrors.password = t("auth.validation.passwordTooShort")
     }
     if (!isLogin && !form.verificationCode.trim()) {
-      nextErrors.verificationCode = "请输入邮箱验证码。"
+      nextErrors.verificationCode = t("auth.validation.codeRequired")
     }
 
     setFieldErrors(nextErrors)
@@ -119,17 +121,23 @@ function AuthPage({ mode }: AuthPageProps) {
       }
 
       notify.success({
-        title: isLogin ? "登录成功" : "账号已创建",
-        description: "正在进入工作台。",
+        title: isLogin
+          ? t("auth.feedback.loginSuccess")
+          : t("auth.feedback.accountCreated"),
+        description: t("auth.feedback.enteringWorkspace"),
       })
       navigate("/", { replace: true })
     } catch (submitError) {
       const appError = normalizeAppError(submitError, {
-        fallbackMessage: isLogin ? "登录失败。" : "注册失败。",
+        fallbackMessage: isLogin
+          ? t("auth.feedback.loginFailedDetail")
+          : t("auth.feedback.registerFailedDetail"),
       })
       setError(appError.message)
       notify.error({
-        title: isLogin ? "登录失败" : "注册失败",
+        title: isLogin
+          ? t("auth.feedback.loginFailed")
+          : t("auth.feedback.registerFailed"),
         description: appError.message,
       })
     } finally {
@@ -143,7 +151,7 @@ function AuthPage({ mode }: AuthPageProps) {
     if (!email) {
       setFieldErrors((current) => ({
         ...current,
-        email: "请先输入邮箱地址。",
+        email: t("auth.validation.emailBeforeCode"),
       }))
       return
     }
@@ -158,16 +166,16 @@ function AuthPage({ mode }: AuthPageProps) {
       })
       setCodeCooldownSeconds(60)
       notify.success({
-        title: "验证码已发送",
-        description: "请查看邮箱并填写 6 位验证码。",
+        title: t("auth.feedback.codeSent"),
+        description: t("auth.feedback.codeSentDetail"),
       })
     } catch (sendError) {
       const appError = normalizeAppError(sendError, {
-        fallbackMessage: "验证码发送失败。",
+        fallbackMessage: t("auth.feedback.codeFailedDetail"),
       })
       setError(appError.message)
       notify.error({
-        title: "验证码发送失败",
+        title: t("auth.feedback.codeFailed"),
         description: appError.message,
       })
     } finally {
@@ -182,15 +190,19 @@ function AuthPage({ mode }: AuthPageProps) {
     <Card className="gap-0 border-border/80 bg-card/95 py-0 shadow-[0_28px_90px_-44px_rgba(0,0,0,0.5)] backdrop-blur-sm">
       <CardHeader className="gap-2 border-b border-border/70 px-6 py-6 sm:px-7">
         <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">
-          {isLogin ? "Welcome back" : "Get started"}
+          {isLogin
+            ? t("auth.form.loginEyebrow")
+            : t("auth.form.registerEyebrow")}
         </p>
         <CardTitle className="text-2xl tracking-tight">
-          {isLogin ? "登录 Ineffable" : "创建 Ineffable 账号"}
+          {isLogin
+            ? t("auth.form.loginTitle")
+            : t("auth.form.registerTitle")}
         </CardTitle>
         <CardDescription className="leading-6">
           {isLogin
-            ? "继续进入你的工作区和 AI 会话。"
-            : "创建账号，开始使用 Ineffable 工作台。"}
+            ? t("auth.form.loginDescription")
+            : t("auth.form.registerDescription")}
         </CardDescription>
       </CardHeader>
 
@@ -200,7 +212,7 @@ function AuthPage({ mode }: AuthPageProps) {
             {!isLogin ? (
               <FormField
                 htmlFor="auth-name"
-                label="姓名"
+                label={t("auth.form.name")}
                 error={fieldErrors.displayName}
               >
                 <Input
@@ -210,7 +222,7 @@ function AuthPage({ mode }: AuthPageProps) {
                   onChange={(event) =>
                     updateField("displayName", event.target.value)
                   }
-                  placeholder="你的姓名"
+                  placeholder={t("auth.form.namePlaceholder")}
                   autoComplete="name"
                   autoFocus
                   disabled={isSubmitting}
@@ -221,7 +233,7 @@ function AuthPage({ mode }: AuthPageProps) {
 
             <FormField
               htmlFor="auth-email"
-              label="邮箱地址"
+              label={t("auth.form.email")}
               error={fieldErrors.email}
             >
               <Input
@@ -241,8 +253,8 @@ function AuthPage({ mode }: AuthPageProps) {
             {!isLogin ? (
               <FormField
                 htmlFor="auth-verification-code"
-                label="邮箱验证码"
-                description="验证码有效期为 10 分钟。"
+                label={t("auth.form.verificationCode")}
+                description={t("auth.form.verificationCodeDescription")}
                 error={fieldErrors.verificationCode}
               >
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -258,7 +270,7 @@ function AuthPage({ mode }: AuthPageProps) {
                         event.target.value.replace(/\D/g, "").slice(0, 6),
                       )
                     }
-                    placeholder="6 位验证码"
+                    placeholder={t("auth.form.verificationCodePlaceholder")}
                     disabled={isSubmitting}
                     maxLength={6}
                     aria-invalid={Boolean(fieldErrors.verificationCode)}
@@ -268,7 +280,7 @@ function AuthPage({ mode }: AuthPageProps) {
                     variant="outline"
                     className="h-10"
                     isLoading={isSendingCode}
-                    loadingLabel="发送中..."
+                    loadingLabel={t("auth.form.sendingCode")}
                     disabled={
                       isSubmitting || isSendingCode || codeCooldownSeconds > 0
                     }
@@ -276,8 +288,10 @@ function AuthPage({ mode }: AuthPageProps) {
                   >
                     <MailCheckIcon />
                     {codeCooldownSeconds > 0
-                      ? `${codeCooldownSeconds}s 后重试`
-                      : "发送验证码"}
+                      ? t("auth.form.retryCode", {
+                          seconds: codeCooldownSeconds,
+                        })
+                      : t("auth.form.sendCode")}
                   </AsyncButton>
                 </div>
               </FormField>
@@ -285,8 +299,10 @@ function AuthPage({ mode }: AuthPageProps) {
 
             <FormField
               htmlFor="auth-password"
-              label="密码"
-              description={isLogin ? undefined : "至少 8 位。"}
+              label={t("auth.form.password")}
+              description={
+                isLogin ? undefined : t("auth.form.passwordDescription")
+              }
               error={fieldErrors.password}
             >
               <div className="relative">
@@ -298,7 +314,7 @@ function AuthPage({ mode }: AuthPageProps) {
                   onChange={(event) =>
                     updateField("password", event.target.value)
                   }
-                  placeholder="输入密码"
+                  placeholder={t("auth.form.passwordPlaceholder")}
                   autoComplete={isLogin ? "current-password" : "new-password"}
                   disabled={isSubmitting}
                   aria-invalid={Boolean(fieldErrors.password)}
@@ -309,8 +325,16 @@ function AuthPage({ mode }: AuthPageProps) {
                   size="icon-sm"
                   className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground"
                   onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                  title={showPassword ? "隐藏密码" : "显示密码"}
+                  aria-label={
+                    showPassword
+                      ? t("auth.form.hidePassword")
+                      : t("auth.form.showPassword")
+                  }
+                  title={
+                    showPassword
+                      ? t("auth.form.hidePassword")
+                      : t("auth.form.showPassword")
+                  }
                   disabled={isSubmitting}
                 >
                   <PasswordIcon />
@@ -326,20 +350,26 @@ function AuthPage({ mode }: AuthPageProps) {
             size="lg"
             className="h-10 w-full"
             isLoading={isSubmitting}
-            loadingLabel={isLogin ? "登录中..." : "创建中..."}
+            loadingLabel={
+              isLogin ? t("auth.form.loggingIn") : t("auth.form.registering")
+            }
           >
             <SubmitIcon />
-            {isLogin ? "登录" : "创建账号"}
+            {isLogin ? t("auth.form.login") : t("auth.form.register")}
           </AsyncButton>
         </form>
 
         <p className="border-t pt-5 text-center text-sm leading-6 text-muted-foreground">
-          {isLogin ? "还没有账号？" : "已经有账号？"}{" "}
+          {isLogin
+            ? t("auth.layout.noAccount")
+            : t("auth.layout.hasAccount")}{" "}
           <Link
             className="font-medium text-foreground underline underline-offset-4"
             to={isLogin ? "/register" : "/login"}
           >
-            {isLogin ? "创建账号" : "返回登录"}
+            {isLogin
+              ? t("auth.layout.createAccount")
+              : t("auth.layout.backToLoginAction")}
           </Link>
         </p>
       </CardContent>
