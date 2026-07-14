@@ -4,7 +4,6 @@ import {
   Clock3,
   Edit3,
   History,
-  MessageSquarePlus,
   Play,
   RotateCw,
   Trash2,
@@ -626,31 +625,17 @@ export function AutomationPage() {
         },
       ]}
       headerActions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() =>
-              window.dispatchEvent(new Event("ineffable:right-sidebar:open"))
-            }
-            aria-label={t("automation.page.createInChatLabel")}
-            title={t("automation.page.createInChatLabel")}
-          >
-            <MessageSquarePlus className="size-4" />
-            <span className="hidden sm:inline">
-              {t("automation.page.createInChat")}
-            </span>
-          </Button>
-          <Button
-            variant="outline"
-            disabled={saving || automationResource.isRefreshing}
-            onClick={() => void reload()}
-            aria-label={t("automation.page.refreshLabel")}
-          >
-            <RotateCw
-              className={automationResource.isRefreshing ? "animate-spin" : ""}
-            />
-            <span className="hidden sm:inline">{t("automation.page.refresh")}</span>
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          disabled={saving || automationResource.isRefreshing}
+          onClick={() => void reload()}
+          aria-label={t("automation.page.refreshLabel")}
+        >
+          <RotateCw
+            className={automationResource.isRefreshing ? "animate-spin" : ""}
+          />
+          <span className="hidden sm:inline">{t("automation.page.refresh")}</span>
+        </Button>
       }
     >
       <ErrorState error={error} title={t("common.operationFailed")} />

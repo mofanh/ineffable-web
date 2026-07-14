@@ -219,8 +219,6 @@ export const resources = {
           recentRuns: "近期运行",
           failedRuns: "{{count}} 次失败",
           recentRunsDetail: "每个任务最近 50 条",
-          createInChatLabel: "在会话中创建自动任务",
-          createInChat: "在会话中创建",
           refreshLabel: "刷新自动任务",
           refresh: "刷新",
           runStartedDescription: "已在原会话中创建新的 Agent 运行。",
@@ -1534,8 +1532,6 @@ export const resources = {
           recentRuns: "Recent runs",
           failedRuns: "{{count}} failed",
           recentRunsDetail: "Latest 50 runs per automation",
-          createInChatLabel: "Create an automation in the conversation",
-          createInChat: "Create in conversation",
           refreshLabel: "Refresh automations",
           refresh: "Refresh",
           runStartedDescription:
