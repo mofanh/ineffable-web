@@ -414,6 +414,7 @@ export function SystemSecretManagementPage() {
       >
         {editingSecret ? (
           <SecretForm
+            mode={secretDialogMode}
             secret={editingSecret}
             state={state}
             onChange={setEditingSecret}
@@ -672,12 +673,14 @@ function formatCompactNumber(value: number) {
 }
 
 function SecretForm({
+  mode,
   secret,
   state,
   onChange,
   onSubmit,
   onCancel,
 }: {
+  mode: "create" | "edit";
   secret: SecretForm;
   state: LoadState;
   onChange: React.Dispatch<React.SetStateAction<SecretForm | null>>;
@@ -700,6 +703,8 @@ function SecretForm({
           <FormField label={t("system.secrets.form.ref")}>
             <Input
               value={secret.secret_ref}
+              disabled={mode === "edit"}
+              required
               onChange={(event) =>
                 onChange((current) =>
                   current
@@ -713,6 +718,7 @@ function SecretForm({
             <Input
               type="password"
               value={secret.secret}
+              required={mode === "create"}
               placeholder={t("system.secrets.form.placeholder")}
               onChange={(event) =>
                 onChange((current) =>
