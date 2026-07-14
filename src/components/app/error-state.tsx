@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button"
 import { Notice } from "@/components/app/notice"
 import type { AppError } from "@/lib/app/api-errors"
+import { useTranslation } from "react-i18next"
 
 export function ErrorState({
   error,
-  title = "操作失败",
-  retryLabel = "重试",
+  title,
+  retryLabel,
   onRetry,
   className,
 }: {
@@ -15,6 +16,8 @@ export function ErrorState({
   onRetry?: () => void
   className?: string
 }) {
+  const { t } = useTranslation()
+
   if (!error) {
     return null
   }
@@ -22,7 +25,11 @@ export function ErrorState({
   const message = typeof error === "string" ? error : error.message
 
   return (
-    <Notice tone="error" title={title} className={className}>
+    <Notice
+      tone="error"
+      title={title ?? t("common.operationFailed")}
+      className={className}
+    >
       <p>{message}</p>
       {onRetry ? (
         <Button
@@ -32,7 +39,7 @@ export function ErrorState({
           className="mt-3"
           onClick={onRetry}
         >
-          {retryLabel}
+          {retryLabel ?? t("common.retry")}
         </Button>
       ) : null}
     </Notice>

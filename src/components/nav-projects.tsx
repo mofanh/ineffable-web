@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar"
 import { MoreHorizontalIcon, FolderIcon, ShareIcon, Trash2Icon } from "lucide-react"
 import { NavLink } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 export function NavProjects({
   projects,
@@ -28,11 +29,12 @@ export function NavProjects({
     icon: React.ReactNode
   }[]
 }) {
+  const { t } = useTranslation()
   const { isMobile } = useSidebar()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>Projects</SidebarGroupLabel>
+      <SidebarGroupLabel>{t("sidebar.generic.projects")}</SidebarGroupLabel>
       <SidebarMenu>
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
@@ -50,7 +52,7 @@ export function NavProjects({
                 >
                   <MoreHorizontalIcon
                   />
-                  <span className="sr-only">More</span>
+                  <span className="sr-only">{t("sidebar.generic.more")}</span>
                 </SidebarMenuAction>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -60,16 +62,16 @@ export function NavProjects({
               >
                 <DropdownMenuItem>
                   <FolderIcon className="text-muted-foreground" />
-                  <span>View Project</span>
+                  <span>{t("sidebar.generic.viewProject")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <ShareIcon className="text-muted-foreground" />
-                  <span>Share Project</span>
+                  <span>{t("sidebar.generic.shareProject")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <Trash2Icon className="text-muted-foreground" />
-                  <span>Delete Project</span>
+                  <span>{t("sidebar.generic.deleteProject")}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -79,7 +81,7 @@ export function NavProjects({
           <SidebarMenuButton>
             <MoreHorizontalIcon
             />
-            <span>More</span>
+            <span>{t("sidebar.generic.more")}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>

@@ -22,9 +22,18 @@
 
 ## Phase 2：应用 Shell 与通用反馈
 
-- [ ] 迁移主导航、Workspace 导航、账号菜单、面包屑和主题入口。
-- [ ] 迁移 loading、empty、error、confirm、toast 等通用底座默认文案。
-- [ ] 在登录后的应用 Shell 提供语言切换入口。
+- [x] 迁移主导航、Workspace 导航、账号菜单、面包屑和主题入口。
+- [x] 迁移 loading、empty、error、confirm、toast 等通用底座默认文案。
+- [x] 在登录后的应用 Shell 提供语言切换入口。
+
+验收：登录后可从账号菜单即时切换语言，侧栏、面包屑、主题菜单和通用状态文案同步更新，刷新后保持选择。
+
+验证记录（2026-07-14）：
+
+- `npm run lint`：0 errors / 0 warnings。
+- `npm run build`：通过。
+- 普通账号真实登录回归：中英文侧栏、面包屑、AI 助手入口、主题菜单和账号菜单即时切换正常。
+- 刷新后保持 `en-US`，HTML `lang` 同步；桌面与 390px 均无横向溢出。
 
 ## Phase 3：核心工作流
 

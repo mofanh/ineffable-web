@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar"
 import { ChevronRightIcon } from "lucide-react"
 import { NavLink } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 export function NavMain({
   items,
@@ -31,9 +32,11 @@ export function NavMain({
     }[]
   }[]
 }) {
+  const { t } = useTranslation()
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
+      <SidebarGroupLabel>{t("sidebar.generic.platform")}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible key={item.title} asChild defaultOpen={item.isActive}>
@@ -50,7 +53,7 @@ export function NavMain({
                     <SidebarMenuAction className="data-[state=open]:rotate-90">
                       <ChevronRightIcon
                       />
-                      <span className="sr-only">Toggle</span>
+                      <span className="sr-only">{t("sidebar.generic.toggle")}</span>
                     </SidebarMenuAction>
                   </CollapsibleTrigger>
                   <CollapsibleContent>

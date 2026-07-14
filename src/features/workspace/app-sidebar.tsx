@@ -34,7 +34,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { LanguageToggle } from "@/components/language-toggle"
 import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 import { IneffableLogo } from "@/components/ineffable-logo"
 import { useAppSession } from "@/features/auth/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
@@ -96,25 +98,25 @@ import {
 
 const primaryNavItems: Array<{
   id: string
-  title: string
+  titleKey: string
   icon: LucideIcon
   path: string
   children?: Array<{
     id: string
-    title: string
+    titleKey: string
     icon: LucideIcon
     path: string
   }>
 }> = [
   {
     id: "automation",
-    title: "自动任务",
+    titleKey: "sidebar.navigation.automation",
     icon: ZapIcon,
     path: "/automation",
   },
   {
     id: "models",
-    title: "模型中心",
+    titleKey: "sidebar.navigation.models",
     icon: BotIcon,
     path: "/models",
   },
@@ -123,25 +125,25 @@ const primaryNavItems: Array<{
 const systemManagementNavItems = [
   {
     id: "system-models",
-    title: "模型管理",
+    titleKey: "sidebar.navigation.modelManagement",
     icon: BotIcon,
     path: "/system/models",
   },
   {
     id: "system-plans",
-    title: "套餐管理",
+    titleKey: "sidebar.navigation.planManagement",
     icon: PackageIcon,
     path: "/system/plans",
   },
   {
     id: "system-secrets",
-    title: "密钥管理",
+    titleKey: "sidebar.navigation.secretManagement",
     icon: KeyRoundIcon,
     path: "/system/secrets",
   },
   {
     id: "system-users",
-    title: "用户管理",
+    titleKey: "sidebar.navigation.userManagement",
     icon: UsersIcon,
     path: "/system/users",
   },
@@ -205,12 +207,14 @@ function WorkspaceObjectMenu({
   item: SidebarEntry
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction
           showOnHover
-          aria-label={`${item.title} 操作`}
+          aria-label={t("sidebar.actions.itemActions", { name: item.title })}
           onClick={(event) => {
             event.stopPropagation()
           }}
@@ -221,22 +225,22 @@ function WorkspaceObjectMenu({
       <DropdownMenuContent side="right" align="start" className="w-56">
         <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
           <LinkIcon />
-          <span>复制链接</span>
+          <span>{t("sidebar.actions.copyLink")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onAction("open-new-tab", item)}>
           <ExternalLinkIcon />
-          <span>在新标签页打开</span>
+          <span>{t("sidebar.actions.openNewTab")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {item.kind === "folder" ? (
           <>
             <DropdownMenuItem onClick={() => onAction("new-file", item)}>
               <FilePlusIcon />
-              <span>新建文件</span>
+              <span>{t("sidebar.actions.newFile")}</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAction("new-folder", item)}>
               <FolderPlusIcon />
-              <span>新建文件夹</span>
+              <span>{t("sidebar.actions.newFolder")}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -244,24 +248,24 @@ function WorkspaceObjectMenu({
         {!item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("duplicate", item)}>
             <CopyIcon />
-            <span>创建副本</span>
+            <span>{t("sidebar.actions.duplicate")}</span>
           </DropdownMenuItem>
         ) : null}
         {!item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("rename", item)}>
             <PencilIcon />
-            <span>重命名</span>
+            <span>{t("sidebar.actions.rename")}</span>
           </DropdownMenuItem>
         ) : null}
         {!item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("move", item)}>
             <FolderInputIcon />
-            <span>移动到…</span>
+            <span>{t("sidebar.actions.move")}</span>
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onClick={() => onAction("export", item)}>
           <DownloadIcon />
-          <span>导出</span>
+          <span>{t("sidebar.actions.export")}</span>
         </DropdownMenuItem>
         {!item.isWorkspaceRoot ? (
           <>
@@ -271,7 +275,7 @@ function WorkspaceObjectMenu({
               onClick={() => onAction("delete", item)}
             >
               <Trash2Icon />
-              <span>删除</span>
+              <span>{t("sidebar.actions.delete")}</span>
             </DropdownMenuItem>
           </>
         ) : null}
@@ -287,12 +291,14 @@ function TeamWorkspaceMenu({
   item: SidebarEntry
   onAction: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction
           showOnHover
-          aria-label={`${item.title} 操作`}
+          aria-label={t("sidebar.actions.itemActions", { name: item.title })}
           onClick={(event) => {
             event.stopPropagation()
           }}
@@ -303,20 +309,20 @@ function TeamWorkspaceMenu({
       <DropdownMenuContent side="right" align="start" className="w-56">
         <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
           <LinkIcon />
-          <span>复制链接</span>
+          <span>{t("sidebar.actions.copyLink")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onAction("open-new-tab", item)}>
           <ExternalLinkIcon />
-          <span>在新标签页打开</span>
+          <span>{t("sidebar.actions.openNewTab")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onAction("invite-members", item)}>
           <UserPlusIcon />
-          <span>邀请成员</span>
+          <span>{t("sidebar.actions.inviteMembers")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onAction("manage-members", item)}>
           <UsersIcon />
-          <span>管理成员</span>
+          <span>{t("sidebar.actions.manageMembers")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -372,6 +378,7 @@ function PrimaryNav({
   items: typeof primaryNavItems
   onSelectEntry: (entryId: string) => void
 }) {
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const [openGroupIds, setOpenGroupIds] = React.useState<Set<string>>(
@@ -383,6 +390,7 @@ function PrimaryNav({
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
           {items.map((item) => {
+            const title = t(item.titleKey)
             const Icon = item.icon
             const children = item.children ?? []
             const isGroup = children.length > 0
@@ -399,7 +407,7 @@ function PrimaryNav({
                   type="button"
                   size="lg"
                   isActive={isActive}
-                  tooltip={item.title}
+                  tooltip={title}
                   onClick={() => {
                     onSelectEntry(item.id)
                     if (isGroup) {
@@ -421,12 +429,16 @@ function PrimaryNav({
                   }}
                 >
                   <Icon className="text-sidebar-foreground/70" />
-                  <span>{item.title}</span>
+                  <span>{title}</span>
                 </SidebarMenuButton>
                 {isGroup ? (
                   <SidebarMenuAction
                     type="button"
-                    aria-label={isOpen ? "收起系统管理" : "展开系统管理"}
+                    aria-label={
+                      isOpen
+                        ? t("sidebar.navigation.collapseSystem")
+                        : t("sidebar.navigation.expandSystem")
+                    }
                     onClick={(event) => {
                       event.preventDefault()
                       event.stopPropagation()
@@ -447,6 +459,7 @@ function PrimaryNav({
                 {isGroup && isOpen ? (
                   <SidebarMenu className="mt-1 gap-0.5 pl-3">
                     {children.map((child) => {
+                      const childTitle = t(child.titleKey)
                       const ChildIcon = child.icon
                       const childActive =
                         location.pathname === child.path.split("?")[0]
@@ -456,7 +469,7 @@ function PrimaryNav({
                             type="button"
                             size="sm"
                             isActive={childActive}
-                            tooltip={child.title}
+                            tooltip={childTitle}
                             className="pl-4"
                             onClick={() => {
                               onSelectEntry(child.id)
@@ -464,7 +477,7 @@ function PrimaryNav({
                             }}
                           >
                             <ChildIcon className="text-sidebar-foreground/60" />
-                            <span>{child.title}</span>
+                            <span>{childTitle}</span>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
                       )
@@ -513,6 +526,8 @@ function SpaceSection({
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
   onTeamAction?: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <SidebarGroup className="gap-1.5 py-2">
       <div className="flex h-8 items-center gap-1 px-2">
@@ -523,7 +538,7 @@ function SpaceSection({
         {canCreate && createMode === "team" ? (
           <button
             type="button"
-            aria-label={`创建${title}`}
+            aria-label={t("sidebar.sections.create", { section: title })}
             className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             onClick={onCreateTeam}
           >
@@ -534,7 +549,7 @@ function SpaceSection({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={`在${title}中新建`}
+                aria-label={t("sidebar.sections.createInside", { section: title })}
                 className="flex size-5 items-center justify-center rounded-md text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <PlusIcon className="size-4" />
@@ -543,11 +558,11 @@ function SpaceSection({
             <DropdownMenuContent side="right" align="start">
               <DropdownMenuItem onClick={() => onCreate("file")}>
                 <FilePlusIcon />
-                <span>新建文件</span>
+                <span>{t("sidebar.actions.newFile")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onCreate("folder")}>
                 <FolderPlusIcon />
-                <span>新建文件夹</span>
+                <span>{t("sidebar.actions.newFolder")}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -570,7 +585,9 @@ function SpaceSection({
           ) : (
             <SidebarMenuItem>
               <div className="mx-2 rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs leading-5 text-sidebar-foreground/45">
-                {isLoading ? "正在加载…" : error || emptyLabel || "暂无内容"}
+                {isLoading
+                  ? t("sidebar.sections.loading")
+                  : error || emptyLabel || t("sidebar.sections.empty")}
               </div>
             </SidebarMenuItem>
           )}
@@ -593,6 +610,7 @@ function WorkspaceAccountSwitcher({
   pendingInvitationCount: number
   onLogout?: () => void
 }) {
+  const { t } = useTranslation()
   const { isMobile } = useSidebar()
   const fallback = user.name
     .split(" ")
@@ -642,13 +660,13 @@ function WorkspaceAccountSwitcher({
           <DropdownMenuItem asChild>
             <Link to="/account">
               <BadgeCheckIcon />
-              <span>账号与登录设备</span>
+              <span>{t("sidebar.account.accountDevices")}</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/notifications">
               <BellIcon />
-              <span>邀请通知</span>
+              <span>{t("sidebar.account.invitations")}</span>
               {pendingInvitationCount > 0 ? (
                 <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
                   {pendingInvitationCount > 99 ? "99+" : pendingInvitationCount}
@@ -660,6 +678,9 @@ function WorkspaceAccountSwitcher({
         <DropdownMenuSeparator />
         <DropdownMenuItem className="p-0">
           <ThemeToggle />
+        </DropdownMenuItem>
+        <DropdownMenuItem className="p-0">
+          <LanguageToggle layout="menu" />
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
@@ -675,7 +696,7 @@ function WorkspaceAccountSwitcher({
             }}
           >
             <LogOutIcon />
-            <span>退出登录</span>
+            <span>{t("sidebar.account.logout")}</span>
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -684,6 +705,7 @@ function WorkspaceAccountSwitcher({
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { t } = useTranslation()
   const logoVariant = useLogoVariant({ mode: "rotate" })
   const {
     accessToken,
@@ -727,7 +749,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ...primaryNavItems,
       {
         id: "system-management",
-        title: "系统管理",
+        titleKey: "sidebar.navigation.systemManagement",
         icon: ShieldIcon,
         path: "/system/models",
         children: systemManagementNavItems,
@@ -1358,7 +1380,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   )
 
   const navSecondary = navigation.secondary.map((item) => ({
-    title: item.title,
+    title: t(item.titleKey),
     url: item.path,
     icon: <item.icon />,
   }))
@@ -1387,9 +1409,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         />
         <SidebarSeparator />
         <SpaceSection
-          title="团队空间"
+          title={t("sidebar.sections.team")}
           entries={teamSpaceEntries}
-          emptyLabel="还没有团队空间，可从右侧加号创建。"
+          emptyLabel={t("sidebar.sections.emptyTeam")}
           isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
           error={treeError}
           canCreate
@@ -1410,9 +1432,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           onTeamAction={handleTeamWorkspaceAction}
         />
         <SpaceSection
-          title="个人空间"
+          title={t("sidebar.sections.personal")}
           entries={personalSpaceEntries}
-          emptyLabel="还没有文件，可从右侧加号新建。"
+          emptyLabel={t("sidebar.sections.emptyPersonal")}
           isLoading={isTreeLoading && Boolean(personalWorkspaces.length)}
           error={treeError}
           canCreate={Boolean(personalWorkspaces.length)}
@@ -1439,8 +1461,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <WorkspaceAccountSwitcher
               user={{
-                name: currentUser?.display_name || currentUser?.email || "工作区用户",
-                email: currentUser?.email || "未登录",
+                name:
+                  currentUser?.display_name ||
+                  currentUser?.email ||
+                  t("sidebar.account.fallbackUser"),
+                email: currentUser?.email || t("sidebar.account.signedOut"),
                 avatar: currentUser?.avatar_url || "",
               }}
               pendingInvitationCount={pendingInvitationCount}

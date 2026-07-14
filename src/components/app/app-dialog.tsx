@@ -1,6 +1,7 @@
 import * as React from "react"
 import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -22,6 +23,8 @@ export function AppDialog({
   maxWidth?: AppDialogMaxWidth
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -55,7 +58,7 @@ export function AppDialog({
               className="absolute top-4 right-4"
             >
               <XIcon className="size-4" />
-              <span className="sr-only">关闭</span>
+              <span className="sr-only">{t("common.close")}</span>
             </Button>
           </DialogPrimitive.Close>
         </DialogPrimitive.Content>

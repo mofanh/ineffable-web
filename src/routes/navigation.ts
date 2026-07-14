@@ -1,25 +1,34 @@
 import { BotIcon } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
+import { i18n } from "@/lib/i18n/i18n"
+
+type TranslationKey = string
+
 export type BreadcrumbEntry = {
   label: string
   path?: string
 }
 
+type BreadcrumbDefinition = {
+  labelKey: TranslationKey
+  path?: string
+}
+
 export type MainNavItem = {
-  title: string
+  titleKey: TranslationKey
   path: string
 }
 
 export type MainNavGroup = {
-  title: string
+  titleKey: TranslationKey
   path: string
   icon: LucideIcon
   items: MainNavItem[]
 }
 
 export type SimpleNavItem = {
-  title: string
+  titleKey: TranslationKey
   path: string
   icon: LucideIcon
 }
@@ -29,7 +38,7 @@ export const defaultPath = "/automation"
 export const navigation = {
   main: [
     {
-      title: "模型中心",
+      titleKey: "shell.routes.models",
       path: "/models",
       icon: BotIcon,
       items: [],
@@ -45,119 +54,119 @@ export type RouteMeta = {
   breadcrumbs: BreadcrumbEntry[]
 }
 
-const routeMetaMap = new Map<string, RouteMeta>()
+type RouteMetaDefinition = {
+  path: string
+  titleKey: TranslationKey
+  breadcrumbs: BreadcrumbDefinition[]
+}
 
-navigation.main.forEach((group) => {
-  routeMetaMap.set(group.path, {
-    path: group.path,
-    title: group.title,
-    breadcrumbs: [{ label: group.title }],
-  })
+const routeMetaDefinitions: RouteMetaDefinition[] = [
+  {
+    path: "/models",
+    titleKey: "shell.routes.models",
+    breadcrumbs: [{ labelKey: "shell.routes.models" }],
+  },
+  {
+    path: "/projects",
+    titleKey: "shell.routes.projects",
+    breadcrumbs: [{ labelKey: "shell.routes.projects" }],
+  },
+  {
+    path: "/account",
+    titleKey: "shell.routes.account",
+    breadcrumbs: [{ labelKey: "shell.routes.account" }],
+  },
+  {
+    path: "/docs",
+    titleKey: "shell.routes.docs",
+    breadcrumbs: [{ labelKey: "shell.routes.docs" }],
+  },
+  {
+    path: "/support",
+    titleKey: "shell.routes.support",
+    breadcrumbs: [{ labelKey: "shell.routes.support" }],
+  },
+  {
+    path: "/feedback",
+    titleKey: "shell.routes.feedback",
+    breadcrumbs: [{ labelKey: "shell.routes.feedback" }],
+  },
+  {
+    path: "/admin/llm",
+    titleKey: "shell.routes.modelManagement",
+    breadcrumbs: [
+      { labelKey: "shell.routes.systemManagement" },
+      { labelKey: "shell.routes.modelManagement" },
+    ],
+  },
+  {
+    path: "/system/models",
+    titleKey: "shell.routes.modelManagement",
+    breadcrumbs: [
+      { labelKey: "shell.routes.systemManagement" },
+      { labelKey: "shell.routes.modelManagement" },
+    ],
+  },
+  {
+    path: "/system/plans",
+    titleKey: "shell.routes.planManagement",
+    breadcrumbs: [
+      { labelKey: "shell.routes.systemManagement" },
+      { labelKey: "shell.routes.planManagement" },
+    ],
+  },
+  {
+    path: "/system/secrets",
+    titleKey: "shell.routes.secretManagement",
+    breadcrumbs: [
+      { labelKey: "shell.routes.systemManagement" },
+      { labelKey: "shell.routes.secretManagement" },
+    ],
+  },
+  {
+    path: "/system/users",
+    titleKey: "shell.routes.userManagement",
+    breadcrumbs: [
+      { labelKey: "shell.routes.systemManagement" },
+      { labelKey: "shell.routes.userManagement" },
+    ],
+  },
+  {
+    path: "/automation",
+    titleKey: "shell.routes.automation",
+    breadcrumbs: [{ labelKey: "shell.routes.automation" }],
+  },
+]
 
-  group.items.forEach((item) => {
-    routeMetaMap.set(item.path, {
-      path: item.path,
-      title: item.title,
-      breadcrumbs: [
-        { label: group.title, path: group.path },
-        { label: item.title },
-      ],
-    })
-  })
-})
+const routeMetaMap = new Map(
+  routeMetaDefinitions.map((definition) => [definition.path, definition])
+)
 
-navigation.projects.forEach((item) => {
-  routeMetaMap.set(item.path, {
-    path: item.path,
-    title: item.title,
-    breadcrumbs: [{ label: "项目", path: "/projects" }, { label: item.title }],
-  })
-})
+function resolveRouteMeta(definition: RouteMetaDefinition): RouteMeta {
+  return {
+    path: definition.path,
+    title: i18n.t(definition.titleKey),
+    breadcrumbs: definition.breadcrumbs.map((breadcrumb) => ({
+      label: i18n.t(breadcrumb.labelKey),
+      path: breadcrumb.path,
+    })),
+  }
+}
 
-routeMetaMap.set("/projects", {
-  path: "/projects",
-  title: "项目",
-  breadcrumbs: [{ label: "项目" }],
-})
-
-routeMetaMap.set("/account", {
-  path: "/account",
-  title: "账号",
-  breadcrumbs: [{ label: "账号" }],
-})
-
-routeMetaMap.set("/docs", {
-  path: "/docs",
-  title: "产品文档",
-  breadcrumbs: [{ label: "产品文档" }],
-})
-
-routeMetaMap.set("/support", {
-  path: "/support",
-  title: "帮助支持",
-  breadcrumbs: [{ label: "帮助支持" }],
-})
-
-routeMetaMap.set("/feedback", {
-  path: "/feedback",
-  title: "提交反馈",
-  breadcrumbs: [{ label: "提交反馈" }],
-})
-
-routeMetaMap.set("/admin/llm", {
-  path: "/admin/llm",
-  title: "模型管理",
-  breadcrumbs: [{ label: "系统管理" }, { label: "模型管理" }],
-})
-
-routeMetaMap.set("/system/models", {
-  path: "/system/models",
-  title: "模型管理",
-  breadcrumbs: [{ label: "系统管理" }, { label: "模型管理" }],
-})
-
-routeMetaMap.set("/system/plans", {
-  path: "/system/plans",
-  title: "套餐管理",
-  breadcrumbs: [{ label: "系统管理" }, { label: "套餐管理" }],
-})
-
-routeMetaMap.set("/system/secrets", {
-  path: "/system/secrets",
-  title: "密钥管理",
-  breadcrumbs: [{ label: "系统管理" }, { label: "密钥管理" }],
-})
-
-routeMetaMap.set("/system/users", {
-  path: "/system/users",
-  title: "用户管理",
-  breadcrumbs: [{ label: "系统管理" }, { label: "用户管理" }],
-})
-
-routeMetaMap.set("/automation", {
-  path: "/automation",
-  title: "自动任务",
-  breadcrumbs: [{ label: "自动任务" }],
-})
-
-navigation.secondary.forEach((item) => {
-  routeMetaMap.set(item.path, {
-    path: item.path,
-    title: item.title,
-    breadcrumbs: [{ label: item.title }],
-  })
-})
-
-export const allRouteMeta = Array.from(routeMetaMap.values())
+export const allRouteMeta = routeMetaDefinitions.map(resolveRouteMeta)
 
 export function getRouteMeta(pathname: string) {
   if (pathname.startsWith("/workspace/")) {
     return {
       path: pathname,
-      title: "工作区文件",
-      breadcrumbs: [{ label: "工作区" }, { label: "文件" }],
+      title: i18n.t("shell.routes.workspaceFiles"),
+      breadcrumbs: [
+        { label: i18n.t("shell.routes.workspace") },
+        { label: i18n.t("shell.routes.files") },
+      ],
     }
   }
 
-  return routeMetaMap.get(pathname)
+  const definition = routeMetaMap.get(pathname)
+  return definition ? resolveRouteMeta(definition) : undefined
 }

@@ -1,3 +1,5 @@
+import { i18n } from "@/lib/i18n/i18n"
+
 export type AppErrorKind =
   | "timeout"
   | "network"
@@ -41,21 +43,21 @@ export function statusToAppErrorKind(status?: number): AppErrorKind {
 export function defaultAppErrorMessage(kind: AppErrorKind) {
   switch (kind) {
     case "timeout":
-      return "Request timed out. Please try again."
+      return i18n.t("error.timeout")
     case "network":
-      return "Network connection failed. Please check your connection."
+      return i18n.t("error.network")
     case "unauthorized":
-      return "Your session has expired. Please sign in again."
+      return i18n.t("error.unauthorized")
     case "forbidden":
-      return "You do not have permission to perform this action."
+      return i18n.t("error.forbidden")
     case "not_found":
-      return "The requested resource was not found."
+      return i18n.t("error.notFound")
     case "validation":
-      return "Please check the submitted information."
+      return i18n.t("error.validation")
     case "server":
-      return "Server error. Please try again later."
+      return i18n.t("error.server")
     case "unknown":
-      return "Request failed. Please try again."
+      return i18n.t("error.unknown")
   }
 }
 

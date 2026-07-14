@@ -29,7 +29,9 @@ import {
   SparklesIcon,
 } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { LanguageToggle } from "@/components/language-toggle"
 import { Link } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 export function NavUser({
   user,
@@ -42,6 +44,7 @@ export function NavUser({
   }
   onLogout?: () => void
 }) {
+  const { t } = useTranslation()
   const { isMobile } = useSidebar()
   const fallback = user.name
     .split(" ")
@@ -93,7 +96,7 @@ export function NavUser({
               <DropdownMenuItem>
                 <SparklesIcon
                 />
-                Upgrade to Pro
+                {t("sidebar.generic.upgrade")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
@@ -101,25 +104,28 @@ export function NavUser({
               <DropdownMenuItem asChild>
                 <Link to="/account">
                   <BadgeCheckIcon />
-                  Account
+                  {t("sidebar.generic.account")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/settings/billing">
                   <CreditCardIcon />
-                  Billing
+                  {t("sidebar.generic.billing")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/settings/general">
                   <BellIcon />
-                  Notifications
+                  {t("sidebar.generic.notifications")}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="p-0">
               <ThemeToggle />
+            </DropdownMenuItem>
+            <DropdownMenuItem className="p-0">
+              <LanguageToggle layout="menu" />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
@@ -135,7 +141,7 @@ export function NavUser({
                 }}
               >
                 <LogOutIcon />
-                Log out
+                {t("sidebar.generic.logout")}
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

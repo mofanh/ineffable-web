@@ -31,6 +31,8 @@ import { Fragment, Suspense, lazy, useCallback, useEffect, useState } from "reac
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties, SetStateAction } from "react"
 import { PanelRightIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 const RightSidebar = lazy(async () => ({
   default: (await import("@/components/right-sidebar")).RightSidebar,
@@ -45,15 +47,16 @@ export function AppShell() {
 }
 
 function AppShellContent() {
+  const { t } = useTranslation()
   const { pathname } = useLocation()
   const { currentWorkspace, workspaces } = useAppSession()
   const [leftSidebarRight, setLeftSidebarRight] = useState(0)
   const [isRightSidebarFullScreen, setIsRightSidebarFullScreen] = useState(false)
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
   const breadcrumbs =
-    getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces) ??
+    getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces, t) ??
     routeMeta?.breadcrumbs ??
-    [{ label: "自动任务" }]
+    [{ label: t("shell.routes.automation") }]
   const { headerContent } = useAppHeader()
   const {
     isRightSidebarOpen,
@@ -133,7 +136,11 @@ function AppShellContent() {
         <SidebarInset>
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 bg-background px-4">
             <div className="flex min-w-0 items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
+              <SidebarTrigger
+                className="-ml-1"
+                aria-label={t("shell.sidebar.toggle")}
+                title={t("shell.sidebar.toggle")}
+              />
               <Separator
                 orientation="vertical"
                 className="mr-2 data-[orientation=vertical]:h-4"
@@ -175,8 +182,16 @@ function AppShellContent() {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setRightSidebarOpen((open) => !open)}
-                aria-label={isRightSidebarOpen ? "收起 AI 助手" : "打开 AI 助手"}
-                title={isRightSidebarOpen ? "收起 AI 助手" : "打开 AI 助手"}
+                aria-label={
+                  isRightSidebarOpen
+                    ? t("shell.assistant.close")
+                    : t("shell.assistant.open")
+                }
+                title={
+                  isRightSidebarOpen
+                    ? t("shell.assistant.close")
+                    : t("shell.assistant.open")
+                }
               >
                 <PanelRightIcon />
               </Button>
@@ -194,7 +209,7 @@ function AppShellContent() {
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="调整 AI 助手宽度"
+        aria-label={t("shell.assistant.resize")}
         tabIndex={isRightSidebarOpen && !isRightSidebarFullScreen ? 0 : -1}
         aria-valuemin={RIGHT_SIDEBAR_MIN_WIDTH}
         aria-valuemax={Math.round(rightSidebarMaxWidth)}
@@ -239,17 +254,19 @@ function AppShellContent() {
 export default AppShell
 
 function RightSidebarLoading() {
+  const { t } = useTranslation()
+
   return (
     <Sidebar side="right" variant="inset" mobileMode="full" className="p-0">
       <div
         role="status"
-        aria-label="正在加载 AI 助手"
+        aria-label={t("shell.assistant.loading")}
         className="space-y-4 p-4"
       >
         <Skeleton className="h-8 w-32" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-10 w-full" />
-        <span className="sr-only">正在加载 AI 助手...</span>
+        <span className="sr-only">{t("shell.assistant.loading")}...</span>
       </div>
     </Sidebar>
   )
@@ -258,14 +275,18 @@ function RightSidebarLoading() {
 function getWorkspaceBreadcrumbs(
   pathname: string,
   currentWorkspace: ReturnType<typeof useAppSession>["currentWorkspace"],
-  workspaces: ReturnType<typeof useAppSession>["workspaces"]
+  workspaces: ReturnType<typeof useAppSession>["workspaces"],
+  t: TFunction
 ): BreadcrumbEntry[] | null {
   if (pathname === "/team-spaces/new") {
-    return [{ label: "团队空间" }, { label: "创建空间" }]
+    return [
+      { label: t("shell.breadcrumbs.teamSpaces") },
+      { label: t("shell.breadcrumbs.createSpace") },
+    ]
   }
 
   if (pathname === "/notifications") {
-    return [{ label: "邀请通知" }]
+    return [{ label: t("shell.breadcrumbs.invitations") }]
   }
 
   const membersMatch = pathname.match(/^\/team-spaces\/([^/]+)\/members$/)
@@ -275,17 +296,20 @@ function getWorkspaceBreadcrumbs(
       workspaces.find((candidate) => candidate.id === workspaceId) ??
       (currentWorkspace?.id === workspaceId ? currentWorkspace : null)
     return [
-      { label: "团队空间" },
+      { label: t("shell.breadcrumbs.teamSpaces") },
       {
-        label: workspace?.name || "团队空间",
+        label: workspace?.name || t("shell.breadcrumbs.teamSpaces"),
         path: `/team-spaces/${workspaceId}/members`,
       },
-      { label: "成员管理" },
+      { label: t("shell.breadcrumbs.members") },
     ]
   }
 
   if (pathname.startsWith("/workspace-invitations/")) {
-    return [{ label: "团队空间" }, { label: "邀请确认" }]
+    return [
+      { label: t("shell.breadcrumbs.teamSpaces") },
+      { label: t("shell.breadcrumbs.invitationConfirm") },
+    ]
   }
 
   return null

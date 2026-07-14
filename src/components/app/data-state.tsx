@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/app/empty-state"
@@ -13,7 +14,7 @@ export function DataState({
   empty,
   emptyTitle,
   emptyDescription,
-  loadingLabel = "正在加载...",
+  loadingLabel,
   onRetry,
   children,
 }: {
@@ -26,9 +27,12 @@ export function DataState({
   onRetry?: () => void
   children: React.ReactNode
 }) {
+  const { t } = useTranslation()
+  const resolvedLoadingLabel = loadingLabel ?? t("common.loading")
+
   if (state === "loading" || state === "idle") {
     return (
-      <div className="space-y-3" aria-label={loadingLabel}>
+      <div className="space-y-3" aria-label={resolvedLoadingLabel}>
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-12 w-full" />
         <Skeleton className="h-12 w-2/3" />
@@ -39,8 +43,8 @@ export function DataState({
   if (state === "error") {
     return (
       <ErrorState
-        error={error || "请求失败。"}
-        title="加载失败"
+        error={error || t("common.requestFailed")}
+        title={t("common.loadFailed")}
         className="items-start"
         onRetry={onRetry}
       />
@@ -50,7 +54,7 @@ export function DataState({
   if (empty) {
     return (
       <EmptyState
-        title={emptyTitle ?? "暂无数据"}
+        title={emptyTitle ?? t("common.noData")}
         description={emptyDescription}
       />
     )

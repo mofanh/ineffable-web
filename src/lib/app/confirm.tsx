@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   AlertDialog,
@@ -36,6 +37,7 @@ export function confirm(options: ConfirmOptions) {
 }
 
 export function AppConfirmProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation()
   const [request, setRequest] = React.useState<ConfirmRequest | null>(null)
 
   React.useEffect(() => {
@@ -75,13 +77,13 @@ export function AppConfirmProvider({ children }: { children: React.ReactNode }) 
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => close(false)}>
-              {request?.cancelLabel ?? "Cancel"}
+              {request?.cancelLabel ?? t("common.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               variant={request?.variant ?? "default"}
               onClick={() => close(true)}
             >
-              {request?.confirmLabel ?? "Confirm"}
+              {request?.confirmLabel ?? t("common.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,17 +1,20 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 
 export function RouteLoading({ className }: { className?: string }) {
+  const { t } = useTranslation()
+
   return (
     <div
       role="status"
-      aria-label="正在加载页面"
+      aria-label={t("common.loadingPage")}
       className={cn("space-y-4 py-2", className)}
     >
       <Skeleton className="h-8 w-44" />
       <Skeleton className="h-24 w-full" />
       <Skeleton className="h-24 w-full" />
-      <span className="sr-only">正在加载页面...</span>
+      <span className="sr-only">{t("common.loadingPage")}...</span>
     </div>
   )
 }
