@@ -1,38 +1,42 @@
-import { ModuleStatusPage } from "@/components/app"
+import { useTranslation } from "react-i18next";
+
+import { ModuleStatusPage } from "@/components/app";
 
 export function SupportPage() {
+  const { t } = useTranslation();
   return (
     <ModuleStatusPage
-      title="帮助支持"
-      description="查看产品支持能力和问题反馈边界。"
-      statusTitle="在线支持尚未接入"
-      statusDescription="当前没有工单、SLA 或升级流程接口，本页面仅保留旧 URL 兼容，不展示虚构的服务状态。"
+      title={t("compatibility.support.title")}
+      description={t("compatibility.support.description")}
+      statusTitle={t("compatibility.support.status")}
+      statusDescription={t("compatibility.support.statusDescription")}
       links={[
         {
-          label: "账号与登录设备",
-          description: "先检查当前账号和登录会话是否正常。",
+          label: t("compatibility.support.account"),
+          description: t("compatibility.support.accountDescription"),
           path: "/account",
         },
       ]}
       notes={[
-        "工单创建、状态跟踪和支持消息通知尚未开放。",
-        "应用内错误会继续通过页面错误态和通知反馈。",
+        t("compatibility.support.noteTickets"),
+        t("compatibility.support.noteErrors"),
       ]}
     />
-  )
+  );
 }
 
 export function FeedbackPage() {
+  const { t } = useTranslation();
   return (
     <ModuleStatusPage
-      title="提交反馈"
-      description="产品建议与问题反馈入口。"
-      statusTitle="反馈渠道尚未接入"
-      statusDescription="当前没有反馈提交与跟踪 API，本页面不会提供无法保存的输入框或虚假的提交成功状态。"
+      title={t("compatibility.feedback.title")}
+      description={t("compatibility.feedback.description")}
+      statusTitle={t("compatibility.feedback.status")}
+      statusDescription={t("compatibility.feedback.statusDescription")}
       notes={[
-        "反馈表单、附件上传和处理进度查询尚未开放。",
-        "该路由暂时仅用于兼容已有链接。",
+        t("compatibility.feedback.noteForm"),
+        t("compatibility.feedback.noteRoute"),
       ]}
     />
-  )
+  );
 }

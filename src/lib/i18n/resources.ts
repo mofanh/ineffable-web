@@ -574,6 +574,59 @@ export const resources = {
         noMatches: "没有匹配的模型",
         noMatchesDescription: "请尝试其他名称或模型 ID。",
       },
+      compatibility: {
+        projects: {
+          title: "项目",
+          description: "按目标组织任务、文件和协作上下文的项目视图。",
+          status: "项目实体尚未开放",
+          statusDescription:
+            "后端当前没有项目、里程碑、任务统计或 CRM 数据接口，因此这里不展示项目数量、风险和转化率等示例指标。",
+          automation: "自动任务",
+          automationDescription: "用真实任务记录组织可重复执行的工作流。",
+          models: "模型中心",
+          modelsDescription: "选择适合任务的真实可用模型。",
+          noteWorkspace:
+            "工作区目前承担文件和团队协作边界，不等同于独立项目实体。",
+          noteBackend:
+            "项目进度、风险、交付和业务指标需等待后端领域模型后再接入。",
+        },
+        docs: {
+          title: "产品文档",
+          description: "Ineffable 的工作区、自动任务与 AI 协作使用说明。",
+          status: "内置文档尚未开放",
+          statusDescription:
+            "当前版本尚未接入独立的文档内容服务，因此这里不展示阅读量、更新数或完成率等虚构数据。",
+          automation: "自动任务",
+          automationDescription: "创建并运行可重复执行的 AI 任务。",
+          models: "模型中心",
+          modelsDescription: "查看当前套餐真正可用的模型与能力限制。",
+          account: "账号与登录设备",
+          accountDescription: "查看账号资料和当前登录会话。",
+          noteFeatures: "文档搜索、阅读进度、收藏和版本时间线尚未接入。",
+          noteWorkspace:
+            "工作区文件仍可用于沉淀项目文档，并通过右侧 AI 助手继续处理。",
+        },
+        support: {
+          title: "帮助支持",
+          description: "查看产品支持能力和问题反馈边界。",
+          status: "在线支持尚未接入",
+          statusDescription:
+            "当前没有工单、SLA 或升级流程接口，本页面仅保留旧 URL 兼容，不展示虚构的服务状态。",
+          account: "账号与登录设备",
+          accountDescription: "先检查当前账号和登录会话是否正常。",
+          noteTickets: "工单创建、状态跟踪和支持消息通知尚未开放。",
+          noteErrors: "应用内错误会继续通过页面错误态和通知反馈。",
+        },
+        feedback: {
+          title: "提交反馈",
+          description: "产品建议与问题反馈入口。",
+          status: "反馈渠道尚未接入",
+          statusDescription:
+            "当前没有反馈提交与跟踪 API，本页面不会提供无法保存的输入框或虚假的提交成功状态。",
+          noteForm: "反馈表单、附件上传和处理进度查询尚未开放。",
+          noteRoute: "该路由暂时仅用于兼容已有链接。",
+        },
+      },
       system: {
         common: {
           eyebrow: "系统管理",
@@ -1842,6 +1895,72 @@ export const resources = {
           "Ask an administrator to review the plan's model visibility and availability settings.",
         noMatches: "No matching models",
         noMatchesDescription: "Try another name or model ID.",
+      },
+      compatibility: {
+        projects: {
+          title: "Projects",
+          description:
+            "A project view for organizing tasks, files, and collaboration context around goals.",
+          status: "Project entities are not available yet",
+          statusDescription:
+            "The backend does not currently expose projects, milestones, task statistics, or CRM data, so this page does not show placeholder metrics such as project counts, risk, or conversion.",
+          automation: "Automation",
+          automationDescription:
+            "Organize repeatable workflows with real task records.",
+          models: "Model center",
+          modelsDescription: "Choose a model genuinely available for the task.",
+          noteWorkspace:
+            "Workspaces currently define file and team collaboration boundaries; they are not standalone project entities.",
+          noteBackend:
+            "Project progress, risk, delivery, and business metrics require backend domain models before integration.",
+        },
+        docs: {
+          title: "Product documentation",
+          description:
+            "Guidance for Ineffable workspaces, automation, and AI collaboration.",
+          status: "Built-in documentation is not available yet",
+          statusDescription:
+            "This version has no dedicated documentation content service, so it does not display fabricated readership, update, or completion metrics.",
+          automation: "Automation",
+          automationDescription: "Create and run repeatable AI tasks.",
+          models: "Model center",
+          modelsDescription:
+            "Review models and capability limits genuinely available on the current plan.",
+          account: "Account and signed-in devices",
+          accountDescription:
+            "Review account details and current sign-in sessions.",
+          noteFeatures:
+            "Documentation search, reading progress, favorites, and version timelines are not connected yet.",
+          noteWorkspace:
+            "Workspace files can still hold project documentation and continue through the AI assistant on the right.",
+        },
+        support: {
+          title: "Help and support",
+          description:
+            "Review product support capabilities and feedback boundaries.",
+          status: "Online support is not connected yet",
+          statusDescription:
+            "There is currently no ticket, SLA, or escalation API. This page only preserves legacy URL compatibility and does not show a fabricated service status.",
+          account: "Account and signed-in devices",
+          accountDescription:
+            "Check the current account and sign-in sessions first.",
+          noteTickets:
+            "Ticket creation, status tracking, and support notifications are not available yet.",
+          noteErrors:
+            "In-app errors continue to appear through page error states and notifications.",
+        },
+        feedback: {
+          title: "Submit feedback",
+          description:
+            "An entry point for product suggestions and issue reports.",
+          status: "The feedback channel is not connected yet",
+          statusDescription:
+            "There is no feedback submission or tracking API, so this page does not provide inputs that cannot be saved or a fake success state.",
+          noteForm:
+            "Feedback forms, attachments, and progress tracking are not available yet.",
+          noteRoute:
+            "This route currently exists only for compatibility with existing links.",
+        },
       },
       system: {
         common: {
