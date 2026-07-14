@@ -1749,17 +1749,10 @@ export function GatewayChatSidebar({
 
         setConversationLastSeq(conversationId, response.next_seq ?? afterSeq ?? 0)
       } catch (catchupError) {
-        setError(
-          reportChatError(
-            catchupError,
-            i18n.t("chat.gateway.syncFailed"),
-            i18n.t("chat.gateway.syncFailedTitle"),
-            {
-            toast: false,
-              format: (message) =>
-                i18n.t("chat.gateway.syncFailedWithMessage", { message }),
-            }
-          )
+        reportChatError(
+          catchupError,
+          i18n.t("chat.gateway.syncFailed"),
+          i18n.t("chat.gateway.syncFailedTitle")
         )
       } finally {
         catchupInFlightRef.current = false

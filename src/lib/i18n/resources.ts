@@ -533,7 +533,6 @@ export const resources = {
           streamCatchup: "实时流已断开，正在补偿会话事件…",
           syncFailed: "同步会话更新失败。",
           syncFailedTitle: "同步会话失败",
-          syncFailedWithMessage: "同步会话更新失败：{{message}}",
           stopFailed: "停止当前会话运行失败。",
           stopFailedTitle: "停止会话失败",
           stopFailedWithMessage: "停止失败：{{message}}",
@@ -1866,8 +1865,6 @@ export const resources = {
             "Live stream disconnected. Catching up on conversation events…",
           syncFailed: "Unable to sync conversation updates.",
           syncFailedTitle: "Conversation sync failed",
-          syncFailedWithMessage:
-            "Unable to sync conversation updates: {{message}}",
           stopFailed: "Unable to stop the current conversation run.",
           stopFailedTitle: "Stop failed",
           stopFailedWithMessage: "Stop failed: {{message}}",
