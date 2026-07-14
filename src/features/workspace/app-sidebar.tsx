@@ -809,10 +809,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setWorkspaceTrees((current) =>
         workspaceIds ? { ...current, ...nextTrees } : nextTrees
       )
-      setTreeError(failed ? "文件列表加载失败，请稍后重试。" : null)
+      setTreeError(failed ? t("workspace.sidebarFeedback.treeFailed") : null)
       setIsTreeLoading(false)
     },
-    [accessToken, workspaces]
+    [accessToken, t, workspaces]
   )
 
   React.useEffect(() => {
@@ -941,7 +941,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const getSectionWorkspace = React.useCallback(
     (sectionWorkspaces: Workspace[]) => {
       if (!sectionWorkspaces.length) {
-        notify.warning({ title: "暂无可用工作区" })
+        notify.warning({ title: t("workspace.sidebarFeedback.noWorkspace") })
         return null
       }
 
@@ -950,7 +950,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
 
       const input = window.prompt(
-        `请输入工作区名称：\n${sectionWorkspaces.map((workspace) => workspace.name).join("\n")}`,
+        t("workspace.sidebarFeedback.chooseWorkspace", {
+          names: sectionWorkspaces.map((workspace) => workspace.name).join("\n"),
+        }),
         sectionWorkspaces[0].name
       )
       if (!input) {
@@ -965,7 +967,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ) ?? null
       )
     },
-    []
+    [t]
   )
 
   const createObject = React.useCallback(
@@ -982,7 +984,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      const name = window.prompt(kind === "file" ? "文件名称" : "文件夹名称")
+      const name = window.prompt(
+        kind === "file"
+          ? t("workspace.sidebarFeedback.fileName")
+          : t("workspace.sidebarFeedback.folderName")
+      )
       const normalizedName = name?.trim()
       if (!normalizedName) {
         return
@@ -1011,14 +1017,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           showLoading: false,
         })
         notify.success({
-          title: kind === "file" ? "文件已创建" : "文件夹已创建",
+          title:
+            kind === "file"
+              ? t("workspace.sidebarFeedback.fileCreated")
+              : t("workspace.sidebarFeedback.folderCreated"),
           description: response.object.name,
         })
       } catch (error) {
-        reportActionError(error, "创建失败，请稍后重试。", "创建失败")
+        reportActionError(
+          error,
+          t("workspace.sidebarFeedback.createFailed"),
+          t("workspace.sidebarFeedback.createFailedTitle")
+        )
       }
     },
-    [accessToken, navigate, refreshWorkspaceTrees, reportActionError]
+    [accessToken, navigate, refreshWorkspaceTrees, reportActionError, t]
   )
 
   const duplicateObject = React.useCallback(
@@ -1131,7 +1144,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
         if (action === "copy-link") {
           await navigator.clipboard?.writeText(url)
-          notify.info({ title: "链接已复制" })
+          notify.info({ title: t("workspace.sidebarFeedback.linkCopied") })
           return
         }
 
@@ -1148,7 +1161,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               JSON.stringify({ workspace, objects }, null, 2),
               "application/json"
             )
-            notify.info({ title: "工作区已导出" })
+            notify.info({ title: t("workspace.sidebarFeedback.workspaceExported") })
             return
           }
 
@@ -1163,7 +1176,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               response.content,
               item.object.mime_type || "text/plain"
             )
-            notify.info({ title: "文件已导出" })
+            notify.info({ title: t("workspace.sidebarFeedback.fileExported") })
             return
           }
 
@@ -1176,7 +1189,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             JSON.stringify({ folder: item.object, objects }, null, 2),
             "application/json"
           )
-          notify.info({ title: "文件夹已导出" })
+          notify.info({ title: t("workspace.sidebarFeedback.folderExported") })
           return
         }
 
@@ -1190,12 +1203,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
-          notify.success({ title: "副本已创建" })
+          notify.success({ title: t("workspace.sidebarFeedback.copyCreated") })
           return
         }
 
         if (action === "rename") {
-          const name = window.prompt("输入新名称", item.object.name)
+          const name = window.prompt(
+            t("workspace.sidebarFeedback.renamePrompt"),
+            item.object.name
+          )
           const normalizedName = name?.trim()
           if (!normalizedName || normalizedName === item.object.name) {
             return
@@ -1213,7 +1229,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             showLoading: false,
           })
           notify.success({
-            title: "名称已更新",
+            title: t("workspace.sidebarFeedback.renamed"),
             description: response.object.name,
           })
           return
@@ -1221,7 +1237,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         if (action === "move") {
           const targetPath = window.prompt(
-            "输入目标文件夹路径，留空将移动到工作区根目录。",
+            t("workspace.sidebarFeedback.movePrompt"),
             ""
           )
           if (targetPath === null) {
@@ -1238,8 +1254,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : null
           if (normalizedPath && !targetFolder) {
             notify.error({
-              title: "移动失败",
-              description: "未找到目标文件夹。",
+              title: t("workspace.sidebarFeedback.moveFailed"),
+              description: t("workspace.sidebarFeedback.folderNotFound"),
             })
             return
           }
@@ -1256,7 +1272,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             showLoading: false,
           })
           notify.success({
-            title: "对象已移动",
+            title: t("workspace.sidebarFeedback.moved"),
             description: response.object.path,
           })
           return
@@ -1264,9 +1280,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         if (action === "delete") {
           const confirmed = await confirm({
-            title: `删除「${item.object.name}」？`,
-            description: "该对象将从工作区中移除，此操作无法撤销。",
-            confirmLabel: "删除",
+            title: t("workspace.sidebarFeedback.deleteTitle", {
+              name: item.object.name,
+            }),
+            description: t("workspace.sidebarFeedback.deleteDescription"),
+            confirmLabel: t("workspace.feedback.delete"),
             variant: "destructive",
           })
           if (!confirmed) {
@@ -1279,10 +1297,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             workspaceIds: [item.workspaceId],
             showLoading: false,
           })
-          notify.success({ title: "对象已删除" })
+          notify.success({ title: t("workspace.sidebarFeedback.deleted") })
         }
       } catch (error) {
-        reportActionError(error, "操作失败，请稍后重试。", "操作失败")
+        reportActionError(
+          error,
+          t("workspace.sidebarFeedback.actionFailed"),
+          t("workspace.sidebarFeedback.actionFailedTitle")
+        )
       }
     },
     [
@@ -1291,6 +1313,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       duplicateObject,
       refreshWorkspaceTrees,
       reportActionError,
+      t,
       workspaceTrees,
       workspaces,
     ]
@@ -1308,19 +1331,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       if (action === "copy-link") {
         if (!selectedTeam) {
-          notify.warning({ title: "暂无可用团队空间" })
+          notify.warning({ title: t("workspace.sidebarFeedback.noTeamSpace") })
           return
         }
         void navigator.clipboard?.writeText(
           `${window.location.origin}?workspace=${selectedTeam.id}`
         )
-        notify.info({ title: "团队空间链接已复制" })
+        notify.info({ title: t("workspace.sidebarFeedback.teamLinkCopied") })
         return
       }
 
       if (action === "open-new-tab") {
         if (!selectedTeam) {
-          notify.warning({ title: "暂无可用团队空间" })
+          notify.warning({ title: t("workspace.sidebarFeedback.noTeamSpace") })
           return
         }
         window.open(
@@ -1345,9 +1368,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      notify.info({ title: "该团队空间操作暂未开放" })
+      notify.info({ title: t("workspace.sidebarFeedback.unavailable") })
     },
-    [currentWorkspace, navigate, teamWorkspaces]
+    [currentWorkspace, navigate, t, teamWorkspaces]
   )
 
   const handleTeamWorkspaceAction = React.useCallback(

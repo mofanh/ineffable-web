@@ -17,6 +17,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
+import { useTranslation } from "react-i18next"
 
 import { useAppHeader } from "@/app/shell/app-header-context"
 import { AppDialog } from "@/components/app"
@@ -56,6 +57,7 @@ import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
 import { defaultPath } from "@/routes/navigation"
+import { i18n, normalizeLanguage } from "@/lib/i18n/i18n"
 
 const markdownIt = new MarkdownIt({
   breaks: true,
@@ -91,34 +93,38 @@ function getFileKind(object: WorkspaceObject | null) {
 
 function formatRelativeEditedAt(value: string | undefined, now: number) {
   if (!value) {
-    return "刚刚更新"
+    return i18n.t("workspace.relativeTime.justNow")
   }
 
   const timestamp = new Date(value).getTime()
   if (Number.isNaN(timestamp)) {
-    return "刚刚更新"
+    return i18n.t("workspace.relativeTime.justNow")
   }
 
   const diffSeconds = Math.max(0, Math.floor((now - timestamp) / 1000))
   if (diffSeconds < 60) {
-    return "刚刚更新"
+    return i18n.t("workspace.relativeTime.justNow")
   }
 
   const diffMinutes = Math.floor(diffSeconds / 60)
   if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前更新`
+    return i18n.t("workspace.relativeTime.minutesAgo", { count: diffMinutes })
   }
 
   const diffHours = Math.floor(diffMinutes / 60)
   if (diffHours < 24) {
-    return `${diffHours} 小时前更新`
+    return i18n.t("workspace.relativeTime.hoursAgo", { count: diffHours })
   }
 
   if (diffHours < 48) {
-    return "昨天更新"
+    return i18n.t("workspace.relativeTime.yesterday")
   }
 
-  return `${new Date(timestamp).toLocaleDateString("zh-CN")} 更新`
+  return i18n.t("workspace.relativeTime.date", {
+    date: new Date(timestamp).toLocaleDateString(
+      normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+    ),
+  })
 }
 
 function getActorInitial(actorId: string | undefined, fallback = "U") {
@@ -132,10 +138,12 @@ function getActorInitial(actorId: string | undefined, fallback = "U") {
 
 function getWorkspaceLabel(workspace: ReturnType<typeof useAppSession>["workspaces"][number] | undefined) {
   if (!workspace) {
-    return "工作区"
+    return i18n.t("workspace.labels.workspace")
   }
 
-  return getWorkspaceType(workspace) === "personal" ? "个人空间" : workspace.name
+  return getWorkspaceType(workspace) === "personal"
+    ? i18n.t("workspace.labels.personalSpace")
+    : workspace.name
 }
 
 function FilePreview({
@@ -147,6 +155,7 @@ function FilePreview({
   content: string
   compact: boolean
 }) {
+  const { t } = useTranslation()
   const fileKind = getFileKind(object)
   const renderedMarkdown = React.useMemo(() => markdownIt.render(content), [content])
 
@@ -166,7 +175,7 @@ function FilePreview({
     return (
       <div className="h-full min-h-[560px] p-4">
         <iframe
-          title={object?.name ?? "HTML 预览"}
+          title={object?.name ?? t("workspace.preview.htmlTitle")}
           srcDoc={content}
           sandbox=""
           className="h-full min-h-[560px] w-full rounded-lg border bg-white"
@@ -189,7 +198,7 @@ function FilePreview({
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10">
       <pre className="min-h-[420px] overflow-auto rounded-lg border bg-muted/30 p-5 font-mono text-sm leading-6 text-foreground">
-        {displayContent || "这个文件还是空的。点击右上角编辑按钮开始写入内容。"}
+        {displayContent || t("workspace.preview.emptyFile")}
       </pre>
     </div>
   )
@@ -218,14 +227,16 @@ function HistoryModal({
   onPreview: (targetVersion: WorkspaceObjectVersion) => void
   onRestore: (targetVersion: WorkspaceObjectVersion) => void
 }) {
+  const { t, i18n: translation } = useTranslation()
+
   return (
     <AppDialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose()
       }}
-      title={object?.path || object?.name || "版本历史"}
-      description="查看每次保存的内容，并可将历史版本恢复为最新版本。"
+      title={object?.path || object?.name || t("workspace.history.title")}
+      description={t("workspace.history.description")}
       maxWidth="6xl"
     >
       <div className="grid h-[min(720px,calc(85vh-6rem))] min-h-0 grid-cols-1 overflow-hidden rounded-xl border md:grid-cols-[300px_minmax(0,1fr)]">
@@ -248,10 +259,14 @@ function HistoryModal({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">v{item.version_no}</span>
-                      {isCurrent ? <Badge variant="outline">当前版本</Badge> : null}
+                      {isCurrent ? (
+                        <Badge variant="outline">{t("workspace.history.current")}</Badge>
+                      ) : null}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {new Date(item.created_at).toLocaleString("zh-CN")}
+                      {new Date(item.created_at).toLocaleString(
+                        normalizeLanguage(translation.resolvedLanguage || translation.language),
+                      )}
                     </div>
                     <div className="mt-1 truncate text-xs text-muted-foreground">
                       {item.created_by_actor_type}:{item.created_by_actor_id}
@@ -261,24 +276,30 @@ function HistoryModal({
               })}
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">暂无保存记录</div>
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              {t("workspace.history.empty")}
+            </div>
           )}
         </div>
 
         <div className="flex min-h-0 flex-col">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
             <div className="text-sm font-medium">
-              {previewVersion ? `正在预览 v${previewVersion.version_no}` : "选择左侧版本查看内容"}
+              {previewVersion
+                ? t("workspace.history.previewing", {
+                    version: previewVersion.version_no,
+                  })
+                : t("workspace.history.select")}
             </div>
             {previewVersion && previewVersion.id !== version?.id ? (
               <Button type="button" variant="outline" size="sm" onClick={() => onRestore(previewVersion)}>
                 <RotateCcwIcon />
-                恢复此版本
+                {t("workspace.history.restore")}
               </Button>
             ) : null}
           </div>
           <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-4 text-sm leading-6 text-muted-foreground">
-            {isPreviewLoading ? "正在加载版本内容…" : (previewContent ?? "")}
+            {isPreviewLoading ? t("workspace.history.loading") : (previewContent ?? "")}
           </pre>
         </div>
       </div>
@@ -287,6 +308,7 @@ function HistoryModal({
 }
 
 export function WorkspaceObjectEditorPage() {
+  const { t } = useTranslation()
   const { workspaceId, objectId } = useParams()
   const navigate = useNavigate()
   const { setHeaderContent } = useAppHeader()
@@ -314,16 +336,18 @@ export function WorkspaceObjectEditorPage() {
   const workspace = workspaces.find((candidate) => candidate.id === workspaceId)
   const isDirty = content !== savedContent
   const breadcrumbParts = React.useMemo(() => {
-    const pathParts = (object?.path || object?.name || "文件").split("/").filter(Boolean)
+    const pathParts = (object?.path || object?.name || t("workspace.labels.file"))
+      .split("/")
+      .filter(Boolean)
 
     return [getWorkspaceLabel(workspace), ...pathParts]
-  }, [object?.name, object?.path, workspace])
+  }, [object?.name, object?.path, t, workspace])
   const statusLabel = isSaving
-    ? "正在保存…"
+    ? t("workspace.saveState.saving")
     : isDirty
-      ? "有未保存修改"
+      ? t("workspace.saveState.unsaved")
       : saveState === "saved"
-        ? "刚刚已保存"
+        ? t("workspace.saveState.saved")
         : formatRelativeEditedAt(object?.updated_at, now)
 
   const reportActionError = React.useCallback((caught: unknown, fallbackMessage: string, title: string) => {
@@ -376,11 +400,15 @@ export function WorkspaceObjectEditorPage() {
       setPreviewContent(null)
       await loadVersions()
     } catch (loadError) {
-      reportActionError(loadError, "文件加载失败，请稍后重试。", "文件加载失败")
+      reportActionError(
+        loadError,
+        t("workspace.feedback.loadFailed"),
+        t("workspace.feedback.loadFailedTitle"),
+      )
     } finally {
       setIsLoading(false)
     }
-  }, [accessToken, loadVersions, loadWorkspaceTree, objectId, reportActionError, workspaceId])
+  }, [accessToken, loadVersions, loadWorkspaceTree, objectId, reportActionError, t, workspaceId])
 
   React.useEffect(() => {
     void loadContent()
@@ -423,7 +451,7 @@ export function WorkspaceObjectEditorPage() {
 
       if (isDirty) {
         setSaveState("conflict")
-        setError("检测到更新版本。请重新加载后再保存，或将当前内容另存为新文件。")
+        setError(t("workspace.feedback.conflict"))
         return
       }
 
@@ -434,7 +462,7 @@ export function WorkspaceObjectEditorPage() {
     return () => {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, handleWorkspaceObjectsChanged)
     }
-  }, [isDirty, loadContent, loadWorkspaceTree, object?.path, objectId, version?.id, workspaceId])
+  }, [isDirty, loadContent, loadWorkspaceTree, object?.path, objectId, t, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty) {
@@ -467,14 +495,18 @@ export function WorkspaceObjectEditorPage() {
         source: "user",
       })
     } catch (saveError) {
-      const message = reportActionError(saveError, "保存失败，请稍后重试。", "保存失败")
+      const message = reportActionError(
+        saveError,
+        t("workspace.feedback.saveFailed"),
+        t("workspace.feedback.saveFailedTitle"),
+      )
       if (message.toLowerCase().includes("conflict")) {
         setSaveState("conflict")
       }
     } finally {
       setIsSaving(false)
     }
-  }, [accessToken, content, isDirty, loadVersions, object, objectId, reportActionError, version, workspaceId])
+  }, [accessToken, content, isDirty, loadVersions, object, objectId, reportActionError, t, version, workspaceId])
 
   const previewHistoricalVersion = React.useCallback(
     async (targetVersion: WorkspaceObjectVersion) => {
@@ -489,12 +521,16 @@ export function WorkspaceObjectEditorPage() {
         setPreviewVersion(targetVersion)
         setPreviewContent(response.content)
       } catch (previewError) {
-        reportActionError(previewError, "版本内容加载失败，请稍后重试。", "版本预览失败")
+        reportActionError(
+          previewError,
+          t("workspace.feedback.previewFailed"),
+          t("workspace.feedback.previewFailedTitle"),
+        )
       } finally {
         setIsPreviewLoading(false)
       }
     },
-    [accessToken, reportActionError, workspaceId]
+    [accessToken, reportActionError, t, workspaceId]
   )
 
   const restoreHistoricalVersion = React.useCallback(
@@ -504,9 +540,11 @@ export function WorkspaceObjectEditorPage() {
       }
 
       const confirmed = await confirm({
-        title: `恢复到 v${targetVersion.version_no}？`,
-        description: "当前文件内容将被该版本替换，并生成一条新的版本记录。",
-        confirmLabel: "恢复版本",
+        title: t("workspace.feedback.restoreTitle", {
+          version: targetVersion.version_no,
+        }),
+        description: t("workspace.feedback.restoreDescription"),
+        confirmLabel: t("workspace.feedback.restoreConfirm"),
       })
       if (!confirmed) {
         return
@@ -539,11 +577,17 @@ export function WorkspaceObjectEditorPage() {
           source: "user",
         })
         notify.success({
-          title: "版本已恢复",
-          description: `已将 v${targetVersion.version_no} 恢复为最新内容。`,
+          title: t("workspace.feedback.restored"),
+          description: t("workspace.feedback.restoredDescription", {
+            version: targetVersion.version_no,
+          }),
         })
       } catch (restoreError) {
-        const message = reportActionError(restoreError, "版本恢复失败，请稍后重试。", "版本恢复失败")
+        const message = reportActionError(
+          restoreError,
+          t("workspace.feedback.restoreFailed"),
+          t("workspace.feedback.restoreFailedTitle"),
+        )
         if (message.toLowerCase().includes("conflict")) {
           setSaveState("conflict")
         }
@@ -551,7 +595,7 @@ export function WorkspaceObjectEditorPage() {
         setIsSaving(false)
       }
     },
-    [accessToken, loadVersions, objectId, reportActionError, version, workspaceId]
+    [accessToken, loadVersions, objectId, reportActionError, t, version, workspaceId]
   )
 
   const saveAsFile = React.useCallback(async () => {
@@ -560,9 +604,12 @@ export function WorkspaceObjectEditorPage() {
     }
 
     const defaultName = object.name.includes(".")
-      ? object.name.replace(/(\.[^.]+)$/, " 副本$1")
-      : `${object.name} 副本`
-    const name = window.prompt("另存为", defaultName)
+      ? object.name.replace(
+          /(\.[^.]+)$/,
+          ` ${t("workspace.feedback.copySuffix")}$1`,
+        )
+      : `${object.name} ${t("workspace.feedback.copySuffix")}`
+    const name = window.prompt(t("workspace.feedback.saveAsPrompt"), defaultName)
     const normalizedName = name?.trim()
     if (!normalizedName) {
       return
@@ -587,16 +634,20 @@ export function WorkspaceObjectEditorPage() {
         source: "user",
       })
       notify.success({
-        title: "文件已创建",
+        title: t("workspace.feedback.fileCreated"),
         description: response.object.name,
       })
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (saveAsError) {
-      reportActionError(saveAsError, "另存文件失败，请稍后重试。", "另存失败")
+      reportActionError(
+        saveAsError,
+        t("workspace.feedback.saveAsFailed"),
+        t("workspace.feedback.saveAsFailedTitle"),
+      )
     } finally {
       setIsSaving(false)
     }
-  }, [accessToken, content, navigate, object, reportActionError, workspaceId])
+  }, [accessToken, content, navigate, object, reportActionError, t, workspaceId])
 
   const duplicateObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -621,21 +672,25 @@ export function WorkspaceObjectEditorPage() {
         source: "user",
       })
       notify.success({
-        title: "文件副本已创建",
+        title: t("workspace.feedback.copyCreated"),
         description: response.object.name,
       })
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (duplicateError) {
-      reportActionError(duplicateError, "创建副本失败，请稍后重试。", "创建副本失败")
+      reportActionError(
+        duplicateError,
+        t("workspace.feedback.copyFailed"),
+        t("workspace.feedback.copyFailedTitle"),
+      )
     }
-  }, [accessToken, navigate, object, reportActionError, savedContent, workspaceId, workspaceObjects])
+  }, [accessToken, navigate, object, reportActionError, savedContent, t, workspaceId, workspaceObjects])
 
   const renameObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
       return
     }
 
-    const name = window.prompt("输入新名称", object.name)
+    const name = window.prompt(t("workspace.feedback.renamePrompt"), object.name)
     const normalizedName = name?.trim()
     if (!normalizedName || normalizedName === object.name) {
       return
@@ -654,20 +709,24 @@ export function WorkspaceObjectEditorPage() {
         source: "user",
       })
       notify.success({
-        title: "文件已重命名",
+        title: t("workspace.feedback.renamed"),
         description: response.object.name,
       })
     } catch (renameError) {
-      reportActionError(renameError, "重命名失败，请稍后重试。", "重命名失败")
+      reportActionError(
+        renameError,
+        t("workspace.feedback.renameFailed"),
+        t("workspace.feedback.renameFailedTitle"),
+      )
     }
-  }, [accessToken, loadWorkspaceTree, object, reportActionError, workspaceId])
+  }, [accessToken, loadWorkspaceTree, object, reportActionError, t, workspaceId])
 
   const moveObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
       return
     }
 
-    const targetPath = window.prompt("输入目标文件夹路径，留空将移动到工作区根目录。", "")
+    const targetPath = window.prompt(t("workspace.feedback.movePrompt"), "")
     if (targetPath === null) {
       return
     }
@@ -679,8 +738,11 @@ export function WorkspaceObjectEditorPage() {
         )
       : null
     if (normalizedPath && !targetFolder) {
-      setError("未找到目标文件夹。")
-      notify.error({ title: "移动失败", description: "未找到目标文件夹。" })
+      setError(t("workspace.feedback.folderNotFound"))
+      notify.error({
+        title: t("workspace.feedback.moveFailedTitle"),
+        description: t("workspace.feedback.folderNotFound"),
+      })
       return
     }
 
@@ -699,13 +761,17 @@ export function WorkspaceObjectEditorPage() {
         source: "user",
       })
       notify.success({
-        title: "文件已移动",
+        title: t("workspace.feedback.moved"),
         description: response.object.path,
       })
     } catch (moveError) {
-      reportActionError(moveError, "移动失败，请稍后重试。", "移动失败")
+      reportActionError(
+        moveError,
+        t("workspace.feedback.moveFailed"),
+        t("workspace.feedback.moveFailedTitle"),
+      )
     }
-  }, [accessToken, loadWorkspaceTree, object, reportActionError, workspaceId, workspaceObjects])
+  }, [accessToken, loadWorkspaceTree, object, reportActionError, t, workspaceId, workspaceObjects])
 
   const deleteObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -713,9 +779,9 @@ export function WorkspaceObjectEditorPage() {
     }
 
     const confirmed = await confirm({
-      title: `删除「${object.name}」？`,
-      description: "该文件将从工作区中移除，此操作无法撤销。",
-      confirmLabel: "删除",
+      title: t("workspace.feedback.deleteTitle", { name: object.name }),
+      description: t("workspace.feedback.deleteDescription"),
+      confirmLabel: t("workspace.feedback.delete"),
       variant: "destructive",
     })
     if (!confirmed) {
@@ -734,9 +800,13 @@ export function WorkspaceObjectEditorPage() {
       })
       navigate(defaultPath)
     } catch (deleteError) {
-      reportActionError(deleteError, "删除失败，请稍后重试。", "删除失败")
+      reportActionError(
+        deleteError,
+        t("workspace.feedback.deleteFailed"),
+        t("workspace.feedback.deleteFailedTitle"),
+      )
     }
-  }, [accessToken, navigate, object, reportActionError, workspaceId])
+  }, [accessToken, navigate, object, reportActionError, t, workspaceId])
 
   const copyLink = React.useCallback(async () => {
     if (!workspaceId || !object) {
@@ -745,8 +815,8 @@ export function WorkspaceObjectEditorPage() {
 
     const url = `${window.location.origin}/workspace/${workspaceId}/objects/${object.id}`
     await navigator.clipboard?.writeText(url)
-    notify.info({ title: "链接已复制" })
-  }, [object, workspaceId])
+    notify.info({ title: t("workspace.feedback.linkCopied") })
+  }, [object, t, workspaceId])
 
   const openNewTab = React.useCallback(() => {
     if (!workspaceId || !object) {
@@ -796,7 +866,12 @@ export function WorkspaceObjectEditorPage() {
             {statusLabel}
           </span>
           <div
-            title={`最近编辑者：${object?.updated_by_actor_id || currentUser?.display_name || "未知用户"}`}
+            title={t("workspace.labels.recentEditor", {
+              name:
+                object?.updated_by_actor_id ||
+                currentUser?.display_name ||
+                t("workspace.labels.unknownUser"),
+            })}
             className="hidden size-8 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white lg:flex"
           >
             {getActorInitial(object?.updated_by_actor_id, currentUser?.display_name?.[0] ?? "U")}
@@ -806,8 +881,16 @@ export function WorkspaceObjectEditorPage() {
             variant={isEditing ? "secondary" : "ghost"}
             size="icon-sm"
             onClick={() => setIsEditing((editing) => !editing)}
-            aria-label={isEditing ? "预览文件" : "编辑文件"}
-            title={isEditing ? "预览文件" : "编辑文件"}
+            aria-label={
+              isEditing
+                ? t("workspace.actions.preview")
+                : t("workspace.actions.edit")
+            }
+            title={
+              isEditing
+                ? t("workspace.actions.preview")
+                : t("workspace.actions.edit")
+            }
           >
             <PencilIcon />
           </Button>
@@ -823,8 +906,12 @@ export function WorkspaceObjectEditorPage() {
                 }}
                 disabled={isSaving}
               >
-                <span className="hidden xl:inline">放弃修改</span>
-                <span className="sr-only xl:hidden">放弃修改</span>
+                <span className="hidden xl:inline">
+                  {t("workspace.actions.discard")}
+                </span>
+                <span className="sr-only xl:hidden">
+                  {t("workspace.actions.discard")}
+                </span>
               </Button>
               <Button
                 type="button"
@@ -833,8 +920,16 @@ export function WorkspaceObjectEditorPage() {
                 disabled={isLoading || isSaving || !version}
               >
                 <SaveIcon />
-                <span className="hidden xl:inline">{isSaving ? "保存中" : "保存"}</span>
-                <span className="sr-only xl:hidden">{isSaving ? "保存中" : "保存"}</span>
+                <span className="hidden xl:inline">
+                  {isSaving
+                    ? t("workspace.actions.saving")
+                    : t("workspace.actions.save")}
+                </span>
+                <span className="sr-only xl:hidden">
+                  {isSaving
+                    ? t("workspace.actions.saving")
+                    : t("workspace.actions.save")}
+                </span>
               </Button>
             </>
           ) : null}
@@ -844,7 +939,7 @@ export function WorkspaceObjectEditorPage() {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="文件操作"
+                aria-label={t("workspace.actions.menu")}
                 className="rounded-full bg-muted/70"
               >
                 <MoreHorizontalIcon />
@@ -853,43 +948,43 @@ export function WorkspaceObjectEditorPage() {
             <DropdownMenuContent align="end" className="w-64 rounded-lg p-1">
               <DropdownMenuItem className="gap-2 rounded-md" onClick={() => setIsHistoryOpen(true)}>
                 <HistoryIcon />
-                <span>版本历史</span>
+                <span>{t("workspace.actions.history")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 rounded-md" onClick={copyLink}>
                 <CopyIcon />
-                <span>复制链接</span>
+                <span>{t("workspace.actions.copyLink")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 rounded-md" onClick={openNewTab}>
                 <ExternalLinkIcon />
-                <span>在新标签页打开</span>
+                <span>{t("workspace.actions.openNewTab")}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 rounded-md" onSelect={(event) => event.preventDefault()}>
                 <Maximize2Icon />
-                <span>全宽预览</span>
+                <span>{t("workspace.actions.fullWidth")}</span>
                 <Switch checked={isFullWidth} onCheckedChange={setIsFullWidth} className="ml-auto" />
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 rounded-md" onSelect={(event) => event.preventDefault()}>
                 <FilePenIcon />
-                <span>紧凑排版</span>
+                <span>{t("workspace.actions.compact")}</span>
                 <Switch checked={isCompact} onCheckedChange={setIsCompact} className="ml-auto" />
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 rounded-md" onClick={duplicateObject}>
                 <CopyPlusIcon />
-                <span>创建副本</span>
+                <span>{t("workspace.actions.duplicate")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 rounded-md" onClick={moveObject}>
                 <FolderInputIcon />
-                <span>移动到…</span>
+                <span>{t("workspace.actions.move")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 rounded-md" onClick={renameObject}>
                 <FilePenIcon />
-                <span>重命名</span>
+                <span>{t("workspace.actions.rename")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="gap-2 rounded-md" onClick={exportObject}>
                 <DownloadIcon />
-                <span>导出文件</span>
+                <span>{t("workspace.actions.export")}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -897,7 +992,7 @@ export function WorkspaceObjectEditorPage() {
                 onClick={deleteObject}
               >
                 <Trash2Icon />
-                <span>删除文件</span>
+                <span>{t("workspace.actions.delete")}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -931,6 +1026,7 @@ export function WorkspaceObjectEditorPage() {
     savedContent,
     setHeaderContent,
     statusLabel,
+    t,
     version,
     workspaceId,
   ])
@@ -938,7 +1034,7 @@ export function WorkspaceObjectEditorPage() {
   if (!workspaceId || !objectId) {
     return (
       <div className="flex min-h-[calc(100svh-5rem)] items-center justify-center text-sm text-muted-foreground">
-        请从左侧工作区选择一个文件。
+        {t("workspace.preview.selectFile")}
       </div>
     )
   }
@@ -956,17 +1052,17 @@ export function WorkspaceObjectEditorPage() {
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
-              {saveState === "conflict" ? "检测到更新版本。请重新加载后再保存，或将当前内容另存为新文件。" : error}
+              {saveState === "conflict" ? t("workspace.feedback.conflict") : error}
             </span>
             {saveState === "conflict" ? (
               <span className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => void loadContent()}>
                   <RefreshCwIcon />
-                  重新加载
+                  {t("workspace.actions.reload")}
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => void saveAsFile()}>
                   <CopyPlusIcon />
-                  另存为
+                  {t("workspace.actions.saveAs")}
                 </Button>
               </span>
             ) : null}
@@ -977,7 +1073,7 @@ export function WorkspaceObjectEditorPage() {
       <div className="min-h-0 flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex h-full min-h-[520px] items-center justify-center text-sm text-muted-foreground">
-            正在加载文件…
+            {t("workspace.preview.loadingFile")}
           </div>
         ) : isEditing ? (
           <React.Suspense
@@ -986,7 +1082,7 @@ export function WorkspaceObjectEditorPage() {
                 role="status"
                 className="flex h-full min-h-[560px] items-center justify-center text-sm text-muted-foreground"
               >
-                正在加载编辑器…
+                {t("workspace.preview.loadingEditor")}
               </div>
             }
           >

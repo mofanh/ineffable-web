@@ -38,7 +38,7 @@
 ## Phase 3：核心工作流
 
 - [x] 迁移 Automation 页面。
-- [ ] 迁移 Workspace 文件编辑、版本和对象操作。
+- [x] 迁移 Workspace 文件编辑、版本和对象操作。
 - [ ] 迁移 Gateway Chat、Sandbox、审批和运行事件。
 
 Automation 验证记录（2026-07-14）：
@@ -47,6 +47,13 @@ Automation 验证记录（2026-07-14）：
 - `npm run build`：通过。
 - 普通账号真实登录回归：英文标题、指标、任务列表、空态与操作入口展示正常，无缺失翻译 key。
 - Automation 日期与时间文案跟随当前语言；桌面与 390px 均无横向溢出。
+
+Workspace 验证记录（2026-07-14）：
+
+- `npm run lint`：0 errors / 0 warnings。
+- `npm run build`：通过。
+- 管理员真实文件回归：英文面包屑、相对更新时间、文件预览、对象操作菜单和版本历史展示正常。
+- 未执行写入、恢复或删除操作；桌面与 390px 均无横向溢出，无缺失翻译 key。
 
 ## Phase 4：账号、团队与系统管理
 
