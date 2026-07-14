@@ -1,4 +1,5 @@
-import * as React from "react"
+import * as React from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronDownIcon,
   Edit3Icon,
@@ -7,10 +8,10 @@ import {
   PackageIcon,
   SaveIcon,
   UsersIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   AppDialog,
   AppDisclosureSection,
@@ -28,8 +29,8 @@ import {
   EmptyState,
   FormField,
   StatusBadge,
-} from "@/components/app"
-import { useAuthSession } from "@/features/auth/app-session"
+} from "@/components/app";
+import { useAuthSession } from "@/features/auth/app-session";
 import {
   assignAdminUserPlan,
   listAdminPlans,
@@ -43,236 +44,243 @@ import {
   type AdminUserMonthlyUsage,
   type AdminUserPlanAssignment,
   type AdminWorkspaceUsage,
-} from "@/lib/api/api-client"
-import { normalizeAppError } from "@/lib/app/api-errors"
-import { notify } from "@/lib/app/notifications"
+} from "@/lib/api/api-client";
+import { normalizeAppError } from "@/lib/app/api-errors";
+import { notify } from "@/lib/app/notifications";
+import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 import {
   AdminAccessDenied,
   SystemPageShell,
   systemStatusLabel,
   type LoadState,
-} from "./shared"
+} from "./shared";
 
 type UserDetails = {
-  assignments: AdminUserPlanAssignment[]
-  usage: AdminUserMonthlyUsage[]
-}
+  assignments: AdminUserPlanAssignment[];
+  usage: AdminUserMonthlyUsage[];
+};
 
 export function SystemUserManagementPage() {
-  const { accessToken, currentUser } = useAuthSession()
-  const [users, setUsers] = React.useState<AdminUser[]>([])
-  const [plans, setPlans] = React.useState<AdminPlan[]>([])
-  const [workspaceUsage, setWorkspaceUsage] = React.useState<AdminWorkspaceUsage[]>([])
+  const { t } = useTranslation();
+  const { accessToken, currentUser } = useAuthSession();
+  const [users, setUsers] = React.useState<AdminUser[]>([]);
+  const [plans, setPlans] = React.useState<AdminPlan[]>([]);
+  const [workspaceUsage, setWorkspaceUsage] = React.useState<
+    AdminWorkspaceUsage[]
+  >([]);
   const [userDetailsByUserId, setUserDetailsByUserId] = React.useState<
     Record<string, UserDetails>
-  >({})
-  const [query, setQuery] = React.useState("")
+  >({});
+  const [query, setQuery] = React.useState("");
   const [expandedUserIds, setExpandedUserIds] = React.useState<Set<string>>(
-    () => new Set()
-  )
-  const [editingUser, setEditingUser] = React.useState<AdminUser | null>(null)
-  const [editingRole, setEditingRole] = React.useState<"user" | "admin">("user")
-  const [editingUserPlanId, setEditingUserPlanId] = React.useState("")
-  const [dialogOpen, setDialogOpen] = React.useState(false)
-  const editingUserIdRef = React.useRef("")
-  const [state, setState] = React.useState<LoadState>("idle")
-  const [message, setMessage] = React.useState("")
-  const [error, setError] = React.useState("")
-  const isAdmin = currentUser?.role === "admin"
+    () => new Set(),
+  );
+  const [editingUser, setEditingUser] = React.useState<AdminUser | null>(null);
+  const [editingRole, setEditingRole] = React.useState<"user" | "admin">(
+    "user",
+  );
+  const [editingUserPlanId, setEditingUserPlanId] = React.useState("");
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const editingUserIdRef = React.useRef("");
+  const [state, setState] = React.useState<LoadState>("idle");
+  const [message, setMessage] = React.useState("");
+  const [error, setError] = React.useState("");
+  const isAdmin = currentUser?.role === "admin";
 
   const loadUsers = React.useCallback(async () => {
-    if (!accessToken || !isAdmin) return
-    setState("loading")
-    setError("")
+    if (!accessToken || !isAdmin) return;
+    setState("loading");
+    setError("");
     try {
       const [userResult, planResult, workspaceUsageResult] = await Promise.all([
         listAdminUsers(accessToken),
         listAdminPlans(accessToken),
         listAdminWorkspaceUsage(accessToken),
-      ])
-      setUsers(userResult.users)
-      setPlans(planResult.plans)
-      setWorkspaceUsage(workspaceUsageResult.usage)
+      ]);
+      setUsers(userResult.users);
+      setPlans(planResult.plans);
+      setWorkspaceUsage(workspaceUsageResult.usage);
       setEditingUserPlanId((current) =>
         planResult.plans.some((plan) => plan.id === current)
           ? current
           : (planResult.plans[0]?.id ?? ""),
-      )
+      );
     } catch (loadError) {
       const appError = normalizeAppError(loadError, {
-        fallbackMessage: "加载失败",
-      })
-      setError(appError.message)
+        fallbackMessage: t("system.users.loadFailed"),
+      });
+      setError(appError.message);
       notify.error({
-        title: "加载用户失败",
+        title: t("system.users.loadFailedTitle"),
         description: appError.message,
-      })
+      });
     } finally {
-      setState("idle")
+      setState("idle");
     }
-  }, [accessToken, isAdmin])
+  }, [accessToken, isAdmin, t]);
 
   React.useEffect(() => {
-    void loadUsers()
-  }, [loadUsers])
+    void loadUsers();
+  }, [loadUsers]);
 
   const loadUserDetails = React.useCallback(
     async (userId: string) => {
-      if (!accessToken || !isAdmin || !userId) return null
+      if (!accessToken || !isAdmin || !userId) return null;
       try {
         const [planResult, usageResult] = await Promise.all([
           listAdminUserPlanAssignments(accessToken, userId),
           listAdminUserMonthlyUsage(accessToken, userId),
-        ])
+        ]);
         const details = {
           assignments: planResult.assignments,
           usage: usageResult.usage,
-        }
+        };
         setUserDetailsByUserId((current) => ({
           ...current,
           [userId]: details,
-        }))
-        return details
+        }));
+        return details;
       } catch (loadError) {
         const appError = normalizeAppError(loadError, {
-          fallbackMessage: "加载失败",
-        })
-        setError(appError.message)
+          fallbackMessage: t("system.users.loadFailed"),
+        });
+        setError(appError.message);
         notify.error({
-          title: "加载用户明细失败",
+          title: t("system.users.detailLoadFailedTitle"),
           description: appError.message,
-        })
-        return null
+        });
+        return null;
       }
     },
-    [accessToken, isAdmin],
-  )
+    [accessToken, isAdmin, t],
+  );
 
   const filteredUsers = React.useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    if (!keyword) return users
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return users;
     return users.filter((user) =>
       `${user.id} ${user.email} ${user.display_name} ${user.role ?? ""} ${user.status}`
         .toLowerCase()
         .includes(keyword),
-    )
-  }, [query, users])
+    );
+  }, [query, users]);
 
   const workspaceUsageByOwnerId = React.useMemo(() => {
-    const grouped = new Map<string, AdminWorkspaceUsage[]>()
+    const grouped = new Map<string, AdminWorkspaceUsage[]>();
     for (const item of workspaceUsage) {
-      const rows = grouped.get(item.owner_user_id) ?? []
-      rows.push(item)
-      grouped.set(item.owner_user_id, rows)
+      const rows = grouped.get(item.owner_user_id) ?? [];
+      rows.push(item);
+      grouped.set(item.owner_user_id, rows);
     }
-    return grouped
-  }, [workspaceUsage])
+    return grouped;
+  }, [workspaceUsage]);
 
-  const metrics = React.useMemo(
-    () => {
-      const cachedDetails = Object.values(userDetailsByUserId)
-      return [
-        {
-          label: "用户数量",
-          value: String(users.length),
-          detail: `${users.filter((user) => user.role === "admin").length} 位管理员`,
-          icon: UsersIcon,
-          tone: "blue" as const,
-        },
-        {
-          label: "套餐记录",
-          value: String(
-            cachedDetails.reduce(
-              (total, details) => total + details.assignments.length,
-              0,
-            ),
+  const metrics = React.useMemo(() => {
+    const cachedDetails = Object.values(userDetailsByUserId);
+    return [
+      {
+        label: t("system.users.metrics.users"),
+        value: String(users.length),
+        detail: t("system.users.metrics.admins", {
+          count: users.filter((user) => user.role === "admin").length,
+        }),
+        icon: UsersIcon,
+        tone: "blue" as const,
+      },
+      {
+        label: t("system.users.metrics.assignments"),
+        value: String(
+          cachedDetails.reduce(
+            (total, details) => total + details.assignments.length,
+            0,
           ),
-          detail: "已加载用户明细",
-          icon: PackageIcon,
-          tone: "green" as const,
-        },
-        {
-          label: "用量记录",
-          value: String(
-            cachedDetails.reduce(
-              (total, details) => total + details.usage.length,
-              0,
-            ),
+        ),
+        detail: t("system.users.metrics.detailsLoaded"),
+        icon: PackageIcon,
+        tone: "green" as const,
+      },
+      {
+        label: t("system.users.metrics.usage"),
+        value: String(
+          cachedDetails.reduce(
+            (total, details) => total + details.usage.length,
+            0,
           ),
-          detail: "已加载月度记录",
-          icon: GaugeIcon,
-          tone: "amber" as const,
-        },
-        {
-          label: "工作区存储",
-          value: formatBytes(
-            workspaceUsage.reduce((total, item) => total + item.storage_bytes, 0),
-          ),
-          detail: `${workspaceUsage.length} 个工作区`,
-          icon: HardDriveIcon,
-          tone: "indigo" as const,
-        },
-      ]
-    },
-    [userDetailsByUserId, users, workspaceUsage],
-  )
+        ),
+        detail: t("system.users.metrics.monthlyLoaded"),
+        icon: GaugeIcon,
+        tone: "amber" as const,
+      },
+      {
+        label: t("system.users.metrics.storage"),
+        value: formatBytes(
+          workspaceUsage.reduce((total, item) => total + item.storage_bytes, 0),
+        ),
+        detail: t("system.users.metrics.workspaces", {
+          count: workspaceUsage.length,
+        }),
+        icon: HardDriveIcon,
+        tone: "indigo" as const,
+      },
+    ];
+  }, [t, userDetailsByUserId, users, workspaceUsage]);
 
   function openEditDialog(user: AdminUser) {
-    const cachedDetails = userDetailsByUserId[user.id]
-    editingUserIdRef.current = user.id
-    setEditingUser(user)
-    setEditingRole(user.role === "admin" ? "admin" : "user")
+    const cachedDetails = userDetailsByUserId[user.id];
+    editingUserIdRef.current = user.id;
+    setEditingUser(user);
+    setEditingRole(user.role === "admin" ? "admin" : "user");
     setEditingUserPlanId(
       getActiveUserPlanId(cachedDetails?.assignments) ?? plans[0]?.id ?? "",
-    )
-    setDialogOpen(true)
+    );
+    setDialogOpen(true);
 
     void loadUserDetails(user.id).then((details) => {
-      if (!details) return
-      if (editingUserIdRef.current !== user.id) return
+      if (!details) return;
+      if (editingUserIdRef.current !== user.id) return;
       setEditingUserPlanId(
         getActiveUserPlanId(details.assignments) ?? plans[0]?.id ?? "",
-      )
-    })
+      );
+    });
   }
 
   function toggleExpandedUser(userId: string) {
     setExpandedUserIds((current) => {
-      const next = current.has(userId) ? new Set<string>() : new Set([userId])
+      const next = current.has(userId) ? new Set<string>() : new Set([userId]);
       if (next.has(userId) && !userDetailsByUserId[userId]) {
-        void loadUserDetails(userId)
+        void loadUserDetails(userId);
       }
-      return next
-    })
+      return next;
+    });
   }
 
   async function saveUser(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!accessToken || !editingUser) return
-    setState("saving")
-    setError("")
+    event.preventDefault();
+    if (!accessToken || !editingUser) return;
+    setState("saving");
+    setError("");
     try {
       const roleResult = await setAdminUserRole(accessToken, {
         user_id: editingUser.id,
         role: editingRole,
-      })
+      });
       setUsers((current) =>
         current.map((item) =>
           item.id === editingUser.id ? roleResult.user : item,
         ),
-      )
+      );
 
       if (editingUserPlanId) {
         const planResult = await assignAdminUserPlan(accessToken, {
           user_id: editingUser.id,
           plan_id: editingUserPlanId,
-        })
+        });
         setUserDetailsByUserId((current) => {
           const details = current[editingUser.id] ?? {
             assignments: [],
             usage: [],
-          }
+          };
           return {
             ...current,
             [editingUser.id]: {
@@ -284,36 +292,38 @@ export function SystemUserManagementPage() {
                 ),
               ],
             },
-          }
-        })
+          };
+        });
       }
 
-      setMessage(`用户已保存：${roleResult.user.email}`)
+      setMessage(
+        t("system.users.savedMessage", { email: roleResult.user.email }),
+      );
       notify.success({
-        title: "用户已保存",
+        title: t("system.users.saved"),
         description: roleResult.user.email,
-      })
-      setDialogOpen(false)
+      });
+      setDialogOpen(false);
     } catch (saveError) {
       const appError = normalizeAppError(saveError, {
-        fallbackMessage: "保存失败",
-      })
-      setError(appError.message)
+        fallbackMessage: t("system.users.saveFailed"),
+      });
+      setError(appError.message);
       notify.error({
-        title: "保存用户失败",
+        title: t("system.users.saveFailedTitle"),
         description: appError.message,
-      })
+      });
     } finally {
-      setState("idle")
+      setState("idle");
     }
   }
 
-  if (!isAdmin) return <AdminAccessDenied />
+  if (!isAdmin) return <AdminAccessDenied />;
 
   return (
     <SystemPageShell
-      title="用户管理"
-      subtitle="管理用户角色、套餐分配，以及月度 Token、点数和工作区用量。"
+      title={t("system.users.title")}
+      subtitle={t("system.users.subtitle")}
       metrics={metrics}
       state={state}
       message={message}
@@ -321,8 +331,8 @@ export function SystemUserManagementPage() {
       onRefresh={() => void loadUsers()}
     >
       <AppSectionCard
-        title="用户列表"
-        description="主视图保持单列表格，用户套餐记录和月度用量通过行内展开查看。"
+        title={t("system.users.listTitle")}
+        description={t("system.users.listDescription")}
         icon={UsersIcon}
       >
         <AppListToolbar
@@ -330,7 +340,7 @@ export function SystemUserManagementPage() {
             <AppSearchBar
               value={query}
               onChange={setQuery}
-              placeholder="搜索用户..."
+              placeholder={t("system.users.search")}
             />
           }
           className="-mx-4 -mt-4 mb-4"
@@ -341,23 +351,37 @@ export function SystemUserManagementPage() {
               <DataTableHeader>
                 <tr>
                   <th className="w-12 px-3 py-3 sm:px-4" />
-                  <th className="w-auto px-3 py-3 sm:px-4">用户</th>
-                  <th className="hidden w-20 px-4 py-3 @xl/table:table-cell">角色</th>
-                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">状态</th>
-                  <th className="hidden w-28 px-4 py-3 @3xl/table:table-cell">套餐记录</th>
-                  <th className="hidden w-28 px-4 py-3 @4xl/table:table-cell">本月用量</th>
-                  <th className="hidden w-36 px-4 py-3 @5xl/table:table-cell">工作区</th>
-                  <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">操作</th>
+                  <th className="w-auto px-3 py-3 sm:px-4">
+                    {t("system.users.columns.user")}
+                  </th>
+                  <th className="hidden w-20 px-4 py-3 @xl/table:table-cell">
+                    {t("system.users.columns.role")}
+                  </th>
+                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">
+                    {t("system.users.columns.status")}
+                  </th>
+                  <th className="hidden w-28 px-4 py-3 @3xl/table:table-cell">
+                    {t("system.users.columns.plans")}
+                  </th>
+                  <th className="hidden w-28 px-4 py-3 @4xl/table:table-cell">
+                    {t("system.users.columns.monthly")}
+                  </th>
+                  <th className="hidden w-36 px-4 py-3 @5xl/table:table-cell">
+                    {t("system.users.columns.workspace")}
+                  </th>
+                  <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">
+                    {t("system.users.columns.actions")}
+                  </th>
                 </tr>
               </DataTableHeader>
               <DataTableBody>
                 {filteredUsers.map((user) => {
-                  const expanded = expandedUserIds.has(user.id)
-                  const userDetails = userDetailsByUserId[user.id]
-                  const rowAssignments = userDetails?.assignments ?? []
-                  const rowUsage = userDetails?.usage ?? []
+                  const expanded = expandedUserIds.has(user.id);
+                  const userDetails = userDetailsByUserId[user.id];
+                  const rowAssignments = userDetails?.assignments ?? [];
+                  const rowUsage = userDetails?.usage ?? [];
                   const rowWorkspaceUsage =
-                    workspaceUsageByOwnerId.get(user.id) ?? []
+                    workspaceUsageByOwnerId.get(user.id) ?? [];
 
                   return (
                     <React.Fragment key={user.id}>
@@ -367,7 +391,11 @@ export function SystemUserManagementPage() {
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            aria-label={expanded ? "收起用户详情" : "展开用户详情"}
+                            aria-label={
+                              expanded
+                                ? t("system.users.collapse")
+                                : t("system.users.expand")
+                            }
                             onClick={() => toggleExpandedUser(user.id)}
                           >
                             <ChevronDownIcon
@@ -376,7 +404,9 @@ export function SystemUserManagementPage() {
                           </Button>
                         </td>
                         <td className="min-w-0 px-3 py-3 sm:px-4">
-                          <div className="truncate font-medium">{user.display_name || user.email}</div>
+                          <div className="truncate font-medium">
+                            {user.display_name || user.email}
+                          </div>
                           <div className="mt-1 truncate text-xs text-muted-foreground">
                             {user.email}
                           </div>
@@ -388,7 +418,10 @@ export function SystemUserManagementPage() {
                           />
                         </td>
                         <td className="px-3 py-3 sm:px-4">
-                          <StatusBadge status={user.status} label={systemStatusLabel(user.status)} />
+                          <StatusBadge
+                            status={user.status}
+                            label={systemStatusLabel(user.status)}
+                          />
                         </td>
                         <td className="hidden px-4 py-3 @3xl/table:table-cell">
                           {userDetails ? rowAssignments.length : "-"}
@@ -406,7 +439,9 @@ export function SystemUserManagementPage() {
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {rowWorkspaceUsage.length} workspaces
+                            {t("system.users.workspaceCount", {
+                              count: rowWorkspaceUsage.length,
+                            })}
                           </div>
                         </td>
                         <td className="px-3 py-3 sm:px-4">
@@ -418,7 +453,9 @@ export function SystemUserManagementPage() {
                               onClick={() => openEditDialog(user)}
                             >
                               <Edit3Icon />
-                              <span className="hidden sm:inline">编辑</span>
+                              <span className="hidden sm:inline">
+                                {t("system.users.edit")}
+                              </span>
                             </Button>
                           </div>
                         </td>
@@ -436,8 +473,10 @@ export function SystemUserManagementPage() {
                                 />
                               ) : (
                                 <EmptyState
-                                  title="正在加载用户明细"
-                                  detail="套餐记录和月度用量返回后会显示在这里。"
+                                  title={t("system.users.detailLoading")}
+                                  detail={t(
+                                    "system.users.detailLoadingDescription",
+                                  )}
                                 />
                               )}
                             </AppExpandablePanel>
@@ -445,31 +484,37 @@ export function SystemUserManagementPage() {
                         </tr>
                       ) : null}
                     </React.Fragment>
-                  )
+                  );
                 })}
               </DataTableBody>
             </DataTableShell>
           ) : null}
           {filteredUsers.length === 0 ? (
-            <EmptyState title="暂无用户" detail="有用户注册后会出现在这里。" />
+            <EmptyState
+              title={t("system.users.empty")}
+              detail={t("system.users.emptyDescription")}
+            />
           ) : null}
         </div>
       </AppSectionCard>
 
       <AppDialog
         open={dialogOpen}
-        title="编辑用户"
-        description="用户基础身份来自账号系统，这里只维护角色和套餐分配。"
+        title={t("system.users.editTitle")}
+        description={t("system.users.editDescription")}
         onOpenChange={setDialogOpen}
       >
         {editingUser ? (
-          <form onSubmit={(event) => void saveUser(event)} className="space-y-4">
-            <AppDisclosureSection title="用户角色和套餐">
+          <form
+            onSubmit={(event) => void saveUser(event)}
+            className="space-y-4"
+          >
+            <AppDisclosureSection title={t("system.users.roleAndPlan")}>
               <AppFieldGrid columns={1}>
-                <FormField label="用户">
+                <FormField label={t("system.users.user")}>
                   <Input value={editingUser.email} readOnly />
                 </FormField>
-                <FormField label="角色">
+                <FormField label={t("system.users.role")}>
                   <select
                     value={editingRole}
                     disabled={state !== "idle"}
@@ -480,11 +525,13 @@ export function SystemUserManagementPage() {
                     }
                     className="h-9 rounded-md border bg-background px-2 text-sm"
                   >
-                    <option value="user">普通用户</option>
-                    <option value="admin">管理员</option>
+                    <option value="user">
+                      {t("system.users.standardUser")}
+                    </option>
+                    <option value="admin">{t("system.users.admin")}</option>
                   </select>
                 </FormField>
-                <FormField label="分配套餐">
+                <FormField label={t("system.users.assignPlan")}>
                   <select
                     value={editingUserPlanId}
                     onChange={(event) =>
@@ -507,24 +554,25 @@ export function SystemUserManagementPage() {
                 variant="outline"
                 onClick={() => setDialogOpen(false)}
               >
-                取消
+                {t("system.users.cancel")}
               </Button>
               <Button type="submit" disabled={state !== "idle"}>
                 <SaveIcon />
-                保存用户
+                {t("system.users.save")}
               </Button>
             </div>
           </form>
         ) : null}
       </AppDialog>
     </SystemPageShell>
-  )
+  );
 }
 
 function getActiveUserPlanId(assignments?: AdminUserPlanAssignment[]) {
   return assignments
     ?.filter((assignment) => assignment.status === "active")
-    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]?.plan_id
+    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]
+    ?.plan_id;
 }
 
 function UserDetail({
@@ -533,37 +581,38 @@ function UserDetail({
   workspaceUsage,
   user,
 }: {
-  assignments: AdminUserPlanAssignment[]
-  usage: AdminUserMonthlyUsage[]
-  workspaceUsage: AdminWorkspaceUsage[]
-  user: AdminUser
+  assignments: AdminUserPlanAssignment[];
+  usage: AdminUserMonthlyUsage[];
+  workspaceUsage: AdminWorkspaceUsage[];
+  user: AdminUser;
 }) {
-  const usageTrend = React.useMemo(() => buildUserUsageTrend(usage), [usage])
+  const { t } = useTranslation();
+  const usageTrend = React.useMemo(() => buildUserUsageTrend(usage), [usage]);
   const riskItems = React.useMemo(
     () => buildUserRiskItems(assignments, usage, workspaceUsage),
     [assignments, usage, workspaceUsage],
-  )
+  );
 
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <GaugeIcon className="size-4 text-muted-foreground" />
-          Usage 趋势
+          {t("system.users.detail.trend")}
         </div>
         <AppLineChart
           data={usageTrend.chartData}
           series={usageTrend.chartSeries}
           height={180}
           valueFormatter={formatMetricNumber}
-          emptyTitle="暂无用户 usage 趋势"
-          emptyDescription="用户产生 LLM 调用后，这里会展示最近月度 credits 和 tokens 趋势。"
+          emptyTitle={t("system.users.detail.trendEmpty")}
+          emptyDescription={t("system.users.detail.trendEmptyDescription")}
         />
       </div>
       <div className="grid gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <UsersIcon className="size-4 text-muted-foreground" />
-          风险信号
+          {t("system.users.detail.risks")}
         </div>
         <div className="grid gap-2 md:grid-cols-3">
           {riskItems.map((item) => (
@@ -580,7 +629,7 @@ function UserDetail({
       <div className="grid gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <PackageIcon className="size-4 text-muted-foreground" />
-          套餐记录
+          {t("system.users.detail.assignments")}
         </div>
         {assignments.map((assignment) => (
           <div
@@ -595,15 +644,17 @@ function UserDetail({
         ))}
         {assignments.length === 0 ? (
           <EmptyState
-            title="暂无套餐记录"
-            detail={`为 ${user.email} 分配套餐后会出现在这里。`}
+            title={t("system.users.detail.assignmentsEmpty")}
+            detail={t("system.users.detail.assignmentsEmptyDescription", {
+              email: user.email,
+            })}
           />
         ) : null}
       </div>
       <div className="grid gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <HardDriveIcon className="size-4 text-muted-foreground" />
-          Workspace 用量
+          {t("system.users.detail.workspace")}
         </div>
         {workspaceUsage.map((item) => (
           <div
@@ -613,29 +664,35 @@ function UserDetail({
             <div>
               <div className="font-medium">{item.workspace_name}</div>
               <div className="text-muted-foreground">
-                {item.workspace_type} / {item.plan_id} / {item.object_count} objects /{" "}
-                {item.version_count} versions
+                {t("system.users.detail.workspaceSummary", {
+                  type: item.workspace_type,
+                  plan: item.plan_id,
+                  objects: item.object_count,
+                  versions: item.version_count,
+                })}
               </div>
             </div>
             <div className="text-right">
               <div>{formatWorkspaceStorage(item)}</div>
               <div className="text-xs text-muted-foreground">
-                recalculated {formatDateTime(item.recalculated_at)}
+                {t("system.users.detail.recalculated", {
+                  date: formatDateTime(item.recalculated_at),
+                })}
               </div>
             </div>
           </div>
         ))}
         {workspaceUsage.length === 0 ? (
           <EmptyState
-            title="暂无 Workspace 用量"
-            detail="该用户拥有 workspace 并产生文件版本后会出现在这里。"
+            title={t("system.users.detail.workspaceEmpty")}
+            detail={t("system.users.detail.workspaceEmptyDescription")}
           />
         ) : null}
       </div>
       <div className="grid gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <GaugeIcon className="size-4 text-muted-foreground" />
-          月度用量
+          {t("system.users.detail.monthly")}
         </div>
         {usage.map((item) => (
           <div
@@ -645,47 +702,51 @@ function UserDetail({
             <div>
               <div className="font-medium">{item.period_yyyymm}</div>
               <div className="text-muted-foreground">
-                token {item.raw_total_tokens}
+                {t("system.users.detail.tokenCount", {
+                  count: formatMetricNumber(item.raw_total_tokens),
+                })}
               </div>
             </div>
             <div className="text-right">
-              {item.charged_credits.toFixed(4)} credits
+              {t("system.users.detail.creditCount", {
+                count: item.charged_credits.toFixed(4),
+              })}
             </div>
           </div>
         ))}
         {usage.length === 0 ? (
           <EmptyState
-            title="暂无用量记录"
-            detail="用户产生 LLM 调用后会按月汇总。"
+            title={t("system.users.detail.monthlyEmpty")}
+            detail={t("system.users.detail.monthlyEmptyDescription")}
           />
         ) : null}
       </div>
     </div>
-  )
+  );
 }
 
 function buildUserUsageTrend(usage: AdminUserMonthlyUsage[]) {
   const rows = [...usage].sort((a, b) =>
     a.period_yyyymm.localeCompare(b.period_yyyymm),
-  )
+  );
   const chartData: AppLineChartDatum[] = rows.slice(-12).map((item) => ({
     label: formatPeriod(item.period_yyyymm),
     credits: item.charged_credits,
     tokens: item.raw_total_tokens,
-  }))
+  }));
   const chartSeries: AppLineChartSeries[] = [
     {
       key: "credits",
-      label: "点数",
+      label: i18n.t("system.users.chart.credits"),
       color: "var(--chart-1)",
     },
     {
       key: "tokens",
-      label: "Token 数量",
+      label: i18n.t("system.users.chart.tokens"),
       color: "var(--chart-2)",
     },
-  ]
-  return { chartData, chartSeries }
+  ];
+  return { chartData, chartSeries };
 }
 
 function buildUserRiskItems(
@@ -693,39 +754,51 @@ function buildUserRiskItems(
   usage: AdminUserMonthlyUsage[],
   workspaceUsage: AdminWorkspaceUsage[],
 ) {
-  const activePlanId = getActiveUserPlanId(assignments)
+  const activePlanId = getActiveUserPlanId(assignments);
   const maxWorkspaceRatio = workspaceUsage.reduce((max, item) => {
-    if (item.storage_usage_ratio == null) return max
-    return Math.max(max, item.storage_usage_ratio)
-  }, 0)
+    if (item.storage_usage_ratio == null) return max;
+    return Math.max(max, item.storage_usage_ratio);
+  }, 0);
   const sortedUsage = [...usage].sort((a, b) =>
     a.period_yyyymm.localeCompare(b.period_yyyymm),
-  )
-  const latest = sortedUsage.at(-1)?.charged_credits ?? 0
-  const previous = sortedUsage.at(-2)?.charged_credits ?? 0
+  );
+  const latest = sortedUsage.at(-1)?.charged_credits ?? 0;
+  const previous = sortedUsage.at(-2)?.charged_credits ?? 0;
   const growth =
-    previous > 0 ? Math.round(((latest - previous) / previous) * 100) : null
+    previous > 0 ? Math.round(((latest - previous) / previous) * 100) : null;
 
   return [
     {
-      label: activePlanId ? "套餐正常" : "缺少套餐",
-      detail: activePlanId ? `当前有效套餐：${activePlanId}` : "未找到有效套餐分配",
+      label: activePlanId
+        ? i18n.t("system.users.risk.planOk")
+        : i18n.t("system.users.risk.planMissing"),
+      detail: activePlanId
+        ? i18n.t("system.users.risk.activePlan", { plan: activePlanId })
+        : i18n.t("system.users.risk.noPlan"),
     },
     {
-      label: maxWorkspaceRatio >= 0.9 ? "工作区接近上限" : "工作区正常",
+      label:
+        maxWorkspaceRatio >= 0.9
+          ? i18n.t("system.users.risk.workspaceHigh")
+          : i18n.t("system.users.risk.workspaceOk"),
       detail:
         maxWorkspaceRatio > 0
-          ? `最高存储使用率 ${Math.round(maxWorkspaceRatio * 100)}%`
-          : "暂无可计算的额度使用率",
+          ? i18n.t("system.users.risk.maxStorage", {
+              percent: Math.round(maxWorkspaceRatio * 100),
+            })
+          : i18n.t("system.users.risk.noRatio"),
     },
     {
-      label: growth != null && growth > 50 ? "用量增长较快" : "用量趋势正常",
+      label:
+        growth != null && growth > 50
+          ? i18n.t("system.users.risk.growthHigh")
+          : i18n.t("system.users.risk.growthOk"),
       detail:
         growth == null
-          ? "暂无可比较的相邻月份"
-          : `最近月度点数环比 ${growth}%`,
+          ? i18n.t("system.users.risk.noComparison")
+          : i18n.t("system.users.risk.growth", { percent: growth }),
     },
-  ]
+  ];
 }
 
 function formatWorkspaceStorage(item: AdminWorkspaceUsage) {
@@ -733,44 +806,52 @@ function formatWorkspaceStorage(item: AdminWorkspaceUsage) {
     const ratio =
       item.storage_usage_ratio == null
         ? item.storage_bytes / item.storage_limit_bytes
-        : item.storage_usage_ratio
-    return `${Math.round(ratio * 100)}% · ${formatBytes(item.storage_bytes)} / ${formatBytes(item.storage_limit_bytes)}`
+        : item.storage_usage_ratio;
+    return `${Math.round(ratio * 100)}% · ${formatBytes(item.storage_bytes)} / ${formatBytes(item.storage_limit_bytes)}`;
   }
-  return `已使用 ${formatBytes(item.storage_bytes)}`
+  return i18n.t("system.users.used", {
+    value: formatBytes(item.storage_bytes),
+  });
 }
 
 function formatBytes(value: number) {
   if (value >= 1024 * 1024 * 1024) {
-    return `${formatMetricNumber(value / 1024 / 1024 / 1024)} GB`
+    return `${formatMetricNumber(value / 1024 / 1024 / 1024)} GB`;
   }
   if (value >= 1024 * 1024) {
-    return `${formatMetricNumber(value / 1024 / 1024)} MB`
+    return `${formatMetricNumber(value / 1024 / 1024)} MB`;
   }
   if (value >= 1024) {
-    return `${formatMetricNumber(value / 1024)} KB`
+    return `${formatMetricNumber(value / 1024)} KB`;
   }
-  return `${formatMetricNumber(value)} B`
+  return `${formatMetricNumber(value)} B`;
 }
 
 function formatMetricNumber(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: value >= 10 ? 1 : 2,
-  }).format(value)
+  return new Intl.NumberFormat(
+    normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+    {
+      maximumFractionDigits: value >= 10 ? 1 : 2,
+    },
+  ).format(value);
 }
 
 function formatDateTime(value?: string | null) {
-  if (!value) return "-"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "-"
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString(
+    normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+    {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  );
 }
 
 function formatPeriod(period: string) {
-  if (period.length !== 6) return period
-  return `${period.slice(0, 4)}-${period.slice(4)}`
+  if (period.length !== 6) return period;
+  return `${period.slice(0, 4)}-${period.slice(4)}`;
 }

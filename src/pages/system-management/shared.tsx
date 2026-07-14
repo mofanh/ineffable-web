@@ -1,34 +1,24 @@
-import * as React from "react"
-import { ShieldIcon } from "lucide-react"
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { ShieldIcon } from "lucide-react";
 
-import {
-  AppMetricPage,
-  Notice,
-  type AppMetricCard,
-} from "@/components/app"
-import { Button } from "@/components/ui/button"
+import { AppMetricPage, Notice, type AppMetricCard } from "@/components/app";
+import { Button } from "@/components/ui/button";
 import {
   type AdminModelProfilePayload,
   type AdminPlanPayload,
   type AdminPlanModelAccess,
-} from "@/lib/api/api-client"
+} from "@/lib/api/api-client";
+import { i18n } from "@/lib/i18n/i18n";
 
-export type LoadState = "idle" | "loading" | "saving"
-
-const systemStatusLabels: Record<string, string> = {
-  active: "正常",
-  admin: "管理员",
-  archived: "已删除",
-  disabled: "已停用",
-  enabled: "已启用",
-  inactive: "已停用",
-  missing: "缺少密钥",
-  saved: "已保存",
-  user: "普通用户",
-}
+export type LoadState = "idle" | "loading" | "saving";
 
 export function systemStatusLabel(status: string) {
-  return systemStatusLabels[status.trim().toLowerCase()] ?? status
+  const normalized = status.trim().toLowerCase();
+  const translated = i18n.t(`system.common.status.${normalized}`, {
+    defaultValue: "",
+  });
+  return translated || status;
 }
 
 export const emptyModel: AdminModelProfilePayload = {
@@ -52,7 +42,7 @@ export const emptyModel: AdminModelProfilePayload = {
   enabled: true,
   sort_order: 10,
   metadata_json: {},
-}
+};
 
 export const emptyPlan: AdminPlanPayload = {
   name: "pro",
@@ -64,32 +54,32 @@ export const emptyPlan: AdminPlanPayload = {
   workspace_object_count_limit: 500,
   max_file_size_bytes: 50 * 1024 * 1024,
   enabled: true,
-}
+};
 
 export const emptySecret = {
   secret_ref: "deepseek-default",
   secret: "",
   status: "active",
   metadata_json: {},
-}
+};
 
 export function numberOrNull(value: string) {
-  const trimmed = value.trim()
-  return trimmed ? Number(trimmed) : null
+  const trimmed = value.trim();
+  return trimmed ? Number(trimmed) : null;
 }
 
 export function textOrNull(value: string) {
-  const trimmed = value.trim()
-  return trimmed ? trimmed : null
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 export function isRawApiKey(value: string) {
-  const trimmed = value.trim().toLowerCase()
+  const trimmed = value.trim().toLowerCase();
   return (
     trimmed.startsWith("sk-") ||
     trimmed.startsWith("sk_") ||
     trimmed.startsWith("bearer ")
-  )
+  );
 }
 
 export function modelAccessFor(
@@ -107,7 +97,7 @@ export function modelAccessFor(
     cached_input_multiplier: 0.25,
     max_tokens_per_request: null,
     max_requests_per_day: null,
-  }
+  };
 }
 
 export function normalizeAccess(
@@ -116,21 +106,24 @@ export function normalizeAccess(
   return {
     ...access,
     usable: access.visible ? access.usable : false,
-  }
+  };
 }
 
 export function AdminAccessDenied() {
+  const { t } = useTranslation();
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 p-6">
       <div className="rounded-lg border bg-background p-6">
         <ShieldIcon className="mb-3 size-5 text-muted-foreground" />
-        <h1 className="text-xl font-semibold">管理员权限不足</h1>
+        <h1 className="text-xl font-semibold">
+          {t("system.common.accessDenied")}
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          当前账号没有 admin 角色，无法访问系统管理。
+          {t("system.common.accessDeniedDescription")}
         </p>
       </div>
     </main>
-  )
+  );
 }
 
 export function SystemPageShell({
@@ -143,23 +136,28 @@ export function SystemPageShell({
   onRefresh,
   children,
 }: {
-  title: string
-  subtitle: string
-  metrics: AppMetricCard[]
-  state: LoadState
-  message: string
-  error: string
-  onRefresh: () => void
-  children: React.ReactNode
+  title: string;
+  subtitle: string;
+  metrics: AppMetricCard[];
+  state: LoadState;
+  message: string;
+  error: string;
+  onRefresh: () => void;
+  children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <AppMetricPage
-      eyebrow="系统管理"
+      eyebrow={t("system.common.eyebrow")}
       title={title}
       subtitle={subtitle}
       metrics={
         state === "loading"
-          ? metrics.map((metric) => ({ ...metric, value: "—", detail: "正在加载" }))
+          ? metrics.map((metric) => ({
+              ...metric,
+              value: "—",
+              detail: t("system.common.loading"),
+            }))
           : metrics
       }
       headerActions={
@@ -169,7 +167,7 @@ export function SystemPageShell({
           onClick={onRefresh}
           disabled={state !== "idle"}
         >
-          刷新
+          {t("system.common.refresh")}
         </Button>
       }
     >
@@ -177,5 +175,5 @@ export function SystemPageShell({
       {error ? <Notice tone="error">{error}</Notice> : null}
       {children}
     </AppMetricPage>
-  )
+  );
 }
