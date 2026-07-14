@@ -205,6 +205,13 @@ return (
 
 流式 chat 等特殊状态机可以保留 feature-specific 状态，但错误归一化和用户反馈仍应走 app service。
 
+## 国际化
+
+- 用户可见文案必须通过 `i18next` 资源输出，不在 page、feature、app service 或 UI primitive 中新增硬编码业务文案。
+- 中英文资源必须同步维护；新增或修改资源后运行 `npm run i18n:check`，确保资源键、插值参数和静态翻译键引用一致。
+- 日期、数字、紧凑数字和相对时间必须使用当前应用 locale；通用格式化通过 `getCurrentLocale()` 获取语言，不硬编码 `zh-CN` / `en-US`，也不依赖运行环境默认 locale。
+- 语言资源保持独立构建 chunk，避免双语文案进入主入口包。
+
 ## 确认弹窗
 
 不要使用：
@@ -325,6 +332,7 @@ feat(frontend): 收敛页面依赖链路
 提交前必须运行：
 
 ```bash
+npm run i18n:check
 npm run lint
 npm run build
 ```

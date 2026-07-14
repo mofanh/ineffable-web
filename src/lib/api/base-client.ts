@@ -1,5 +1,6 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
+import { i18n } from "@/lib/i18n/i18n"
 
 const API_BASE_URL =
   (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
@@ -123,7 +124,9 @@ async function refreshAccessTokenForReload() {
     return
   }
 
-  const refreshToken = window.localStorage.getItem(AUTH_STORAGE_KEYS.refreshToken)
+  const refreshToken = window.localStorage.getItem(
+    AUTH_STORAGE_KEYS.refreshToken,
+  )
   if (!refreshToken) {
     writeStorage(AUTH_STORAGE_KEYS.accessToken, null)
     writeStorage(AUTH_STORAGE_KEYS.sessionId, null)
@@ -154,8 +157,14 @@ async function refreshAccessTokenForReload() {
     }
   }
 
-  writeStorage(AUTH_STORAGE_KEYS.accessToken, parsed.tokens?.access_token ?? null)
-  writeStorage(AUTH_STORAGE_KEYS.refreshToken, parsed.tokens?.refresh_token ?? null)
+  writeStorage(
+    AUTH_STORAGE_KEYS.accessToken,
+    parsed.tokens?.access_token ?? null,
+  )
+  writeStorage(
+    AUTH_STORAGE_KEYS.refreshToken,
+    parsed.tokens?.refresh_token ?? null,
+  )
   writeStorage(AUTH_STORAGE_KEYS.sessionId, parsed.tokens?.session_id ?? null)
 }
 
@@ -186,9 +195,9 @@ function scheduleExpiredSessionRefresh(delayMs = 1400) {
 
   tokenRefreshStarted = true
   showBaseClientToast({
-    title: "登录状态已过期",
-    description: "正在重新同步会话，页面将自动刷新。",
-    actionLabel: "立即刷新",
+    title: i18n.t("common.sessionExpired.title"),
+    description: i18n.t("common.sessionExpired.description"),
+    actionLabel: i18n.t("common.sessionExpired.refresh"),
     onAction: refreshExpiredSessionNow,
   })
 
@@ -200,7 +209,7 @@ function scheduleExpiredSessionRefresh(delayMs = 1400) {
 export function createApiError(message: string, status?: number) {
   if (isAccessTokenExpiredError(message)) {
     scheduleExpiredSessionRefresh()
-    return new Error("登录状态已过期，正在刷新页面。")
+    return new Error(i18n.t("common.sessionExpired.error"))
   }
   return new ApiRequestError(message, { status })
 }
@@ -212,7 +221,7 @@ export async function requestApiJson<T>(
     accessToken?: string | null
     workspaceId?: string | null
     body?: unknown
-  }
+  },
 ) {
   const response = await fetch(toApiUrl(path), {
     method: options?.method ?? "GET",

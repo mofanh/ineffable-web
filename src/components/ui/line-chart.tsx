@@ -1,10 +1,5 @@
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { useTranslation } from "react-i18next"
 
 import {
   ChartContainer,
@@ -13,6 +8,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
+import { getCurrentLocale } from "@/lib/i18n/i18n"
 
 export type UiLineChartSeries = {
   key: string
@@ -29,8 +25,8 @@ export function LineChartPanel({
   series,
   height = 288,
   valueFormatter = formatCompactValue,
-  emptyTitle = "暂无趋势数据",
-  emptyDescription = "产生数据后，这里会展示按时间聚合的趋势。",
+  emptyTitle,
+  emptyDescription,
   className,
 }: {
   data: UiLineChartDatum[]
@@ -41,6 +37,10 @@ export function LineChartPanel({
   emptyDescription?: string
   className?: string
 }) {
+  const { t } = useTranslation()
+  const resolvedEmptyTitle = emptyTitle ?? t("common.chart.trendEmpty")
+  const resolvedEmptyDescription =
+    emptyDescription ?? t("common.chart.trendEmptyDescription")
   const hasData = data.some((datum) =>
     series.some((item) => Number(datum[item.key] ?? 0) > 0),
   )
@@ -53,8 +53,8 @@ export function LineChartPanel({
           className,
         )}
       >
-        <p className="font-medium text-foreground">{emptyTitle}</p>
-        <p className="mt-1 leading-6">{emptyDescription}</p>
+        <p className="font-medium text-foreground">{resolvedEmptyTitle}</p>
+        <p className="mt-1 leading-6">{resolvedEmptyDescription}</p>
       </div>
     )
   }
@@ -73,7 +73,10 @@ export function LineChartPanel({
       className={cn("w-full", className)}
       style={{ height }}
     >
-      <LineChart data={data} margin={{ top: 16, right: 18, bottom: 4, left: 0 }}>
+      <LineChart
+        data={data}
+        margin={{ top: 16, right: 18, bottom: 4, left: 0 }}
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="label"
@@ -122,7 +125,7 @@ export function LineChartPanel({
 }
 
 function formatCompactValue(value: number) {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(getCurrentLocale(), {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value)

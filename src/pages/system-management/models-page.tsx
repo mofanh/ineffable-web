@@ -54,7 +54,7 @@ import {
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { confirm } from "@/lib/app/confirm";
 import { notify } from "@/lib/app/notifications";
-import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
+import { getCurrentLocale, i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 import {
   AdminAccessDenied,
@@ -908,7 +908,7 @@ function formatPeriod(period: string) {
 }
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(getCurrentLocale(), {
     notation: "compact",
     maximumFractionDigits: value >= 100 ? 1 : 2,
   }).format(value);

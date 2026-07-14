@@ -17,6 +17,7 @@ import {
 } from "@/features/chat/api/chat-api"
 import { type Workspace } from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
+import { i18n } from "@/lib/i18n/i18n"
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated"
 
@@ -340,7 +341,7 @@ export function AppSessionProvider({
   const createConversationForWorkspace = React.useCallback(
     async (title: string) => {
       if (!accessToken) {
-        throw new Error("当前未登录。")
+        throw new Error(i18n.t("common.sessionExpired.signedOut"))
       }
 
       const conversation = await createConversation(accessToken, {

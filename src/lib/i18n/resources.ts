@@ -22,6 +22,20 @@ export const resources = {
         availableCapabilitiesDescription:
           "以下入口已连接真实产品数据和操作流程。",
         capabilityBoundary: "能力边界",
+        chart: {
+          trendEmpty: "暂无趋势数据",
+          trendEmptyDescription: "产生数据后，这里会展示按时间聚合的趋势。",
+          overviewEmpty: "暂无概览数据",
+          overviewEmptyDescription: "产生数据后，这里会展示按维度聚合的概览。",
+        },
+        sessionExpired: {
+          title: "登录状态已过期",
+          description: "正在重新同步会话，页面将自动刷新。",
+          refresh: "立即刷新",
+          error: "登录状态已过期，正在刷新页面。",
+          signedOut: "当前未登录。",
+        },
+        logo: { a: "道·路径", b: "道·交汇", c: "道·周行" },
       },
       error: {
         timeout: "请求超时，请重试。",
@@ -1320,6 +1334,23 @@ export const resources = {
         availableCapabilitiesDescription:
           "These entry points are connected to live product data and workflows.",
         capabilityBoundary: "Capability boundaries",
+        chart: {
+          trendEmpty: "No trend data",
+          trendEmptyDescription:
+            "Time-based trends will appear after data is generated.",
+          overviewEmpty: "No overview data",
+          overviewEmptyDescription:
+            "Dimension-based summaries will appear after data is generated.",
+        },
+        sessionExpired: {
+          title: "Session expired",
+          description:
+            "Resynchronizing your session; the page will refresh automatically.",
+          refresh: "Refresh now",
+          error: "Your session expired and the page is refreshing.",
+          signedOut: "You are not signed in.",
+        },
+        logo: { a: "Dao · Path", b: "Dao · Convergence", c: "Dao · Cycle" },
       },
       error: {
         timeout: "Request timed out. Please try again.",

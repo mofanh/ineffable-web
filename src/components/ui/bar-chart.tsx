@@ -1,10 +1,5 @@
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { useTranslation } from "react-i18next"
 
 import {
   ChartContainer,
@@ -13,6 +8,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
+import { getCurrentLocale } from "@/lib/i18n/i18n"
 
 export type UiBarChartSeries = {
   key: string
@@ -29,8 +25,8 @@ export function BarChartPanel({
   series,
   height = 288,
   valueFormatter = formatCompactValue,
-  emptyTitle = "暂无概览数据",
-  emptyDescription = "产生数据后，这里会展示按维度聚合的概览。",
+  emptyTitle,
+  emptyDescription,
   className,
 }: {
   data: UiBarChartDatum[]
@@ -41,6 +37,10 @@ export function BarChartPanel({
   emptyDescription?: string
   className?: string
 }) {
+  const { t } = useTranslation()
+  const resolvedEmptyTitle = emptyTitle ?? t("common.chart.overviewEmpty")
+  const resolvedEmptyDescription =
+    emptyDescription ?? t("common.chart.overviewEmptyDescription")
   const hasData = data.some((datum) =>
     series.some((item) => Number(datum[item.key] ?? 0) > 0),
   )
@@ -53,8 +53,8 @@ export function BarChartPanel({
           className,
         )}
       >
-        <p className="font-medium text-foreground">{emptyTitle}</p>
-        <p className="mt-1 leading-6">{emptyDescription}</p>
+        <p className="font-medium text-foreground">{resolvedEmptyTitle}</p>
+        <p className="mt-1 leading-6">{resolvedEmptyDescription}</p>
       </div>
     )
   }
@@ -119,7 +119,7 @@ export function BarChartPanel({
 }
 
 function formatCompactValue(value: number) {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(getCurrentLocale(), {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value)

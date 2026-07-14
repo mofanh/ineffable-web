@@ -52,7 +52,7 @@ import { normalizeAppError, type AppError } from "@/lib/app/api-errors";
 import { confirm } from "@/lib/app/confirm";
 import { notify } from "@/lib/app/notifications";
 import { useApiResource } from "@/lib/app/use-api-resource";
-import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
+import { getCurrentLocale, i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 import { defaultPath } from "@/routes/navigation";
 
 const roleOptions = ["admin", "member", "viewer"] as const;
@@ -910,7 +910,7 @@ function formatBytes(value: number) {
 }
 
 function formatMetricNumber(value: number) {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(getCurrentLocale(), {
     maximumFractionDigits: value >= 10 ? 1 : 2,
   }).format(value);
 }

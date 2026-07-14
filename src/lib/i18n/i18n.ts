@@ -10,13 +10,18 @@ function normalizeLanguage(value: string | null | undefined): AppLanguage {
   return value?.toLowerCase().startsWith("en") ? "en-US" : DEFAULT_LANGUAGE
 }
 
+function getCurrentLocale(): AppLanguage {
+  return normalizeLanguage(i18n.resolvedLanguage || i18n.language)
+}
+
 function getInitialLanguage() {
   if (typeof window === "undefined") {
     return DEFAULT_LANGUAGE
   }
 
   return normalizeLanguage(
-    window.localStorage.getItem(LANGUAGE_STORAGE_KEY) || window.navigator.language
+    window.localStorage.getItem(LANGUAGE_STORAGE_KEY) ||
+      window.navigator.language,
   )
 }
 
@@ -42,5 +47,5 @@ function applyLanguage(language: string) {
 applyLanguage(i18n.resolvedLanguage || i18n.language)
 i18n.on("languageChanged", applyLanguage)
 
-export { i18n, normalizeLanguage }
+export { getCurrentLocale, i18n, normalizeLanguage }
 export type { AppLanguage }

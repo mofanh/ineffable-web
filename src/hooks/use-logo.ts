@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { logoVariants, type LogoVariant } from "@/components/ineffable-logo"
+import { i18n } from "@/lib/i18n/i18n"
 
 export type LogoSelectionMode = "fixed" | "random" | "rotate"
 
@@ -22,7 +23,10 @@ function getRotatedVariant(storageKey: string) {
   const safeIndex = Number.isFinite(rawIndex) ? rawIndex : 0
   const variant = logoVariants[safeIndex % logoVariants.length]
 
-  localStorage.setItem(storageKey, String((safeIndex + 1) % logoVariants.length))
+  localStorage.setItem(
+    storageKey,
+    String((safeIndex + 1) % logoVariants.length),
+  )
 
   return variant
 }
@@ -40,7 +44,9 @@ function getSessionRandomVariant(storageKey: string) {
   return variant
 }
 
-export function useLogoVariant(options: UseLogoVariantOptions = {}): LogoVariant {
+export function useLogoVariant(
+  options: UseLogoVariantOptions = {},
+): LogoVariant {
   const {
     mode = "rotate",
     fixedVariant = "a",
@@ -62,7 +68,7 @@ export function useLogoVariant(options: UseLogoVariantOptions = {}): LogoVariant
     setVariant(
       mode === "random"
         ? getSessionRandomVariant(storageKey)
-        : getRotatedVariant(storageKey)
+        : getRotatedVariant(storageKey),
     )
   }, [fixedVariant, mode, storageKey])
 
@@ -70,19 +76,5 @@ export function useLogoVariant(options: UseLogoVariantOptions = {}): LogoVariant
 }
 
 export function getLogoName(variant: LogoVariant): string {
-  const names: Record<LogoVariant, string> = {
-    a: "道·路径",
-    b: "道·交汇",
-    c: "道·周行",
-  }
-  return names[variant]
-}
-
-export function getLogoDescription(variant: LogoVariant): string {
-  const descriptions: Record<LogoVariant, string> = {
-    a: "一画开天，从无到有。起点即终点，路径即意义。",
-    b: "万物生于有，有生于无。交汇即智慧，连接即意义。",
-    c: "独立而不改，周行而不殆。圆环无缺，智慧自洽。",
-  }
-  return descriptions[variant]
+  return i18n.t(`common.logo.${variant}`)
 }
