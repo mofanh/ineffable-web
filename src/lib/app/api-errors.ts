@@ -67,12 +67,13 @@ export function normalizeAppError(
 ): AppError {
   if (error instanceof ApiRequestError) {
     const kind = statusToAppErrorKind(error.status)
+    const message = error.message.trim()
+    const isGeneratedHttpFallback = /^Request failed:\s*\d{3}$/i.test(message)
     return {
       kind,
-      message:
-        error.message ||
-        options?.fallbackMessage ||
-        defaultAppErrorMessage(kind),
+      message: isGeneratedHttpFallback
+        ? defaultAppErrorMessage(kind)
+        : message || options?.fallbackMessage || defaultAppErrorMessage(kind),
       status: error.status,
       cause: error.cause,
       recoverable:
