@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { DayPicker } from "react-day-picker"
 import { Popover as PopoverPrimitive } from "radix-ui"
+import { useTranslation } from "react-i18next"
 
 import {
   AppDialog,
@@ -52,28 +53,29 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { useApiResource } from "@/lib/app/use-api-resource"
+import { i18n, normalizeLanguage } from "@/lib/i18n/i18n"
 
 const INTERVAL_OPTIONS = [
-  { value: "15", label: "每 15 分钟" },
-  { value: "30", label: "每 30 分钟" },
-  { value: "60", label: "每小时" },
-  { value: "180", label: "每 3 小时" },
-  { value: "360", label: "每 6 小时" },
-  { value: "720", label: "每 12 小时" },
-  { value: "1440", label: "每天" },
-  { value: "custom", label: "自定义分钟数" },
+  { value: "15", labelKey: "automation.interval.every15Minutes" },
+  { value: "30", labelKey: "automation.interval.every30Minutes" },
+  { value: "60", labelKey: "automation.interval.hourly" },
+  { value: "180", labelKey: "automation.interval.every3Hours" },
+  { value: "360", labelKey: "automation.interval.every6Hours" },
+  { value: "720", labelKey: "automation.interval.every12Hours" },
+  { value: "1440", labelKey: "automation.interval.daily" },
+  { value: "custom", labelKey: "automation.interval.custom" },
 ]
 
 const INTERVAL_VALUES = new Set(INTERVAL_OPTIONS.map((option) => option.value))
 const EMPTY_AUTOMATION_RUNS: Record<string, AutomationRun[]> = {}
 const WEEKDAY_OPTIONS = [
-  { value: 1, label: "周一" },
-  { value: 2, label: "周二" },
-  { value: 3, label: "周三" },
-  { value: 4, label: "周四" },
-  { value: 5, label: "周五" },
-  { value: 6, label: "周六" },
-  { value: 7, label: "周日" },
+  { value: 1, labelKey: "automation.weekdays.monday" },
+  { value: 2, labelKey: "automation.weekdays.tuesday" },
+  { value: 3, labelKey: "automation.weekdays.wednesday" },
+  { value: 4, labelKey: "automation.weekdays.thursday" },
+  { value: 5, labelKey: "automation.weekdays.friday" },
+  { value: 6, labelKey: "automation.weekdays.saturday" },
+  { value: 7, labelKey: "automation.weekdays.sunday" },
 ]
 
 function padNumber(value: number) {
@@ -149,8 +151,9 @@ function formatLocalDateValue(date: Date) {
 
 function formatDateTimeLabel(dateValue: string, timeValue: string) {
   const date = parseLocalDate(dateValue)
-  if (!date) return "选择日期和时间"
-  const formattedDate = new Intl.DateTimeFormat("zh-CN", {
+  if (!date) return i18n.t("automation.trigger.chooseDateTime")
+  const locale = normalizeLanguage(i18n.resolvedLanguage || i18n.language)
+  const formattedDate = new Intl.DateTimeFormat(locale, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -166,12 +169,17 @@ function numberArray(value: unknown) {
 }
 
 function triggerLabel(automation: Automation) {
-  if (automation.trigger_kind === "manual") return "手动触发"
+  if (automation.trigger_kind === "manual")
+    return i18n.t("automation.trigger.manualTrigger")
   if (
     automation.trigger_kind === "once" &&
     typeof automation.trigger_spec?.run_at === "string"
   ) {
-    return `单次 · ${new Date(automation.trigger_spec.run_at).toLocaleString("zh-CN")}`
+    return i18n.t("automation.trigger.onceAt", {
+      date: new Date(automation.trigger_spec.run_at).toLocaleString(
+        normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+      ),
+    })
   }
   if (automation.trigger_kind === "interval") {
     const minutes =
@@ -180,7 +188,9 @@ function triggerLabel(automation: Automation) {
         : typeof automation.trigger_spec?.interval_seconds === "number"
           ? Math.round(automation.trigger_spec.interval_seconds / 60)
           : null
-    return minutes ? `每 ${minutes} 分钟` : "固定间隔"
+    return minutes
+      ? i18n.t("automation.interval.everyMinutes", { minutes })
+      : i18n.t("automation.interval.fixed")
   }
   if (automation.trigger_kind === "calendar") {
     const frequency =
@@ -190,18 +200,18 @@ function triggerLabel(automation: Automation) {
     const time =
       typeof automation.trigger_spec?.time === "string"
         ? automation.trigger_spec.time
-        : "已排期"
+        : i18n.t("automation.trigger.scheduled")
     const timezone =
       typeof automation.trigger_spec?.timezone === "string"
         ? automation.trigger_spec.timezone
         : "UTC"
     const frequencyLabel =
       frequency === "daily"
-        ? "每天"
+        ? i18n.t("automation.trigger.daily")
         : frequency === "weekly"
-          ? "每周"
+          ? i18n.t("automation.trigger.weekly")
           : frequency === "monthly"
-            ? "每月"
+            ? i18n.t("automation.trigger.monthly")
             : frequency
     return `${frequencyLabel} · ${time} · ${timezone}`
   }
@@ -209,31 +219,34 @@ function triggerLabel(automation: Automation) {
 }
 
 function triggerKindLabel(triggerKind: string) {
-  if (triggerKind === "manual") return "手动"
-  if (triggerKind === "once") return "单次"
-  if (triggerKind === "interval") return "间隔"
-  if (triggerKind === "calendar") return "日历"
+  if (triggerKind === "manual") return i18n.t("automation.trigger.manual")
+  if (triggerKind === "once") return i18n.t("automation.trigger.once")
+  if (triggerKind === "interval") return i18n.t("automation.trigger.interval")
+  if (triggerKind === "calendar") return i18n.t("automation.trigger.calendar")
   return triggerKind
 }
 
 function statusLabel(status: string) {
-  if (status === "active") return "已启用"
-  if (status === "inactive") return "已暂停"
-  if (status === "completed") return "已完成"
-  if (status === "failed") return "失败"
-  if (status === "running") return "运行中"
-  if (status === "queued") return "排队中"
+  if (status === "active") return i18n.t("automation.status.active")
+  if (status === "inactive") return i18n.t("automation.status.inactive")
+  if (status === "completed") return i18n.t("automation.status.completed")
+  if (status === "failed") return i18n.t("automation.status.failed")
+  if (status === "running") return i18n.t("automation.status.running")
+  if (status === "queued") return i18n.t("automation.status.queued")
   return status
 }
 
 function formatRunTime(value?: string | null) {
   if (!value) return "—"
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(
+    normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+    {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value))
+    },
+  ).format(new Date(value))
 }
 
 function runStatusCounts(runsByAutomation: Record<string, AutomationRun[]>) {
@@ -256,6 +269,7 @@ function useAccessToken() {
 }
 
 export function AutomationPage() {
+  const { t } = useTranslation()
   const accessToken = useAccessToken()
   const { conversations, refreshConversations, selectConversation } =
     useAppSession()
@@ -323,7 +337,7 @@ export function AutomationPage() {
 
   const automationResource = useApiResource({
     load: loadAutomationData,
-    errorMessage: "加载自动任务失败。",
+    errorMessage: t("automation.feedback.loadFailed"),
   })
   const automations = automationResource.data?.automations ?? []
   const automationRuns = automationResource.data?.runs ?? EMPTY_AUTOMATION_RUNS
@@ -466,12 +480,16 @@ export function AutomationPage() {
       })
       closeAutomationDialog()
       notify.success({
-        title: "自动任务已保存",
+        title: t("automation.feedback.saved"),
         description: form.name,
       })
       await reload()
     } catch (err) {
-      reportActionError(err, "保存自动任务失败。", "保存失败")
+      reportActionError(
+        err,
+        t("automation.feedback.saveFailed"),
+        t("automation.feedback.saveFailedTitle"),
+      )
     } finally {
       setSaving(false)
     }
@@ -479,9 +497,9 @@ export function AutomationPage() {
 
   async function handleArchiveAutomation(automation: Automation) {
     const confirmed = await confirm({
-      title: `归档“${automation.name}”？`,
-      description: "归档后该任务将停止运行，并从当前任务列表中移除。",
-      confirmLabel: "归档",
+      title: t("automation.feedback.archiveTitle", { name: automation.name }),
+      description: t("automation.feedback.archiveDescription"),
+      confirmLabel: t("automation.feedback.archive"),
       variant: "destructive",
     })
     if (!confirmed) {
@@ -494,15 +512,15 @@ export function AutomationPage() {
       await deleteAutomation(accessToken, automation.id)
       if (editingAutomation?.id === automation.id) closeAutomationDialog()
       notify.success({
-        title: "自动任务已归档",
+        title: t("automation.feedback.archived"),
         description: automation.name,
       })
       await reload()
     } catch (err) {
       reportActionError(
         err,
-        "归档自动任务失败。",
-        "归档失败",
+        t("automation.feedback.archiveFailed"),
+        t("automation.feedback.archiveFailedTitle"),
       )
     } finally {
       setSaving(false)
@@ -519,16 +537,16 @@ export function AutomationPage() {
       notify.success({
         title:
           automation.status === "active"
-            ? "自动任务已暂停"
-            : "自动任务已启用",
+            ? t("automation.feedback.paused")
+            : t("automation.feedback.enabled"),
         description: automation.name,
       })
       await reload()
     } catch (err) {
       reportActionError(
         err,
-        "更新自动任务状态失败。",
-        "状态更新失败",
+        t("automation.feedback.statusFailed"),
+        t("automation.feedback.statusFailedTitle"),
       )
     } finally {
       setSaving(false)
@@ -543,12 +561,16 @@ export function AutomationPage() {
       const response = await runAutomation(accessToken, automation.id)
       setLastRunConversationId(response.conversation_id)
       notify.success({
-        title: "自动任务已开始运行",
+        title: t("automation.feedback.runStarted"),
         description: automation.name,
       })
       await reload()
     } catch (err) {
-      reportActionError(err, "运行自动任务失败。", "运行失败")
+      reportActionError(
+        err,
+        t("automation.feedback.runFailed"),
+        t("automation.feedback.runFailedTitle"),
+      )
     } finally {
       setSaving(false)
     }
@@ -565,11 +587,11 @@ export function AutomationPage() {
   return (
     <AppMetricPage
       eyebrow="Agent Automation"
-      title="自动任务"
-      subtitle="让 Agent 在指定时间回到原会话继续工作。你可以在这里查看排期、运行记录，或调整已经创建的任务。"
+      title={t("automation.page.title")}
+      subtitle={t("automation.page.subtitle")}
       metrics={[
         {
-          label: "运行中",
+          label: t("automation.page.running"),
           value: automationResource.data
             ? String(
                 automations.filter(
@@ -577,28 +599,28 @@ export function AutomationPage() {
                 ).length,
               )
             : "—",
-          detail: "当前已启用任务",
+          detail: t("automation.page.runningDetail"),
           icon: Zap,
           tone: "amber",
         },
         {
-          label: "已排期",
+          label: t("automation.page.scheduled"),
           value: automationResource.data
             ? String(
                 automations.filter((automation) => automation.next_run_at)
                   .length,
               )
             : "—",
-          detail: "已有下次运行时间",
+          detail: t("automation.page.scheduledDetail"),
           icon: Clock3,
           tone: "blue",
         },
         {
-          label: "近期运行",
+          label: t("automation.page.recentRuns"),
           value: automationResource.data ? String(runCounts.total) : "—",
           detail: runCounts.failed
-            ? `${runCounts.failed} 次失败`
-            : "每个任务最近 50 条",
+            ? t("automation.page.failedRuns", { count: runCounts.failed })
+            : t("automation.page.recentRunsDetail"),
           icon: History,
           tone: "green",
         },
@@ -609,51 +631,53 @@ export function AutomationPage() {
             onClick={() =>
               window.dispatchEvent(new Event("ineffable:right-sidebar:open"))
             }
-            aria-label="在会话中创建自动任务"
-            title="在会话中创建自动任务"
+            aria-label={t("automation.page.createInChatLabel")}
+            title={t("automation.page.createInChatLabel")}
           >
             <MessageSquarePlus className="size-4" />
-            <span className="hidden sm:inline">在会话中创建</span>
+            <span className="hidden sm:inline">
+              {t("automation.page.createInChat")}
+            </span>
           </Button>
           <Button
             variant="outline"
             disabled={saving || automationResource.isRefreshing}
             onClick={() => void reload()}
-            aria-label="刷新自动任务"
+            aria-label={t("automation.page.refreshLabel")}
           >
             <RotateCw
               className={automationResource.isRefreshing ? "animate-spin" : ""}
             />
-            <span className="hidden sm:inline">刷新</span>
+            <span className="hidden sm:inline">{t("automation.page.refresh")}</span>
           </Button>
         </div>
       }
     >
-      <ErrorState error={error} title="操作失败" />
+      <ErrorState error={error} title={t("common.operationFailed")} />
 
       {lastRunConversationId ? (
-        <Notice tone="success" title="任务已开始运行">
-          已在原会话中创建新的 Agent 运行。{" "}
+        <Notice tone="success" title={t("automation.feedback.runStarted")}>
+          {t("automation.page.runStartedDescription")} {" "}
           <Button
             variant="link"
             className="h-auto p-0"
             onClick={() => openConversation(lastRunConversationId)}
           >
-            打开会话
+            {t("automation.page.openConversation")}
           </Button>
         </Notice>
       ) : null}
 
       <AppSectionCard
-        title="任务列表"
-        description="任务到点后会向原会话追加输入，并按现有上下文继续执行。"
+        title={t("automation.page.listTitle")}
+        description={t("automation.page.listDescription")}
         icon={Zap}
         actions={
           <div className="hidden min-w-72 md:block">
             <AppSearchBar
               value={query}
               onChange={setQuery}
-              placeholder="搜索任务名称或内容..."
+              placeholder={t("automation.page.searchPlaceholder")}
             />
           </div>
         }
@@ -662,16 +686,16 @@ export function AutomationPage() {
           <AppSearchBar
             value={query}
             onChange={setQuery}
-            placeholder="搜索任务名称或内容..."
+            placeholder={t("automation.page.searchPlaceholder")}
           />
         </div>
         <DataState
           state={automationResource.state}
           error={automationResource.error}
           empty={automations.length === 0}
-          emptyTitle="还没有自动任务"
-          emptyDescription="在右侧会话中告诉 Agent 要做什么以及何时执行，任务创建后会出现在这里。"
-          loadingLabel="正在加载自动任务"
+          emptyTitle={t("automation.page.emptyTitle")}
+          emptyDescription={t("automation.page.emptyDescription")}
+          loadingLabel={t("automation.page.loading")}
           onRetry={() => void reload()}
         >
           <div className="mt-3 grid gap-3">
@@ -694,7 +718,7 @@ export function AutomationPage() {
                     className="mt-1 max-w-full truncate text-left text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                     onClick={() => openConversation(automation.conversation_id)}
                   >
-                    来源会话 · {" "}
+                    {t("automation.page.sourceConversation")} · {" "}
                     {conversationsById.get(automation.conversation_id)?.title ??
                       automation.conversation_id}
                   </button>
@@ -709,17 +733,23 @@ export function AutomationPage() {
 
               <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-3">
                 <div>
-                  <dt className="text-muted-foreground">触发规则</dt>
+                  <dt className="text-muted-foreground">
+                    {t("automation.page.triggerRule")}
+                  </dt>
                   <dd className="mt-1 font-medium">{triggerLabel(automation)}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">下次运行</dt>
+                  <dt className="text-muted-foreground">
+                    {t("automation.page.nextRun")}
+                  </dt>
                   <dd className="mt-1 font-medium">
                     {formatRunTime(automation.next_run_at)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">最近运行</dt>
+                  <dt className="text-muted-foreground">
+                    {t("automation.page.latestRun")}
+                  </dt>
                   <dd className="mt-1 font-medium">
                     {formatRunTime(automation.last_run_at)}
                   </dd>
@@ -728,7 +758,9 @@ export function AutomationPage() {
 
               {(automationRuns[automation.id] ?? []).slice(0, 3).length > 0 ? (
                 <div className="mt-4 space-y-2 border-t pt-3 text-xs">
-                  <p className="font-medium">最近运行记录</p>
+                  <p className="font-medium">
+                    {t("automation.page.recentRunRecords")}
+                  </p>
                   {(automationRuns[automation.id] ?? [])
                     .slice(0, 3)
                     .map((run) => (
@@ -748,11 +780,11 @@ export function AutomationPage() {
                               openConversation(run.conversation_id)
                             }
                           >
-                            查看会话
+                            {t("automation.page.viewConversation")}
                           </button>
                         ) : (
                           <span className="max-w-80 truncate">
-                            {run.error || "未创建会话"}
+                            {run.error || t("automation.page.noConversation")}
                           </span>
                         )}
                       </div>
@@ -766,7 +798,7 @@ export function AutomationPage() {
                   onClick={() => void handleRunAutomation(automation)}
                 >
                   <Play className="size-3.5" />
-                  立即运行
+                  {t("automation.page.runNow")}
                 </Button>
                 <Button
                   variant="outline"
@@ -774,7 +806,7 @@ export function AutomationPage() {
                   onClick={() => startEditAutomation(automation)}
                 >
                   <Edit3 className="size-3.5" />
-                  编辑
+                  {t("automation.page.edit")}
                 </Button>
                 <Button
                   variant="outline"
@@ -782,7 +814,9 @@ export function AutomationPage() {
                   disabled={saving}
                   onClick={() => void handleToggleAutomation(automation)}
                 >
-                  {automation.status === "active" ? "暂停" : "启用"}
+                  {automation.status === "active"
+                    ? t("automation.page.pause")
+                    : t("automation.page.enable")}
                 </Button>
                 <Button
                   variant="destructive"
@@ -791,15 +825,15 @@ export function AutomationPage() {
                   onClick={() => void handleArchiveAutomation(automation)}
                 >
                   <Trash2 className="size-3.5" />
-                  归档
+                  {t("automation.feedback.archive")}
                 </Button>
               </div>
             </div>
             ))}
             {filteredAutomations.length === 0 ? (
               <EmptyState
-                title="没有匹配的任务"
-                description="尝试更换关键词，或清空搜索条件。"
+                title={t("automation.page.noMatches")}
+                description={t("automation.page.noMatchesDescription")}
               />
             ) : null}
           </div>
@@ -808,7 +842,7 @@ export function AutomationPage() {
 
       <AutomationDialog
         open={automationDialogOpen}
-        title="编辑自动任务"
+        title={t("automation.form.editTitle")}
         onOpenChange={(open) => {
           if (open) setAutomationDialogOpen(true)
           else closeAutomationDialog()
@@ -816,11 +850,14 @@ export function AutomationPage() {
       >
         <form className="space-y-5" onSubmit={handleSaveAutomation}>
           <FormSection className="space-y-4">
-            <FormField htmlFor="automation-name" label="任务名称">
+            <FormField
+              htmlFor="automation-name"
+              label={t("automation.form.name")}
+            >
               <Input
                 id="automation-name"
                 className="h-10"
-                placeholder="例如：每日整理项目进展"
+                placeholder={t("automation.form.namePlaceholder")}
                 value={form.name}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -831,11 +868,14 @@ export function AutomationPage() {
                 required
               />
             </FormField>
-            <FormField htmlFor="automation-description" label="说明（可选）">
+            <FormField
+              htmlFor="automation-description"
+              label={t("automation.form.description")}
+            >
               <Input
                 id="automation-description"
                 className="h-10"
-                placeholder="简要说明这项任务的用途"
+                placeholder={t("automation.form.descriptionPlaceholder")}
                 value={form.description}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -847,12 +887,12 @@ export function AutomationPage() {
             </FormField>
             <FormField
               htmlFor="automation-message"
-              label="执行消息"
-              description="触发时，这段消息会追加到任务的原会话中。"
+              label={t("automation.form.message")}
+              description={t("automation.form.messageDescription")}
             >
               <Textarea
                 id="automation-message"
-                placeholder="告诉 Agent 到点后需要继续完成什么"
+                placeholder={t("automation.form.messagePlaceholder")}
                 value={form.message}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -864,7 +904,7 @@ export function AutomationPage() {
                 required
               />
             </FormField>
-            <FormField label="触发方式">
+            <FormField label={t("automation.form.triggerType")}>
               <Select
                 value={form.trigger_kind}
                 onValueChange={(value) =>
@@ -878,21 +918,27 @@ export function AutomationPage() {
                 }
               >
                 <SelectTrigger className="h-10 w-full">
-                  <SelectValue placeholder="选择触发方式" />
+                  <SelectValue placeholder={t("automation.form.chooseTriggerType")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="manual">仅手动运行</SelectItem>
-                  <SelectItem value="once">指定时间运行一次</SelectItem>
-                  <SelectItem value="interval">按固定间隔运行</SelectItem>
-                  <SelectItem value="calendar">按日历计划运行</SelectItem>
+                  <SelectItem value="manual">
+                    {t("automation.form.manualOnly")}
+                  </SelectItem>
+                  <SelectItem value="once">{t("automation.form.once")}</SelectItem>
+                  <SelectItem value="interval">
+                    {t("automation.form.interval")}
+                  </SelectItem>
+                  <SelectItem value="calendar">
+                    {t("automation.form.calendar")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </FormField>
           </FormSection>
           {form.trigger_kind === "once" ? (
             <FormField
-              label="执行时间"
-              description="使用浏览器所在时区选择，保存时会转换为 UTC。"
+              label={t("automation.form.runAt")}
+              description={t("automation.form.runAtDescription")}
             >
               <DateTimePicker
                 dateValue={form.once_date}
@@ -904,7 +950,7 @@ export function AutomationPage() {
             </FormField>
           ) : null}
           {form.trigger_kind === "interval" ? (
-            <FormField label="运行间隔">
+            <FormField label={t("automation.form.runInterval")}>
               <div className="grid gap-2 md:grid-cols-[1fr_160px]">
                 <Select
                   value={form.interval_preset}
@@ -918,12 +964,12 @@ export function AutomationPage() {
                   }
                 >
                   <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="选择运行间隔" />
+                    <SelectValue placeholder={t("automation.form.chooseInterval")} />
                   </SelectTrigger>
                   <SelectContent>
                     {INTERVAL_OPTIONS.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        {t(option.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -933,7 +979,7 @@ export function AutomationPage() {
                     className="h-10"
                     type="number"
                     min="1"
-                    placeholder="分钟数"
+                    placeholder={t("automation.form.minutes")}
                     value={form.interval_minutes}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -949,8 +995,8 @@ export function AutomationPage() {
           ) : null}
           {form.trigger_kind === "calendar" ? (
             <FormField
-              label="日历计划"
-              description="按所选时区和频率触发任务。"
+              label={t("automation.form.calendarPlan")}
+              description={t("automation.form.calendarDescription")}
             >
               <div className="grid gap-2 md:grid-cols-3">
                 <Select
@@ -963,12 +1009,12 @@ export function AutomationPage() {
                   }
                 >
                   <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="选择频率" />
+                    <SelectValue placeholder={t("automation.form.chooseFrequency")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">每天</SelectItem>
-                    <SelectItem value="weekly">每周</SelectItem>
-                    <SelectItem value="monthly">每月</SelectItem>
+                    <SelectItem value="daily">{t("automation.trigger.daily")}</SelectItem>
+                    <SelectItem value="weekly">{t("automation.trigger.weekly")}</SelectItem>
+                    <SelectItem value="monthly">{t("automation.trigger.monthly")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input
@@ -1022,7 +1068,7 @@ export function AutomationPage() {
                           }))
                         }
                       >
-                        {weekday.label}
+                        {t(weekday.labelKey)}
                       </Button>
                     )
                   })}
@@ -1031,7 +1077,7 @@ export function AutomationPage() {
               {form.calendar_frequency === "monthly" ? (
                 <Input
                   className="h-10"
-                  placeholder="每月日期，例如 1, 15, 28"
+                  placeholder={t("automation.form.monthlyDays")}
                   value={form.calendar_month_days}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -1050,15 +1096,15 @@ export function AutomationPage() {
               variant="outline"
               onClick={closeAutomationDialog}
             >
-              取消
+              {t("automation.form.cancel")}
             </Button>
             <AsyncButton
               type="submit"
               isLoading={saving}
-              loadingLabel="保存中..."
+              loadingLabel={t("automation.form.saving")}
               disabled={!editingAutomation}
             >
-              保存任务
+              {t("automation.form.save")}
             </AsyncButton>
           </div>
         </form>
@@ -1076,6 +1122,7 @@ function DateTimePicker({
   timeValue: string
   onChange: (next: { once_date?: string; once_time?: string }) => void
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const selectedDate = parseLocalDate(dateValue)
   const label = formatDateTimeLabel(dateValue, timeValue)
@@ -1095,11 +1142,13 @@ function DateTimePicker({
             <span className="min-w-0">
               <span className="block truncate font-medium">{label}</span>
               <span className="text-muted-foreground block text-xs">
-                单次触发时间
+                {t("automation.dateTime.onceLabel")}
               </span>
             </span>
           </span>
-          <span className="text-muted-foreground shrink-0 text-xs">修改</span>
+          <span className="text-muted-foreground shrink-0 text-xs">
+            {t("automation.dateTime.modify")}
+          </span>
         </button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
@@ -1145,15 +1194,17 @@ function DateTimePicker({
 
           <div className="mt-3 grid gap-3 border-t border-border pt-3">
             <div>
-              <p className="text-sm font-medium">时间</p>
+              <p className="text-sm font-medium">
+                {t("automation.dateTime.time")}
+              </p>
               <p className="text-muted-foreground text-xs">
-                选择小时、分钟和秒。
+                {t("automation.dateTime.timeDescription")}
               </p>
             </div>
 
             <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-end gap-2">
               <TimeNumberField
-                label="时"
+                label={t("automation.dateTime.hour")}
                 value={hour}
                 max={23}
                 onChange={(value) =>
@@ -1166,7 +1217,7 @@ function DateTimePicker({
                 :
               </span>
               <TimeNumberField
-                label="分"
+                label={t("automation.dateTime.minute")}
                 value={minute}
                 max={59}
                 onChange={(value) =>
@@ -1179,7 +1230,7 @@ function DateTimePicker({
                 :
               </span>
               <TimeNumberField
-                label="秒"
+                label={t("automation.dateTime.second")}
                 value={second}
                 max={59}
                 onChange={(value) =>
@@ -1214,10 +1265,10 @@ function DateTimePicker({
                 variant="outline"
                 onClick={() => onChange(defaultOnceDateTime())}
               >
-                下一个时间段
+                {t("automation.dateTime.nextSlot")}
               </Button>
               <Button type="button" onClick={() => setOpen(false)}>
-                应用
+                {t("automation.dateTime.apply")}
               </Button>
             </div>
           </div>
@@ -1266,11 +1317,13 @@ function AutomationDialog({
   children: React.ReactNode
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useTranslation()
+
   return (
     <AppDialog
       open={open}
       title={title}
-      description="设置要追加到会话的消息和触发条件。"
+      description={t("automation.form.dialogDescription")}
       onOpenChange={onOpenChange}
     >
       {children}
