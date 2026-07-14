@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 import MarkdownIt from "markdown-it"
 
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +16,7 @@ import {
   type ToolCallView,
 } from "@/features/chat/chat-pane-state"
 import { cn } from "@/lib/utils"
+import { i18n } from "@/lib/i18n/i18n"
 import {
   BrainCircuitIcon,
   ChevronDownIcon,
@@ -37,15 +39,15 @@ const THINK_MARKDOWN_CLASS =
 function toolStatusLabel(status: ToolCallStatus) {
   switch (status) {
     case "pending":
-      return "等待中"
+      return i18n.t("chat.agent.waiting")
     case "running":
-      return "执行中"
+      return i18n.t("chat.agent.running")
     case "succeeded":
-      return "成功"
+      return i18n.t("chat.agent.success")
     case "failed":
-      return "失败"
+      return i18n.t("chat.agent.failed")
     case "cancelled":
-      return "已取消"
+      return i18n.t("chat.agent.cancelled")
     default:
       return status
   }
@@ -125,20 +127,20 @@ function terminalStatusTone(status: string) {
 function terminalStatusLabel(status: string) {
   switch (status.toLowerCase()) {
     case "running":
-      return "运行中"
+      return i18n.t("chat.agent.terminalRunning")
     case "exited":
     case "completed":
     case "succeeded":
-      return "已完成"
+      return i18n.t("chat.agent.terminalCompleted")
     case "interrupted":
     case "cancelled":
     case "canceled":
-      return "已中止"
+      return i18n.t("chat.agent.terminalInterrupted")
     case "timed_out":
-      return "已超时"
+      return i18n.t("chat.agent.terminalTimedOut")
     case "failed":
     case "error":
-      return "失败"
+      return i18n.t("chat.agent.failed")
     default:
       return status
   }
@@ -196,7 +198,9 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-foreground/75">
           <TerminalIcon className="size-3.5 flex-none" />
-          <span className="truncate">{command || sessionId || "终端会话"}</span>
+          <span className="truncate">
+            {command || sessionId || i18n.t("chat.agent.terminalSession")}
+          </span>
         </span>
         {status ? (
           <Badge
@@ -220,17 +224,17 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        {sessionId ? <TerminalMetaItem label="会话" value={sessionId} /> : null}
-        {cwd ? <TerminalMetaItem label="工作目录" value={cwd} /> : null}
-        {cursor !== null ? <TerminalMetaItem label="游标" value={cursor} /> : null}
-        {lineRange ? <TerminalMetaItem label="行范围" value={lineRange} /> : null}
-        {exitCode !== null ? <TerminalMetaItem label="退出码" value={exitCode} /> : null}
+        {sessionId ? <TerminalMetaItem label={i18n.t("chat.agent.session")} value={sessionId} /> : null}
+        {cwd ? <TerminalMetaItem label={i18n.t("chat.agent.cwd")} value={cwd} /> : null}
+        {cursor !== null ? <TerminalMetaItem label={i18n.t("chat.agent.cursor")} value={cursor} /> : null}
+        {lineRange ? <TerminalMetaItem label={i18n.t("chat.agent.lineRange")} value={lineRange} /> : null}
+        {exitCode !== null ? <TerminalMetaItem label={i18n.t("chat.agent.exitCode")} value={exitCode} /> : null}
       </div>
 
-      <TerminalOutputBlock label="输出" content={output} />
-      <TerminalOutputBlock label="错误输出" content={stderr} />
-      <TerminalOutputBlock label="失败原因" content={failureReason} />
-      <TerminalOutputBlock label="下一步" content={nextAction} />
+      <TerminalOutputBlock label={i18n.t("chat.agent.output")} content={output} />
+      <TerminalOutputBlock label={i18n.t("chat.agent.stderr")} content={stderr} />
+      <TerminalOutputBlock label={i18n.t("chat.agent.failureReason")} content={failureReason} />
+      <TerminalOutputBlock label={i18n.t("chat.agent.nextAction")} content={nextAction} />
     </div>
   )
 }
@@ -243,7 +247,7 @@ function TerminalListResult({ result }: { result: JsonObject }) {
   if (!sessions.length) {
     return (
       <div className="rounded-md border border-black/6 bg-background/45 px-2.5 py-2 text-[11px] text-foreground/60">
-        暂无终端会话。
+        {i18n.t("chat.agent.noSessions")}
       </div>
     )
   }
@@ -276,11 +280,11 @@ function TerminalListResult({ result }: { result: JsonObject }) {
               ) : null}
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <TerminalMetaItem label="会话" value={sessionId} />
-              <TerminalMetaItem label="工作目录" value={stringValue(session.cwd) || "-"} />
+              <TerminalMetaItem label={i18n.t("chat.agent.session")} value={sessionId} />
+              <TerminalMetaItem label={i18n.t("chat.agent.cwd")} value={stringValue(session.cwd) || "-"} />
             </div>
             <TerminalOutputBlock
-              label="最近输出"
+              label={i18n.t("chat.agent.recentOutput")}
               content={stringValue(session.last_output_tail)}
             />
           </div>
@@ -338,7 +342,7 @@ function ThinkBlockView({ block }: { block: ThinkBlock }) {
         >
           <span className="inline-flex items-center gap-1.5">
             <BrainCircuitIcon className="size-3.5" />
-            <span>思考过程</span>
+            <span>{i18n.t("chat.agent.thinking")}</span>
           </span>
           <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
         </button>
@@ -417,7 +421,9 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
       <CollapsibleContent className="animated-collapsible-content relative ml-[6.5px] border-l-[0.5px] border-border/50 pt-2 pl-3.5 text-xs text-foreground/65">
         {tool.input.trim() ? (
           <div className="space-y-1">
-            <p className="text-[10px] font-medium tracking-wide opacity-55">输入</p>
+            <p className="text-[10px] font-medium tracking-wide opacity-55">
+              {i18n.t("chat.agent.input")}
+            </p>
             <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
               {tool.input}
             </pre>
@@ -426,7 +432,9 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
 
         {tool.output.trim() ? (
           <div className={cn("space-y-1", tool.input.trim() ? "mt-2" : "")}>
-            <p className="text-[10px] font-medium tracking-wide opacity-55">输出</p>
+            <p className="text-[10px] font-medium tracking-wide opacity-55">
+              {i18n.t("chat.agent.output")}
+            </p>
             {terminalResult || (
               <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
                 {tool.output}
@@ -444,6 +452,7 @@ export const AgentPane = React.memo(function AgentPane({
 }: {
   pane: AgentPaneState
 }) {
+  useTranslation()
   const blocks = getPaneBlocks(pane)
 
   return (

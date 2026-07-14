@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -31,8 +32,13 @@ type ChatMessageListProps = {
 }
 
 function StreamingTailDot() {
+  const { t } = useTranslation()
+
   return (
-    <span className="relative flex size-3 items-center justify-center" aria-label="正在生成">
+    <span
+      className="relative flex size-3 items-center justify-center"
+      aria-label={t("chat.messages.generating")}
+    >
       <span className="absolute inline-flex size-3 rounded-full bg-emerald-500/35 animate-ping" />
       <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
     </span>
@@ -53,6 +59,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onApproveApproval,
   onRejectApproval,
 }: ChatMessageListProps) {
+  const { t } = useTranslation()
+
   if (entries.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
@@ -60,9 +68,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           <SparklesIcon className="size-5" />
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium">从一个任务开始</p>
+          <p className="text-sm font-medium">{t("chat.messages.startTitle")}</p>
           <p className="text-sidebar-foreground/70 text-xs leading-5">
-            让 AI 结合工作区文件分析内容、推进任务，或输入 @ 引用 Agent 描述文件。
+            {t("chat.messages.startDescription")}
           </p>
         </div>
       </div>
@@ -99,7 +107,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               {isLoadingOlderEntries ? (
                 <Loader2Icon className="size-3.5 animate-spin" />
               ) : null}
-              {olderEntriesError ? "重试更早消息" : "更早消息"}
+              {olderEntriesError
+                ? t("chat.messages.retryOlder")
+                : t("chat.messages.older")}
             </Button>
             {olderEntriesError ? (
               <p className="ml-2 max-w-[220px] truncate text-xs text-destructive">
@@ -152,7 +162,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 <div className="max-w-[92%] min-w-0 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-950">
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-amber-800">
-                      Sandbox 命令等待审批
+                      {t("chat.messages.approvalWaiting")}
                     </p>
                     <p className="whitespace-pre-wrap break-words leading-6">
                       {entry.action}
@@ -180,7 +190,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       ) : (
                         <CheckIcon className="size-3.5" />
                       )}
-                      批准
+                      {t("chat.messages.approve")}
                     </Button>
                     <Button
                       type="button"
@@ -195,15 +205,17 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       ) : (
                         <XIcon className="size-3.5" />
                       )}
-                      拒绝
+                      {t("chat.messages.reject")}
                     </Button>
                     {entry.status === "approved" ? (
                       <span className="text-xs text-emerald-700">
-                        已批准，正在继续执行
+                        {t("chat.messages.approvedContinuing")}
                       </span>
                     ) : null}
                     {entry.status === "rejected" ? (
-                      <span className="text-xs text-amber-800">已拒绝</span>
+                      <span className="text-xs text-amber-800">
+                        {t("chat.messages.rejected")}
+                      </span>
                     ) : null}
                   </div>
                 </div>
@@ -231,7 +243,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                         >
                           <div className="flex items-center justify-between gap-2 text-xs">
                             <span className="min-w-0 truncate font-medium text-foreground/75">
-                              子任务 · {subagent.name}
+                              {t("chat.messages.subtask", { name: subagent.name })}
                             </span>
                             <span
                               className={cn(
@@ -241,7 +253,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                                   : "bg-emerald-500/10 text-emerald-700"
                               )}
                             >
-                              {subagent.status === "streaming" ? "执行中" : "已完成"}
+                              {subagent.status === "streaming"
+                                ? t("chat.messages.running")
+                                : t("chat.messages.completed")}
                             </span>
                           </div>
                           <AgentPane pane={subagent} />
@@ -272,7 +286,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             onClick={onScrollToBottomClick}
           >
             <ArrowDownIcon />
-            最新消息
+            {t("chat.messages.latest")}
           </Button>
         </div>
       ) : null}

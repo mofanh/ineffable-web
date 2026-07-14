@@ -1,6 +1,7 @@
 import type { ConversationMessageRecord } from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import type { ApprovalEntry } from "@/features/chat/gateway-chat-types"
+import { i18n } from "@/lib/i18n/i18n"
 
 export function objectValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -152,7 +153,7 @@ export function parsePendingInputId(event: GatewayChatStreamEvent): number | nul
 export function buildConversationTitle(content: string) {
   const normalized = content.trim().replace(/\s+/g, " ")
   if (!normalized) {
-    return "新对话"
+    return i18n.t("chat.header.newChat")
   }
 
   return normalized.length > 36 ? `${normalized.slice(0, 36)}...` : normalized

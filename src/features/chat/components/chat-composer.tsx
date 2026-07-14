@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -89,6 +90,7 @@ export function ChatComposer({
   onPromoteToGuided,
   onDeleteFromQueue,
 }: ChatComposerProps) {
+  const { t } = useTranslation()
   const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
 
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
@@ -134,8 +136,8 @@ export function ChatComposer({
   const hasAgentFiles = agentDescriptorOptions.length > 0
   const hasFilteredAgentFiles = filteredAgentOptions.length > 0
   const agentMenuHint = hasAgentFiles
-    ? "输入以搜索 Agent 文件"
-    : "在 workspace 文件中创建 system/agents/*.md 后可引用"
+    ? t("chat.composer.searchAgents")
+    : t("chat.composer.createAgentHint")
 
   function handleComposerValueChange(value: string) {
     onComposerChange(value)
@@ -185,7 +187,7 @@ export function ChatComposer({
         <div className="mb-1.5 space-y-1.5">
           <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">
             <GripVerticalIcon className="size-3" />
-            <span>预输入队列 ({preInputQueue.length})</span>
+            <span>{t("chat.composer.queue", { count: preInputQueue.length })}</span>
           </div>
           <div className="max-h-[140px] space-y-1 overflow-y-auto rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-1.5">
             {preInputQueue.map((item) => (
@@ -194,10 +196,10 @@ export function ChatComposer({
                 className="flex items-start gap-1.5 rounded-lg bg-background px-2.5 py-2 text-[13px] leading-snug shadow-sm"
               >
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground/80">
-                  {item.status === "pending" ? "预进入中 · " : ""}
-                  {item.status === "queued" ? "排队中 · " : ""}
-                  {item.status === "promoting" ? "引导中 · " : ""}
-                  {item.status === "deleting" ? "删除中 · " : ""}
+                  {item.status === "pending" ? t("chat.composer.pending") : ""}
+                  {item.status === "queued" ? t("chat.composer.queued") : ""}
+                  {item.status === "promoting" ? t("chat.composer.promoting") : ""}
+                  {item.status === "deleting" ? t("chat.composer.deleting") : ""}
                   {item.content.length > 100
                     ? `${item.content.slice(0, 100)}...`
                     : item.content}
@@ -208,24 +210,24 @@ export function ChatComposer({
                     size="icon"
                     variant="ghost"
                     className="size-6 rounded-md text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700"
-                    title="提升为引导输入（立即注入当前对话）"
+                    title={t("chat.composer.promoteTitle")}
                     onClick={() => onPromoteToGuided(item.id)}
                     disabled={isActionPending(item.status)}
                   >
                     <SendHorizontalIcon className="size-3" />
-                    <span className="sr-only">提升为引导</span>
+                    <span className="sr-only">{t("chat.composer.promote")}</span>
                   </Button>
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
                     className="size-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    title="从队列中删除"
+                    title={t("chat.composer.deleteFromQueue")}
                     onClick={() => onDeleteFromQueue(item.id)}
                     disabled={isActionPending(item.status)}
                   >
                     <XIcon className="size-3" />
-                    <span className="sr-only">删除</span>
+                    <span className="sr-only">{t("chat.composer.delete")}</span>
                   </Button>
                 </div>
               </div>
@@ -245,18 +247,22 @@ export function ChatComposer({
 
         {shouldShowAgentMenu ? (
           <div className="overflow-hidden rounded-2xl border border-sidebar-border bg-popover text-popover-foreground shadow-lg">
-            <div className="px-3.5 py-2 text-sm font-medium">添加</div>
+            <div className="px-3.5 py-2 text-sm font-medium">
+              {t("chat.composer.add")}
+            </div>
             <div className="space-y-1 px-2 pb-2">
               <div className="flex items-center gap-2 rounded-xl bg-sidebar-accent/60 px-2.5 py-2 text-sm">
                 <AtSignIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="shrink-0 font-medium">Agent 描述文件</span>
+                <span className="shrink-0 font-medium">
+                  {t("chat.composer.agentDescriptor")}
+                </span>
                 <span className="min-w-0 truncate text-muted-foreground">
                   {agentMenuHint}
                 </span>
               </div>
 
               <div className="px-1 pt-1 text-xs font-medium text-muted-foreground">
-                Agent 文件
+                {t("chat.composer.agentFiles")}
               </div>
 
               <div className="max-h-64 overflow-y-auto">
@@ -290,8 +296,8 @@ export function ChatComposer({
                 ) : (
                   <div className="px-3 py-4 text-sm text-muted-foreground">
                     {hasAgentFiles
-                      ? "没有匹配的 Agent 文件"
-                      : "暂无可引用的 Agent 文件"}
+                      ? t("chat.composer.noMatchingAgents")
+                      : t("chat.composer.noAgents")}
                   </div>
                 )}
               </div>
@@ -301,11 +307,11 @@ export function ChatComposer({
 
         <InputGroup className="h-auto overflow-hidden rounded-2xl border border-sidebar-border bg-background shadow-xs">
           <InputGroupTextarea
-            aria-label="对话消息"
+            aria-label={t("chat.composer.messageLabel")}
             placeholder={
               isSending
-                ? "继续输入，消息将在当前任务完成后发送…"
-                : "描述任务，或输入 @ 引用 Agent 文件…"
+                ? t("chat.composer.queuedPlaceholder")
+                : t("chat.composer.placeholder")
             }
             rows={2}
             value={composer}
@@ -331,10 +337,12 @@ export function ChatComposer({
                   className="h-7 w-full min-w-0 rounded-md bg-background text-xs"
                 >
                   <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="模型" />
+                  <SelectValue placeholder={t("chat.composer.model")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">默认模型</SelectItem>
+                  <SelectItem value="__default__">
+                    {t("chat.composer.defaultModel")}
+                  </SelectItem>
                   {modelOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.displayName}
@@ -359,14 +367,16 @@ export function ChatComposer({
                   aria-busy={isRefreshingSandboxOptions}
                   title={
                     isRefreshingSandboxOptions
-                      ? "正在同步 Sandbox 环境"
-                      : "选择 Sandbox 环境；展开时自动刷新"
+                      ? t("chat.composer.sandboxSyncing")
+                      : t("chat.composer.sandboxTitle")
                   }
                 >
-                  <SelectValue placeholder="沙箱" />
+                  <SelectValue placeholder={t("chat.composer.sandbox")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__auto__">自动选择沙箱</SelectItem>
+                  <SelectItem value="__auto__">
+                    {t("chat.composer.autoSandbox")}
+                  </SelectItem>
                   {sandboxOptions.map((option) => (
                     <SelectItem
                       key={option.environmentId}
@@ -386,7 +396,7 @@ export function ChatComposer({
                   type="button"
                   onClick={onStop}
                 >
-                  停止
+                  {t("chat.composer.stop")}
                 </Button>
               ) : null}
 
@@ -398,10 +408,16 @@ export function ChatComposer({
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
                 disabled={!composer.trim()}
-                title={isSending ? "加入预输入队列" : "发送消息"}
+                title={
+                  isSending
+                    ? t("chat.composer.enqueue")
+                    : t("chat.composer.sendMessage")
+                }
               >
                 <ArrowUpIcon />
-                <span className="sr-only">{isSending ? "加入队列" : "发送"}</span>
+                <span className="sr-only">
+                  {isSending ? t("chat.composer.joinQueue") : t("chat.composer.send")}
+                </span>
               </InputGroupButton>
             </div>
           </InputGroupAddon>

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   SidebarContent,
@@ -94,10 +95,11 @@ import type {
   GatewayChatStreamEvent,
 } from "@/lib/api/chat/gateway-events"
 import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
+import { i18n } from "@/lib/i18n/i18n"
 
 function formatSendErrorMessage(message: string) {
   return message.trim() === "no_available_model"
-    ? "当前套餐暂无可用模型"
+    ? i18n.t("chat.gateway.noModel")
     : message
 }
 
@@ -207,6 +209,7 @@ export function GatewayChatSidebar({
   isFullScreen,
   onFullScreenChange,
 }: GatewayChatSidebarProps) {
+  useTranslation()
   const { toggleSidebar } = useSidebar()
   const {
     accessToken,
@@ -567,10 +570,12 @@ export function GatewayChatSidebar({
     [modelProfiles]
   )
 
-  const bindStatus = currentConversationId ? "已绑定产品会话" : "尚未创建会话"
+  const bindStatus = currentConversationId
+    ? i18n.t("chat.gateway.bound")
+    : i18n.t("chat.gateway.unbound")
   const isSending = streamStatus === "streaming" || streamStatus === "recovering"
   const selectedConversationTitle =
-    selectedConversation?.title || "新对话"
+    selectedConversation?.title || i18n.t("chat.header.newChat")
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {
@@ -788,10 +793,16 @@ export function GatewayChatSidebar({
       .catch((loadError) => {
         pendingOlderLoadMetricsRef.current = null
         setOlderMessagesError(
-          reportChatError(loadError, "加载失败。", "加载历史消息失败", {
+          reportChatError(
+            loadError,
+            i18n.t("chat.gateway.loadFailed"),
+            i18n.t("chat.gateway.loadHistoryFailed"),
+            {
             toast: false,
-            format: (message) => `加载失败：${message}`,
-          })
+              format: (message) =>
+                i18n.t("chat.gateway.loadFailedWithMessage", { message }),
+            }
+          )
         )
       })
       .finally(() => {
@@ -926,9 +937,14 @@ export function GatewayChatSidebar({
     void syncLatestConversationMessagesPage(currentConversationId).catch((loadError) => {
       setEntries([])
       setError(
-        reportChatError(loadError, "加载会话失败。", "加载会话失败", {
+        reportChatError(
+          loadError,
+          i18n.t("chat.gateway.loadConversationFailed"),
+          i18n.t("chat.gateway.loadConversationFailedTitle"),
+          {
           toast: false,
-        })
+          }
+        )
       )
     })
   }, [
@@ -1401,7 +1417,9 @@ export function GatewayChatSidebar({
       clearPendingConversationResumeState()
       updateStreamStatus("error")
       setError(errorMessage)
-      appendSystemMessage(`发送失败：${errorMessage}`)
+      appendSystemMessage(
+        i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
+      )
       updateAssistantEntry((entry) =>
         entry
           ? {
@@ -1491,11 +1509,12 @@ export function GatewayChatSidebar({
           setError(
             reportChatError(
               recoveryError,
-              "连接中断，正在恢复会话。",
-              "恢复会话失败",
+              i18n.t("chat.gateway.reconnecting"),
+              i18n.t("chat.gateway.reconnectFailedTitle"),
               {
                 toast: false,
-                format: (message) => `连接中断，正在恢复会话：${message}`,
+                format: (message) =>
+                  i18n.t("chat.gateway.reconnectingWithMessage", { message }),
               }
             )
           )
@@ -1541,7 +1560,7 @@ export function GatewayChatSidebar({
       activeStreamConversationIdRef.current = conversationId
       activeRunIdRef.current = runId ?? null
       updateStreamStatus("recovering")
-      setError("页面已恢复，正在重新连接会话流…")
+      setError(i18n.t("chat.gateway.pageRestored"))
       persistResumeState({
         conversationId,
         runId: runId ?? null,
@@ -1567,7 +1586,7 @@ export function GatewayChatSidebar({
           abortRef.current = null
           if (!terminalEventSeenRef.current) {
             updateStreamStatus("recovering")
-            setError("实时流已断开，正在补偿会话事件…")
+            setError(i18n.t("chat.gateway.streamCatchup"))
             await recoverConversationEvents(conversationId, true)
           }
         }
@@ -1583,12 +1602,12 @@ export function GatewayChatSidebar({
         abortRef.current = null
         const message = reportChatError(
           resumeError,
-          "恢复会话失败。",
-          "恢复会话失败",
+          i18n.t("chat.gateway.reconnectFailed"),
+          i18n.t("chat.gateway.reconnectFailedTitle"),
           { toast: false }
         )
         updateStreamStatus("recovering")
-        setError(`连接中断，正在恢复会话：${message}`)
+        setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
         await recoverConversationEvents(conversationId, true)
       } finally {
         if (!controller.signal.aborted) {
@@ -1649,7 +1668,9 @@ export function GatewayChatSidebar({
             }
           : null
       )
-      appendSystemMessage(`发送失败：${errorMessage}`)
+      appendSystemMessage(
+        i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
+      )
       return
     }
 
@@ -1729,10 +1750,16 @@ export function GatewayChatSidebar({
         setConversationLastSeq(conversationId, response.next_seq ?? afterSeq ?? 0)
       } catch (catchupError) {
         setError(
-          reportChatError(catchupError, "同步会话更新失败。", "同步会话失败", {
+          reportChatError(
+            catchupError,
+            i18n.t("chat.gateway.syncFailed"),
+            i18n.t("chat.gateway.syncFailedTitle"),
+            {
             toast: false,
-            format: (message) => `同步会话更新失败：${message}`,
-          })
+              format: (message) =>
+                i18n.t("chat.gateway.syncFailedWithMessage", { message }),
+            }
+          )
         )
       } finally {
         catchupInFlightRef.current = false
@@ -1884,11 +1911,13 @@ export function GatewayChatSidebar({
     } catch (stopError) {
       const message = reportChatError(
         stopError,
-        "停止当前会话运行失败。",
-        "停止会话失败"
+        i18n.t("chat.gateway.stopFailed"),
+        i18n.t("chat.gateway.stopFailedTitle")
       )
       setError(message)
-      appendSystemMessage(`停止失败：${message}`)
+      appendSystemMessage(
+        i18n.t("chat.gateway.stopFailedWithMessage", { message })
+      )
     }
   }
 
@@ -1934,8 +1963,8 @@ export function GatewayChatSidebar({
         updateStreamStatus("completed")
         appendSystemMessage(
           approved
-            ? "已批准 sandbox 命令。当前对话缺少可恢复的 run 信息，请发送下一条消息继续。"
-            : "已拒绝 sandbox 命令。"
+            ? i18n.t("chat.gateway.approvedNoRun")
+            : i18n.t("chat.gateway.rejected")
         )
         return
       }
@@ -1954,8 +1983,8 @@ export function GatewayChatSidebar({
     } catch (approvalError) {
       const message = reportChatError(
         approvalError,
-        "审批操作失败。",
-        "审批操作失败"
+        i18n.t("chat.gateway.approvalFailed"),
+        i18n.t("chat.gateway.approvalFailed")
       )
       updateApprovalEntry(entryId, (current) => ({
         ...current,
@@ -1964,7 +1993,9 @@ export function GatewayChatSidebar({
       }))
       updateStreamStatus("error")
       setError(message)
-      appendSystemMessage(`审批失败：${message}`)
+      appendSystemMessage(
+        i18n.t("chat.gateway.approvalFailedWithMessage", { message })
+      )
     }
   }
 
@@ -2058,11 +2089,16 @@ export function GatewayChatSidebar({
         } else {
           setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
         }
-        const message = reportChatError(enqueueError, "发送失败。", "发送失败", {
-          format: formatSendErrorMessage,
-        })
+        const message = reportChatError(
+          enqueueError,
+          i18n.t("chat.gateway.sendFailed"),
+          i18n.t("chat.gateway.sendFailedTitle"),
+          { format: formatSendErrorMessage }
+        )
         setError(message)
-        appendSystemMessage(`发送失败：${message}`)
+        appendSystemMessage(
+          i18n.t("chat.gateway.sendFailedWithMessage", { message })
+        )
       }
       return
     }
@@ -2118,12 +2154,14 @@ export function GatewayChatSidebar({
       clearPendingConversationResumeState()
       const message = reportChatError(
         primeError,
-        "初始化会话恢复游标失败。",
-        "初始化会话失败"
+        i18n.t("chat.gateway.initFailed"),
+        i18n.t("chat.gateway.initFailedTitle")
       )
       updateStreamStatus("error")
       setError(message)
-      appendSystemMessage(`发送失败：${message}`)
+      appendSystemMessage(
+        i18n.t("chat.gateway.sendFailedWithMessage", { message })
+      )
       updateAssistantEntry((entry) =>
         entry
           ? {
@@ -2182,7 +2220,7 @@ export function GatewayChatSidebar({
         abortRef.current = null
         if (!terminalEventSeenRef.current) {
           updateStreamStatus("recovering")
-          setError("实时流已断开，正在补偿会话事件…")
+          setError(i18n.t("chat.gateway.streamCatchup"))
           await recoverConversationEvents(targetConversationId, true)
         }
       }
@@ -2195,10 +2233,12 @@ export function GatewayChatSidebar({
         return
       }
 
-      const message = reportChatError(streamError, "发送失败。", "发送失败", {
-        toast: false,
-        format: formatSendErrorMessage,
-      })
+      const message = reportChatError(
+        streamError,
+        i18n.t("chat.gateway.sendFailed"),
+        i18n.t("chat.gateway.sendFailedTitle"),
+        { toast: false, format: formatSendErrorMessage }
+      )
       const recoverable =
         typeof streamError === "object" &&
         streamError !== null &&
@@ -2209,7 +2249,7 @@ export function GatewayChatSidebar({
       if (recoverable) {
         abortRef.current = null
         updateStreamStatus("recovering")
-        setError(`连接中断，正在恢复会话：${message}`)
+        setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
         await recoverConversationEvents(targetConversationId, true)
         return
       }
@@ -2219,7 +2259,9 @@ export function GatewayChatSidebar({
       clearPendingConversationResumeState()
       updateStreamStatus("error")
       setError(message)
-      appendSystemMessage(`发送失败：${message}`)
+      appendSystemMessage(
+        i18n.t("chat.gateway.sendFailedWithMessage", { message })
+      )
       updateAssistantEntry((entry) =>
         entry
           ? {
@@ -2271,8 +2313,8 @@ export function GatewayChatSidebar({
       ).catch((promoteError) => {
         const message = reportChatError(
           promoteError,
-          "提升为引导失败。",
-          "提升为引导失败"
+          i18n.t("chat.gateway.promoteFailed"),
+          i18n.t("chat.gateway.promoteFailed")
         )
         setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
         setPreInputQueue((prev) => {
@@ -2282,7 +2324,9 @@ export function GatewayChatSidebar({
           return [...prev, { ...item, status: "queued" }]
         })
         setError(message)
-        appendSystemMessage(`提升为引导失败：${message}`)
+        appendSystemMessage(
+          i18n.t("chat.gateway.promoteFailedWithMessage", { message })
+        )
       })
       return
     }
@@ -2315,8 +2359,8 @@ export function GatewayChatSidebar({
         .catch((deleteError) => {
           const message = reportChatError(
             deleteError,
-            "删除预输入失败。",
-            "删除预输入失败"
+            i18n.t("chat.gateway.deletePendingFailed"),
+            i18n.t("chat.gateway.deletePendingFailed")
           )
           setPreInputQueue((prev) =>
             prev.map((queueItem) =>
@@ -2324,7 +2368,9 @@ export function GatewayChatSidebar({
             )
           )
           setError(message)
-          appendSystemMessage(`删除预输入失败：${message}`)
+          appendSystemMessage(
+            i18n.t("chat.gateway.deletePendingFailedWithMessage", { message })
+          )
         })
       return
     }
@@ -2367,7 +2413,7 @@ export function GatewayChatSidebar({
         selectedConversationId={currentConversationId}
         conversations={conversations.map((conversation) => ({
           id: conversation.id,
-          title: conversation.title || "未命名会话",
+          title: conversation.title || i18n.t("chat.gateway.unnamed"),
           updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
         }))}
         onSelectConversation={selectConversation}
@@ -2396,7 +2442,9 @@ export function GatewayChatSidebar({
           onRejectApproval={handleRejectApproval}
         />
         {isLoadingMessages ? (
-          <div className="px-4 pb-3 text-xs text-muted-foreground">正在同步历史消息…</div>
+          <div className="px-4 pb-3 text-xs text-muted-foreground">
+            {i18n.t("chat.gateway.syncingHistory")}
+          </div>
         ) : null}
       </SidebarContent>
 

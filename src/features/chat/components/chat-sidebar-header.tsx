@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -9,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { SidebarHeader } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import { i18n } from "@/lib/i18n/i18n"
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -66,12 +68,12 @@ function HeaderActionButton({
 
 function getConversationGroupLabel(updatedAt?: string | null) {
   if (!updatedAt) {
-    return "更早"
+    return i18n.t("chat.header.older")
   }
 
   const updatedDate = new Date(updatedAt)
   if (Number.isNaN(updatedDate.getTime())) {
-    return "更早"
+    return i18n.t("chat.header.older")
   }
 
   const now = new Date()
@@ -80,21 +82,26 @@ function getConversationGroupLabel(updatedAt?: string | null) {
   const diffDays = Math.floor(diffMs / 86400000)
 
   if (diffDays <= 0) {
-    return "今天"
+    return i18n.t("chat.header.today")
   }
   if (diffDays <= 7) {
-    return "最近 7 天"
+    return i18n.t("chat.header.last7Days")
   }
   if (diffDays <= 30) {
-    return "最近 30 天"
+    return i18n.t("chat.header.last30Days")
   }
-  return "更早"
+  return i18n.t("chat.header.older")
 }
 
 function groupConversations(
   conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
 ) {
-  const order = ["今天", "最近 7 天", "最近 30 天", "更早"]
+  const order = [
+    i18n.t("chat.header.today"),
+    i18n.t("chat.header.last7Days"),
+    i18n.t("chat.header.last30Days"),
+    i18n.t("chat.header.older"),
+  ]
   const grouped = new Map<string, ConversationGroup>()
 
   for (const conversation of conversations) {
@@ -121,6 +128,7 @@ export function ChatSidebarHeader({
   onFullScreenChange,
   onCollapseSidebar,
 }: ChatSidebarHeaderProps) {
+  const { t } = useTranslation()
   const [query, setQuery] = React.useState("")
   const [open, setOpen] = React.useState(false)
 
@@ -171,7 +179,7 @@ export function ChatSidebarHeader({
             >
               <span
                 className="flex size-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground"
-                title="AI 助手"
+                title={t("chat.header.assistant")}
               >
                 <BotIcon className="size-3.5" />
               </span>
@@ -199,15 +207,15 @@ export function ChatSidebarHeader({
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索历史对话…"
+                  placeholder={t("chat.header.search")}
                   className="h-auto border-0 bg-transparent px-0 py-0 text-[13px] shadow-none focus-visible:ring-0"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  title="刷新会话列表"
-                  aria-label="刷新会话列表"
+                  title={t("chat.header.refresh")}
+                  aria-label={t("chat.header.refresh")}
                   onClick={onRefreshConversations}
                   className="ml-auto shrink-0"
                 >
@@ -224,16 +232,18 @@ export function ChatSidebarHeader({
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <PlusIcon className="size-4 text-muted-foreground" />
-                      <span className="truncate">新对话</span>
+                      <span className="truncate">{t("chat.header.newChat")}</span>
                     </div>
                   </button>
                 </div>
 
                 {groupedConversations.length === 0 ? (
                   <div className="border-t border-sidebar-border px-4 py-6 text-center">
-                    <p className="text-sm font-medium text-foreground">没有匹配的历史对话</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {t("chat.header.noMatches")}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      试试换个关键词，或者直接创建新对话。
+                      {t("chat.header.noMatchesDescription")}
                     </p>
                   </div>
                 ) : (
@@ -280,11 +290,18 @@ export function ChatSidebarHeader({
         </DropdownMenu>
 
         <div className="flex shrink-0 items-center gap-1">
-          <HeaderActionButton title="新对话" onClick={handleStartNewChat}>
+          <HeaderActionButton
+            title={t("chat.header.newChat")}
+            onClick={handleStartNewChat}
+          >
             <PlusIcon className="size-4" />
           </HeaderActionButton>
           <HeaderActionButton
-            title={isFullScreen ? "退出全屏" : "全屏使用 AI 助手"}
+            title={
+              isFullScreen
+                ? t("chat.header.exitFullScreen")
+                : t("chat.header.enterFullScreen")
+            }
             onClick={() => onFullScreenChange(!isFullScreen)}
           >
             {isFullScreen ? (
@@ -293,7 +310,10 @@ export function ChatSidebarHeader({
               <Maximize2Icon className="size-4" />
             )}
           </HeaderActionButton>
-          <HeaderActionButton title="收起右侧栏" onClick={onCollapseSidebar}>
+          <HeaderActionButton
+            title={t("chat.header.collapse")}
+            onClick={onCollapseSidebar}
+          >
             <PanelRightIcon className="size-4" />
           </HeaderActionButton>
         </div>
