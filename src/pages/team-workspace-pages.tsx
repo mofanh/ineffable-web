@@ -1,5 +1,6 @@
-import * as React from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRightIcon,
   CheckCircle2Icon,
@@ -11,7 +12,7 @@ import {
   UserPlusIcon,
   UsersIcon,
   XIcon,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   AppPage,
@@ -26,10 +27,10 @@ import {
   FormSection,
   Notice,
   StatusBadge,
-} from "@/components/app"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { useAppSession } from "@/features/auth/app-session"
+} from "@/components/app";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAppSession } from "@/features/auth/app-session";
 import {
   acceptWorkspaceInvitationById,
   acceptWorkspaceInvitation,
@@ -46,37 +47,35 @@ import {
   type WorkspaceInvitation,
   type WorkspaceMembership,
   type WorkspaceUsage,
-} from "@/features/workspace/api/workspace-api"
-import { normalizeAppError, type AppError } from "@/lib/app/api-errors"
-import { confirm } from "@/lib/app/confirm"
-import { notify } from "@/lib/app/notifications"
-import { useApiResource } from "@/lib/app/use-api-resource"
-import { defaultPath } from "@/routes/navigation"
+} from "@/features/workspace/api/workspace-api";
+import { normalizeAppError, type AppError } from "@/lib/app/api-errors";
+import { confirm } from "@/lib/app/confirm";
+import { notify } from "@/lib/app/notifications";
+import { useApiResource } from "@/lib/app/use-api-resource";
+import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
+import { defaultPath } from "@/routes/navigation";
 
-const roleOptions = ["admin", "member", "viewer"] as const
-const purposeOptions = ["Engineering", "Marketing", "Operations", "Research"] as const
-const purposeLabels: Record<(typeof purposeOptions)[number], string> = {
-  Engineering: "工程研发",
-  Marketing: "市场营销",
-  Operations: "运营协作",
-  Research: "研究分析",
-}
-
+const roleOptions = ["admin", "member", "viewer"] as const;
+const purposeOptions = [
+  "Engineering",
+  "Marketing",
+  "Operations",
+  "Research",
+] as const;
 function roleLabel(role: string) {
-  if (role === "owner") return "所有者"
-  if (role === "admin") return "管理员"
-  if (role === "member") return "成员"
-  if (role === "viewer") return "访客"
-  return role
+  if (["owner", "admin", "member", "viewer"].includes(role)) {
+    return i18n.t(`team.role.${role}`);
+  }
+  return role;
 }
 
 function invitationStatusLabel(status: string) {
-  if (status === "active") return "正常"
-  if (status === "pending") return "待接受"
-  if (status === "accepted") return "已接受"
-  if (status === "expired") return "已过期"
-  if (status === "revoked") return "已撤销"
-  return status
+  if (
+    ["active", "pending", "accepted", "expired", "revoked"].includes(status)
+  ) {
+    return i18n.t(`team.status.${status}`);
+  }
+  return status;
 }
 
 function slugify(value: string) {
@@ -84,121 +83,134 @@ function slugify(value: string) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-  return slug || `team-${Date.now()}`
+    .replace(/^-+|-+$/g, "");
+  return slug || `team-${Date.now()}`;
 }
 
 function initials(value: string) {
-  const raw = value.trim()
-  if (!raw) return "TS"
-  const name = raw.includes("@") ? raw.split("@")[0] : raw
+  const raw = value.trim();
+  if (!raw) return "TS";
+  const name = raw.includes("@") ? raw.split("@")[0] : raw;
   return name
     .split(/[\s._-]+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("")
-    .padEnd(2, "A")
+    .padEnd(2, "A");
 }
 
 export function CreateTeamWorkspacePage() {
-  const navigate = useNavigate()
-  const { accessToken, refreshAppData, selectWorkspace } = useAppSession()
-  const [teamName, setTeamName] = React.useState("")
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { accessToken, refreshAppData, selectWorkspace } = useAppSession();
+  const [teamName, setTeamName] = React.useState("");
   const [purpose, setPurpose] =
-    React.useState<(typeof purposeOptions)[number]>("Engineering")
-  const [memberEmail, setMemberEmail] = React.useState("")
-  const [members, setMembers] = React.useState<string[]>([])
-  const [error, setError] = React.useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+    React.useState<(typeof purposeOptions)[number]>("Engineering");
+  const [memberEmail, setMemberEmail] = React.useState("");
+  const [members, setMembers] = React.useState<string[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const addMember = React.useCallback(() => {
-    const email = memberEmail.trim().toLowerCase()
+    const email = memberEmail.trim().toLowerCase();
     if (!email || !email.includes("@")) {
-      setError("请输入有效的邮箱地址。")
-      return
+      setError(t("team.create.invalidEmail"));
+      return;
     }
     setMembers((current) =>
-      current.includes(email) ? current : [...current, email].slice(0, 20)
-    )
-    setMemberEmail("")
-    setError(null)
-  }, [memberEmail])
+      current.includes(email) ? current : [...current, email].slice(0, 20),
+    );
+    setMemberEmail("");
+    setError(null);
+  }, [memberEmail, t]);
 
   const submit = React.useCallback(
     async (event: React.FormEvent) => {
-      event.preventDefault()
-      if (!accessToken) return
-      const name = teamName.trim()
+      event.preventDefault();
+      if (!accessToken) return;
+      const name = teamName.trim();
       if (!name) {
-        setError("请输入团队空间名称。")
-        return
+        setError(t("team.create.nameRequired"));
+        return;
       }
 
-      setIsSubmitting(true)
-      setError(null)
+      setIsSubmitting(true);
+      setError(null);
       try {
         const created = await createWorkspace(accessToken, {
           name,
           slug: slugify(name),
           plan: "free",
           settings_json: { purpose },
-        })
-        const workspaceId = created.workspace.id
-        const inviteBaseUrl = `${window.location.origin}/workspace-invitations`
+        });
+        const workspaceId = created.workspace.id;
+        const inviteBaseUrl = `${window.location.origin}/workspace-invitations`;
         await Promise.all(
           members.map((email) =>
             inviteWorkspaceMember(accessToken, workspaceId, {
               email,
               role: "member",
               invite_base_url: inviteBaseUrl,
-            })
-          )
-        )
-        await refreshAppData()
-        await selectWorkspace(workspaceId)
+            }),
+          ),
+        );
+        await refreshAppData();
+        await selectWorkspace(workspaceId);
         notify.success({
-          title: "团队空间已创建",
-          description: `${name} 已可以开始协作。`,
-        })
-        navigate(`/team-spaces/${workspaceId}/members`)
+          title: t("team.create.success"),
+          description: t("team.create.successDescription", { name }),
+        });
+        navigate(`/team-spaces/${workspaceId}/members`);
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "创建团队空间失败。",
-        })
-        setError(appError.message)
+          fallbackMessage: t("team.create.failed"),
+        });
+        setError(appError.message);
         notify.error({
-          title: "创建团队空间失败",
+          title: t("team.create.failedTitle"),
           description: appError.message,
-        })
+        });
       } finally {
-        setIsSubmitting(false)
+        setIsSubmitting(false);
       }
     },
-    [accessToken, members, navigate, purpose, refreshAppData, selectWorkspace, teamName]
-  )
+    [
+      accessToken,
+      members,
+      navigate,
+      purpose,
+      refreshAppData,
+      selectWorkspace,
+      t,
+      teamName,
+    ],
+  );
 
   return (
     <AppPage
-      title="创建团队空间"
-      description="为团队文件、成员协作和共享的 AI 工作上下文创建独立空间。"
+      title={t("team.create.title")}
+      description={t("team.create.description")}
     >
       <form
         onSubmit={submit}
         className="max-w-2xl space-y-7 rounded-xl border bg-card p-5 sm:p-6"
       >
-        <FormField htmlFor="team-workspace-name" label="空间名称">
+        <FormField htmlFor="team-workspace-name" label={t("team.create.name")}>
           <Input
             id="team-workspace-name"
             value={teamName}
             onChange={(event) => setTeamName(event.target.value)}
-            placeholder="例如：核心研发团队"
+            placeholder={t("team.create.namePlaceholder")}
             autoComplete="organization"
             className="h-10"
           />
         </FormField>
 
-        <FormSection title="主要用途" description="用于初始化空间的基础分类。">
+        <FormSection
+          title={t("team.create.purpose")}
+          description={t("team.create.purposeDescription")}
+        >
           <div className="grid gap-3 sm:grid-cols-2">
             {purposeOptions.map((option) => (
               <button
@@ -215,10 +227,12 @@ export function CreateTeamWorkspacePage() {
                 <span
                   className={[
                     "size-4 rounded-full border",
-                    purpose === option ? "border-4 border-foreground" : "border-border",
+                    purpose === option
+                      ? "border-4 border-foreground"
+                      : "border-border",
                   ].join(" ")}
                 />
-                {purposeLabels[option]}
+                {t(`team.purpose.${option}`)}
               </button>
             ))}
           </div>
@@ -227,10 +241,10 @@ export function CreateTeamWorkspacePage() {
         <FormSection>
           <div className="flex items-center justify-between gap-3">
             <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
-              初始成员（可选）
+              {t("team.create.initialMembers")}
             </label>
             <span className="font-mono text-[11px] text-muted-foreground">
-              {members.length}/20 人
+              {t("team.create.memberCount", { count: members.length })}
             </span>
           </div>
           <div className="flex gap-2">
@@ -239,11 +253,11 @@ export function CreateTeamWorkspacePage() {
               onChange={(event) => setMemberEmail(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
-                  event.preventDefault()
-                  addMember()
+                  event.preventDefault();
+                  addMember();
                 }
               }}
-              placeholder="输入成员邮箱"
+              placeholder={t("team.create.memberEmail")}
               type="email"
               className="h-11 bg-muted/40"
             />
@@ -253,7 +267,7 @@ export function CreateTeamWorkspacePage() {
               variant="secondary"
               className="h-11 px-5"
             >
-              添加
+              {t("team.create.add")}
             </Button>
           </div>
           <div className="space-y-2">
@@ -271,11 +285,13 @@ export function CreateTeamWorkspacePage() {
                 <Button
                   type="button"
                   onClick={() =>
-                    setMembers((current) => current.filter((item) => item !== email))
+                    setMembers((current) =>
+                      current.filter((item) => item !== email),
+                    )
                   }
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={`移除 ${email}`}
+                  aria-label={t("team.create.removeMember", { email })}
                 >
                   <XIcon className="size-4" />
                 </Button>
@@ -287,44 +303,47 @@ export function CreateTeamWorkspacePage() {
         {error ? <Notice tone="error">{error}</Notice> : null}
 
         <div className="flex justify-end gap-3 border-t border-border pt-6">
-          <Button
-            type="button"
-            onClick={() => navigate(-1)}
-            variant="ghost"
-          >
-            取消
+          <Button type="button" onClick={() => navigate(-1)} variant="ghost">
+            {t("team.create.cancel")}
           </Button>
           <AsyncButton
             type="submit"
             isLoading={isSubmitting}
-            loadingLabel="创建中..."
+            loadingLabel={t("team.create.creating")}
             className="px-8"
           >
-            创建团队空间
+            {t("team.create.submit")}
           </AsyncButton>
         </div>
       </form>
     </AppPage>
-  )
+  );
 }
 
 export function TeamWorkspaceMembersPage() {
-  const { workspaceId } = useParams()
-  const { accessToken, currentWorkspace, workspaces } = useAppSession()
-  const [query, setQuery] = React.useState("")
-  const [inviteEmail, setInviteEmail] = React.useState("")
-  const [inviteRole, setInviteRole] = React.useState("member")
-  const [lastInviteUrl, setLastInviteUrl] = React.useState<string | null>(null)
-  const [actionError, setActionError] = React.useState<AppError | null>(null)
-  const [isInviting, setIsInviting] = React.useState(false)
-  const [updatingMemberId, setUpdatingMemberId] = React.useState<string | null>(null)
-  const [removingMemberId, setRemovingMemberId] = React.useState<string | null>(null)
-  const [revokingInvitationId, setRevokingInvitationId] = React.useState<string | null>(null)
+  const { t } = useTranslation();
+  const { workspaceId } = useParams();
+  const { accessToken, currentWorkspace, workspaces } = useAppSession();
+  const [query, setQuery] = React.useState("");
+  const [inviteEmail, setInviteEmail] = React.useState("");
+  const [inviteRole, setInviteRole] = React.useState("member");
+  const [lastInviteUrl, setLastInviteUrl] = React.useState<string | null>(null);
+  const [actionError, setActionError] = React.useState<AppError | null>(null);
+  const [isInviting, setIsInviting] = React.useState(false);
+  const [updatingMemberId, setUpdatingMemberId] = React.useState<string | null>(
+    null,
+  );
+  const [removingMemberId, setRemovingMemberId] = React.useState<string | null>(
+    null,
+  );
+  const [revokingInvitationId, setRevokingInvitationId] = React.useState<
+    string | null
+  >(null);
 
-  const targetWorkspaceId = workspaceId || currentWorkspace?.id || ""
+  const targetWorkspaceId = workspaceId || currentWorkspace?.id || "";
   const targetWorkspace =
     workspaces.find((workspace) => workspace.id === targetWorkspaceId) ??
-    currentWorkspace
+    currentWorkspace;
 
   const loadMemberResource = React.useCallback(async () => {
     if (!accessToken || !targetWorkspaceId) {
@@ -332,217 +351,246 @@ export function TeamWorkspaceMembersPage() {
         members: [] as WorkspaceMembership[],
         invitations: [] as WorkspaceInvitation[],
         usage: null as WorkspaceUsage | null,
-      }
+      };
     }
 
-    const [memberResponse, invitationResponse, usageResponse] = await Promise.all([
-      listWorkspaceMembers(accessToken, targetWorkspaceId),
-      listWorkspaceInvitations(accessToken, targetWorkspaceId),
-      getWorkspaceUsage(accessToken, targetWorkspaceId),
-    ])
+    const [memberResponse, invitationResponse, usageResponse] =
+      await Promise.all([
+        listWorkspaceMembers(accessToken, targetWorkspaceId),
+        listWorkspaceInvitations(accessToken, targetWorkspaceId),
+        getWorkspaceUsage(accessToken, targetWorkspaceId),
+      ]);
     return {
       members: memberResponse.members,
       invitations: invitationResponse.invitations,
       usage: usageResponse.usage,
-    }
-  }, [accessToken, targetWorkspaceId])
+    };
+  }, [accessToken, targetWorkspaceId]);
   const memberResource = useApiResource({
     enabled: Boolean(accessToken && targetWorkspaceId),
     load: loadMemberResource,
-    errorMessage: "加载团队成员失败。",
-  })
+    errorMessage: t("team.members.loadFailed"),
+  });
   const {
     data: memberData,
     error: memberLoadError,
     reload: reloadMembers,
     state: memberState,
-  } = memberResource
-  const members = memberData?.members ?? []
-  const invitations = memberData?.invitations ?? []
-  const usage = memberData?.usage ?? null
+  } = memberResource;
+  const members = memberData?.members ?? [];
+  const invitations = memberData?.invitations ?? [];
+  const usage = memberData?.usage ?? null;
 
   const submitInvite = React.useCallback(
     async (event: React.FormEvent) => {
-      event.preventDefault()
-      if (!accessToken || !targetWorkspaceId) return
-      const email = inviteEmail.trim().toLowerCase()
+      event.preventDefault();
+      if (!accessToken || !targetWorkspaceId) return;
+      const email = inviteEmail.trim().toLowerCase();
       if (!email) {
         setActionError(
-          normalizeAppError("请输入邀请邮箱。", {
-            fallbackMessage: "请输入邀请邮箱。",
+          normalizeAppError(t("team.members.emailRequired"), {
+            fallbackMessage: t("team.members.emailRequired"),
           }),
-        )
-        return
+        );
+        return;
       }
-      setActionError(null)
-      setIsInviting(true)
+      setActionError(null);
+      setIsInviting(true);
       try {
-        const response = await inviteWorkspaceMember(accessToken, targetWorkspaceId, {
-          email,
-          role: inviteRole,
-          invite_base_url: `${window.location.origin}/workspace-invitations`,
-        })
-        setLastInviteUrl(response.invite_url)
-        setInviteEmail("")
-        await reloadMembers()
+        const response = await inviteWorkspaceMember(
+          accessToken,
+          targetWorkspaceId,
+          {
+            email,
+            role: inviteRole,
+            invite_base_url: `${window.location.origin}/workspace-invitations`,
+          },
+        );
+        setLastInviteUrl(response.invite_url);
+        setInviteEmail("");
+        await reloadMembers();
         notify.success({
-          title: "邀请已发送",
-          description: `已邀请 ${email} 加入团队空间。`,
-        })
+          title: t("team.members.inviteSent"),
+          description: t("team.members.inviteSentDescription", { email }),
+        });
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "发送邀请失败。",
-        })
-        setActionError(appError)
+          fallbackMessage: t("team.members.inviteFailed"),
+        });
+        setActionError(appError);
         notify.error({
-          title: "发送邀请失败",
+          title: t("team.members.inviteFailedTitle"),
           description: appError.message,
-        })
+        });
       } finally {
-        setIsInviting(false)
+        setIsInviting(false);
       }
     },
-    [accessToken, inviteEmail, inviteRole, reloadMembers, targetWorkspaceId]
-  )
+    [accessToken, inviteEmail, inviteRole, reloadMembers, t, targetWorkspaceId],
+  );
 
   const updateMemberRole = React.useCallback(
     async (member: WorkspaceMembership, role: string) => {
-      if (!accessToken || !targetWorkspaceId) return
-      setActionError(null)
-      setUpdatingMemberId(member.id)
+      if (!accessToken || !targetWorkspaceId) return;
+      setActionError(null);
+      setUpdatingMemberId(member.id);
       try {
         await updateWorkspaceMemberRole(
           accessToken,
           targetWorkspaceId,
           member.user_id,
-          role
-        )
-        await reloadMembers()
+          role,
+        );
+        await reloadMembers();
         notify.success({
-          title: "成员角色已更新",
-          description: `角色已调整为${roleLabel(role)}。`,
-        })
+          title: t("team.members.roleUpdated"),
+          description: t("team.members.roleUpdatedDescription", {
+            role: roleLabel(role),
+          }),
+        });
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "更新成员角色失败。",
-        })
-        setActionError(appError)
+          fallbackMessage: t("team.members.roleUpdateFailed"),
+        });
+        setActionError(appError);
         notify.error({
-          title: "更新角色失败",
+          title: t("team.members.roleUpdateFailedTitle"),
           description: appError.message,
-        })
+        });
       } finally {
-        setUpdatingMemberId(null)
+        setUpdatingMemberId(null);
       }
     },
-    [accessToken, reloadMembers, targetWorkspaceId]
-  )
+    [accessToken, reloadMembers, t, targetWorkspaceId],
+  );
 
   const removeMember = React.useCallback(
     async (member: WorkspaceMembership) => {
-      if (!accessToken || !targetWorkspaceId) return
+      if (!accessToken || !targetWorkspaceId) return;
       const confirmed = await confirm({
-        title: "移除这个团队成员？",
-        description: "移除后，该成员将无法继续访问这个团队空间。",
-        confirmLabel: "移除成员",
+        title: t("team.members.removeTitle"),
+        description: t("team.members.removeDescription"),
+        confirmLabel: t("team.members.removeConfirm"),
         variant: "destructive",
-      })
-      if (!confirmed) return
+      });
+      if (!confirmed) return;
 
-      setActionError(null)
-      setRemovingMemberId(member.id)
+      setActionError(null);
+      setRemovingMemberId(member.id);
       try {
-        await removeWorkspaceMember(accessToken, targetWorkspaceId, member.user_id)
-        await reloadMembers()
-        notify.success({ title: "团队成员已移除" })
+        await removeWorkspaceMember(
+          accessToken,
+          targetWorkspaceId,
+          member.user_id,
+        );
+        await reloadMembers();
+        notify.success({ title: t("team.members.removed") });
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "移除团队成员失败。",
-        })
-        setActionError(appError)
+          fallbackMessage: t("team.members.removeFailed"),
+        });
+        setActionError(appError);
         notify.error({
-          title: "移除成员失败",
+          title: t("team.members.removeFailedTitle"),
           description: appError.message,
-        })
+        });
       } finally {
-        setRemovingMemberId(null)
+        setRemovingMemberId(null);
       }
     },
-    [accessToken, reloadMembers, targetWorkspaceId]
-  )
+    [accessToken, reloadMembers, t, targetWorkspaceId],
+  );
 
   const revokeInvitation = React.useCallback(
     async (invitation: WorkspaceInvitation) => {
-      if (!accessToken || !targetWorkspaceId) return
+      if (!accessToken || !targetWorkspaceId) return;
       const confirmed = await confirm({
-        title: "撤销这份邀请？",
-        description: `${invitation.email} 将无法再通过原邀请加入团队空间。`,
-        confirmLabel: "撤销邀请",
+        title: t("team.members.revokeTitle"),
+        description: t("team.members.revokeDescription", {
+          email: invitation.email,
+        }),
+        confirmLabel: t("team.members.revokeConfirm"),
         variant: "destructive",
-      })
-      if (!confirmed) return
+      });
+      if (!confirmed) return;
 
-      setActionError(null)
-      setRevokingInvitationId(invitation.id)
+      setActionError(null);
+      setRevokingInvitationId(invitation.id);
       try {
         await revokeWorkspaceInvitation(
           accessToken,
           targetWorkspaceId,
-          invitation.id
-        )
-        await reloadMembers()
-        notify.success({ title: "团队邀请已撤销" })
+          invitation.id,
+        );
+        await reloadMembers();
+        notify.success({ title: t("team.members.revoked") });
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "撤销团队邀请失败。",
-        })
-        setActionError(appError)
+          fallbackMessage: t("team.members.revokeFailed"),
+        });
+        setActionError(appError);
         notify.error({
-          title: "撤销邀请失败",
+          title: t("team.members.revokeFailedTitle"),
           description: appError.message,
-        })
+        });
       } finally {
-        setRevokingInvitationId(null)
+        setRevokingInvitationId(null);
       }
     },
-    [accessToken, reloadMembers, targetWorkspaceId]
-  )
+    [accessToken, reloadMembers, t, targetWorkspaceId],
+  );
 
   const filteredMembers = members.filter((member) => {
-    const needle = query.trim().toLowerCase()
+    const needle = query.trim().toLowerCase();
     return (
       !needle ||
       member.user_id.toLowerCase().includes(needle) ||
       member.role.toLowerCase().includes(needle)
-    )
-  })
-  const pendingInvitations = invitations.filter((item) => item.status === "pending")
+    );
+  });
+  const pendingInvitations = invitations.filter(
+    (item) => item.status === "pending",
+  );
   return (
     <AppPage
-      title="团队成员"
-      description={`管理 ${targetWorkspace?.name || "当前团队空间"} 的成员权限、存储用量和待处理邀请。`}
+      title={t("team.members.title")}
+      description={t("team.members.description", {
+        name: targetWorkspace?.name || t("team.members.currentWorkspace"),
+      })}
     >
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
-        <Metric label="当前成员" value={`${members.length}`} suffix="人" />
-        <Metric label="待处理邀请" value={String(pendingInvitations.length)} suffix="条" />
         <Metric
-          label="存储用量"
+          label={t("team.members.currentMembers")}
+          value={`${members.length}`}
+          suffix={t("team.members.people")}
+        />
+        <Metric
+          label={t("team.members.pendingInvites")}
+          value={String(pendingInvitations.length)}
+          suffix={t("team.members.items")}
+        />
+        <Metric
+          label={t("team.members.storage")}
           value={formatWorkspaceStorage(usage)}
           suffix={formatWorkspaceStorageSuffix(usage)}
           compact
         />
         <Metric
-          label="文件"
+          label={t("team.members.files")}
           value={usage ? String(usage.file_count) : "—"}
-          suffix={usage ? `${usage.object_count} 个对象` : undefined}
+          suffix={
+            usage
+              ? t("team.members.objects", { count: usage.object_count })
+              : undefined
+          }
         />
       </div>
 
       <section className="overflow-hidden rounded-xl border">
         <div className="border-b bg-muted/20 px-4 py-3">
-          <h2 className="font-medium">邀请成员</h2>
+          <h2 className="font-medium">{t("team.members.inviteMembers")}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            邀请邮件会包含加入当前团队空间的链接。
+            {t("team.members.inviteDescription")}
           </p>
         </div>
         <form
@@ -552,16 +600,16 @@ export function TeamWorkspaceMembersPage() {
           <Input
             value={inviteEmail}
             onChange={(event) => setInviteEmail(event.target.value)}
-            placeholder="成员邮箱"
+            placeholder={t("team.members.memberEmail")}
             type="email"
             className="h-10"
-            aria-label="成员邮箱"
+            aria-label={t("team.members.memberEmail")}
           />
           <select
             value={inviteRole}
             onChange={(event) => setInviteRole(event.target.value)}
             className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            aria-label="邀请角色"
+            aria-label={t("team.members.inviteRole")}
           >
             {roleOptions.map((role) => (
               <option key={role} value={role}>
@@ -572,10 +620,10 @@ export function TeamWorkspaceMembersPage() {
           <AsyncButton
             className="h-10"
             isLoading={isInviting}
-            loadingLabel="发送中..."
+            loadingLabel={t("team.members.sending")}
           >
             <UserPlusIcon className="size-4" />
-            发送邀请
+            {t("team.members.sendInvite")}
           </AsyncButton>
         </form>
       </section>
@@ -585,13 +633,13 @@ export function TeamWorkspaceMembersPage() {
           type="button"
           variant="outline"
           onClick={() => {
-            void navigator.clipboard?.writeText(lastInviteUrl)
-            notify.info({ title: "邀请链接已复制" })
+            void navigator.clipboard?.writeText(lastInviteUrl);
+            notify.info({ title: t("team.members.linkCopied") });
           }}
           className="flex h-auto w-full justify-between px-4 py-3 text-left"
         >
           <span className="truncate text-muted-foreground">
-            复制最近生成的邀请链接
+            {t("team.members.copyLatestLink")}
           </span>
           <CopyIcon className="ml-3 size-4 shrink-0" />
         </Button>
@@ -601,14 +649,16 @@ export function TeamWorkspaceMembersPage() {
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="border-b bg-muted/25 px-4 py-3">
-          <h2 className="text-base font-semibold">当前成员</h2>
+          <h2 className="text-base font-semibold">
+            {t("team.members.memberList")}
+          </h2>
         </div>
         <AppListToolbar
           search={
             <AppSearchBar
               value={query}
               onChange={setQuery}
-              placeholder="搜索成员 ID 或角色..."
+              placeholder={t("team.members.search")}
             />
           }
         />
@@ -617,16 +667,20 @@ export function TeamWorkspaceMembersPage() {
             state={memberState}
             error={memberLoadError}
             empty={filteredMembers.length === 0}
-            emptyTitle="没有匹配的成员"
+            emptyTitle={t("team.members.noMatches")}
             onRetry={() => void reloadMembers()}
           >
             <DataTableShell>
               <DataTableHeader>
                 <tr>
-                  <th className="px-4 py-3">成员</th>
-                  <th className="px-4 py-3">角色</th>
-                  <th className="hidden px-4 py-3 @[36rem]/table:table-cell">状态</th>
-                  <th className="hidden px-4 py-3 @[46rem]/table:table-cell">加入时间</th>
+                  <th className="px-4 py-3">{t("team.members.member")}</th>
+                  <th className="px-4 py-3">{t("team.members.role")}</th>
+                  <th className="hidden px-4 py-3 @[36rem]/table:table-cell">
+                    {t("team.members.status")}
+                  </th>
+                  <th className="hidden px-4 py-3 @[46rem]/table:table-cell">
+                    {t("team.members.joinedAt")}
+                  </th>
                   <th className="px-4 py-3" />
                 </tr>
               </DataTableHeader>
@@ -639,7 +693,9 @@ export function TeamWorkspaceMembersPage() {
                           {initials(member.user_id)}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium">{member.user_id.slice(0, 8)}</div>
+                          <div className="font-medium">
+                            {member.user_id.slice(0, 8)}
+                          </div>
                           <div className="truncate text-[11px] text-muted-foreground">
                             {member.user_id}
                           </div>
@@ -650,13 +706,16 @@ export function TeamWorkspaceMembersPage() {
                       <select
                         value={member.role}
                         onChange={(event) => {
-                          void updateMemberRole(member, event.target.value)
+                          void updateMemberRole(member, event.target.value);
                         }}
                         className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
                         disabled={
-                          member.role === "owner" || updatingMemberId === member.id
+                          member.role === "owner" ||
+                          updatingMemberId === member.id
                         }
-                        aria-label={`调整 ${member.user_id} 的角色`}
+                        aria-label={t("team.members.changeRole", {
+                          id: member.user_id,
+                        })}
                       >
                         {[
                           ...(member.role === "owner" ? ["owner"] : []),
@@ -675,7 +734,7 @@ export function TeamWorkspaceMembersPage() {
                       />
                     </td>
                     <td className="hidden px-4 py-3 text-muted-foreground @[46rem]/table:table-cell">
-                      {new Date(member.joined_at).toLocaleDateString("zh-CN")}
+                      {formatDate(member.joined_at)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <AsyncButton
@@ -684,11 +743,13 @@ export function TeamWorkspaceMembersPage() {
                         size="sm"
                         onClick={() => void removeMember(member)}
                         isLoading={removingMemberId === member.id}
-                        loadingLabel="移除中..."
+                        loadingLabel={t("team.members.removing")}
                         disabled={member.role === "owner"}
                       >
                         <Trash2Icon className="size-4" />
-                        <span className="hidden @[32rem]/table:inline">移除</span>
+                        <span className="hidden @[32rem]/table:inline">
+                          {t("team.members.remove")}
+                        </span>
                       </AsyncButton>
                     </td>
                   </tr>
@@ -701,9 +762,13 @@ export function TeamWorkspaceMembersPage() {
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
-          <h2 className="text-base font-semibold">邀请记录</h2>
+          <h2 className="text-base font-semibold">
+            {t("team.members.inviteHistory")}
+          </h2>
           <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-            {pendingInvitations.length} 条待处理
+            {t("team.members.pendingCount", {
+              count: pendingInvitations.length,
+            })}
           </span>
         </div>
         <div className="p-4">
@@ -711,7 +776,7 @@ export function TeamWorkspaceMembersPage() {
             state={memberState}
             error={memberLoadError}
             empty={invitations.length === 0}
-            emptyTitle="还没有邀请记录"
+            emptyTitle={t("team.members.noInvites")}
             onRetry={() => void reloadMembers()}
           >
             <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
@@ -723,7 +788,9 @@ export function TeamWorkspaceMembersPage() {
                   <div>
                     <div className="font-medium">{invitation.email}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      邀请人 {invitation.invited_by.slice(0, 8)}
+                      {t("team.members.invitedBy", {
+                        id: invitation.invited_by.slice(0, 8),
+                      })}
                     </div>
                   </div>
                   <div>{roleLabel(invitation.role)}</div>
@@ -732,7 +799,7 @@ export function TeamWorkspaceMembersPage() {
                     label={invitationStatusLabel(invitation.status)}
                   />
                   <div className="text-muted-foreground">
-                    {new Date(invitation.expires_at).toLocaleDateString("zh-CN")}
+                    {formatDate(invitation.expires_at)}
                   </div>
                   <AsyncButton
                     type="button"
@@ -740,10 +807,10 @@ export function TeamWorkspaceMembersPage() {
                     size="sm"
                     onClick={() => void revokeInvitation(invitation)}
                     isLoading={revokingInvitationId === invitation.id}
-                    loadingLabel="撤销中..."
+                    loadingLabel={t("team.members.revoking")}
                     disabled={invitation.status !== "pending"}
                   >
-                    撤销
+                    {t("team.members.revoke")}
                   </AsyncButton>
                 </div>
               ))}
@@ -752,7 +819,7 @@ export function TeamWorkspaceMembersPage() {
         </div>
       </section>
     </AppPage>
-  )
+  );
 }
 
 function Metric({
@@ -761,146 +828,175 @@ function Metric({
   suffix,
   compact,
 }: {
-  label: string
-  value: string
-  suffix?: string
-  compact?: boolean
+  label: string;
+  value: string;
+  suffix?: string;
+  compact?: boolean;
 }) {
   return (
     <div className="min-w-0 bg-background p-4 sm:p-5">
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className={compact ? "mt-1 truncate text-base font-semibold sm:text-lg" : "mt-1 text-2xl font-semibold"}>
+      <div
+        className={
+          compact
+            ? "mt-1 truncate text-base font-semibold sm:text-lg"
+            : "mt-1 text-2xl font-semibold"
+        }
+      >
         {value}
         {suffix ? (
-          <span className="ml-1 text-xs font-normal text-muted-foreground sm:text-sm">{suffix}</span>
+          <span className="ml-1 text-xs font-normal text-muted-foreground sm:text-sm">
+            {suffix}
+          </span>
         ) : null}
       </div>
     </div>
-  )
+  );
 }
 
 function formatWorkspaceStorage(usage: WorkspaceUsage | null) {
-  if (!usage) return "-"
+  if (!usage) return "-";
   if (usage.storage_limit_bytes && usage.storage_limit_bytes > 0) {
     const ratio =
       usage.storage_usage_ratio == null
         ? usage.storage_bytes / usage.storage_limit_bytes
-        : usage.storage_usage_ratio
-    return `${Math.round(ratio * 100)}%`
+        : usage.storage_usage_ratio;
+    return `${Math.round(ratio * 100)}%`;
   }
-  return formatBytes(usage.storage_bytes)
+  return formatBytes(usage.storage_bytes);
 }
 
 function formatWorkspaceStorageSuffix(usage: WorkspaceUsage | null) {
-  if (!usage) return undefined
-  const recalculated = formatUsageRecalculatedAt(usage)
+  if (!usage) return undefined;
+  const recalculated = formatUsageRecalculatedAt(usage);
   if (usage.storage_limit_bytes && usage.storage_limit_bytes > 0) {
-    return `${formatBytes(usage.storage_bytes)} / ${formatBytes(usage.storage_limit_bytes)}${recalculated}`
+    return `${formatBytes(usage.storage_bytes)} / ${formatBytes(usage.storage_limit_bytes)}${recalculated}`;
   }
-  return `已使用${recalculated}`
+  return i18n.t("team.members.used", { recalculated });
 }
 
 function formatUsageRecalculatedAt(usage: WorkspaceUsage) {
-  if (!usage.recalculated_at) return ""
-  const date = new Date(usage.recalculated_at)
-  if (Number.isNaN(date.getTime())) return ""
-  return ` · ${date.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`
+  if (!usage.recalculated_at) return "";
+  const date = new Date(usage.recalculated_at);
+  if (Number.isNaN(date.getTime())) return "";
+  return ` · ${date.toLocaleString(
+    normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+    {
+      month: "2-digit",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  )}`;
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(
+    normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+  );
 }
 
 function formatBytes(value: number) {
   if (value >= 1024 * 1024 * 1024) {
-    return `${formatMetricNumber(value / 1024 / 1024 / 1024)} GB`
+    return `${formatMetricNumber(value / 1024 / 1024 / 1024)} GB`;
   }
   if (value >= 1024 * 1024) {
-    return `${formatMetricNumber(value / 1024 / 1024)} MB`
+    return `${formatMetricNumber(value / 1024 / 1024)} MB`;
   }
   if (value >= 1024) {
-    return `${formatMetricNumber(value / 1024)} KB`
+    return `${formatMetricNumber(value / 1024)} KB`;
   }
-  return `${formatMetricNumber(value)} B`
+  return `${formatMetricNumber(value)} B`;
 }
 
 function formatMetricNumber(value: number) {
   return new Intl.NumberFormat(undefined, {
     maximumFractionDigits: value >= 10 ? 1 : 2,
-  }).format(value)
+  }).format(value);
 }
 
 export function WorkspaceNotificationsPage() {
-  const navigate = useNavigate()
-  const { accessToken, refreshAppData, selectWorkspace } = useAppSession()
-  const [actionError, setActionError] = React.useState<AppError | null>(null)
-  const [acceptingId, setAcceptingId] = React.useState<string | null>(null)
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { accessToken, refreshAppData, selectWorkspace } = useAppSession();
+  const [actionError, setActionError] = React.useState<AppError | null>(null);
+  const [acceptingId, setAcceptingId] = React.useState<string | null>(null);
 
   const loadInvitations = React.useCallback(async () => {
-    if (!accessToken) return { invitations: [] }
-    return listIncomingWorkspaceInvitations(accessToken)
-  }, [accessToken])
+    if (!accessToken) return { invitations: [] };
+    return listIncomingWorkspaceInvitations(accessToken);
+  }, [accessToken]);
   const invitationsResource = useApiResource({
     enabled: Boolean(accessToken),
     load: loadInvitations,
-    errorMessage: "加载团队邀请失败。",
-  })
+    errorMessage: t("team.notifications.loadFailed"),
+  });
   const {
     data: invitationsData,
     error: invitationsError,
     reload: reloadInvitations,
     state: invitationsState,
-  } = invitationsResource
-  const items = invitationsData?.invitations ?? []
+  } = invitationsResource;
+  const items = invitationsData?.invitations ?? [];
 
   const acceptInvitation = React.useCallback(
     async (item: IncomingWorkspaceInvitation) => {
-      if (!accessToken) return
+      if (!accessToken) return;
 
-      setAcceptingId(item.invitation.id)
-      setActionError(null)
+      setAcceptingId(item.invitation.id);
+      setActionError(null);
       try {
         const response = await acceptWorkspaceInvitationById(
           accessToken,
-          item.invitation.id
-        )
-        await refreshAppData()
-        await selectWorkspace(response.workspace.id)
-        await reloadInvitations()
+          item.invitation.id,
+        );
+        await refreshAppData();
+        await selectWorkspace(response.workspace.id);
+        await reloadInvitations();
         notify.success({
-          title: "已加入团队空间",
-          description: `你现在可以访问 ${response.workspace.name}。`,
-        })
-        navigate(`/team-spaces/${response.workspace.id}/members`)
+          title: t("team.notifications.joined"),
+          description: t("team.notifications.joinedDescription", {
+            name: response.workspace.name,
+          }),
+        });
+        navigate(`/team-spaces/${response.workspace.id}/members`);
       } catch (err) {
         const appError = normalizeAppError(err, {
-          fallbackMessage: "接受邀请失败。",
-        })
-        setActionError(appError)
+          fallbackMessage: t("team.notifications.acceptFailed"),
+        });
+        setActionError(appError);
         notify.error({
-          title: "接受邀请失败",
+          title: t("team.notifications.acceptFailedTitle"),
           description: appError.message,
-        })
+        });
       } finally {
-        setAcceptingId(null)
+        setAcceptingId(null);
       }
     },
-    [accessToken, navigate, refreshAppData, reloadInvitations, selectWorkspace]
-  )
+    [
+      accessToken,
+      navigate,
+      refreshAppData,
+      reloadInvitations,
+      selectWorkspace,
+      t,
+    ],
+  );
 
   return (
     <AppPage
-      title="通知"
-      description="查看发送到当前账号的团队空间邀请。"
+      title={t("team.notifications.title")}
+      description={t("team.notifications.description")}
     >
       {actionError ? <Notice tone="error">{actionError.message}</Notice> : null}
 
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="flex items-center justify-between border-b border-border bg-muted/25 p-4">
-          <h2 className="text-base font-semibold">团队空间邀请</h2>
+          <h2 className="text-base font-semibold">
+            {t("team.notifications.section")}
+          </h2>
           <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
-            {items.length} 条待处理
+            {t("team.notifications.pendingCount", { count: items.length })}
           </span>
         </div>
         <div className="p-4">
@@ -908,8 +1004,8 @@ export function WorkspaceNotificationsPage() {
             state={invitationsState}
             error={invitationsError}
             empty={items.length === 0}
-            emptyTitle="没有待处理的团队邀请"
-            emptyDescription="新的团队空间邀请会出现在这里。"
+            emptyTitle={t("team.notifications.empty")}
+            emptyDescription={t("team.notifications.emptyDescription")}
             onRetry={() => void reloadInvitations()}
           >
             <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
@@ -919,9 +1015,14 @@ export function WorkspaceNotificationsPage() {
                   className="grid gap-4 px-4 py-4 text-sm sm:grid-cols-[1fr_140px_140px_auto]"
                 >
                   <div className="min-w-0">
-                    <div className="truncate font-medium">{item.workspace.name}</div>
+                    <div className="truncate font-medium">
+                      {item.workspace.name}
+                    </div>
                     <div className="mt-1 truncate text-xs text-muted-foreground">
-                      邀请角色：{roleLabel(item.invitation.role)} · {item.invitation.email}
+                      {t("team.notifications.invitedRole", {
+                        role: roleLabel(item.invitation.role),
+                        email: item.invitation.email,
+                      })}
                     </div>
                   </div>
                   <StatusBadge
@@ -929,15 +1030,17 @@ export function WorkspaceNotificationsPage() {
                     label={invitationStatusLabel(item.invitation.status)}
                   />
                   <div className="text-muted-foreground">
-                    有效期至 {new Date(item.invitation.expires_at).toLocaleDateString("zh-CN")}
+                    {t("team.notifications.expiresAt", {
+                      date: formatDate(item.invitation.expires_at),
+                    })}
                   </div>
                   <AsyncButton
                     type="button"
                     onClick={() => void acceptInvitation(item)}
                     isLoading={acceptingId === item.invitation.id}
-                    loadingLabel="接受中..."
+                    loadingLabel={t("team.notifications.accepting")}
                   >
-                    接受邀请
+                    {t("team.notifications.accept")}
                   </AsyncButton>
                 </div>
               ))}
@@ -946,48 +1049,55 @@ export function WorkspaceNotificationsPage() {
         </div>
       </section>
     </AppPage>
-  )
+  );
 }
 
 export function AcceptWorkspaceInvitationPage() {
-  const { token } = useParams()
-  const navigate = useNavigate()
-  const { accessToken, refreshAppData, selectWorkspace } = useAppSession()
-  const [status, setStatus] = React.useState<"idle" | "accepting" | "accepted" | "error">("idle")
-  const [error, setError] = React.useState<string | null>(null)
-  const [workspaceName, setWorkspaceName] = React.useState("团队空间")
+  const { t } = useTranslation();
+  const { token } = useParams();
+  const navigate = useNavigate();
+  const { accessToken, refreshAppData, selectWorkspace } = useAppSession();
+  const [status, setStatus] = React.useState<
+    "idle" | "accepting" | "accepted" | "error"
+  >("idle");
+  const [error, setError] = React.useState<string | null>(null);
+  const [workspaceName, setWorkspaceName] = React.useState(() =>
+    t("team.invitation.workspaceFallback"),
+  );
 
   const accept = React.useCallback(async () => {
-    if (!accessToken || !token) return
-    setStatus("accepting")
-    setError(null)
+    if (!accessToken || !token) return;
+    setStatus("accepting");
+    setError(null);
     try {
-      const response = await acceptWorkspaceInvitation(accessToken, token)
-      setWorkspaceName(response.workspace.name)
-      await refreshAppData()
-      await selectWorkspace(response.workspace.id)
-      setStatus("accepted")
+      const response = await acceptWorkspaceInvitation(accessToken, token);
+      setWorkspaceName(response.workspace.name);
+      await refreshAppData();
+      await selectWorkspace(response.workspace.id);
+      setStatus("accepted");
       notify.success({
-        title: "邀请已接受",
-        description: `你现在可以访问 ${response.workspace.name}。`,
-      })
+        title: t("team.invitation.accepted"),
+        description: t("team.invitation.acceptedDescription", {
+          name: response.workspace.name,
+        }),
+      });
     } catch (err) {
-      setStatus("error")
+      setStatus("error");
       const appError = normalizeAppError(err, {
-        fallbackMessage: "接受邀请失败。",
-      })
-      setError(appError.message)
+        fallbackMessage: t("team.invitation.failed"),
+      });
+      setError(appError.message);
       notify.error({
-        title: "接受邀请失败",
+        title: t("team.invitation.failedTitle"),
         description: appError.message,
-      })
+      });
     }
-  }, [accessToken, refreshAppData, selectWorkspace, token])
+  }, [accessToken, refreshAppData, selectWorkspace, t, token]);
 
   return (
     <AppPage
-      title="团队邀请"
-      description="接受邀请后，你和 Agent 都可以在该团队空间的权限范围内继续工作。"
+      title={t("team.invitation.pageTitle")}
+      description={t("team.invitation.pageDescription")}
     >
       <div className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col items-center text-center">
@@ -1003,29 +1113,29 @@ export function AcceptWorkspaceInvitationPage() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">
             {status === "accepted"
-              ? `已加入 ${workspaceName}`
-              : "你收到了一份团队空间邀请"}
+              ? t("team.invitation.acceptedHeading", { name: workspaceName })
+              : t("team.invitation.heading")}
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            加入后可以访问团队共享文件、成员协作信息，并让 Agent 在该空间上下文中继续任务。
+            {t("team.invitation.description")}
           </p>
         </div>
 
         <div className="mt-8 grid gap-3">
           <AccessRow
             icon={<ShieldCheckIcon className="size-5" />}
-            title="空间权限"
-            description="按邀请角色访问团队空间。"
+            title={t("team.invitation.permissionTitle")}
+            description={t("team.invitation.permissionDescription")}
           />
           <AccessRow
             icon={<SparklesIcon className="size-5" />}
-            title="Agent 上下文"
-            description="在共享文件范围内延续 AI 任务。"
+            title={t("team.invitation.contextTitle")}
+            description={t("team.invitation.contextDescription")}
           />
           <AccessRow
             icon={<UsersIcon className="size-5" />}
-            title="团队协作"
-            description="与空间成员共同维护项目内容。"
+            title={t("team.invitation.collaborationTitle")}
+            description={t("team.invitation.collaborationDescription")}
           />
         </div>
 
@@ -1042,7 +1152,7 @@ export function AcceptWorkspaceInvitationPage() {
               onClick={() => navigate(defaultPath)}
               className="h-12 w-full gap-2"
             >
-              进入工作台
+              {t("team.invitation.enter")}
               <ArrowRightIcon className="size-4" />
             </Button>
           ) : (
@@ -1050,20 +1160,20 @@ export function AcceptWorkspaceInvitationPage() {
               type="button"
               onClick={accept}
               isLoading={status === "accepting"}
-              loadingLabel="接受中..."
+              loadingLabel={t("team.invitation.accepting")}
               className="h-12 w-full gap-2"
             >
-              接受邀请
+              {t("team.invitation.accept")}
               <ArrowRightIcon className="size-4" />
             </AsyncButton>
           )}
           <Button asChild variant="ghost" className="h-11 w-full">
-            <Link to={defaultPath}>稍后处理</Link>
+            <Link to={defaultPath}>{t("team.invitation.later")}</Link>
           </Button>
         </div>
       </div>
     </AppPage>
-  )
+  );
 }
 
 function AccessRow({
@@ -1071,9 +1181,9 @@ function AccessRow({
   title,
   description,
 }: {
-  icon: React.ReactNode
-  title: string
-  description: string
+  icon: React.ReactNode;
+  title: string;
+  description: string;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-background/60 p-4">
@@ -1085,5 +1195,5 @@ function AccessRow({
         <div className="text-xs text-muted-foreground">{description}</div>
       </div>
     </div>
-  )
+  );
 }

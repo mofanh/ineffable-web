@@ -1,10 +1,11 @@
-import * as React from "react"
+import * as React from "react";
+import { useTranslation } from "react-i18next";
 import {
   BadgeCheckIcon,
   LaptopIcon,
   ShieldCheckIcon,
   SmartphoneIcon,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   AppFieldGrid,
@@ -12,179 +13,206 @@ import {
   AsyncButton,
   DataState,
   StatusBadge,
-} from "@/components/app"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/components/app";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { useAppSession } from "@/features/auth/app-session"
+} from "@/components/ui/card";
+import { useAppSession } from "@/features/auth/app-session";
 import {
   fetchAuthSessions,
   revokeAuthSession,
   type UserSessionRecord,
-} from "@/features/auth/api/auth-api"
-import { normalizeAppError } from "@/lib/app/api-errors"
-import { confirm } from "@/lib/app/confirm"
-import { notify } from "@/lib/app/notifications"
-import { useApiResource } from "@/lib/app/use-api-resource"
+} from "@/features/auth/api/auth-api";
+import { normalizeAppError } from "@/lib/app/api-errors";
+import { confirm } from "@/lib/app/confirm";
+import { notify } from "@/lib/app/notifications";
+import { useApiResource } from "@/lib/app/use-api-resource";
+import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 function buildAvatarFallback(name: string, email: string) {
-  const base = name || email || "IU"
+  const base = name || email || "IU";
   return base
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase()
+    .toUpperCase();
 }
 
 function formatTimestamp(value?: string | null) {
-  if (!value) return "未知"
+  if (!value) return i18n.t("account.unknown");
 
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date)
+  return new Intl.DateTimeFormat(
+    normalizeLanguage(i18n.resolvedLanguage || i18n.language),
+    {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  ).format(date);
 }
 
 function isMobileUserAgent(userAgent?: string | null) {
-  const ua = (userAgent || "").toLowerCase()
-  return ua.includes("iphone") || ua.includes("android") || ua.includes("mobile")
+  const ua = (userAgent || "").toLowerCase();
+  return (
+    ua.includes("iphone") || ua.includes("android") || ua.includes("mobile")
+  );
 }
 
 function browserName(userAgent: string) {
-  if (/edg\//i.test(userAgent)) return "Microsoft Edge"
-  if (/firefox\//i.test(userAgent)) return "Firefox"
-  if (/chrome\//i.test(userAgent)) return "Chrome"
-  if (/safari\//i.test(userAgent)) return "Safari"
-  return "未知浏览器"
+  if (/edg\//i.test(userAgent)) return "Microsoft Edge";
+  if (/firefox\//i.test(userAgent)) return "Firefox";
+  if (/chrome\//i.test(userAgent)) return "Chrome";
+  if (/safari\//i.test(userAgent)) return "Safari";
+  return i18n.t("account.unknownBrowser");
 }
 
 function operatingSystem(userAgent: string) {
-  if (/iphone|ipad/i.test(userAgent)) return "iOS"
-  if (/android/i.test(userAgent)) return "Android"
-  if (/macintosh|mac os x/i.test(userAgent)) return "macOS"
-  if (/windows/i.test(userAgent)) return "Windows"
-  if (/linux/i.test(userAgent)) return "Linux"
-  return "未知系统"
+  if (/iphone|ipad/i.test(userAgent)) return "iOS";
+  if (/android/i.test(userAgent)) return "Android";
+  if (/macintosh|mac os x/i.test(userAgent)) return "macOS";
+  if (/windows/i.test(userAgent)) return "Windows";
+  if (/linux/i.test(userAgent)) return "Linux";
+  return i18n.t("account.unknownSystem");
 }
 
 function buildSessionLabel(session: UserSessionRecord) {
-  const userAgent = session.user_agent || ""
+  const userAgent = session.user_agent || "";
   const device = userAgent
     ? `${browserName(userAgent)} · ${operatingSystem(userAgent)}`
-    : "未知客户端"
-  return session.ip_address ? `${device} · ${session.ip_address}` : device
+    : i18n.t("account.unknownClient");
+  return session.ip_address ? `${device} · ${session.ip_address}` : device;
 }
 
 function statusLabel(status: string) {
-  if (status === "active") return "正常"
-  if (status === "revoked") return "已吊销"
-  if (status === "expired") return "已过期"
-  return status
+  if (["active", "revoked", "expired"].includes(status)) {
+    return i18n.t(`account.status.${status}`);
+  }
+  return status;
 }
 
 function roleLabel(role?: string) {
-  if (role === "admin") return "管理员"
-  if (role === "user") return "用户"
-  return role || "用户"
+  if (role === "admin" || role === "user")
+    return i18n.t(`account.role.${role}`);
+  return role || i18n.t("account.role.user");
 }
 
 function workspaceTypeLabel(workspaceType?: string) {
-  if (workspaceType === "personal") return "个人空间"
-  if (workspaceType === "team") return "团队空间"
-  return workspaceType || "未设置"
+  if (workspaceType === "personal" || workspaceType === "team") {
+    return i18n.t(`account.workspaceType.${workspaceType}`);
+  }
+  return workspaceType || i18n.t("account.workspaceType.unset");
 }
 
 export function AccountPage() {
+  const { t } = useTranslation();
   const {
     accessToken,
     currentSessionId,
     currentUser,
     currentWorkspace,
     refreshAppData,
-  } = useAppSession()
-  const [revokingSessionId, setRevokingSessionId] = React.useState<string | null>(
-    null,
-  )
+  } = useAppSession();
+  const [revokingSessionId, setRevokingSessionId] = React.useState<
+    string | null
+  >(null);
 
   const loadSessions = React.useCallback(async () => {
-    if (!accessToken) return { sessions: [] as UserSessionRecord[] }
-    return fetchAuthSessions(accessToken, currentWorkspace?.id)
-  }, [accessToken, currentWorkspace?.id])
+    if (!accessToken) return { sessions: [] as UserSessionRecord[] };
+    return fetchAuthSessions(accessToken, currentWorkspace?.id);
+  }, [accessToken, currentWorkspace?.id]);
 
   const sessionsResource = useApiResource({
     enabled: Boolean(accessToken),
     load: loadSessions,
-    errorMessage: "加载登录会话失败。",
-  })
-  const sessions = sessionsResource.data?.sessions ?? []
+    errorMessage: t("account.feedback.loadFailed"),
+  });
+  const sessions = sessionsResource.data?.sessions ?? [];
 
   if (!currentUser) {
     return (
-      <AppPage title="账号" description="查看账号身份与登录设备。">
-        <DataState state="loading" empty={false} loadingLabel="正在加载账号资料">
+      <AppPage
+        title={t("account.page.title")}
+        description={t("account.page.loadingDescription")}
+      >
+        <DataState
+          state="loading"
+          empty={false}
+          loadingLabel={t("account.page.loadingProfile")}
+        >
           <span />
         </DataState>
       </AppPage>
-    )
+    );
   }
 
-  const displayName = currentUser.display_name || currentUser.email
-  const avatarFallback = buildAvatarFallback(displayName, currentUser.email)
+  const displayName = currentUser.display_name || currentUser.email;
+  const avatarFallback = buildAvatarFallback(displayName, currentUser.email);
   const accountFacts = [
-    { label: "登录邮箱", value: currentUser.email, wide: true },
-    { label: "账号角色", value: roleLabel(currentUser.role) },
-    { label: "联系电话", value: currentUser.phone || "未设置" },
-    { label: "当前工作区", value: currentWorkspace?.name || "未选择" },
+    { label: t("account.page.email"), value: currentUser.email, wide: true },
+    { label: t("account.page.role"), value: roleLabel(currentUser.role) },
     {
-      label: "空间类型",
+      label: t("account.page.phone"),
+      value: currentUser.phone || t("account.page.unset"),
+    },
+    {
+      label: t("account.page.workspace"),
+      value: currentWorkspace?.name || t("account.page.noWorkspace"),
+    },
+    {
+      label: t("account.page.workspaceType"),
       value: workspaceTypeLabel(currentWorkspace?.workspace_type),
     },
-    { label: "当前套餐", value: currentWorkspace?.plan || "未设置" },
-  ]
+    {
+      label: t("account.page.plan"),
+      value: currentWorkspace?.plan || t("account.page.unset"),
+    },
+  ];
 
   async function handleRevokeSession(sessionId: string) {
-    if (!accessToken) return
+    if (!accessToken) return;
 
     const confirmed = await confirm({
-      title: "吊销这个登录会话？",
-      description: "该设备需要重新登录才能继续访问 Ineffable。",
-      confirmLabel: "吊销会话",
+      title: t("account.feedback.revokeTitle"),
+      description: t("account.feedback.revokeDescription"),
+      confirmLabel: t("account.feedback.revokeConfirm"),
       variant: "destructive",
-    })
-    if (!confirmed) return
+    });
+    if (!confirmed) return;
 
-    setRevokingSessionId(sessionId)
+    setRevokingSessionId(sessionId);
     try {
-      await revokeAuthSession(accessToken, sessionId, currentWorkspace?.id)
-      await Promise.all([sessionsResource.reload(), refreshAppData()])
-      notify.success({ title: "登录会话已吊销" })
+      await revokeAuthSession(accessToken, sessionId, currentWorkspace?.id);
+      await Promise.all([sessionsResource.reload(), refreshAppData()]);
+      notify.success({ title: t("account.feedback.revoked") });
     } catch (error) {
       const appError = normalizeAppError(error, {
-        fallbackMessage: "吊销会话失败。",
-      })
+        fallbackMessage: t("account.feedback.revokeFailed"),
+      });
       notify.error({
-        title: "吊销会话失败",
+        title: t("account.feedback.revokeFailedTitle"),
         description: appError.message,
-      })
+      });
     } finally {
-      setRevokingSessionId(null)
+      setRevokingSessionId(null);
     }
   }
 
   return (
-    <AppPage title="账号" description="查看账号身份、当前工作区和登录设备。">
+    <AppPage
+      title={t("account.page.title")}
+      description={t("account.page.description")}
+    >
       <Card className="gap-0 overflow-hidden py-0">
         <CardHeader className="flex flex-row flex-wrap items-center gap-4 bg-muted/25 px-5 py-5 md:grid md:grid-cols-[auto_minmax(0,1fr)_auto] md:px-6">
           <Avatar className="size-16 rounded-2xl border border-border/80">
@@ -219,7 +247,10 @@ export function AccountPage() {
                 className={`rounded-lg border bg-muted/20 p-3 ${fact.wide ? "col-span-2 md:col-span-1" : ""}`}
               >
                 <p className="text-xs text-muted-foreground">{fact.label}</p>
-                <p className="mt-1 truncate text-sm font-medium" title={fact.value}>
+                <p
+                  className="mt-1 truncate text-sm font-medium"
+                  title={fact.value}
+                >
                   {fact.value}
                 </p>
               </div>
@@ -232,10 +263,10 @@ export function AccountPage() {
         <CardHeader className="border-b px-5 py-5 md:px-6">
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheckIcon className="size-4" />
-            登录设备
+            {t("account.page.devices")}
           </CardTitle>
           <CardDescription className="mt-1">
-            查看当前账号的有效会话，并吊销不再使用的设备。
+            {t("account.page.devicesDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5 md:p-6">
@@ -243,9 +274,9 @@ export function AccountPage() {
             state={sessionsResource.state}
             error={sessionsResource.error}
             empty={sessions.length === 0}
-            emptyTitle="没有可展示的登录会话"
-            emptyDescription="新的登录设备会在这里出现。"
-            loadingLabel="正在加载登录设备"
+            emptyTitle={t("account.page.emptyDevices")}
+            emptyDescription={t("account.page.emptyDevicesDescription")}
+            loadingLabel={t("account.page.loadingDevices")}
             onRetry={() => void sessionsResource.reload()}
           >
             <div className="grid gap-3">
@@ -263,7 +294,7 @@ export function AccountPage() {
         </CardContent>
       </Card>
     </AppPage>
-  )
+  );
 }
 
 function SessionRow({
@@ -272,11 +303,12 @@ function SessionRow({
   isRevoking,
   onRevoke,
 }: {
-  session: UserSessionRecord
-  isCurrent: boolean
-  isRevoking: boolean
-  onRevoke: () => void
+  session: UserSessionRecord;
+  isCurrent: boolean;
+  isRevoking: boolean;
+  onRevoke: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 md:flex-row md:items-center md:justify-between">
       <div className="flex min-w-0 items-start gap-3">
@@ -285,11 +317,15 @@ function SessionRow({
         </div>
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium">{isCurrent ? "当前设备" : "登录设备"}</p>
+            <p className="font-medium">
+              {isCurrent
+                ? t("account.session.currentDevice")
+                : t("account.session.device")}
+            </p>
             {isCurrent ? (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <BadgeCheckIcon className="size-3.5" />
-                正在使用
+                {t("account.session.inUse")}
               </span>
             ) : null}
             <StatusBadge
@@ -304,9 +340,14 @@ function SessionRow({
             {buildSessionLabel(session)}
           </p>
           <p className="text-xs leading-5 text-muted-foreground">
-            最近活跃：{formatTimestamp(session.last_seen_at)}
+            {t("account.session.lastActive", {
+              time: formatTimestamp(session.last_seen_at),
+            })}
             <span className="hidden sm:inline">
-              {" · "}过期时间：{formatTimestamp(session.expires_at)}
+              {" · "}
+              {t("account.session.expiresAt", {
+                time: formatTimestamp(session.expires_at),
+              })}
             </span>
           </p>
         </div>
@@ -318,16 +359,19 @@ function SessionRow({
         size="sm"
         onClick={onRevoke}
         isLoading={isRevoking}
-        loadingLabel="处理中..."
+        loadingLabel={t("account.session.processing")}
         disabled={isCurrent}
       >
-        {isCurrent ? "当前设备" : "吊销"}
+        {isCurrent
+          ? t("account.session.currentDevice")
+          : t("account.session.revoke")}
       </AsyncButton>
     </div>
-  )
+  );
 }
 
 function SessionDeviceIcon({ userAgent }: { userAgent?: string | null }) {
-  if (isMobileUserAgent(userAgent)) return <SmartphoneIcon className="size-4" />
-  return <LaptopIcon className="size-4" />
+  if (isMobileUserAgent(userAgent))
+    return <SmartphoneIcon className="size-4" />;
+  return <LaptopIcon className="size-4" />;
 }
