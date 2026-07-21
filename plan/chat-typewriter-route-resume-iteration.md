@@ -56,3 +56,19 @@
 - [x] 自动验证：`npm run lint`。
 - [x] 自动验证：`npm run build`。
 - [ ] 手动验证：真实 Agent reasoning 流逐步呈现且折叠状态正常（需要运行中的 Gateway/Agent）。
+
+## Phase 4：流式内容审计与底部跟随
+
+### 实现
+
+- [x] 审计正文、Thinking、tool、update、approval 与 system 等可见内容的流式展示职责。
+- [x] 打字机可见内容每次增长后通知消息 viewport，在用户仍贴底时同步滚动。
+- [x] “最新内容”操作立即恢复稳定贴底，避免 smooth scroll 中间状态误判为用户上滑。
+- [x] 用户主动离开底部后继续保留当前位置，不由流式输出强制抢回。
+
+### 验收
+
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
+- [ ] 手动验证：长正文、长 Thinking、主/子 Agent 及流结束补齐期间持续贴底；用户上滑后不被抢回（需要运行中的 Gateway/Agent）。

@@ -158,11 +158,17 @@ function useTypewriterContent(content: string, isStreaming: boolean) {
 const AgentTextBlock = React.memo(function AgentTextBlock({
   content,
   isStreaming,
+  onContentProgress,
 }: {
   content: string
   isStreaming: boolean
+  onContentProgress?: () => void
 }) {
   const visibleContent = useTypewriterContent(content, isStreaming)
+
+  React.useLayoutEffect(() => {
+    onContentProgress?.()
+  }, [onContentProgress, visibleContent])
 
   return (
     <div className="text-[15px] leading-8 text-foreground">
@@ -563,15 +569,21 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
 function ThinkBlockView({
   block,
   isStreaming,
+  onContentProgress,
 }: {
   block: ThinkBlock
   isStreaming: boolean
+  onContentProgress?: () => void
 }) {
   const [open, setOpen] = React.useState(block.open)
   const visibleContent = useTypewriterContent(
     block.content,
     isStreaming && block.open
   )
+
+  React.useLayoutEffect(() => {
+    onContentProgress?.()
+  }, [onContentProgress, visibleContent])
 
   React.useEffect(() => {
     setOpen(block.open)
@@ -710,9 +722,11 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
 export const AgentPane = React.memo(function AgentPane({
   pane,
   isStreaming = false,
+  onContentProgress,
 }: {
   pane: AgentPaneState
   isStreaming?: boolean
+  onContentProgress?: () => void
 }) {
   useTranslation()
   const blocks = getPaneBlocks(pane)
@@ -726,6 +740,7 @@ export const AgentPane = React.memo(function AgentPane({
               key={block.id}
               content={block.content}
               isStreaming={isStreaming}
+              onContentProgress={onContentProgress}
             />
           )
         }
@@ -736,6 +751,7 @@ export const AgentPane = React.memo(function AgentPane({
               key={block.id}
               block={block}
               isStreaming={isStreaming}
+              onContentProgress={onContentProgress}
             />
           )
         }

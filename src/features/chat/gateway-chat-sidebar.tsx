@@ -958,7 +958,15 @@ export function GatewayChatSidebar({
   const handleScrollToBottomClick = React.useCallback(() => {
     autoStickToBottomRef.current = true
     setShowScrollToBottom(false)
-    scrollToBottom("smooth")
+    scrollToBottom("auto")
+  }, [scrollToBottom])
+
+  const handleStreamingContentProgress = React.useCallback(() => {
+    if (!autoStickToBottomRef.current) {
+      return
+    }
+
+    scrollToBottom("auto")
   }, [scrollToBottom])
 
   function resetSeenCaches() {
@@ -2431,6 +2439,7 @@ export function GatewayChatSidebar({
           onViewportScroll={handleViewportScroll}
           onLoadOlderConversationMessagesPage={loadOlderConversationMessagesPage}
           onScrollToBottomClick={handleScrollToBottomClick}
+          onStreamingContentProgress={handleStreamingContentProgress}
           onApproveApproval={handleApproveApproval}
           onRejectApproval={handleRejectApproval}
         />

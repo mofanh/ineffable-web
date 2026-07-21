@@ -27,6 +27,7 @@ type ChatMessageListProps = {
   onViewportScroll: () => void
   onLoadOlderConversationMessagesPage: () => void
   onScrollToBottomClick: () => void
+  onStreamingContentProgress: () => void
   onApproveApproval: (entryId: string) => void
   onRejectApproval: (entryId: string) => void
 }
@@ -56,6 +57,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onViewportScroll,
   onLoadOlderConversationMessagesPage,
   onScrollToBottomClick,
+  onStreamingContentProgress,
   onApproveApproval,
   onRejectApproval,
 }: ChatMessageListProps) {
@@ -226,7 +228,11 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           return (
             <div key={entry.id} className="flex w-full justify-start">
               <div className="w-full min-w-0 space-y-5 pb-1 text-foreground">
-                <AgentPane pane={entry.pane} isStreaming={showStreamingTail} />
+                <AgentPane
+                  pane={entry.pane}
+                  isStreaming={showStreamingTail}
+                  onContentProgress={onStreamingContentProgress}
+                />
 
                 {entry.subagentOrder.length ? (
                   <div className="space-y-4 border-t border-sidebar-border/70 pt-4">
@@ -261,6 +267,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                           <AgentPane
                             pane={subagent}
                             isStreaming={subagent.status === "streaming"}
+                            onContentProgress={onStreamingContentProgress}
                           />
                         </div>
                       )
