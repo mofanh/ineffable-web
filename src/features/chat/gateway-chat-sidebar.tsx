@@ -577,6 +577,18 @@ export function GatewayChatSidebar({
   const isSending = streamStatus === "streaming" || streamStatus === "recovering"
   const selectedConversationTitle =
     selectedConversation?.title || i18n.t("chat.header.newChat")
+  const headerConversations = React.useMemo(
+    () =>
+      conversations.map((conversation) => ({
+        id: conversation.id,
+        title: conversation.title || i18n.t("chat.gateway.unnamed"),
+        updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
+      })),
+    [conversations]
+  )
+  const handleRefreshConversationList = React.useCallback(() => {
+    void refreshConversations()
+  }, [refreshConversations])
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {
@@ -2425,15 +2437,9 @@ export function GatewayChatSidebar({
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
-        conversations={conversations.map((conversation) => ({
-          id: conversation.id,
-          title: conversation.title || i18n.t("chat.gateway.unnamed"),
-          updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
-        }))}
+        conversations={headerConversations}
         onSelectConversation={selectConversation}
-        onRefreshConversations={() => {
-          void refreshConversations()
-        }}
+        onRefreshConversations={handleRefreshConversationList}
         onStartNewChat={startNewChat}
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}

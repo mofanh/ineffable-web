@@ -116,22 +116,26 @@ export function ChatComposer({
       return haystack.includes(agentTrigger.query)
     })
   }, [agentDescriptorOptions, agentTrigger])
-  const groupedAgentOptions = filteredAgentOptions.reduce<
-    { workspaceId: string; workspaceName: string; options: AgentDescriptorOption[] }[]
-  >((groups, option) => {
-    const group = groups.find((item) => item.workspaceId === option.workspaceId)
-    if (group) {
-      group.options.push(option)
-      return groups
-    }
+  const groupedAgentOptions = React.useMemo(
+    () =>
+      filteredAgentOptions.reduce<
+        { workspaceId: string; workspaceName: string; options: AgentDescriptorOption[] }[]
+      >((groups, option) => {
+        const group = groups.find((item) => item.workspaceId === option.workspaceId)
+        if (group) {
+          group.options.push(option)
+          return groups
+        }
 
-    groups.push({
-      workspaceId: option.workspaceId,
-      workspaceName: option.workspaceName,
-      options: [option],
-    })
-    return groups
-  }, [])
+        groups.push({
+          workspaceId: option.workspaceId,
+          workspaceName: option.workspaceName,
+          options: [option],
+        })
+        return groups
+      }, []),
+    [filteredAgentOptions]
+  )
   const shouldShowAgentMenu = isAgentMenuOpen && Boolean(agentTrigger)
   const hasAgentFiles = agentDescriptorOptions.length > 0
   const hasFilteredAgentFiles = filteredAgentOptions.length > 0
