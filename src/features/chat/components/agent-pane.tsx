@@ -84,6 +84,96 @@ function MarkdownContent({
   return <div className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
 }
 
+const TYPEWRITER_INTERVAL_MS = 24
+const TYPEWRITER_MAX_STEP = 16
+const TYPEWRITER_CATCH_UP_STEPS = 10
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(() =>
+    typeof window === "undefined"
+      ? false
+      : window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const handleChange = () => setPrefersReducedMotion(mediaQuery.matches)
+
+    handleChange()
+    mediaQuery.addEventListener("change", handleChange)
+    return () => mediaQuery.removeEventListener("change", handleChange)
+  }, [])
+
+  return prefersReducedMotion
+}
+
+function useTypewriterContent(content: string, isStreaming: boolean) {
+  const characters = React.useMemo(() => Array.from(content), [content])
+  const prefersReducedMotion = usePrefersReducedMotion()
+  const hasAnimatedRef = React.useRef(isStreaming)
+  const [visibleLength, setVisibleLength] = React.useState(() =>
+    isStreaming ? 0 : characters.length
+  )
+
+  React.useEffect(() => {
+    if (isStreaming) {
+      hasAnimatedRef.current = true
+    }
+
+    if (prefersReducedMotion || (!isStreaming && !hasAnimatedRef.current)) {
+      setVisibleLength(characters.length)
+      return
+    }
+
+    if (visibleLength > characters.length) {
+      setVisibleLength(characters.length)
+      return
+    }
+
+    if (visibleLength === characters.length) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setVisibleLength((currentLength) => {
+        const remaining = characters.length - currentLength
+        const step = Math.min(
+          TYPEWRITER_MAX_STEP,
+          Math.max(1, Math.ceil(remaining / TYPEWRITER_CATCH_UP_STEPS))
+        )
+
+        return Math.min(characters.length, currentLength + step)
+      })
+    }, TYPEWRITER_INTERVAL_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [characters.length, isStreaming, prefersReducedMotion, visibleLength])
+
+  return React.useMemo(
+    () => characters.slice(0, visibleLength).join(""),
+    [characters, visibleLength]
+  )
+}
+
+const AgentTextBlock = React.memo(function AgentTextBlock({
+  content,
+  isStreaming,
+}: {
+  content: string
+  isStreaming: boolean
+}) {
+  const visibleContent = useTypewriterContent(content, isStreaming)
+
+  return (
+    <div className="text-[15px] leading-8 text-foreground">
+      <MarkdownContent
+        content={visibleContent}
+        className={cn(MARKDOWN_BASE_CLASS, "text-[15px] leading-8")}
+      />
+    </div>
+  )
+})
+
 type JsonObject = Record<string, unknown>
 
 function objectValue(value: unknown): JsonObject | null {
@@ -609,8 +699,10 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
 
 export const AgentPane = React.memo(function AgentPane({
   pane,
+  isStreaming = false,
 }: {
   pane: AgentPaneState
+  isStreaming?: boolean
 }) {
   useTranslation()
   const blocks = getPaneBlocks(pane)
@@ -620,12 +712,11 @@ export const AgentPane = React.memo(function AgentPane({
       {blocks.map((block) => {
         if (block.type === "text") {
           return (
-            <div key={block.id} className="text-[15px] leading-8 text-foreground">
-              <MarkdownContent
-                content={block.content}
-                className={cn(MARKDOWN_BASE_CLASS, "text-[15px] leading-8")}
-              />
-            </div>
+            <AgentTextBlock
+              key={block.id}
+              content={block.content}
+              isStreaming={isStreaming}
+            />
           )
         }
 
