@@ -287,6 +287,7 @@ export function GatewayChatSidebar({
   const seenFinalRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
+  const lastViewportScrollTopRef = React.useRef(0)
   const pendingInitialBottomScrollRef = React.useRef(false)
   const pendingOlderLoadMetricsRef = React.useRef<{
     scrollHeight: number
@@ -619,9 +620,18 @@ export function GatewayChatSidebar({
     const distanceToBottom =
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
     const isNearBottom = distanceToBottom < 48
+    const movedUp = viewport.scrollTop < lastViewportScrollTopRef.current - 1
+    let shouldStickToBottom = autoStickToBottomRef.current
 
-    autoStickToBottomRef.current = isNearBottom
-    setShowScrollToBottom(!isNearBottom)
+    if (shouldStickToBottom && movedUp && !isNearBottom) {
+      shouldStickToBottom = false
+    } else if (!shouldStickToBottom && isNearBottom) {
+      shouldStickToBottom = true
+    }
+
+    lastViewportScrollTopRef.current = viewport.scrollTop
+    autoStickToBottomRef.current = shouldStickToBottom
+    setShowScrollToBottom(!shouldStickToBottom)
   }, [])
 
   React.useLayoutEffect(() => {
@@ -918,6 +928,7 @@ export function GatewayChatSidebar({
     seenFinalRef.current = new Set()
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
+    lastViewportScrollTopRef.current = 0
     pendingInitialBottomScrollRef.current = true
     setHydratedConversationId(null)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
@@ -1887,6 +1898,7 @@ export function GatewayChatSidebar({
     clearPendingConversationResumeState()
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
+    lastViewportScrollTopRef.current = 0
   }
 
   function startNewChat() {

@@ -87,3 +87,18 @@
 - [x] 自动验证：`npm run lint`。
 - [x] 自动验证：`npm run build`。
 - [ ] 手动验证：长 Thinking 结束并折叠、正文开始输出的整个过渡持续贴底（需要运行中的 Gateway/Agent）。
+
+## Phase 6：贴底意图竞态修复
+
+### 实现
+
+- [x] 定位内容增高先触发 scroll、尺寸 observer 后执行造成的贴底状态竞态。
+- [x] 结合滚动方向与底部距离判断用户是否主动离开，不再由内容增高关闭跟随。
+- [x] 会话切换与新建会话时同步重置滚动位置基线。
+
+### 验收
+
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
+- [ ] 手动验证：Thinking 切正文时保持贴底，用户向上滚动后仍停止跟随（需要运行中的 Gateway/Agent）。
