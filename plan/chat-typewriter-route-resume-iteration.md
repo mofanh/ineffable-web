@@ -72,3 +72,18 @@
 - [x] 自动验证：`npm run lint`。
 - [x] 自动验证：`npm run build`。
 - [ ] 手动验证：长正文、长 Thinking、主/子 Agent 及流结束补齐期间持续贴底；用户上滑后不被抢回（需要运行中的 Gateway/Agent）。
+
+## Phase 5：Thinking 到正文的布局跟随
+
+### 实现
+
+- [x] 定位 Thinking 关闭时 160ms 折叠动画未触发逐字符进度回调的问题。
+- [x] 使用消息内容容器尺寸变化统一覆盖打字、折叠、块创建和 Markdown 换行。
+- [x] 移除正文与 Thinking 的重复布局回调，贴底策略继续由会话层统一控制。
+
+### 验收
+
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
+- [ ] 手动验证：长 Thinking 结束并折叠、正文开始输出的整个过渡持续贴底（需要运行中的 Gateway/Agent）。

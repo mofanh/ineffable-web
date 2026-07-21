@@ -62,6 +62,34 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onRejectApproval,
 }: ChatMessageListProps) {
   const { t } = useTranslation()
+  const messageContentRef = React.useRef<HTMLDivElement | null>(null)
+
+  React.useEffect(() => {
+    const content = messageContentRef.current
+    if (!content || typeof ResizeObserver === "undefined") {
+      return
+    }
+
+    let animationFrame: number | null = null
+    const observer = new ResizeObserver(() => {
+      if (animationFrame != null) {
+        return
+      }
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null
+        onStreamingContentProgress()
+      })
+    })
+
+    observer.observe(content)
+    return () => {
+      observer.disconnect()
+      if (animationFrame != null) {
+        window.cancelAnimationFrame(animationFrame)
+      }
+    }
+  }, [entries.length, onStreamingContentProgress])
 
   if (entries.length === 0) {
     return (
@@ -94,8 +122,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             onLoadOlderConversationMessagesPage()
           }
         }}
-        className="flex h-full min-h-0 flex-col gap-7 overflow-y-auto px-3 py-4"
+        className="h-full min-h-0 overflow-y-auto px-3 py-4"
       >
+        <div ref={messageContentRef} className="flex min-h-full flex-col gap-7">
         {hasOlderEntries ? (
           <div className="flex justify-center">
             <Button
@@ -231,7 +260,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 <AgentPane
                   pane={entry.pane}
                   isStreaming={showStreamingTail}
-                  onContentProgress={onStreamingContentProgress}
                 />
 
                 {entry.subagentOrder.length ? (
@@ -267,7 +295,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                           <AgentPane
                             pane={subagent}
                             isStreaming={subagent.status === "streaming"}
-                            onContentProgress={onStreamingContentProgress}
                           />
                         </div>
                       )
@@ -284,6 +311,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             </div>
           )
         })}
+        </div>
       </div>
 
       {showScrollToBottom ? (
