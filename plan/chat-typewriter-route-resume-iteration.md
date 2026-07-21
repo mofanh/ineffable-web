@@ -31,13 +31,13 @@
 
 ### 实现
 
-- [ ] 新增同源受保护路径记忆策略，保留 pathname、search 和 hash。
-- [ ] 受保护路由持续记录当前位置，未认证跳转登录时携带返回目标。
-- [ ] token 刷新 reload 前记录当前位置，登录或认证恢复后优先返回原页面。
+- [x] 新增同源受保护路径记忆策略，保留 pathname、search 和 hash。
+- [x] 受保护路由持续记录当前位置，未认证跳转登录时携带返回目标。
+- [x] token 刷新 reload 前记录当前位置，登录或认证恢复后优先返回原页面。
 
 ### 验收
 
-- [ ] 自动验证：`npm run i18n:check`。
-- [ ] 自动验证：`npm run lint`。
-- [ ] 自动验证：`npm run build`。
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
 - [ ] 手动验证：手机端在 Agent 使用中触发真实 token 过期，刷新/登录后恢复原路由（需要可控 token 或 Gateway 环境）。

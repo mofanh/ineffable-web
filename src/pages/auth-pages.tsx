@@ -7,7 +7,7 @@ import {
   UserPlusIcon,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 
 import { AsyncButton, FormField, FormSection, Notice } from "@/components/app"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,11 @@ import { requestEmailVerificationCode } from "@/features/auth/api/auth-api"
 import { useAppSession } from "@/features/auth/app-session"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
+import {
+  getReturnPath,
+  type ReturnRouteState,
+} from "@/lib/app/return-route"
+import { defaultPath } from "@/routes/navigation"
 
 type AuthPageProps = {
   mode: "login" | "register"
@@ -46,6 +51,7 @@ const initialFormState: AuthFormState = {
 
 function AuthPage({ mode }: AuthPageProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { t } = useTranslation()
   const { login, register } = useAppSession()
   const isLogin = mode === "login"
@@ -126,7 +132,10 @@ function AuthPage({ mode }: AuthPageProps) {
           : t("auth.feedback.accountCreated"),
         description: t("auth.feedback.enteringWorkspace"),
       })
-      navigate("/", { replace: true })
+      const routeState = location.state as ReturnRouteState | null
+      navigate(getReturnPath(routeState?.returnTo, defaultPath), {
+        replace: true,
+      })
     } catch (submitError) {
       const appError = normalizeAppError(submitError, {
         fallbackMessage: isLogin

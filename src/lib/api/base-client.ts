@@ -1,5 +1,6 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
+import { rememberReturnPath } from "@/lib/app/return-route"
 import { i18n } from "@/lib/i18n/i18n"
 
 const API_BASE_URL =
@@ -173,6 +174,7 @@ export function refreshExpiredSessionNow() {
     return
   }
 
+  rememberReturnPath()
   tokenRefreshReloading = true
   if (tokenRefreshTimer != null) {
     window.clearTimeout(tokenRefreshTimer)

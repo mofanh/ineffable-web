@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Navigate } from "react-router-dom"
+import { Navigate, useLocation } from "react-router-dom"
 
 import { FullPageLoading } from "@/components/app/route-loading"
 import {
@@ -18,6 +18,11 @@ import {
 import { type Workspace } from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
 import { i18n } from "@/lib/i18n/i18n"
+import {
+  getReturnPath,
+  rememberReturnPath,
+  type ReturnRouteState,
+} from "@/lib/app/return-route"
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated"
 
@@ -485,13 +490,25 @@ export function useAppSession(): AppSessionContextValue {
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { status, isBootstrapping } = useAuthSession()
+  const location = useLocation()
+  const returnTo = `${location.pathname}${location.search}${location.hash}`
+
+  React.useEffect(() => {
+    rememberReturnPath(returnTo)
+  }, [returnTo])
 
   if (status === "loading" || isBootstrapping) {
     return <FullPageLoading />
   }
 
   if (status !== "authenticated") {
-    return <Navigate to="/login" replace />
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo } satisfies ReturnRouteState}
+      />
+    )
   }
 
   return <>{children}</>
@@ -499,13 +516,21 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { status, isBootstrapping, currentUser } = useAuthSession()
+  const location = useLocation()
+  const returnTo = `${location.pathname}${location.search}${location.hash}`
 
   if (status === "loading" || isBootstrapping) {
     return <FullPageLoading />
   }
 
   if (status !== "authenticated") {
-    return <Navigate to="/login" replace />
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo } satisfies ReturnRouteState}
+      />
+    )
   }
 
   if (currentUser?.role !== "admin") {
@@ -521,13 +546,17 @@ export function RedirectIfAuthenticated({
   children: React.ReactNode
 }) {
   const { status, isBootstrapping } = useAuthSession()
+  const location = useLocation()
 
   if (status === "loading" || isBootstrapping) {
     return <FullPageLoading />
   }
 
   if (status === "authenticated") {
-    return <Navigate to={defaultPath} replace />
+    const state = location.state as ReturnRouteState | null
+    return (
+      <Navigate to={getReturnPath(state?.returnTo, defaultPath)} replace />
+    )
   }
 
   return <>{children}</>
