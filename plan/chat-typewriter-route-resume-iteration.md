@@ -102,3 +102,38 @@
 - [x] 自动验证：`npm run lint`。
 - [x] 自动验证：`npm run build`。
 - [ ] 手动验证：Thinking 切正文时保持贴底，用户向上滚动后仍停止跟随（需要运行中的 Gateway/Agent）。
+
+## Phase 7：单帧滚动追踪
+
+### 实现
+
+- [x] 增加默认关闭的 chat scroll 结构化调试日志，不记录消息内容或认证信息。
+- [x] 记录 reasoning/text 转换、内容尺寸变化、贴底请求与 viewport scroll 判定。
+- [x] 使用最多 800 条的内存环形缓冲，支持从浏览器控制台完整导出。
+
+### 使用
+
+```js
+localStorage.setItem("ineffable.chat.scroll_debug", "true")
+location.reload()
+```
+
+复现后导出：
+
+```js
+copy(JSON.stringify(window.__ineffableChatScrollTrace ?? [], null, 2))
+```
+
+关闭并清理：
+
+```js
+localStorage.removeItem("ineffable.chat.scroll_debug")
+delete window.__ineffableChatScrollTrace
+```
+
+### 验收
+
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
+- [ ] 运行时验证：启用日志并复现 Thinking→正文未贴底，导出 trace 后定位单帧顺序。

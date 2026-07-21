@@ -14,6 +14,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { AgentPane } from "@/features/chat/components/agent-pane"
+import { traceChatScroll } from "@/features/chat/chat-scroll-debug"
 import { cn } from "@/lib/utils"
 
 type ChatMessageListProps = {
@@ -71,13 +72,20 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     }
 
     let animationFrame: number | null = null
-    const observer = new ResizeObserver(() => {
+    const observer = new ResizeObserver((resizeEntries) => {
+      traceChatScroll("content_resize", {
+        contentHeight: Math.round(resizeEntries[0]?.contentRect.height ?? 0),
+        entryCount: entries.length,
+      })
       if (animationFrame != null) {
         return
       }
 
       animationFrame = window.requestAnimationFrame(() => {
         animationFrame = null
+        traceChatScroll("content_resize_frame", () => ({
+          contentHeight: Math.round(content.getBoundingClientRect().height),
+        }))
         onStreamingContentProgress()
       })
     })

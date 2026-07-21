@@ -22,6 +22,7 @@ import {
   type ModelProfileOption,
   type PreInputQueueItem,
 } from "@/features/chat/components/chat-composer"
+import { traceChatScroll } from "@/features/chat/chat-scroll-debug"
 import { ChatMessageList } from "@/features/chat/components/chat-message-list"
 import { ChatSidebarHeader } from "@/features/chat/components/chat-sidebar-header"
 import {
@@ -288,6 +289,7 @@ export function GatewayChatSidebar({
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
   const lastViewportScrollTopRef = React.useRef(0)
+  const lastMainOutputKindRef = React.useRef<"reasoning" | "text" | null>(null)
   const pendingInitialBottomScrollRef = React.useRef(false)
   const pendingOlderLoadMetricsRef = React.useRef<{
     scrollHeight: number
@@ -599,12 +601,38 @@ export function GatewayChatSidebar({
   const hasHiddenLoadedEntries = renderedEntries.length < visibleEntries.length
   const hasOlderEntries = hasHiddenLoadedEntries || hasOlderMessages
 
+  function getScrollTraceDetails() {
+    const viewport = scrollViewportRef.current
+    if (!viewport) {
+      return {
+        viewportReady: false,
+        autoStick: autoStickToBottomRef.current,
+      }
+    }
+
+    return {
+      viewportReady: true,
+      scrollTop: Math.round(viewport.scrollTop * 100) / 100,
+      scrollHeight: viewport.scrollHeight,
+      clientHeight: viewport.clientHeight,
+      distanceToBottom:
+        Math.round(
+          (viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight) * 100
+        ) / 100,
+      autoStick: autoStickToBottomRef.current,
+    }
+  }
+
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
     const viewport = scrollViewportRef.current
     if (!viewport) {
       return
     }
 
+    traceChatScroll("scroll_to_bottom", () => ({
+      behavior,
+      ...getScrollTraceDetails(),
+    }))
     viewport.scrollTo({
       top: viewport.scrollHeight,
       behavior,
@@ -632,6 +660,12 @@ export function GatewayChatSidebar({
     lastViewportScrollTopRef.current = viewport.scrollTop
     autoStickToBottomRef.current = shouldStickToBottom
     setShowScrollToBottom(!shouldStickToBottom)
+    traceChatScroll("viewport_scroll", {
+      movedUp,
+      isNearBottom,
+      shouldStickToBottom,
+      ...getScrollTraceDetails(),
+    })
   }, [])
 
   React.useLayoutEffect(() => {
@@ -973,6 +1007,7 @@ export function GatewayChatSidebar({
   }, [scrollToBottom])
 
   const handleStreamingContentProgress = React.useCallback(() => {
+    traceChatScroll("content_progress", getScrollTraceDetails)
     if (!autoStickToBottomRef.current) {
       return
     }
@@ -989,6 +1024,7 @@ export function GatewayChatSidebar({
     assistantEntryIdRef.current = null
     activeRunIdRef.current = null
     terminalEventSeenRef.current = false
+    lastMainOutputKindRef.current = null
     resetSeenCaches()
   }
 
@@ -1091,6 +1127,21 @@ export function GatewayChatSidebar({
   }
 
   function applyMainEvent(event: GatewayChatStreamEvent) {
+    const nextOutputKind = isReasoningEvent(event.event)
+      ? "reasoning"
+      : isTextDeltaEvent(event.event) || event.event === "message"
+        ? "text"
+        : null
+    if (nextOutputKind && nextOutputKind !== lastMainOutputKindRef.current) {
+      traceChatScroll("output_transition", () => ({
+        from: lastMainOutputKindRef.current,
+        to: nextOutputKind,
+        eventName: event.event,
+        ...getScrollTraceDetails(),
+      }))
+      lastMainOutputKindRef.current = nextOutputKind
+    }
+
     ensureAssistantEntry()
 
     updateAssistantEntry((entry) => {
