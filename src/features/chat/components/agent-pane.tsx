@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import MarkdownIt from "markdown-it"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
@@ -16,10 +17,16 @@ import {
   type ToolCallView,
 } from "@/features/chat/chat-pane-state"
 import { cn } from "@/lib/utils"
-import { i18n } from "@/lib/i18n/i18n"
+import { getCurrentLocale, i18n } from "@/lib/i18n/i18n"
+import {
+  sandboxPreviewExposureIdFromUrl,
+  sandboxPreviewLaunchPath,
+} from "@/lib/app/sandbox-preview"
 import {
   BrainCircuitIcon,
   ChevronDownIcon,
+  ExternalLinkIcon,
+  Globe2Icon,
   TerminalIcon,
   WrenchIcon,
 } from "lucide-react"
@@ -29,6 +36,18 @@ const markdownIt = new MarkdownIt({
   html: false,
   linkify: true,
 })
+
+markdownIt.renderer.rules.link_open = (tokens, index, options, _env, self) => {
+  const href = tokens[index].attrGet("href")
+  const exposureId = href ? sandboxPreviewExposureIdFromUrl(href) : null
+  if (exposureId) {
+    tokens[index].attrSet("href", sandboxPreviewLaunchPath(exposureId))
+    tokens[index].attrSet("target", "_blank")
+    tokens[index].attrSet("rel", "noopener noreferrer")
+  }
+
+  return self.renderToken(tokens, index, options)
+}
 
 const MARKDOWN_BASE_CLASS =
   "whitespace-normal wrap-anywhere [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:my-1 [&_li]:leading-6 [&_pre]:mt-2 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-black/5 [&_pre]:px-3 [&_pre]:py-2 [&_pre]:text-xs [&_pre]:leading-6 [&_code]:vertical-middle [&_code]:inline-block [&_code]:rounded-sm [&_code]:border [&_code]:border-black/12 [&_code]:bg-black/5 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.92em] [&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:px-0 [&_pre_code]:py-0 [&_pre_code]:text-inherit [&_blockquote]:mt-2 [&_blockquote]:border-l-2 [&_blockquote]:border-foreground/15 [&_blockquote]:pl-3 [&_blockquote]:opacity-80 [&_a]:underline [&_a]:underline-offset-3"
@@ -315,6 +334,142 @@ function renderTerminalToolResult(tool: ToolCallView) {
   return null
 }
 
+type SandboxPreviewResult = {
+  exposureId: string
+  previewUrl: string
+  label: string
+  port: number | null
+  status: string
+  expiresAt: string
+}
+
+function sandboxPreviewResult(tool: ToolCallView): SandboxPreviewResult | null {
+  if (tool.name !== "expose_sandbox_port") {
+    return null
+  }
+
+  const parsed = parseJsonObject(tool.output)
+  if (!parsed) {
+    return null
+  }
+
+  const result = objectValue(parsed.result) ?? parsed
+  const exposureId = stringValue(result.exposure_id)
+  const previewUrl = stringValue(result.preview_url)
+  if (!exposureId || !previewUrl) {
+    return null
+  }
+
+  return {
+    exposureId,
+    previewUrl,
+    label: stringValue(result.label),
+    port: numberValue(result.port),
+    status: stringValue(result.status) || "active",
+    expiresAt: stringValue(result.expires_at),
+  }
+}
+
+function sandboxPreviewStatusLabel(status: string) {
+  const key = status.toLowerCase()
+  if (
+    key === "active" ||
+    key === "expired" ||
+    key === "stopped" ||
+    key === "tunnel_disconnected" ||
+    key === "provider_unavailable"
+  ) {
+    return i18n.t(`sandboxPreview.card.status.${key}`)
+  }
+
+  return status
+}
+
+function sandboxPreviewStatusTone(status: string) {
+  switch (status.toLowerCase()) {
+    case "active":
+      return "border-emerald-500/25 text-emerald-700"
+    case "expired":
+    case "stopped":
+      return "border-amber-500/25 text-amber-700"
+    case "tunnel_disconnected":
+    case "provider_unavailable":
+      return "border-red-500/25 text-red-600"
+    default:
+      return "border-black/10 text-foreground/65"
+  }
+}
+
+function formatSandboxPreviewExpiry(value: string) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) {
+    return ""
+  }
+
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date)
+}
+
+function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) {
+  const expiresAt = formatSandboxPreviewExpiry(result.expiresAt)
+  const isActive = result.status.toLowerCase() === "active"
+
+  return (
+    <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3.5 text-foreground">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/12 text-sky-700">
+          <Globe2Icon className="size-4.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium">
+              {result.label || i18n.t("sandboxPreview.card.title")}
+            </p>
+            <Badge
+              variant="outline"
+              className={cn(
+                "h-5 rounded-full bg-transparent px-1.5 text-[10px]",
+                sandboxPreviewStatusTone(result.status)
+              )}
+            >
+              {sandboxPreviewStatusLabel(result.status)}
+            </Badge>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/58">
+            {result.port ? (
+              <span>{i18n.t("sandboxPreview.card.port", { port: result.port })}</span>
+            ) : null}
+            {expiresAt ? (
+              <span>{i18n.t("sandboxPreview.card.expiresAt", { time: expiresAt })}</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        {isActive ? (
+          <Button asChild size="sm">
+            <a
+              href={sandboxPreviewLaunchPath(result.exposureId)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLinkIcon />
+              {i18n.t("sandboxPreview.card.open")}
+            </a>
+          </Button>
+        ) : (
+          <p className="text-xs text-foreground/58">
+            {i18n.t("sandboxPreview.card.unavailable")}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ThinkBlockView({ block }: { block: ThinkBlock }) {
   const [open, setOpen] = React.useState(block.open)
 
@@ -363,6 +518,7 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
   const isTerminal =
     tool.status === "succeeded" || tool.status === "failed" || tool.status === "cancelled"
   const terminalResult = renderTerminalToolResult(tool)
+  const previewResult = sandboxPreviewResult(tool)
   const [open, setOpen] = React.useState(isRunning)
   const prevStatusRef = React.useRef<ToolCallStatus>(tool.status)
 
@@ -388,6 +544,10 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
     },
     [isRunning]
   )
+
+  if (previewResult) {
+    return <SandboxPreviewResultCard result={previewResult} />
+  }
 
   return (
     <Collapsible open={open} onOpenChange={handleOpenChange} className="flex flex-col">

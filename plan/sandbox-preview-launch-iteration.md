@@ -50,10 +50,10 @@
 
 ### 实现
 
-- [ ] `expose_sandbox_port` 成功结果渲染为常驻预览卡片，而不是折叠 JSON。
-- [ ] 卡片展示 label、port、status、expiry，并提供一键打开入口。
-- [ ] Agent Markdown 中已知 preview hostname 链接转换为同一前端启动路由。
-- [ ] 中英文文案同步维护。
+- [x] `expose_sandbox_port` 成功结果渲染为常驻预览卡片，而不是折叠 JSON。
+- [x] 卡片展示 label、port、status、expiry，并提供一键打开入口。
+- [x] Agent Markdown 中已知 preview hostname 链接转换为同一前端启动路由。
+- [x] 中英文文案同步维护。
 
 ### 验收
 
@@ -63,9 +63,9 @@
 
 ### 自动验证
 
-- [ ] `npm run i18n:check`
-- [ ] `npm run lint`
-- [ ] `npm run build`
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
 
 ## 手工验证
 

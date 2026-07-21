@@ -424,6 +424,20 @@ export const resources = {
           failed: "Sandbox 预览打开失败，请重试。",
           invalid: "Sandbox 预览地址无效。",
         },
+        card: {
+          title: "Web 应用预览",
+          open: "打开预览",
+          port: "端口 {{port}}",
+          expiresAt: "有效至 {{time}}",
+          unavailable: "该预览当前不可用，请让 Agent 重新暴露服务。",
+          status: {
+            active: "可预览",
+            expired: "已过期",
+            stopped: "已停止",
+            tunnel_disconnected: "连接已断开",
+            provider_unavailable: "Sandbox 不可用",
+          },
+        },
       },
       chat: {
         header: {
@@ -1759,6 +1773,21 @@ export const resources = {
           errorTitle: "Unable to open preview",
           failed: "Unable to open the Sandbox preview. Please try again.",
           invalid: "The Sandbox preview address is invalid.",
+        },
+        card: {
+          title: "Web app preview",
+          open: "Open preview",
+          port: "Port {{port}}",
+          expiresAt: "Available until {{time}}",
+          unavailable:
+            "This preview is unavailable. Ask the Agent to expose the service again.",
+          status: {
+            active: "Ready",
+            expired: "Expired",
+            stopped: "Stopped",
+            tunnel_disconnected: "Disconnected",
+            provider_unavailable: "Sandbox unavailable",
+          },
         },
       },
       chat: {
