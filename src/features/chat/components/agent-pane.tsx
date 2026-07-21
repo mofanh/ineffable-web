@@ -560,8 +560,18 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
   )
 }
 
-function ThinkBlockView({ block }: { block: ThinkBlock }) {
+function ThinkBlockView({
+  block,
+  isStreaming,
+}: {
+  block: ThinkBlock
+  isStreaming: boolean
+}) {
   const [open, setOpen] = React.useState(block.open)
+  const visibleContent = useTypewriterContent(
+    block.content,
+    isStreaming && block.open
+  )
 
   React.useEffect(() => {
     setOpen(block.open)
@@ -595,7 +605,7 @@ function ThinkBlockView({ block }: { block: ThinkBlock }) {
 
       <CollapsibleContent className="animated-collapsible-content relative ml-[6.5px] border-l-[0.5px] border-border/50 pt-2 pl-3.5 text-xs text-foreground/65 [&_code]:text-xs">
         <MarkdownContent
-          content={block.content}
+          content={visibleContent}
           className={cn(MARKDOWN_BASE_CLASS, THINK_MARKDOWN_CLASS)}
         />
       </CollapsibleContent>
@@ -721,7 +731,13 @@ export const AgentPane = React.memo(function AgentPane({
         }
 
         if (block.type === "think") {
-          return <ThinkBlockView key={block.id} block={block} />
+          return (
+            <ThinkBlockView
+              key={block.id}
+              block={block}
+              isStreaming={isStreaming}
+            />
+          )
         }
 
         if (block.type === "update") {

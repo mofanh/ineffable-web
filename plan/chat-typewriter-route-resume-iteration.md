@@ -41,3 +41,18 @@
 - [x] 自动验证：`npm run lint`。
 - [x] 自动验证：`npm run build`。
 - [ ] 手动验证：手机端在 Agent 使用中触发真实 token 过期，刷新/登录后恢复原路由（需要可控 token 或 Gateway 环境）。
+
+## Phase 3：Thinking 流式打字机效果
+
+### 实现
+
+- [x] Thinking 内容复用正文打字机节奏，实时呈现 reasoning delta。
+- [x] Thinking 块关闭后平滑补齐剩余内容，历史 Thinking 保持即时展示。
+- [x] 继续复用减少动态效果偏好，不新增并行定时策略。
+
+### 验收
+
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
+- [ ] 手动验证：真实 Agent reasoning 流逐步呈现且折叠状态正常（需要运行中的 Gateway/Agent）。
