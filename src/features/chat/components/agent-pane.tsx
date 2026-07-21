@@ -84,32 +84,16 @@ function MarkdownContent({
   return <div className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
 }
 
-const TYPEWRITER_INTERVAL_MS = 24
-const TYPEWRITER_MAX_STEP = 16
-const TYPEWRITER_CATCH_UP_STEPS = 10
+const TYPEWRITER_INTERVAL_MS = 32
+const TYPEWRITER_MAX_STEP = 20
+const TYPEWRITER_CATCH_UP_STEPS = 8
 
-function usePrefersReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(() =>
-    typeof window === "undefined"
-      ? false
-      : window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  )
-
-  React.useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const handleChange = () => setPrefersReducedMotion(mediaQuery.matches)
-
-    handleChange()
-    mediaQuery.addEventListener("change", handleChange)
-    return () => mediaQuery.removeEventListener("change", handleChange)
-  }, [])
-
-  return prefersReducedMotion
-}
-
-function useTypewriterContent(content: string, isStreaming: boolean) {
+function useTypewriterContent(
+  content: string,
+  isStreaming: boolean,
+  prefersReducedMotion: boolean
+) {
   const characters = React.useMemo(() => Array.from(content), [content])
-  const prefersReducedMotion = usePrefersReducedMotion()
   const hasAnimatedRef = React.useRef(isStreaming)
   const [visibleLength, setVisibleLength] = React.useState(() =>
     isStreaming ? 0 : characters.length
@@ -158,11 +142,17 @@ function useTypewriterContent(content: string, isStreaming: boolean) {
 const AgentTextBlock = React.memo(function AgentTextBlock({
   content,
   isStreaming,
+  prefersReducedMotion,
 }: {
   content: string
   isStreaming: boolean
+  prefersReducedMotion: boolean
 }) {
-  const visibleContent = useTypewriterContent(content, isStreaming)
+  const visibleContent = useTypewriterContent(
+    content,
+    isStreaming,
+    prefersReducedMotion
+  )
 
   return (
     <div className="text-[15px] leading-8 text-foreground">
@@ -560,17 +550,20 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
   )
 }
 
-function ThinkBlockView({
+const ThinkBlockView = React.memo(function ThinkBlockView({
   block,
   isStreaming,
+  prefersReducedMotion,
 }: {
   block: ThinkBlock
   isStreaming: boolean
+  prefersReducedMotion: boolean
 }) {
   const [open, setOpen] = React.useState(block.open)
   const visibleContent = useTypewriterContent(
     block.content,
-    isStreaming && block.open
+    isStreaming && block.open,
+    prefersReducedMotion
   )
 
   React.useEffect(() => {
@@ -611,9 +604,13 @@ function ThinkBlockView({
       </CollapsibleContent>
     </Collapsible>
   )
-}
+})
 
-function ToolCallCard({ tool }: { tool: ToolCallView }) {
+const ToolCallCard = React.memo(function ToolCallCard({
+  tool,
+}: {
+  tool: ToolCallView
+}) {
   const isRunning = tool.status === "running"
   const isTerminal =
     tool.status === "succeeded" || tool.status === "failed" || tool.status === "cancelled"
@@ -705,14 +702,16 @@ function ToolCallCard({ tool }: { tool: ToolCallView }) {
       </CollapsibleContent>
     </Collapsible>
   )
-}
+})
 
 export const AgentPane = React.memo(function AgentPane({
   pane,
   isStreaming = false,
+  prefersReducedMotion = false,
 }: {
   pane: AgentPaneState
   isStreaming?: boolean
+  prefersReducedMotion?: boolean
 }) {
   useTranslation()
   const blocks = getPaneBlocks(pane)
@@ -726,6 +725,7 @@ export const AgentPane = React.memo(function AgentPane({
               key={block.id}
               content={block.content}
               isStreaming={isStreaming}
+              prefersReducedMotion={prefersReducedMotion}
             />
           )
         }
@@ -736,6 +736,7 @@ export const AgentPane = React.memo(function AgentPane({
               key={block.id}
               block={block}
               isStreaming={isStreaming}
+              prefersReducedMotion={prefersReducedMotion}
             />
           )
         }

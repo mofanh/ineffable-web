@@ -46,6 +46,25 @@ function StreamingTailDot() {
   )
 }
 
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(() =>
+    typeof window === "undefined"
+      ? false
+      : window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const handleChange = () => setPrefersReducedMotion(mediaQuery.matches)
+
+    handleChange()
+    mediaQuery.addEventListener("change", handleChange)
+    return () => mediaQuery.removeEventListener("change", handleChange)
+  }, [])
+
+  return prefersReducedMotion
+}
+
 export const ChatMessageList = React.memo(function ChatMessageList({
   entries,
   hasOlderEntries,
@@ -62,6 +81,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onRejectApproval,
 }: ChatMessageListProps) {
   const { t } = useTranslation()
+  const prefersReducedMotion = usePrefersReducedMotion()
   const messageContentRef = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
@@ -260,6 +280,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 <AgentPane
                   pane={entry.pane}
                   isStreaming={showStreamingTail}
+                  prefersReducedMotion={prefersReducedMotion}
                 />
 
                 {entry.subagentOrder.length ? (
@@ -295,6 +316,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                           <AgentPane
                             pane={subagent}
                             isStreaming={subagent.status === "streaming"}
+                            prefersReducedMotion={prefersReducedMotion}
                           />
                         </div>
                       )
