@@ -30,7 +30,10 @@ import {
 } from "@/components/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAppSession } from "@/features/auth/app-session";
+import {
+  useAuthSession,
+  useWorkspaceSession,
+} from "@/features/auth/app-session";
 import {
   acceptWorkspaceInvitationById,
   acceptWorkspaceInvitation,
@@ -103,7 +106,8 @@ function initials(value: string) {
 export function CreateTeamWorkspacePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { accessToken, refreshAppData, selectWorkspace } = useAppSession();
+  const { accessToken, refreshAppData } = useAuthSession();
+  const { selectWorkspace } = useWorkspaceSession();
   const [teamName, setTeamName] = React.useState("");
   const [purpose, setPurpose] =
     React.useState<(typeof purposeOptions)[number]>("Engineering");
@@ -323,7 +327,8 @@ export function CreateTeamWorkspacePage() {
 export function TeamWorkspaceMembersPage() {
   const { t } = useTranslation();
   const { workspaceId } = useParams();
-  const { accessToken, currentWorkspace, workspaces } = useAppSession();
+  const { accessToken } = useAuthSession();
+  const { currentWorkspace, workspaces } = useWorkspaceSession();
   const [query, setQuery] = React.useState("");
   const [inviteEmail, setInviteEmail] = React.useState("");
   const [inviteRole, setInviteRole] = React.useState("member");
@@ -918,7 +923,8 @@ function formatMetricNumber(value: number) {
 export function WorkspaceNotificationsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { accessToken, refreshAppData, selectWorkspace } = useAppSession();
+  const { accessToken, refreshAppData } = useAuthSession();
+  const { selectWorkspace } = useWorkspaceSession();
   const [actionError, setActionError] = React.useState<AppError | null>(null);
   const [acceptingId, setAcceptingId] = React.useState<string | null>(null);
 
@@ -1056,7 +1062,8 @@ export function AcceptWorkspaceInvitationPage() {
   const { t } = useTranslation();
   const { token } = useParams();
   const navigate = useNavigate();
-  const { accessToken, refreshAppData, selectWorkspace } = useAppSession();
+  const { accessToken, refreshAppData } = useAuthSession();
+  const { selectWorkspace } = useWorkspaceSession();
   const [status, setStatus] = React.useState<
     "idle" | "accepting" | "accepted" | "error"
   >("idle");

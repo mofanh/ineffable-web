@@ -22,7 +22,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAppSession } from "@/features/auth/app-session";
+import {
+  useAuthSession,
+  useWorkspaceSession,
+} from "@/features/auth/app-session";
 import {
   fetchAuthSessions,
   revokeAuthSession,
@@ -116,13 +119,9 @@ function workspaceTypeLabel(workspaceType?: string) {
 
 export function AccountPage() {
   const { t } = useTranslation();
-  const {
-    accessToken,
-    currentSessionId,
-    currentUser,
-    currentWorkspace,
-    refreshAppData,
-  } = useAppSession();
+  const { accessToken, currentSessionId, currentUser, refreshAppData } =
+    useAuthSession();
+  const { currentWorkspace } = useWorkspaceSession();
   const [revokingSessionId, setRevokingSessionId] = React.useState<
     string | null
   >(null);

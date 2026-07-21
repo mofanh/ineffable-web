@@ -31,7 +31,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Switch } from "@/components/ui/switch"
-import { useAppSession } from "@/features/auth/app-session"
+import {
+  useAuthSession,
+  useWorkspaceSession,
+} from "@/features/auth/app-session"
 import {
   createWorkspaceFile,
   deleteWorkspaceObject,
@@ -42,6 +45,7 @@ import {
   renameMoveWorkspaceObject,
   restoreWorkspaceObjectVersion,
   updateWorkspaceObjectContent,
+  type Workspace,
   type WorkspaceObject,
   type WorkspaceObjectVersion,
 } from "@/features/workspace/api/workspace-api"
@@ -136,7 +140,7 @@ function getActorInitial(actorId: string | undefined, fallback = "U") {
   return trimmed.slice(0, 1).toUpperCase()
 }
 
-function getWorkspaceLabel(workspace: ReturnType<typeof useAppSession>["workspaces"][number] | undefined) {
+function getWorkspaceLabel(workspace: Workspace | undefined) {
   if (!workspace) {
     return i18n.t("workspace.labels.workspace")
   }
@@ -312,7 +316,8 @@ export function WorkspaceObjectEditorPage() {
   const { workspaceId, objectId } = useParams()
   const navigate = useNavigate()
   const { setHeaderContent } = useAppHeader()
-  const { accessToken, currentUser, workspaces } = useAppSession()
+  const { accessToken, currentUser } = useAuthSession()
+  const { workspaces } = useWorkspaceSession()
   const [object, setObject] = React.useState<WorkspaceObject | null>(null)
   const [workspaceObjects, setWorkspaceObjects] = React.useState<WorkspaceObject[]>([])
   const [version, setVersion] = React.useState<WorkspaceObjectVersion | null>(null)

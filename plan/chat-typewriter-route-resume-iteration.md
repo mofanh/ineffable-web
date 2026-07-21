@@ -132,3 +132,18 @@
 - [x] 自动验证：`npm run lint`。
 - [x] 自动验证：`npm run build`。
 - [ ] 手动验证：长流输出持续贴底，用户上滑后不被抢回。
+
+## Phase 9：Session Context 订阅收窄
+
+### 实现
+
+- [x] 仅认证页面和数据请求改用 `useAuthSession`，不再订阅 workspace/conversation。
+- [x] AppShell、workspace 树与 workspace 页面分别订阅实际需要的 auth/workspace Context。
+- [x] 自动化页拆分 auth 与 conversation 订阅，避免聚合 Context 的无关更新。
+
+### 验收
+
+- [x] 自动验证：`npm run i18n:check`。
+- [x] 自动验证：`npm run lint`。
+- [x] 自动验证：`npm run build`。
+- [ ] 手动验证：登录、workspace 切换、会话切换及各页面数据加载行为保持一致。

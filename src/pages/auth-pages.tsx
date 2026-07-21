@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { requestEmailVerificationCode } from "@/features/auth/api/auth-api"
-import { useAppSession } from "@/features/auth/app-session"
+import { useAuthSession } from "@/features/auth/app-session"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
 import {
@@ -53,7 +53,7 @@ function AuthPage({ mode }: AuthPageProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { t } = useTranslation()
-  const { login, register } = useAppSession()
+  const { login, register } = useAuthSession()
   const isLogin = mode === "login"
   const [form, setForm] = React.useState<AuthFormState>(initialFormState)
   const [fieldErrors, setFieldErrors] = React.useState<AuthFieldErrors>({})

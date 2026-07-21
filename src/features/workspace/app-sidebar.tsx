@@ -38,7 +38,10 @@ import { LanguageToggle } from "@/components/language-toggle"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { IneffableLogo } from "@/components/ineffable-logo"
-import { useAppSession } from "@/features/auth/app-session"
+import {
+  useAuthSession,
+  useWorkspaceSession,
+} from "@/features/auth/app-session"
 import { getLogoName, useLogoVariant } from "@/hooks/use-logo"
 import {
   createWorkspaceFile,
@@ -707,13 +710,8 @@ function WorkspaceAccountSwitcher({
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const logoVariant = useLogoVariant({ mode: "rotate" })
-  const {
-    accessToken,
-    currentUser,
-    currentWorkspace,
-    logout,
-    workspaces,
-  } = useAppSession()
+  const { accessToken, currentUser, logout } = useAuthSession()
+  const { currentWorkspace, workspaces } = useWorkspaceSession()
   const location = useLocation()
   const navigate = useNavigate()
   const [selectedEntryId, setSelectedEntryId] = React.useState("")

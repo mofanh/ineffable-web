@@ -23,7 +23,8 @@ import {
   useRightSidebarResize,
 } from "@/app/shell/use-right-sidebar-resize"
 import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
-import { useAppSession } from "@/features/auth/app-session"
+import { useWorkspaceSession } from "@/features/auth/app-session"
+import type { Workspace } from "@/features/workspace/api/workspace-api"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
@@ -49,7 +50,7 @@ export function AppShell() {
 function AppShellContent() {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const { currentWorkspace, workspaces } = useAppSession()
+  const { currentWorkspace, workspaces } = useWorkspaceSession()
   const [leftSidebarRight, setLeftSidebarRight] = useState(0)
   const [isRightSidebarFullScreen, setIsRightSidebarFullScreen] = useState(false)
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
@@ -274,8 +275,8 @@ function RightSidebarLoading() {
 
 function getWorkspaceBreadcrumbs(
   pathname: string,
-  currentWorkspace: ReturnType<typeof useAppSession>["currentWorkspace"],
-  workspaces: ReturnType<typeof useAppSession>["workspaces"],
+  currentWorkspace: Workspace | null,
+  workspaces: Workspace[],
   t: TFunction
 ): BreadcrumbEntry[] | null {
   if (pathname === "/team-spaces/new") {

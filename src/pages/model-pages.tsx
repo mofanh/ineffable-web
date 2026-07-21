@@ -28,7 +28,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAppSession } from "@/features/auth/app-session";
+import { useAuthSession } from "@/features/auth/app-session";
 import {
   listModelProfiles,
   type ModelProfile,
@@ -171,7 +171,7 @@ function ModelProfileCard({ profile }: { profile: ModelProfile }) {
 
 export function ModelCenterPage() {
   const { t } = useTranslation();
-  const { accessToken } = useAppSession();
+  const { accessToken } = useAuthSession();
   const [query, setQuery] = React.useState("");
   const loadProfiles = React.useCallback(
     () => listModelProfiles(accessToken || ""),

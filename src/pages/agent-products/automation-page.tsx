@@ -38,7 +38,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useAppSession } from "@/features/auth/app-session"
+import {
+  useAuthSession,
+  useConversationSession,
+} from "@/features/auth/app-session"
 import {
   deleteAutomation,
   listAutomationRuns,
@@ -262,7 +265,7 @@ function runStatusCounts(runsByAutomation: Record<string, AutomationRun[]>) {
 }
 
 function useAccessToken() {
-  const { accessToken } = useAppSession()
+  const { accessToken } = useAuthSession()
   if (!accessToken) throw new Error("auth required")
   return accessToken
 }
@@ -271,7 +274,7 @@ export function AutomationPage() {
   const { t } = useTranslation()
   const accessToken = useAccessToken()
   const { conversations, refreshConversations, selectConversation } =
-    useAppSession()
+    useConversationSession()
   const [editingAutomation, setEditingAutomation] =
     React.useState<Automation | null>(null)
   const [automationDialogOpen, setAutomationDialogOpen] = React.useState(false)
