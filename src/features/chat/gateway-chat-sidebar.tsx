@@ -596,6 +596,7 @@ export function GatewayChatSidebar({
     () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
     [renderedEntryLimit, visibleEntries]
   )
+  const renderedEntryCount = renderedEntries.length
   const hasHiddenLoadedEntries = renderedEntries.length < visibleEntries.length
   const hasOlderEntries = hasHiddenLoadedEntries || hasOlderMessages
 
@@ -640,10 +641,10 @@ export function GatewayChatSidebar({
     }
 
     scrollToBottom("auto")
-    if (renderedEntries.length > 0) {
+    if (renderedEntryCount > 0) {
       pendingInitialBottomScrollRef.current = false
     }
-  }, [renderedEntries, scrollToBottom, streamStatus])
+  }, [currentConversationId, renderedEntryCount, scrollToBottom, streamStatus])
 
   React.useLayoutEffect(() => {
     const metrics = pendingOlderLoadMetricsRef.current
@@ -656,7 +657,7 @@ export function GatewayChatSidebar({
     viewport.scrollTop = metrics.scrollTop + Math.max(0, addedHeight)
     pendingOlderLoadMetricsRef.current = null
     setIsLoadingOlderEntries(false)
-  }, [renderedEntries])
+  }, [renderedEntryCount])
 
   const clearRecoveryTimer = React.useCallback(() => {
     if (recoveryTimerRef.current != null) {

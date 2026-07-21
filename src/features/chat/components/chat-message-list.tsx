@@ -83,6 +83,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
   const messageContentRef = React.useRef<HTMLDivElement | null>(null)
+  const hasEntries = entries.length > 0
 
   React.useEffect(() => {
     const content = messageContentRef.current
@@ -109,9 +110,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         window.cancelAnimationFrame(animationFrame)
       }
     }
-  }, [entries.length, onStreamingContentProgress])
+  }, [hasEntries, onStreamingContentProgress])
 
-  if (entries.length === 0) {
+  if (!hasEntries) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="bg-sidebar-accent text-sidebar-accent-foreground flex size-12 items-center justify-center rounded-2xl border border-sidebar-border">
