@@ -415,6 +415,16 @@ export const resources = {
           unavailable: "该团队空间操作暂未开放",
         },
       },
+      sandboxPreview: {
+        launch: {
+          title: "正在打开 Sandbox 预览",
+          description: "正在建立安全预览会话，完成后将自动打开页面。",
+          errorDescription: "预览会话暂时无法建立。",
+          errorTitle: "无法打开预览",
+          failed: "Sandbox 预览打开失败，请重试。",
+          invalid: "Sandbox 预览地址无效。",
+        },
+      },
       chat: {
         header: {
           older: "更早",
@@ -1738,6 +1748,17 @@ export const resources = {
           noTeamSpace: "No team space available",
           teamLinkCopied: "Team space link copied",
           unavailable: "This team space action is not available yet",
+        },
+      },
+      sandboxPreview: {
+        launch: {
+          title: "Opening Sandbox preview",
+          description:
+            "Establishing a secure preview session. The page will open automatically.",
+          errorDescription: "The preview session could not be established.",
+          errorTitle: "Unable to open preview",
+          failed: "Unable to open the Sandbox preview. Please try again.",
+          invalid: "The Sandbox preview address is invalid.",
         },
       },
       chat: {

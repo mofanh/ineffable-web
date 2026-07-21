@@ -23,6 +23,10 @@ const LoginPage = lazy(async () => ({
 const RegisterPage = lazy(async () => ({
   default: (await import("@/pages/auth-pages")).RegisterPage,
 }))
+const SandboxPreviewLaunchPage = lazy(async () => ({
+  default: (await import("@/pages/sandbox-preview-launch-page"))
+    .SandboxPreviewLaunchPage,
+}))
 const DocsCenterPage = lazy(async () => ({
   default: (await import("@/pages/docs-pages")).DocsCenterPage,
 }))
@@ -149,6 +153,16 @@ export const router = createBrowserRouter([
         element: <RegisterPage />,
       },
     ],
+  },
+  {
+    path: "/sandbox-preview/:exposureId",
+    element: (
+      <RequireAuth>
+        <Suspense fallback={<FullPageLoading />}>
+          <SandboxPreviewLaunchPage />
+        </Suspense>
+      </RequireAuth>
+    ),
   },
   {
     path: "/",
