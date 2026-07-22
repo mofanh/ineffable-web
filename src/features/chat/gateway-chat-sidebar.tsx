@@ -84,7 +84,6 @@ import {
   promotePendingInput,
   rejectSandboxApproval,
   resumeRunWithApproval,
-  resumeRunWithHumanResolution,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
@@ -2121,68 +2120,42 @@ export function GatewayChatSidebar({
   }
 
   async function handleSubmitUserInput(response: AgentUserInputResponse) {
-    if (!accessToken || !currentWorkspace) {
+    if (!accessToken) {
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
 
     setError(null)
-    updateStreamStatus("streaming")
+    setEntries((current) =>
+      current.map((entry) => {
+        if (entry.role !== "assistant") return entry
+        const pane = updateToolInPane(entry.pane, response.toolId, (tool) => ({
+          ...tool,
+          status: "succeeded",
+          answer: response.input,
+        }))
+        const subagents = Object.fromEntries(
+          entry.subagentOrder.map((subagentId) => {
+            const subagent = entry.subagents[subagentId]
+            return [
+              subagentId,
+              subagent
+                ? {
+                    ...subagent,
+                    ...updateToolInPane(subagent, response.toolId, (tool) => ({
+                      ...tool,
+                      status: "succeeded",
+                      answer: response.input,
+                    })),
+                  }
+                : subagent,
+            ]
+          })
+        ) as Record<string, SubagentView>
+        return { ...entry, pane, subagents }
+      })
+    )
 
-    try {
-      const resumed = await resumeRunWithHumanResolution(
-        accessToken,
-        currentWorkspace.id,
-        {
-          run_id: response.runId,
-          session_key: response.sessionKey,
-          resolution: {
-            kind: "user_input",
-            need_id: response.needId,
-            input: response.input,
-          },
-        }
-      )
-
-      setEntries((current) =>
-        current.map((entry) => {
-          if (entry.role !== "assistant") return entry
-          const pane = updateToolInPane(entry.pane, response.needId, (tool) => ({
-            ...tool,
-            status: "succeeded",
-            answer: response.input,
-          }))
-          const subagents = Object.fromEntries(
-            entry.subagentOrder.map((subagentId) => {
-              const subagent = entry.subagents[subagentId]
-              return [
-                subagentId,
-                subagent
-                  ? {
-                      ...subagent,
-                      ...updateToolInPane(subagent, response.needId, (tool) => ({
-                        ...tool,
-                        status: "succeeded",
-                        answer: response.input,
-                      })),
-                    }
-                  : subagent,
-              ]
-            })
-          ) as Record<string, SubagentView>
-          return { ...entry, pane, subagents }
-        })
-      )
-      applyResumeResponse(resumed)
-    } catch (submitError) {
-      updateStreamStatus("completed")
-      const message = reportChatError(
-        submitError,
-        i18n.t("chat.agent.answerSubmitFailed"),
-        i18n.t("chat.agent.answerSubmitFailedTitle")
-      )
-      setError(message)
-      throw new Error(message)
-    }
+    await sendContentToApi(response.input)
   }
 
   // Core send flow: shared by normal send and guided injection fallback.

@@ -1692,39 +1692,6 @@ export function rejectSandboxApproval(
   })
 }
 
-export type HumanResolution =
-  | {
-      kind: "approval"
-      need_id: string
-      approved: boolean
-    }
-  | {
-      kind: "user_input"
-      need_id: string
-      input: string
-    }
-
-export function resumeRunWithHumanResolution(
-  accessToken: string | null,
-  workspaceId: string | null,
-  payload: {
-    run_id?: string | null
-    session_key?: string | null
-    resolution: HumanResolution
-  }
-) {
-  return requestApiJson<ResumeRunResponse>("/gateway/v1/runs/resume", {
-    method: "POST",
-    accessToken,
-    workspaceId,
-    body: {
-      run_id: payload.run_id,
-      session_key: payload.session_key,
-      resolution: payload.resolution,
-    },
-  })
-}
-
 export function resumeRunWithApproval(
   accessToken: string | null,
   workspaceId: string | null,
@@ -1735,13 +1702,18 @@ export function resumeRunWithApproval(
     approved: boolean
   }
 ) {
-  return resumeRunWithHumanResolution(accessToken, workspaceId, {
-    run_id: payload.run_id,
-    session_key: payload.session_key,
-    resolution: {
-      kind: "approval",
-      need_id: payload.need_id,
-      approved: payload.approved,
+  return requestApiJson<ResumeRunResponse>("/gateway/v1/runs/resume", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: {
+      run_id: payload.run_id,
+      session_key: payload.session_key,
+      resolution: {
+        kind: "approval",
+        need_id: payload.need_id,
+        approved: payload.approved,
+      },
     },
   })
 }

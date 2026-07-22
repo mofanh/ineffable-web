@@ -396,9 +396,9 @@ FrontendMessage 字段：
 
 1. 通用工具调用使用统一 shell 承担名称、状态、折叠和未知工具 fallback；工具专用内容通过 chat feature 内的 renderer registry 注入，不在通用 shell 中堆叠工具名判断。
 2. `update_plan` 是会话级执行状态：从当前会话最新工具状态派生并展示在 composer 上方，不按普通工具 JSON 在消息流中重复展示。
-3. `request_user_input` 是阻塞式 human need：渲染结构化问题、选项、推荐项和其他输入，通过 `/gateway/v1/runs/resume` 提交 `HumanResolution::UserInput`，禁止转换成普通聊天消息或预输入队列。
+3. `request_user_input` 使用结构化问题卡收集答案；提交后将可读答案作为下一条普通用户消息走现有 conversation send。工具调用及结果已经保留问题上下文，不调用 `/gateway/v1/runs/resume`；该接口仅用于 approval 等真正可恢复的 run。
 4. waiting 状态应优先读取 tool result content 中的 `status=waiting` / `blocking_need`；transport metadata 的 success 只表示工具成功产生了等待状态，不能覆盖 human need。
-5. 历史消息中的 waiting 工具只有在 `run_id` 仍对应当前待恢复 run 时才允许提交，避免重复消费旧 `need_id`。
+5. 历史消息中的 waiting 工具只有在当前会话仍允许继续输入时才可提交；本地提交后立即标记已回答，避免重复发送同一答案。
 
 ## 7. 联调检查清单
 

@@ -24,9 +24,7 @@ type UserInputQuestion = {
 }
 
 export type AgentUserInputResponse = {
-  needId: string
-  runId?: string | null
-  sessionKey?: string | null
+  toolId: string
   input: string
 }
 
@@ -85,27 +83,20 @@ function requestUserInputQuestions(tool: ToolCallView) {
   return parseQuestions(output)
 }
 
-function requestUserInputNeedId(tool: ToolCallView) {
-  const output = parseJsonObject(tool.output)
-  const blockingNeed = objectValue(output?.blocking_need)
-  return stringValue(blockingNeed?.need_id) || tool.id
-}
-
 function buildResolutionInput(
   questions: UserInputQuestion[],
   selections: Record<string, string>,
   customAnswers: Record<string, string>
 ) {
-  const answers = Object.fromEntries(
-    questions.map((question) => {
+  return questions
+    .map((question) => {
       const selected = selections[question.id]
-      return [
-        question.id,
-        selected === "__other__" ? customAnswers[question.id]?.trim() : selected,
-      ]
+      const answer =
+        selected === "__other__" ? customAnswers[question.id]?.trim() : selected
+      if (questions.length === 1) return answer ?? ""
+      return `${question.header || question.question}: ${answer ?? ""}`
     })
-  )
-  return JSON.stringify({ answers })
+    .join("\n")
 }
 
 function RequestUserInputCard({
@@ -269,9 +260,7 @@ function RequestUserInputCard({
               setIsSubmitting(true)
               setError("")
               void onSubmit({
-                needId: requestUserInputNeedId(tool),
-                runId: tool.runId,
-                sessionKey: tool.sessionKey,
+                toolId: tool.id,
                 input: buildResolutionInput(questions, selections, customAnswers),
               })
                 .catch((submitError) => {

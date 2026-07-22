@@ -13,7 +13,6 @@ export {
   promotePendingInput,
   rejectSandboxApproval,
   resumeRunWithApproval,
-  resumeRunWithHumanResolution,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
@@ -25,7 +24,6 @@ export {
   type ModelProfile,
   type PendingInputItem,
   type ResumeRunResponse,
-  type HumanResolution,
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/lib/api/api-client"
