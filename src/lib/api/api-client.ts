@@ -1200,6 +1200,14 @@ export type AdminUserMonthlyUsage = {
   updated_at: string
 }
 
+export type AdminPlanInsight = {
+  plan_id: string
+  assigned_users: number
+  current_credits: number
+  storage_bytes: number
+  workspace_count: number
+}
+
 export type AdminModelMonthlyUsage = {
   model_profile_id: string
   period_yyyymm: string
@@ -1279,6 +1287,13 @@ export function listAdminPlans(accessToken: string) {
   return requestApiJson<{ plans: AdminPlan[] }>("/gateway/v1/admin/plans", {
     accessToken,
   })
+}
+
+export function listAdminPlanInsights(accessToken: string) {
+  return requestApiJson<{ insights: AdminPlanInsight[] }>(
+    "/gateway/v1/admin/plans/insights",
+    { accessToken },
+  )
 }
 
 export function listAdminLlmSecrets(accessToken: string) {

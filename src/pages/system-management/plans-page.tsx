@@ -36,23 +36,17 @@ import { useAuthSession } from "@/features/auth/app-session";
 import {
   createAdminPlan,
   deleteAdminPlan,
-  listAdminUserMonthlyUsage,
-  listAdminUserPlanAssignments,
-  listAdminUsers,
-  listAdminWorkspaceUsage,
   listAdminModelProfiles,
+  listAdminPlanInsights,
   listAdminPlanModelAccess,
   listAdminPlans,
   upsertAdminPlanModelAccess,
   updateAdminPlan,
   type AdminModelProfile,
   type AdminPlan,
+  type AdminPlanInsight,
   type AdminPlanPayload,
   type AdminPlanModelAccess,
-  type AdminUser,
-  type AdminUserMonthlyUsage,
-  type AdminUserPlanAssignment,
-  type AdminWorkspaceUsage,
 } from "@/lib/api/api-client";
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { confirm } from "@/lib/app/confirm";
@@ -84,16 +78,7 @@ export function SystemPlanManagementPage() {
   const { accessToken, currentUser } = useAuthSession();
   const [models, setModels] = React.useState<AdminModelProfile[]>([]);
   const [plans, setPlans] = React.useState<AdminPlan[]>([]);
-  const [users, setUsers] = React.useState<AdminUser[]>([]);
-  const [userAssignments, setUserAssignments] = React.useState<
-    AdminUserPlanAssignment[]
-  >([]);
-  const [userUsageRows, setUserUsageRows] = React.useState<
-    AdminUserMonthlyUsage[]
-  >([]);
-  const [workspaceUsage, setWorkspaceUsage] = React.useState<
-    AdminWorkspaceUsage[]
-  >([]);
+  const [insights, setInsights] = React.useState<AdminPlanInsight[]>([]);
   const [selectedPlanId, setSelectedPlanId] = React.useState("free");
   const [accessRowsByPlanId, setAccessRowsByPlanId] = React.useState<
     Record<string, AdminPlanModelAccess[]>
@@ -117,33 +102,14 @@ export function SystemPlanManagementPage() {
     setState("loading");
     setError("");
     try {
-      const [modelResult, planResult, userResult, workspaceUsageResult] =
-        await Promise.all([
-          listAdminModelProfiles(accessToken),
-          listAdminPlans(accessToken),
-          listAdminUsers(accessToken),
-          listAdminWorkspaceUsage(accessToken),
-        ]);
-      const userDetailResults = await Promise.all(
-        userResult.users.map(async (user) => {
-          const [assignmentResult, usageResult] = await Promise.all([
-            listAdminUserPlanAssignments(accessToken, user.id),
-            listAdminUserMonthlyUsage(accessToken, user.id, 1),
-          ]);
-          return {
-            assignments: assignmentResult.assignments,
-            usage: usageResult.usage,
-          };
-        }),
-      );
+      const [modelResult, planResult, insightResult] = await Promise.all([
+        listAdminModelProfiles(accessToken),
+        listAdminPlans(accessToken),
+        listAdminPlanInsights(accessToken),
+      ]);
       setModels(modelResult.profiles);
       setPlans(planResult.plans);
-      setUsers(userResult.users);
-      setWorkspaceUsage(workspaceUsageResult.usage);
-      setUserAssignments(
-        userDetailResults.flatMap((result) => result.assignments),
-      );
-      setUserUsageRows(userDetailResults.flatMap((result) => result.usage));
+      setInsights(insightResult.insights);
       setSelectedPlanId((current) =>
         planResult.plans.some(
           (plan) => plan.id === current && !plan.archived_at,
@@ -219,15 +185,8 @@ export function SystemPlanManagementPage() {
   );
 
   const planInsights = React.useMemo(
-    () =>
-      buildPlanInsights({
-        assignments: userAssignments,
-        plans,
-        userUsageRows,
-        users,
-        workspaceUsage,
-      }),
-    [plans, userAssignments, userUsageRows, users, workspaceUsage],
+    () => buildPlanInsights({ insights, plans }),
+    [insights, plans],
   );
 
   const metrics = React.useMemo(
@@ -694,62 +653,22 @@ export function SystemPlanManagementPage() {
 }
 
 function buildPlanInsights({
-  assignments,
+  insights,
   plans,
-  userUsageRows,
-  users,
-  workspaceUsage,
 }: {
-  assignments: AdminUserPlanAssignment[];
+  insights: AdminPlanInsight[];
   plans: AdminPlan[];
-  userUsageRows: AdminUserMonthlyUsage[];
-  users: AdminUser[];
-  workspaceUsage: AdminWorkspaceUsage[];
 }) {
   const byPlanId = new Map<string, PlanInsight>();
-  const activePlanByUserId = new Map<string, string>();
-  const userIds = new Set(users.map((user) => user.id));
-
-  for (const assignment of assignments) {
-    if (assignment.status !== "active" || !userIds.has(assignment.user_id)) {
-      continue;
-    }
-    const currentPlanId = activePlanByUserId.get(assignment.user_id);
-    if (!currentPlanId) {
-      activePlanByUserId.set(assignment.user_id, assignment.plan_id);
-      continue;
-    }
-    const currentAssignment = assignments.find(
-      (item) =>
-        item.user_id === assignment.user_id &&
-        item.plan_id === currentPlanId &&
-        item.status === "active",
-    );
-    if (
-      currentAssignment &&
-      assignment.effective_from.localeCompare(
-        currentAssignment.effective_from,
-      ) > 0
-    ) {
-      activePlanByUserId.set(assignment.user_id, assignment.plan_id);
-    }
-  }
+  const aggregateByPlanId = new Map(
+    insights.map((insight) => [insight.plan_id, insight]),
+  );
 
   for (const plan of plans) {
-    const assignedUsers = Array.from(activePlanByUserId.values()).filter(
-      (planId) => planId === plan.id,
-    ).length;
-    const assignedUserIds = new Set(
-      Array.from(activePlanByUserId.entries())
-        .filter(([, planId]) => planId === plan.id)
-        .map(([userId]) => userId),
-    );
-    const currentCredits = userUsageRows
-      .filter((row) => assignedUserIds.has(row.user_id))
-      .reduce((total, row) => total + row.charged_credits, 0);
-    const storageBytes = workspaceUsage
-      .filter((row) => row.plan_id === plan.id)
-      .reduce((total, row) => total + row.storage_bytes, 0);
+    const aggregate = aggregateByPlanId.get(plan.id);
+    const assignedUsers = aggregate?.assigned_users ?? 0;
+    const currentCredits = aggregate?.current_credits ?? 0;
+    const storageBytes = aggregate?.storage_bytes ?? 0;
     const aggregateCreditLimit =
       plan.monthly_credit_limit == null
         ? null
@@ -758,10 +677,7 @@ function buildPlanInsights({
       plan.workspace_storage_limit_bytes == null
         ? null
         : plan.workspace_storage_limit_bytes *
-          Math.max(
-            workspaceUsage.filter((row) => row.plan_id === plan.id).length,
-            1,
-          );
+          Math.max(aggregate?.workspace_count ?? 0, 1);
 
     byPlanId.set(plan.id, {
       planId: plan.id,
