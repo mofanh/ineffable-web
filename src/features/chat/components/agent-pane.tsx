@@ -13,9 +13,13 @@ import {
   getPaneBlocks,
   type AgentPaneState,
   type ThinkBlock,
-  type ToolCallStatus,
   type ToolCallView,
 } from "@/features/chat/chat-pane-state"
+import {
+  renderSpecializedTool,
+  type AgentUserInputResponse,
+} from "@/features/chat/components/agent-tool-renderers"
+import { ToolCallShell } from "@/features/chat/components/tool-call-shell"
 import { cn } from "@/lib/utils"
 import { getCurrentLocale, i18n } from "@/lib/i18n/i18n"
 import {
@@ -28,7 +32,6 @@ import {
   ExternalLinkIcon,
   Globe2Icon,
   TerminalIcon,
-  WrenchIcon,
 } from "lucide-react"
 
 const markdownIt = new MarkdownIt({
@@ -54,23 +57,6 @@ const MARKDOWN_BASE_CLASS =
 
 const THINK_MARKDOWN_CLASS =
   "space-y-4 [&_li>ol]:mt-1 [&_li>ol]:gap-1 [&_li>ul]:mt-1 [&_li>ul]:gap-1 [&_ol]:ml-2 [&_ol]:gap-2 [&_ul]:ml-2 [&_ul]:gap-2"
-
-function toolStatusLabel(status: ToolCallStatus) {
-  switch (status) {
-    case "pending":
-      return i18n.t("chat.agent.waiting")
-    case "running":
-      return i18n.t("chat.agent.running")
-    case "succeeded":
-      return i18n.t("chat.agent.success")
-    case "failed":
-      return i18n.t("chat.agent.failed")
-    case "cancelled":
-      return i18n.t("chat.agent.cancelled")
-    default:
-      return status
-  }
-}
 
 function MarkdownContent({
   content,
@@ -608,74 +594,35 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
 
 const ToolCallCard = React.memo(function ToolCallCard({
   tool,
+  canRespondToUserInput,
+  onSubmitUserInput,
 }: {
   tool: ToolCallView
+  canRespondToUserInput: boolean
+  onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
 }) {
-  const isRunning = tool.status === "running"
-  const isTerminal =
-    tool.status === "succeeded" || tool.status === "failed" || tool.status === "cancelled"
+  if (tool.name === "update_plan") {
+    return null
+  }
+
+  const specialized = renderSpecializedTool({
+    tool,
+    canRespondToUserInput,
+    onSubmitUserInput,
+  })
+  if (specialized) {
+    return specialized
+  }
+
   const terminalResult = renderTerminalToolResult(tool)
   const previewResult = sandboxPreviewResult(tool)
-  const [open, setOpen] = React.useState(isRunning)
-  const prevStatusRef = React.useRef<ToolCallStatus>(tool.status)
-
-  React.useEffect(() => {
-    const prevStatus = prevStatusRef.current
-
-    if (isRunning) {
-      setOpen(true)
-    } else if (prevStatus === "running" && isTerminal) {
-      setOpen(false)
-    }
-
-    prevStatusRef.current = tool.status
-  }, [isRunning, isTerminal, tool.status])
-
-  const handleOpenChange = React.useCallback(
-    (nextOpen: boolean) => {
-      if (isRunning && !nextOpen) {
-        return
-      }
-
-      setOpen(nextOpen)
-    },
-    [isRunning]
-  )
 
   if (previewResult) {
     return <SandboxPreviewResultCard result={previewResult} />
   }
 
   return (
-    <Collapsible open={open} onOpenChange={handleOpenChange} className="flex flex-col">
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="group flex w-full items-center gap-2 text-left text-[13px] text-foreground/62 select-none transition-colors hover:text-foreground/80"
-        >
-          <span className="inline-flex min-w-0 items-center gap-1.5">
-            <WrenchIcon className="size-3.5 flex-none" />
-            <span className="truncate">{tool.name}</span>
-          </span>
-
-          <span className="ml-auto inline-flex items-center gap-1.5">
-            <Badge
-              variant="outline"
-              className={cn(
-                "h-5 shrink-0 rounded-full border-black/10 bg-transparent px-1.5 text-[10px] text-foreground/65",
-                tool.status === "failed" && "border-red-500/25 text-red-600",
-                tool.status === "succeeded" && "border-emerald-500/25 text-emerald-700",
-                tool.status === "cancelled" && "border-amber-500/25 text-amber-700"
-              )}
-            >
-              {toolStatusLabel(tool.status)}
-            </Badge>
-            <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
-          </span>
-        </button>
-      </CollapsibleTrigger>
-
-      <CollapsibleContent className="animated-collapsible-content relative ml-[6.5px] border-l-[0.5px] border-border/50 pt-2 pl-3.5 text-xs text-foreground/65">
+    <ToolCallShell tool={tool} lockOpen={tool.status === "running"}>
         {tool.input.trim() ? (
           <div className="space-y-1">
             <p className="text-[10px] font-medium tracking-wide opacity-55">
@@ -699,8 +646,7 @@ const ToolCallCard = React.memo(function ToolCallCard({
             )}
           </div>
         ) : null}
-      </CollapsibleContent>
-    </Collapsible>
+    </ToolCallShell>
   )
 })
 
@@ -708,10 +654,14 @@ export const AgentPane = React.memo(function AgentPane({
   pane,
   isStreaming = false,
   prefersReducedMotion = false,
+  canRespondToUserInput = false,
+  onSubmitUserInput,
 }: {
   pane: AgentPaneState
   isStreaming?: boolean
   prefersReducedMotion?: boolean
+  canRespondToUserInput?: boolean
+  onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
 }) {
   useTranslation()
   const blocks = getPaneBlocks(pane)
@@ -754,7 +704,14 @@ export const AgentPane = React.memo(function AgentPane({
           return null
         }
 
-        return <ToolCallCard key={block.id} tool={tool} />
+        return (
+          <ToolCallCard
+            key={block.id}
+            tool={tool}
+            canRespondToUserInput={canRespondToUserInput}
+            onSubmitUserInput={onSubmitUserInput}
+          />
+        )
       })}
     </div>
   )

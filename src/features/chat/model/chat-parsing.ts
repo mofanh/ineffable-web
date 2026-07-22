@@ -65,6 +65,69 @@ export function approvalNeedFromRaw(
   }
 }
 
+export type UserInputNeed = {
+  needId: string
+  questions: unknown[]
+  runId: string | null
+  sessionKey: string | null
+}
+
+export function userInputNeedFromRaw(
+  raw: unknown,
+  context?: {
+    runId?: string | null
+    sessionKey?: string | null
+  }
+): UserInputNeed | null {
+  const need = objectValue(raw)
+  if (!need || need.kind !== "user_input") return null
+  const needId = stringValue(need.need_id)
+  const questions = Array.isArray(need.questions) ? need.questions : []
+  if (!needId || questions.length === 0) return null
+  return {
+    needId,
+    questions,
+    runId: context?.runId ?? null,
+    sessionKey: context?.sessionKey ?? null,
+  }
+}
+
+export function userInputNeedFromEvent(
+  event: GatewayChatStreamEvent
+): UserInputNeed | null {
+  const metadata = objectValue(event.metadata)
+  const runId = event.run_id || stringValue(metadata?.run_id) || null
+  const sessionKey = stringValue(metadata?.session_key) || null
+  const context = { runId, sessionKey }
+  const metadataPayload = objectValue(metadata?.payload)
+  const fromMetadata = userInputNeedFromRaw(
+    objectValue(metadata?.pending_need) ??
+      objectValue(metadata?.blocking_need) ??
+      objectValue(metadataPayload?.pending_need),
+    context
+  )
+  if (fromMetadata) return fromMetadata
+
+  const resolutionSchema = objectValue(metadata?.resolution_schema)
+  if (resolutionSchema?.kind === "user_input") {
+    return userInputNeedFromRaw(
+      {
+        kind: "user_input",
+        need_id: stringValue(metadata?.need_id),
+        questions: resolutionSchema.questions,
+      },
+      context
+    )
+  }
+
+  const parsedContent = parseJsonObject(event.content)
+  return userInputNeedFromRaw(
+    objectValue(parsedContent?.blocking_need) ??
+      objectValue(parsedContent?.pending_need),
+    context
+  )
+}
+
 export function approvalNeedFromEvent(
   event: GatewayChatStreamEvent
 ): ApprovalEntry | null {

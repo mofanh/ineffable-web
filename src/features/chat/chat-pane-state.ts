@@ -7,7 +7,13 @@ import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 // 3. Once a think block is terminated, later reasoning must open a fresh think block
 //    instead of mutating the previous one.
 
-export type ToolCallStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled"
+export type ToolCallStatus =
+  | "pending"
+  | "running"
+  | "waiting"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
 
 export type ToolCallView = {
   id: string
@@ -15,6 +21,9 @@ export type ToolCallView = {
   input: string
   output: string
   status: ToolCallStatus
+  runId?: string | null
+  sessionKey?: string | null
+  answer?: string | null
 }
 
 export type TextBlock = {
@@ -83,11 +92,22 @@ function getMetadataBoolean(
 }
 
 function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
+  const output = (event.content ?? "").trim().toLowerCase()
+  if (
+    output.includes('"status":"waiting"') ||
+    output.includes('"kind":"user_input"')
+  ) {
+    return "waiting"
+  }
+
   const metadataStatus =
     getMetadataValue(event.metadata, "status") ||
     getMetadataValue(event.metadata, "tool_status") ||
     getMetadataValue(event.metadata, "result_status")
   const normalizedStatus = metadataStatus.toLowerCase()
+  if (normalizedStatus === "waiting" || normalizedStatus === "awaiting_human") {
+    return "waiting"
+  }
   if (normalizedStatus === "cancelled" || normalizedStatus === "canceled") {
     return "cancelled"
   }
@@ -115,7 +135,6 @@ function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
     return "failed"
   }
 
-  const output = (event.content ?? "").trim().toLowerCase()
   if (output.startsWith("error:") || output.includes("\"success\":false")) {
     return "failed"
   }
@@ -436,6 +455,16 @@ export function getPaneBlocks(pane: AgentPaneState) {
   return pane.blockOrder.map((blockId) => pane.blocks[blockId]).filter(Boolean)
 }
 
+export function getLatestToolByName(pane: AgentPaneState, name: string) {
+  for (let index = pane.blockOrder.length - 1; index >= 0; index -= 1) {
+    const block = pane.blocks[pane.blockOrder[index]]
+    if (block?.type !== "tool") continue
+    const tool = pane.tools[block.toolId]
+    if (tool?.name === name) return tool
+  }
+  return null
+}
+
 export function hasAgentPaneContent(pane: AgentPaneState) {
   return Boolean(pane.blockOrder.length)
 }
@@ -507,6 +536,11 @@ export function buildToolView(
   const nextTool: ToolCallView = {
     ...existing,
     name: getToolName(event) || existing.name,
+    runId: event.run_id ?? existing.runId ?? null,
+    sessionKey:
+      getMetadataValue(event.metadata, "session_key") ||
+      existing.sessionKey ||
+      null,
   }
 
   if (event.event === "tool_call_start") {

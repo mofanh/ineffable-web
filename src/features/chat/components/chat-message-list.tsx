@@ -14,6 +14,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { AgentPane } from "@/features/chat/components/agent-pane"
+import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import { cn } from "@/lib/utils"
 
 type ChatMessageListProps = {
@@ -30,6 +31,8 @@ type ChatMessageListProps = {
   onStreamingContentProgress: () => void
   onApproveApproval: (entryId: string) => void
   onRejectApproval: (entryId: string) => void
+  activeHumanRunId: string | null
+  onSubmitUserInput: (response: AgentUserInputResponse) => Promise<void>
 }
 
 function StreamingTailDot() {
@@ -79,6 +82,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onStreamingContentProgress,
   onApproveApproval,
   onRejectApproval,
+  activeHumanRunId,
+  onSubmitUserInput,
 }: ChatMessageListProps) {
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -282,6 +287,10 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   pane={entry.pane}
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}
+                  canRespondToUserInput={
+                    Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
+                  }
+                  onSubmitUserInput={onSubmitUserInput}
                 />
 
                 {entry.subagentOrder.length ? (

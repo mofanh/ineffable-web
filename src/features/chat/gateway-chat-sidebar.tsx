@@ -13,9 +13,13 @@ import {
   buildToolView,
   finalizePane,
   getPaneBlocks,
+  getLatestToolByName,
   type AgentPaneState,
+  type ToolCallView,
   upsertToolInPane,
 } from "@/features/chat/chat-pane-state"
+import { AgentPlanPanel } from "@/features/chat/components/agent-plan-panel"
+import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import {
   ChatComposer,
   type AgentDescriptorOption,
@@ -59,6 +63,8 @@ import {
   parsePendingInputContent,
   parsePendingInputId,
   stringValue,
+  userInputNeedFromEvent,
+  userInputNeedFromRaw,
 } from "@/features/chat/model/chat-parsing"
 import {
   clearPendingConversationResumeState,
@@ -78,6 +84,7 @@ import {
   promotePendingInput,
   rejectSandboxApproval,
   resumeRunWithApproval,
+  resumeRunWithHumanResolution,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
@@ -140,6 +147,32 @@ function paneText(entry: AssistantEntry) {
     .join("\n")
 
   return [mainText, subagentText].filter(Boolean).join("\n")
+}
+
+function latestPlanTool(entries: ChatEntry[]) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    if (entry.role !== "assistant") continue
+    const tool = getLatestToolByName(entry.pane, "update_plan")
+    if (tool) return tool
+  }
+  return null
+}
+
+function updateToolInPane(
+  pane: AgentPaneState,
+  toolId: string,
+  updater: (tool: ToolCallView) => ToolCallView
+) {
+  const tool = pane.tools[toolId]
+  if (!tool) return pane
+  return {
+    ...pane,
+    tools: {
+      ...pane.tools,
+      [toolId]: updater(tool),
+    },
+  }
 }
 
 function entryFingerprint(entry: ChatEntry) {
@@ -243,6 +276,7 @@ export function GatewayChatSidebar({
   const [modelProfiles, setModelProfiles] = React.useState<ModelProfile[]>([])
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
+  const [awaitingHumanRunId, setAwaitingHumanRunId] = React.useState<string | null>(null)
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
     AgentDescriptorOption[]
   >([])
@@ -608,6 +642,7 @@ export function GatewayChatSidebar({
     () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
     [renderedEntryLimit, visibleEntries]
   )
+  const currentPlanTool = React.useMemo(() => latestPlanTool(entries), [entries])
   const renderedEntryCount = renderedEntries.length
   const hasHiddenLoadedEntries = renderedEntries.length < visibleEntries.length
   const hasOlderEntries = hasHiddenLoadedEntries || hasOlderMessages
@@ -1239,7 +1274,8 @@ export function GatewayChatSidebar({
     )
   }
 
-  function markAwaitingHuman() {
+  function markAwaitingHuman(runId?: string | null) {
+    setAwaitingHumanRunId(runId ?? activeRunIdRef.current)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
@@ -1296,6 +1332,7 @@ export function GatewayChatSidebar({
   }
 
   function finalizeConversationTurn(conversationId: string) {
+    setAwaitingHumanRunId(null)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
@@ -1314,6 +1351,7 @@ export function GatewayChatSidebar({
   }
 
   function applyFinal(result: GatewayChatFinalResult) {
+    setAwaitingHumanRunId(null)
     const conversationId =
       activeStreamConversationIdRef.current ?? currentConversationIdRef.current
     terminalEventSeenRef.current = true
@@ -1362,7 +1400,35 @@ export function GatewayChatSidebar({
     })
     if (pendingApproval) {
       upsertApprovalEntry(pendingApproval)
-      markAwaitingHuman()
+      markAwaitingHuman(pendingApproval.runId)
+      return
+    }
+
+    const pendingUserInput = userInputNeedFromRaw(response.pending_need, {
+      runId: response.run_id ?? null,
+      sessionKey: response.session_key ?? null,
+    })
+    if (pendingUserInput) {
+      ensureAssistantEntry()
+      updateAssistantEntry((entry) => {
+        const current = entry ?? createAssistantEntry("streaming", pendingUserInput.runId)
+        const existing = current.pane.tools[pendingUserInput.needId]
+        return {
+          ...current,
+          runId: current.runId ?? pendingUserInput.runId,
+          pane: upsertToolInPane(current.pane, pendingUserInput.needId, {
+            id: pendingUserInput.needId,
+            name: "request_user_input",
+            input:
+              existing?.input || JSON.stringify({ questions: pendingUserInput.questions }),
+            output: existing?.output || "",
+            status: "waiting",
+            runId: pendingUserInput.runId,
+            sessionKey: pendingUserInput.sessionKey,
+          }),
+        }
+      })
+      markAwaitingHuman(pendingUserInput.runId)
       return
     }
 
@@ -1372,6 +1438,7 @@ export function GatewayChatSidebar({
       completeAssistantEntry(response.output)
     }
 
+    setAwaitingHumanRunId(null)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
@@ -1433,8 +1500,34 @@ export function GatewayChatSidebar({
       const metadata = objectValue(event.metadata)
       const runState = stringValue(metadata?.run_state)
       if (event.event === "run_awaiting_human" || runState === "awaiting_human") {
-        markAwaitingHuman()
+        markAwaitingHuman(approvalEntry.runId)
       }
+      return
+    }
+
+    const userInputNeed = userInputNeedFromEvent(event)
+    if (userInputNeed) {
+      ensureAssistantEntry()
+      updateAssistantEntry((entry) => {
+        const current = entry ?? createAssistantEntry("streaming", userInputNeed.runId)
+        const existing = current.pane.tools[userInputNeed.needId]
+        const tool: ToolCallView = {
+          id: userInputNeed.needId,
+          name: "request_user_input",
+          input:
+            existing?.input || JSON.stringify({ questions: userInputNeed.questions }),
+          output: existing?.output || "",
+          status: "waiting",
+          runId: userInputNeed.runId,
+          sessionKey: userInputNeed.sessionKey,
+        }
+        return {
+          ...current,
+          runId: current.runId ?? userInputNeed.runId,
+          pane: upsertToolInPane(current.pane, userInputNeed.needId, tool),
+        }
+      })
+      markAwaitingHuman(userInputNeed.runId)
       return
     }
 
@@ -1896,6 +1989,7 @@ export function GatewayChatSidebar({
 
   function clearConversation() {
     setEntries([])
+    setAwaitingHumanRunId(null)
     setError(null)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
     pendingOlderLoadMetricsRef.current = null
@@ -1967,6 +2061,7 @@ export function GatewayChatSidebar({
     }))
     setError(null)
     updateStreamStatus("streaming")
+    setAwaitingHumanRunId(null)
 
     try {
       if (approved) {
@@ -2022,6 +2117,71 @@ export function GatewayChatSidebar({
       appendSystemMessage(
         i18n.t("chat.gateway.approvalFailedWithMessage", { message })
       )
+    }
+  }
+
+  async function handleSubmitUserInput(response: AgentUserInputResponse) {
+    if (!accessToken || !currentWorkspace) {
+      throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
+    }
+
+    setError(null)
+    updateStreamStatus("streaming")
+
+    try {
+      const resumed = await resumeRunWithHumanResolution(
+        accessToken,
+        currentWorkspace.id,
+        {
+          run_id: response.runId,
+          session_key: response.sessionKey,
+          resolution: {
+            kind: "user_input",
+            need_id: response.needId,
+            input: response.input,
+          },
+        }
+      )
+
+      setEntries((current) =>
+        current.map((entry) => {
+          if (entry.role !== "assistant") return entry
+          const pane = updateToolInPane(entry.pane, response.needId, (tool) => ({
+            ...tool,
+            status: "succeeded",
+            answer: response.input,
+          }))
+          const subagents = Object.fromEntries(
+            entry.subagentOrder.map((subagentId) => {
+              const subagent = entry.subagents[subagentId]
+              return [
+                subagentId,
+                subagent
+                  ? {
+                      ...subagent,
+                      ...updateToolInPane(subagent, response.needId, (tool) => ({
+                        ...tool,
+                        status: "succeeded",
+                        answer: response.input,
+                      })),
+                    }
+                  : subagent,
+              ]
+            })
+          ) as Record<string, SubagentView>
+          return { ...entry, pane, subagents }
+        })
+      )
+      applyResumeResponse(resumed)
+    } catch (submitError) {
+      updateStreamStatus("completed")
+      const message = reportChatError(
+        submitError,
+        i18n.t("chat.agent.answerSubmitFailed"),
+        i18n.t("chat.agent.answerSubmitFailedTitle")
+      )
+      setError(message)
+      throw new Error(message)
     }
   }
 
@@ -2461,6 +2621,10 @@ export function GatewayChatSidebar({
           onStreamingContentProgress={handleStreamingContentProgress}
           onApproveApproval={handleApproveApproval}
           onRejectApproval={handleRejectApproval}
+          activeHumanRunId={
+            awaitingHumanRunId ?? selectedConversation?.current_run_id ?? null
+          }
+          onSubmitUserInput={handleSubmitUserInput}
         />
         {isLoadingMessages ? (
           <div className="px-4 pb-3 text-xs text-muted-foreground">
@@ -2468,6 +2632,8 @@ export function GatewayChatSidebar({
           </div>
         ) : null}
       </SidebarContent>
+
+      <AgentPlanPanel tool={currentPlanTool} />
 
       <ChatComposer
         composer={composer}
