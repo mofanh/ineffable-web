@@ -163,6 +163,8 @@ routes -> page barrel -> real page
 
 ## 请求、错误和通知
 
+- 列表概览、指标和图表禁止通过 `items.map(async item => loadDetail(item.id))` 批量制造 N+1 请求；优先使用后端 summary/batch API。用户主动展开单行详情时才按需请求 item detail，并缓存已加载结果。
+
 不要直接写：
 
 ```ts
