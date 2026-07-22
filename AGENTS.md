@@ -164,6 +164,8 @@ routes -> page barrel -> real page
 ## 请求、错误和通知
 
 - 列表概览、指标和图表禁止通过 `items.map(async item => loadDetail(item.id))` 批量制造 N+1 请求；优先使用后端 summary/batch API。用户主动展开单行详情时才按需请求 item detail，并缓存已加载结果。
+- 同一页面生命周期内相同参数的并发加载应复用 in-flight Promise，避免 React StrictMode、重复点击或多个入口同时触发相同请求；请求结束后清理，显式刷新仍可重新加载。
+- React state updater 必须保持纯函数，禁止在 `setState(current => ...)` 内发请求、通知或写外部状态；先计算交互意图，再在 updater 外执行副作用。
 
 不要直接写：
 

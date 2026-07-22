@@ -83,41 +83,68 @@ export function SystemUserManagementPage() {
   const [editingUserPlanId, setEditingUserPlanId] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const editingUserIdRef = React.useRef("");
+  const loadUsersPromiseRef = React.useRef<{
+    accessToken: string;
+    promise: Promise<void>;
+  } | null>(null);
+  const userDetailsPromisesRef = React.useRef(
+    new Map<string, Promise<UserDetails | null>>(),
+  );
   const [state, setState] = React.useState<LoadState>("idle");
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState("");
   const isAdmin = currentUser?.role === "admin";
 
-  const loadUsers = React.useCallback(async () => {
-    if (!accessToken || !isAdmin) return;
-    setState("loading");
-    setError("");
-    try {
-      const [userResult, planResult, workspaceUsageResult] = await Promise.all([
-        listAdminUsers(accessToken),
-        listAdminPlans(accessToken),
-        listAdminWorkspaceUsage(accessToken),
-      ]);
-      setUsers(userResult.users);
-      setPlans(planResult.plans);
-      setWorkspaceUsage(workspaceUsageResult.usage);
-      setEditingUserPlanId((current) =>
-        planResult.plans.some((plan) => plan.id === current)
-          ? current
-          : (planResult.plans[0]?.id ?? ""),
-      );
-    } catch (loadError) {
-      const appError = normalizeAppError(loadError, {
-        fallbackMessage: t("system.users.loadFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.users.loadFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
-      setState("idle");
-    }
+  const loadUsers = React.useCallback(() => {
+    if (!accessToken || !isAdmin) return Promise.resolve();
+    const activeLoad = loadUsersPromiseRef.current;
+    if (activeLoad?.accessToken === accessToken) return activeLoad.promise;
+
+    const promise = (async () => {
+      setState("loading");
+      setError("");
+      try {
+        const [userResult, planResult, workspaceUsageResult] =
+          await Promise.all([
+            listAdminUsers(accessToken),
+            listAdminPlans(accessToken),
+            listAdminWorkspaceUsage(accessToken),
+          ]);
+        setUsers(userResult.users);
+        setPlans(planResult.plans);
+        setWorkspaceUsage(workspaceUsageResult.usage);
+        setEditingUserPlanId((current) =>
+          planResult.plans.some((plan) => plan.id === current)
+            ? current
+            : (planResult.plans[0]?.id ?? ""),
+        );
+      } catch (loadError) {
+        const appError = normalizeAppError(loadError, {
+          fallbackMessage: t("system.users.loadFailed"),
+        });
+        setError(appError.message);
+        notify.error({
+          title: t("system.users.loadFailedTitle"),
+          description: appError.message,
+        });
+      } finally {
+        setState("idle");
+      }
+    })();
+    loadUsersPromiseRef.current = { accessToken, promise };
+    void promise.then(
+      () => {
+        if (loadUsersPromiseRef.current?.promise === promise) {
+          loadUsersPromiseRef.current = null;
+        }
+      },
+      () => {
+        if (loadUsersPromiseRef.current?.promise === promise) {
+          loadUsersPromiseRef.current = null;
+        }
+      },
+    );
+    return promise;
   }, [accessToken, isAdmin, t]);
 
   React.useEffect(() => {
@@ -125,33 +152,45 @@ export function SystemUserManagementPage() {
   }, [loadUsers]);
 
   const loadUserDetails = React.useCallback(
-    async (userId: string) => {
-      if (!accessToken || !isAdmin || !userId) return null;
-      try {
-        const [planResult, usageResult] = await Promise.all([
-          listAdminUserPlanAssignments(accessToken, userId),
-          listAdminUserMonthlyUsage(accessToken, userId),
-        ]);
-        const details = {
-          assignments: planResult.assignments,
-          usage: usageResult.usage,
-        };
-        setUserDetailsByUserId((current) => ({
-          ...current,
-          [userId]: details,
-        }));
-        return details;
-      } catch (loadError) {
-        const appError = normalizeAppError(loadError, {
-          fallbackMessage: t("system.users.loadFailed"),
-        });
-        setError(appError.message);
-        notify.error({
-          title: t("system.users.detailLoadFailedTitle"),
-          description: appError.message,
-        });
-        return null;
-      }
+    (userId: string) => {
+      if (!accessToken || !isAdmin || !userId) return Promise.resolve(null);
+      const requestKey = `${accessToken}:${userId}`;
+      const activeLoad = userDetailsPromisesRef.current.get(requestKey);
+      if (activeLoad) return activeLoad;
+
+      const promise = (async () => {
+        try {
+          const [planResult, usageResult] = await Promise.all([
+            listAdminUserPlanAssignments(accessToken, userId),
+            listAdminUserMonthlyUsage(accessToken, userId),
+          ]);
+          const details = {
+            assignments: planResult.assignments,
+            usage: usageResult.usage,
+          };
+          setUserDetailsByUserId((current) => ({
+            ...current,
+            [userId]: details,
+          }));
+          return details;
+        } catch (loadError) {
+          const appError = normalizeAppError(loadError, {
+            fallbackMessage: t("system.users.loadFailed"),
+          });
+          setError(appError.message);
+          notify.error({
+            title: t("system.users.detailLoadFailedTitle"),
+            description: appError.message,
+          });
+          return null;
+        }
+      })();
+      userDetailsPromisesRef.current.set(requestKey, promise);
+      void promise.then(
+        () => userDetailsPromisesRef.current.delete(requestKey),
+        () => userDetailsPromisesRef.current.delete(requestKey),
+      );
+      return promise;
     },
     [accessToken, isAdmin, t],
   );
@@ -246,13 +285,11 @@ export function SystemUserManagementPage() {
   }
 
   function toggleExpandedUser(userId: string) {
-    setExpandedUserIds((current) => {
-      const next = current.has(userId) ? new Set<string>() : new Set([userId]);
-      if (next.has(userId) && !userDetailsByUserId[userId]) {
-        void loadUserDetails(userId);
-      }
-      return next;
-    });
+    const willExpand = !expandedUserIds.has(userId);
+    setExpandedUserIds(willExpand ? new Set([userId]) : new Set());
+    if (willExpand && !userDetailsByUserId[userId]) {
+      void loadUserDetails(userId);
+    }
   }
 
   async function saveUser(event: React.FormEvent<HTMLFormElement>) {
