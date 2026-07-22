@@ -932,9 +932,10 @@ export function deleteWorkspaceObject(
 }
 
 export function listAutomations(accessToken: string) {
-  return requestApiJson<{ automations: Automation[] }>("/gateway/v1/automations", {
-    accessToken,
-  })
+  return requestApiJson<{
+    automations: Automation[]
+    runs: AutomationRun[]
+  }>("/gateway/v1/automations", { accessToken })
 }
 
 export function createAutomation(

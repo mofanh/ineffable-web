@@ -44,7 +44,6 @@ import {
 } from "@/features/auth/app-session"
 import {
   deleteAutomation,
-  listAutomationRuns,
   listAutomations,
   runAutomation,
   updateAutomation,
@@ -264,6 +263,14 @@ function runStatusCounts(runsByAutomation: Record<string, AutomationRun[]>) {
   )
 }
 
+function groupRunsByAutomation(runs: AutomationRun[]) {
+  const grouped: Record<string, AutomationRun[]> = {}
+  for (const run of runs) {
+    (grouped[run.automation_id] ??= []).push(run)
+  }
+  return grouped
+}
+
 function useAccessToken() {
   const { accessToken } = useAuthSession()
   if (!accessToken) throw new Error("auth required")
@@ -318,22 +325,9 @@ export function AutomationPage() {
       listAutomations(accessToken),
       refreshConversations(),
     ])
-    const runPairs = await Promise.all(
-      automationsResponse.automations.map(async (automation) => {
-        try {
-          const runsResponse = await listAutomationRuns(
-            accessToken,
-            automation.id,
-          )
-          return [automation.id, runsResponse.runs] as const
-        } catch {
-          return [automation.id, []] as const
-        }
-      }),
-    )
     return {
       automations: automationsResponse.automations,
-      runs: Object.fromEntries(runPairs) as Record<string, AutomationRun[]>,
+      runs: groupRunsByAutomation(automationsResponse.runs),
     }
   }, [accessToken, refreshConversations])
 
