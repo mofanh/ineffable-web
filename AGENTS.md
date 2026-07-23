@@ -209,6 +209,15 @@ return (
 
 流式 chat 等特殊状态机可以保留 feature-specific 状态，但错误归一化和用户反馈仍应走 app service。
 
+## 多会话运行状态
+
+- `selectedConversationId` 只表示当前查看会话，不能作为唯一活跃 run 的全局状态。
+- 切换、新建或关闭聊天面板只能中断当前浏览器订阅，不得调用 stop；停止必须来自用户对指定 conversation 的显式操作。
+- conversation 的 live 状态以后端 `current_run.is_live` 为权威，浏览器本地状态只负责即时反馈和恢复加速。
+- SSE/event 恢复游标必须按 `conversationId` 分区保存，终态清理只能删除对应 conversation，不能覆盖或清空其他后台会话。
+- 会话列表应展示运行中、等待操作、失败和完成未查看状态；后台刷新必须复用 in-flight 请求并保持有界频率。
+- 第一版只对当前会话维持实时展示，后台会话通过 conversation 列表刷新和 event cursor 补拉恢复，不维护无限 SSE 连接。
+
 ## 国际化
 
 - 用户可见文案必须通过 `i18next` 资源输出，不在 page、feature、app service 或 UI primitive 中新增硬编码业务文案。
