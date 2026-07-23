@@ -34,7 +34,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { LanguageToggle } from "@/components/language-toggle"
+import { LanguageMenu } from "@/components/language-menu"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { IneffableLogo } from "@/components/ineffable-logo"
@@ -680,9 +680,7 @@ function WorkspaceAccountSwitcher({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <ThemeToggle />
-        <DropdownMenuItem className="p-0">
-          <LanguageToggle layout="menu" />
-        </DropdownMenuItem>
+        <LanguageMenu />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link

@@ -2,6 +2,9 @@ export const resources = {
   "zh-CN": {
     translation: {
       language: {
+        label: "语言",
+        chinese: "中文",
+        english: "English",
         switchTo: "切换到英文",
         shortEnglish: "EN",
         shortChinese: "中文",
@@ -48,6 +51,7 @@ export const resources = {
         unknown: "请求失败，请重试。",
       },
       theme: {
+        appearance: "外观",
         light: "浅色",
         dark: "深色",
         system: "跟随系统",
@@ -1350,6 +1354,9 @@ export const resources = {
   "en-US": {
     translation: {
       language: {
+        label: "Language",
+        chinese: "中文",
+        english: "English",
         switchTo: "Switch to Chinese",
         shortEnglish: "EN",
         shortChinese: "中文",
@@ -1399,6 +1406,7 @@ export const resources = {
         unknown: "Request failed. Please try again.",
       },
       theme: {
+        appearance: "Appearance",
         light: "Light",
         dark: "Dark",
         system: "Use system setting",
