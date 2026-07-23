@@ -458,6 +458,12 @@ export const resources = {
           exitFullScreen: "退出全屏",
           enterFullScreen: "全屏使用 AI 助手",
           collapse: "收起右侧栏",
+          status: {
+            running: "运行中",
+            awaitingHuman: "等待操作",
+            completedUnread: "已完成",
+            failed: "失败",
+          },
         },
         composer: {
           searchAgents: "输入以搜索 Agent 文件",
@@ -1829,6 +1835,12 @@ export const resources = {
           exitFullScreen: "Exit full screen",
           enterFullScreen: "Use AI assistant full screen",
           collapse: "Collapse right sidebar",
+          status: {
+            running: "Running",
+            awaitingHuman: "Needs input",
+            completedUnread: "Completed",
+            failed: "Failed",
+          },
         },
         composer: {
           searchAgents: "Type to search Agent files",

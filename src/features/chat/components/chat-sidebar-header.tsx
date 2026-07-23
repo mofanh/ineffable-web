@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
+import { StatusBadge, type StatusBadgeTone } from "@/components/app/status-badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { SidebarHeader } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import { i18n } from "@/lib/i18n/i18n"
+import type { ConversationRuntimeStatus } from "@/features/chat/model/conversation-runtime-status"
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -28,7 +30,7 @@ type ChatSidebarHeaderProps = {
   bindStatus: string
   selectedConversationId: string | null
   selectedConversationTitle: string
-  conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
+  conversations: ConversationListItem[]
   onSelectConversation: (conversationId: string | null) => void
   onRefreshConversations: () => void
   onStartNewChat: () => void
@@ -37,9 +39,16 @@ type ChatSidebarHeaderProps = {
   onCollapseSidebar: () => void
 }
 
+type ConversationListItem = {
+  id: string
+  title: string
+  updatedAt?: string | null
+  runtimeStatus?: ConversationRuntimeStatus | null
+}
+
 type ConversationGroup = {
   label: string
-  items: Array<{ id: string; title: string; updatedAt?: string | null }>
+  items: ConversationListItem[]
 }
 
 function HeaderActionButton({
@@ -94,7 +103,7 @@ function getConversationGroupLabel(updatedAt?: string | null) {
 }
 
 function groupConversations(
-  conversations: Array<{ id: string; title: string; updatedAt?: string | null }>
+  conversations: ConversationListItem[]
 ) {
   const order = [
     i18n.t("chat.header.today"),
@@ -114,6 +123,26 @@ function groupConversations(
   return order
     .map((label) => grouped.get(label))
     .filter((group): group is ConversationGroup => Boolean(group && group.items.length))
+}
+
+function runtimeStatusBadge(status: ConversationRuntimeStatus) {
+  const labels: Record<ConversationRuntimeStatus, string> = {
+    running: i18n.t("chat.header.status.running"),
+    awaiting_human: i18n.t("chat.header.status.awaitingHuman"),
+    completed_unread: i18n.t("chat.header.status.completedUnread"),
+    failed: i18n.t("chat.header.status.failed"),
+  }
+  const tones: Record<ConversationRuntimeStatus, StatusBadgeTone> = {
+    running: "warning",
+    awaiting_human: "warning",
+    completed_unread: "success",
+    failed: "danger",
+  }
+
+  return {
+    label: labels[status],
+    tone: tones[status],
+  }
 }
 
 export function ChatSidebarHeader({
@@ -277,6 +306,13 @@ export function ChatSidebarHeader({
                                 )}
                                 <div className="truncate">{conversation.title}</div>
                               </div>
+                              {conversation.runtimeStatus ? (
+                                <StatusBadge
+                                  status={conversation.runtimeStatus}
+                                  {...runtimeStatusBadge(conversation.runtimeStatus)}
+                                  className="h-5 shrink-0 px-1.5 text-[10px]"
+                                />
+                              ) : null}
                             </button>
                           )
                         })}

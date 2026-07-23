@@ -71,6 +71,12 @@ import {
   readConversationResumeState,
   writeConversationResumeState,
 } from "@/features/chat/model/conversation-resume"
+import {
+  findNewlyTerminalConversationIds,
+  getConversationRuntimeStatus,
+  observeConversationRuns,
+  type ConversationRunObservation,
+} from "@/features/chat/model/conversation-runtime-status"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { useAppSession } from "@/features/auth/app-session"
 import {
@@ -329,8 +335,16 @@ export function GatewayChatSidebar({
   const olderMessagesInFlightCursorRef = React.useRef<string | null>(null)
   const olderLoadResetTimerRef = React.useRef<number | null>(null)
   const sandboxOptionsRequestRef = React.useRef(0)
+  const backgroundRefreshInFlightRef = React.useRef(false)
+  const previousRunObservationsRef = React.useRef<Record<
+    string,
+    ConversationRunObservation
+  > | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
+  const [unreadConversationIds, setUnreadConversationIds] = React.useState(
+    () => new Set<string>()
+  )
 
   const refreshPendingInputsForConversation = React.useCallback(
     async (conversationId: string) => {
@@ -579,6 +593,70 @@ export function GatewayChatSidebar({
     streamStatusRef.current = streamStatus
   }, [streamStatus])
 
+  React.useEffect(() => {
+    const previous = previousRunObservationsRef.current
+    if (previous) {
+      const newlyTerminal = findNewlyTerminalConversationIds(
+        previous,
+        conversations,
+        currentConversationIdRef.current
+      )
+      if (newlyTerminal.length > 0) {
+        setUnreadConversationIds((current) => {
+          const next = new Set(current)
+          newlyTerminal.forEach((conversationId) => next.add(conversationId))
+          return next
+        })
+      }
+    }
+    previousRunObservationsRef.current = observeConversationRuns(conversations)
+  }, [conversations])
+
+  React.useEffect(() => {
+    if (!currentConversationId) {
+      return
+    }
+    setUnreadConversationIds((current) => {
+      if (!current.has(currentConversationId)) {
+        return current
+      }
+      const next = new Set(current)
+      next.delete(currentConversationId)
+      return next
+    })
+  }, [currentConversationId])
+
+  const hasLiveConversation = conversations.some(
+    (conversation) => conversation.current_run?.is_live
+  )
+
+  React.useEffect(() => {
+    const hasLocalRun =
+      streamStatus === "streaming" || streamStatus === "recovering"
+    if (!accessToken || (!hasLiveConversation && !hasLocalRun)) {
+      return
+    }
+
+    const refreshBackgroundRuns = async () => {
+      if (backgroundRefreshInFlightRef.current) {
+        return
+      }
+      backgroundRefreshInFlightRef.current = true
+      try {
+        await refreshConversations()
+      } catch {
+        // 当前会话的流恢复负责展示错误；后台列表轮询保持静默并等待下次重试。
+      } finally {
+        backgroundRefreshInFlightRef.current = false
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshBackgroundRuns()
+    }, 2500)
+    return () => window.clearInterval(intervalId)
+  }, [accessToken, hasLiveConversation, refreshConversations, streamStatus])
+
   const updateStreamStatus = React.useCallback((next: StreamStatus) => {
     streamStatusRef.current = next
     setStreamStatus(next)
@@ -616,8 +694,15 @@ export function GatewayChatSidebar({
         id: conversation.id,
         title: conversation.title || i18n.t("chat.gateway.unnamed"),
         updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
+        runtimeStatus:
+          conversation.id === activeStreamConversationIdRef.current && isSending
+            ? "running"
+            : getConversationRuntimeStatus(
+                conversation,
+                unreadConversationIds.has(conversation.id)
+              ),
       })),
-    [conversations]
+    [conversations, isSending, unreadConversationIds]
   )
   const handleRefreshConversationList = React.useCallback(() => {
     void refreshConversations()
@@ -1108,7 +1193,11 @@ export function GatewayChatSidebar({
       return
     }
 
+    const changed = activeRunIdRef.current !== normalized
     activeRunIdRef.current = normalized
+    if (changed) {
+      void refreshConversations().catch(() => {})
+    }
     updateAssistantEntry((entry) =>
       entry && !entry.runId
         ? {
@@ -1295,6 +1384,7 @@ export function GatewayChatSidebar({
     assistantEntryIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
+    void refreshConversations().catch(() => {})
   }
 
   function completeAssistantEntry(fallback?: string) {
@@ -1558,6 +1648,7 @@ export function GatewayChatSidebar({
         clearConversationResumeState(conversationId)
       }
       updateStreamStatus("error")
+      void refreshConversations().catch(() => {})
       setError(errorMessage)
       appendSystemMessage(
         i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })

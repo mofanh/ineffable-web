@@ -7,6 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "check:chat-resume": "node --experimental-strip-types scripts/check-conversation-resume-state.mjs",
+    "check:chat-runtime": "node --experimental-strip-types scripts/check-conversation-runtime-status.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
