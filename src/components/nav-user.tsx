@@ -121,8 +121,8 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <ThemeToggle />
-            <LanguageMenu />
+            <ThemeToggle mobile={isMobile} />
+            <LanguageMenu mobile={isMobile} />
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link
