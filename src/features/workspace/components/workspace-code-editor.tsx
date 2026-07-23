@@ -1,5 +1,6 @@
 import type { Extension } from "@codemirror/state"
 import CodeMirror from "@uiw/react-codemirror"
+import { useTheme } from "next-themes"
 import * as React from "react"
 
 import type { WorkspaceObject } from "@/features/workspace/api/workspace-api"
@@ -13,9 +14,11 @@ export function WorkspaceCodeEditor({
   value: string
   onChange: (value: string) => void
 }) {
+  const { resolvedTheme } = useTheme()
   const [languageExtensions, setLanguageExtensions] = React.useState<Extension[]>(
     []
   )
+  const editorTheme = resolvedTheme === "dark" ? "dark" : "light"
 
   React.useEffect(() => {
     let cancelled = false
@@ -48,6 +51,7 @@ export function WorkspaceCodeEditor({
         highlightActiveLine: true,
         highlightSelectionMatches: true,
       }}
+      theme={editorTheme}
       extensions={languageExtensions}
       onChange={onChange}
       className="h-full min-h-[560px] text-sm [&_.cm-editor]:min-h-[560px] [&_.cm-scroller]:font-mono"
