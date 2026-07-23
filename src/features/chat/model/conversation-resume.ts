@@ -4,58 +4,145 @@ export type PendingConversationResumeState = {
   afterSeq?: number | null
 }
 
-const CONVERSATION_RESUME_STORAGE_KEY = "ineffable:conversation-stream-resume"
+type ConversationResumeStorage = {
+  version: 2
+  conversations: Record<string, PendingConversationResumeState>
+}
 
-export function readPendingConversationResumeState(): PendingConversationResumeState | null {
-  if (typeof window === "undefined") {
+const CONVERSATION_RESUME_STORAGE_KEY = "ineffable:conversation-stream-resume"
+const CONVERSATION_RESUME_STORAGE_VERSION = 2
+
+function normalizeResumeState(
+  value: unknown
+): PendingConversationResumeState | null {
+  if (!value || typeof value !== "object") {
     return null
+  }
+
+  const candidate = value as Partial<PendingConversationResumeState>
+  if (
+    typeof candidate.conversationId !== "string" ||
+    !candidate.conversationId.trim()
+  ) {
+    return null
+  }
+
+  return {
+    conversationId: candidate.conversationId,
+    runId: typeof candidate.runId === "string" ? candidate.runId : null,
+    afterSeq:
+      typeof candidate.afterSeq === "number" && Number.isFinite(candidate.afterSeq)
+        ? candidate.afterSeq
+        : null,
+  }
+}
+
+function emptyResumeStorage(): ConversationResumeStorage {
+  return {
+    version: CONVERSATION_RESUME_STORAGE_VERSION,
+    conversations: {},
+  }
+}
+
+function readResumeStorage(): ConversationResumeStorage {
+  if (typeof window === "undefined") {
+    return emptyResumeStorage()
   }
 
   try {
     const raw = window.sessionStorage.getItem(CONVERSATION_RESUME_STORAGE_KEY)
     if (!raw) {
-      return null
+      return emptyResumeStorage()
     }
 
-    const parsed = JSON.parse(raw) as Partial<PendingConversationResumeState>
+    const parsed = JSON.parse(raw) as unknown
+    const legacyState = normalizeResumeState(parsed)
+    if (legacyState) {
+      return {
+        version: CONVERSATION_RESUME_STORAGE_VERSION,
+        conversations: {
+          [legacyState.conversationId]: legacyState,
+        },
+      }
+    }
+
     if (
       !parsed ||
-      typeof parsed.conversationId !== "string" ||
-      !parsed.conversationId.trim()
+      typeof parsed !== "object" ||
+      (parsed as { version?: unknown }).version !==
+        CONVERSATION_RESUME_STORAGE_VERSION
     ) {
-      return null
+      return emptyResumeStorage()
     }
 
+    const rawConversations = (parsed as { conversations?: unknown }).conversations
+    if (!rawConversations || typeof rawConversations !== "object") {
+      return emptyResumeStorage()
+    }
+
+    const conversations = Object.fromEntries(
+      Object.values(rawConversations)
+        .map(normalizeResumeState)
+        .filter(
+          (state): state is PendingConversationResumeState => state !== null
+        )
+        .map((state) => [state.conversationId, state])
+    )
+
     return {
-      conversationId: parsed.conversationId,
-      runId: typeof parsed.runId === "string" ? parsed.runId : null,
-      afterSeq:
-        typeof parsed.afterSeq === "number" && Number.isFinite(parsed.afterSeq)
-          ? parsed.afterSeq
-          : null,
+      version: CONVERSATION_RESUME_STORAGE_VERSION,
+      conversations,
     }
   } catch {
-    return null
+    return emptyResumeStorage()
   }
 }
 
-export function writePendingConversationResumeState(
-  state: PendingConversationResumeState
-) {
+function writeResumeStorage(storage: ConversationResumeStorage) {
   if (typeof window === "undefined") {
+    return
+  }
+
+  if (Object.keys(storage.conversations).length === 0) {
+    window.sessionStorage.removeItem(CONVERSATION_RESUME_STORAGE_KEY)
     return
   }
 
   window.sessionStorage.setItem(
     CONVERSATION_RESUME_STORAGE_KEY,
-    JSON.stringify(state)
+    JSON.stringify(storage)
   )
 }
 
-export function clearPendingConversationResumeState() {
-  if (typeof window === "undefined") {
+export function readConversationResumeState(
+  conversationId: string
+): PendingConversationResumeState | null {
+  if (!conversationId) {
+    return null
+  }
+
+  return readResumeStorage().conversations[conversationId] ?? null
+}
+
+export function writeConversationResumeState(
+  state: PendingConversationResumeState
+) {
+  const normalized = normalizeResumeState(state)
+  if (!normalized) {
     return
   }
 
-  window.sessionStorage.removeItem(CONVERSATION_RESUME_STORAGE_KEY)
+  const storage = readResumeStorage()
+  storage.conversations[normalized.conversationId] = normalized
+  writeResumeStorage(storage)
+}
+
+export function clearConversationResumeState(conversationId: string) {
+  if (!conversationId) {
+    return
+  }
+
+  const storage = readResumeStorage()
+  delete storage.conversations[conversationId]
+  writeResumeStorage(storage)
 }

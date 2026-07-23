@@ -67,9 +67,9 @@ import {
   userInputNeedFromRaw,
 } from "@/features/chat/model/chat-parsing"
 import {
-  clearPendingConversationResumeState,
-  readPendingConversationResumeState,
-  writePendingConversationResumeState,
+  clearConversationResumeState,
+  readConversationResumeState,
+  writeConversationResumeState,
 } from "@/features/chat/model/conversation-resume"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { useAppSession } from "@/features/auth/app-session"
@@ -721,7 +721,13 @@ export function GatewayChatSidebar({
       force?: boolean
     }) => {
       if (overrides?.clear) {
-        clearPendingConversationResumeState()
+        const conversationId =
+          overrides.conversationId ??
+          activeStreamConversationIdRef.current ??
+          currentConversationIdRef.current
+        if (conversationId) {
+          clearConversationResumeState(conversationId)
+        }
         return
       }
 
@@ -745,7 +751,7 @@ export function GatewayChatSidebar({
         conversationSeqRef.current.get(conversationId) ??
         null
 
-      writePendingConversationResumeState({
+      writeConversationResumeState({
         conversationId,
         runId: overrides?.runId ?? activeRunIdRef.current,
         afterSeq,
@@ -1274,13 +1280,17 @@ export function GatewayChatSidebar({
   }
 
   function markAwaitingHuman(runId?: string | null) {
+    const conversationId =
+      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
     setAwaitingHumanRunId(runId ?? activeRunIdRef.current)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
-    clearPendingConversationResumeState()
+    if (conversationId) {
+      clearConversationResumeState(conversationId)
+    }
     completeAssistantEntry()
     assistantEntryIdRef.current = null
     setError(null)
@@ -1337,7 +1347,7 @@ export function GatewayChatSidebar({
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
-    clearPendingConversationResumeState()
+    clearConversationResumeState(conversationId)
     completeAssistantEntry()
     assistantEntryIdRef.current = null
     setError(null)
@@ -1358,7 +1368,9 @@ export function GatewayChatSidebar({
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
-    clearPendingConversationResumeState()
+    if (conversationId) {
+      clearConversationResumeState(conversationId)
+    }
     completeAssistantEntry(result.output)
     assistantEntryIdRef.current = null
     setError(null)
@@ -1443,7 +1455,9 @@ export function GatewayChatSidebar({
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
-    clearPendingConversationResumeState()
+    if (currentConversationIdRef.current) {
+      clearConversationResumeState(currentConversationIdRef.current)
+    }
     setError(null)
     updateStreamStatus("completed")
     if (currentConversationIdRef.current) {
@@ -1531,6 +1545,8 @@ export function GatewayChatSidebar({
     }
 
     if (event.event === "error" || event.event.endsWith("_error")) {
+      const conversationId =
+        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
       const errorMessage = formatSendErrorMessage(
         (event.content ?? "Gateway stream failed").trim()
       )
@@ -1538,7 +1554,9 @@ export function GatewayChatSidebar({
       clearRecoveryTimer()
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
-      clearPendingConversationResumeState()
+      if (conversationId) {
+        clearConversationResumeState(conversationId)
+      }
       updateStreamStatus("error")
       setError(errorMessage)
       appendSystemMessage(
@@ -1572,7 +1590,9 @@ export function GatewayChatSidebar({
         clearRecoveryTimer()
         activeStreamConversationIdRef.current = null
         activeRunIdRef.current = null
-        clearPendingConversationResumeState()
+        if (conversationId) {
+          clearConversationResumeState(conversationId)
+        }
         completeAssistantEntry()
         assistantEntryIdRef.current = null
         setError(null)
@@ -1949,15 +1969,11 @@ export function GatewayChatSidebar({
       return
     }
 
-    const pending = readPendingConversationResumeState()
-    const pendingMatches =
-      pending && pending.conversationId === currentConversationId
-        ? pending
-        : null
+    const pendingMatches = readConversationResumeState(currentConversationId)
     const liveRunId = selectedLiveRun?.id ?? null
 
     if (pendingMatches?.runId && liveRunId && pendingMatches.runId !== liveRunId) {
-      clearPendingConversationResumeState()
+      clearConversationResumeState(currentConversationId)
     }
 
     const shouldUsePending =
@@ -1967,7 +1983,7 @@ export function GatewayChatSidebar({
 
     if (!runId) {
       if (pendingMatches) {
-        clearPendingConversationResumeState()
+        clearConversationResumeState(currentConversationId)
       }
       return
     }
@@ -2001,7 +2017,6 @@ export function GatewayChatSidebar({
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
     recoveryInFlightRef.current = false
-    clearPendingConversationResumeState()
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
     lastViewportScrollTopRef.current = 0
@@ -2310,7 +2325,7 @@ export function GatewayChatSidebar({
     } catch (primeError) {
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
-      clearPendingConversationResumeState()
+      clearConversationResumeState(targetConversationId)
       const message = reportChatError(
         primeError,
         i18n.t("chat.gateway.initFailed"),
@@ -2415,7 +2430,7 @@ export function GatewayChatSidebar({
 
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
-      clearPendingConversationResumeState()
+      clearConversationResumeState(targetConversationId)
       updateStreamStatus("error")
       setError(message)
       appendSystemMessage(
