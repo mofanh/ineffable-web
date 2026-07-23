@@ -679,9 +679,7 @@ function WorkspaceAccountSwitcher({
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="p-0">
-          <ThemeToggle />
-        </DropdownMenuItem>
+        <ThemeToggle />
         <DropdownMenuItem className="p-0">
           <LanguageToggle layout="menu" />
         </DropdownMenuItem>

@@ -12,7 +12,43 @@
       name="description"
       content="Ineffable 将工作区文件、自动任务与 AI 协作连接在同一条工作流中。"
     />
-    <meta name="theme-color" content="#f8fafc" />
+    <meta name="theme-color" content="#ffffff" />
+    <script>
+      ;(() => {
+        const root = document.documentElement
+        const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+          .matches
+          ? "dark"
+          : "light"
+        let selectedTheme = "system"
+
+        try {
+          const storedTheme = window.localStorage.getItem("theme")
+          if (
+            storedTheme === "light" ||
+            storedTheme === "dark" ||
+            storedTheme === "system"
+          ) {
+            selectedTheme = storedTheme
+          } else if (storedTheme) {
+            window.localStorage.removeItem("theme")
+          }
+        } catch {
+          // Storage can be unavailable in privacy-restricted browser contexts.
+        }
+
+        const resolvedTheme =
+          selectedTheme === "system" ? systemTheme : selectedTheme
+        root.classList.toggle("dark", resolvedTheme === "dark")
+        root.style.colorScheme = resolvedTheme
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute(
+            "content",
+            resolvedTheme === "dark" ? "#171717" : "#ffffff"
+          )
+      })()
+    </script>
     <title>Ineffable · AI 工作区</title>
   </head>
   <body>
