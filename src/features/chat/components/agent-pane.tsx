@@ -20,6 +20,7 @@ import {
   type AgentUserInputResponse,
 } from "@/features/chat/components/agent-tool-renderers"
 import { ToolCallShell } from "@/features/chat/components/tool-call-shell"
+import { getToolCallTitle } from "@/features/chat/model/tool-call-presentation"
 import { cn } from "@/lib/utils"
 import { getCurrentLocale, i18n } from "@/lib/i18n/i18n"
 import {
@@ -622,30 +623,34 @@ const ToolCallCard = React.memo(function ToolCallCard({
   }
 
   return (
-    <ToolCallShell tool={tool} lockOpen={tool.status === "running"}>
-        {tool.input.trim() ? (
-          <div className="space-y-1">
-            <p className="text-[10px] font-medium tracking-wide opacity-55">
-              {i18n.t("chat.agent.input")}
-            </p>
-            <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
-              {tool.input}
-            </pre>
-          </div>
-        ) : null}
+    <ToolCallShell
+      tool={tool}
+      title={getToolCallTitle(tool) ?? undefined}
+      lockOpen={tool.status === "running"}
+    >
+      {tool.input.trim() ? (
+        <div className="space-y-1">
+          <p className="text-[10px] font-medium tracking-wide opacity-55">
+            {i18n.t("chat.agent.input")}
+          </p>
+          <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
+            {tool.input}
+          </pre>
+        </div>
+      ) : null}
 
-        {tool.output.trim() ? (
-          <div className={cn("space-y-1", tool.input.trim() ? "mt-2" : "")}>
-            <p className="text-[10px] font-medium tracking-wide opacity-55">
-              {i18n.t("chat.agent.output")}
-            </p>
-            {terminalResult || (
-              <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
-                {tool.output}
-              </pre>
-            )}
-          </div>
-        ) : null}
+      {tool.output.trim() ? (
+        <div className={cn("space-y-1", tool.input.trim() ? "mt-2" : "")}>
+          <p className="text-[10px] font-medium tracking-wide opacity-55">
+            {i18n.t("chat.agent.output")}
+          </p>
+          {terminalResult || (
+            <pre className="overflow-x-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">
+              {tool.output}
+            </pre>
+          )}
+        </div>
+      ) : null}
     </ToolCallShell>
   )
 })

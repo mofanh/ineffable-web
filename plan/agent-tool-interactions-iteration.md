@@ -86,3 +86,31 @@ chat entries
 - [x] `npm run lint`
 - [x] `npm run build`
 - [x] `git diff --check`
+
+## Phase 3：文件工具调用摘要
+
+### 实现
+
+- [x] 为工作区与本地文件工具建立集中式展示标题映射。
+- [x] 从结构化输入中提取路径，并在读取、写入、创建、移动、删除和目录查看摘要中展示目标。
+- [x] 工具参数尚未完整时使用通用动作标题，参数完整后自动显示目标路径。
+- [x] 未识别工具继续显示原始工具名，输入与输出详情保持原有折叠展示。
+- [x] 同步中英文资源。
+
+### 验收标准
+
+- [x] `workspace_read_file` / `read_file` 显示“读取 {path}”。
+- [x] `workspace_write_file` / `write_file` 显示“写入 {path}”。
+- [x] 工作区目录、产物、创建、移动和删除操作显示对应动作摘要。
+- [x] 摘要解析不影响 tool 状态、折叠行为、专用 renderer 或 raw input/output。
+
+### 自动验证
+
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] `git diff --check`
+
+### 人工验证
+
+- [ ] 使用真实 Agent 执行文件读取、写入和移动，确认流式参数阶段与完成阶段的标题切换及窄栏截断表现。
