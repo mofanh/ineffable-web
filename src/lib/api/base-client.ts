@@ -1,5 +1,6 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
 import {
+  expireAuthSession,
   getLatestAccessToken,
   refreshAuthSession,
 } from "@/lib/api/auth-session-runtime"
@@ -136,7 +137,11 @@ export async function requestApi(
     return response
   }
 
-  return performRequest(refreshedAccessToken)
+  const retriedResponse = await performRequest(refreshedAccessToken)
+  if (await responseHasExpiredAccessToken(retriedResponse)) {
+    expireAuthSession()
+  }
+  return retriedResponse
 }
 
 export async function requestApiJson<T>(

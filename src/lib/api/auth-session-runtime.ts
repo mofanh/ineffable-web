@@ -18,6 +18,8 @@ type AuthSessionRuntimeAdapter = {
   refresh: (refreshToken: string) => Promise<AuthTokenSet>
   onRefreshed: (tokens: AuthTokenSet) => void
   onExpired: () => void
+  shouldExpireOnRefreshError?: (error: unknown) => boolean
+  runRefreshExclusive?: <T>(run: () => Promise<T>) => Promise<T>
 }
 
 const EXPIRY_SECONDS_CUTOFF = 1_000_000_000_000
@@ -45,6 +47,10 @@ export function registerAuthSessionRuntime(
 
 export function getLatestAccessToken(fallback?: string | null) {
   return adapter?.getSnapshot().accessToken || fallback || null
+}
+
+export function expireAuthSession() {
+  adapter?.onExpired()
 }
 
 export function getAccessTokenRefreshDelay(
@@ -89,17 +95,53 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
     return null
   }
 
-  const pendingRefresh = currentAdapter
-    .refresh(snapshot.refreshToken)
-    .then((tokens) => {
+  const performRefresh = async () => {
+    const latestSnapshot = currentAdapter.getSnapshot()
+    if (
+      snapshot.accessToken &&
+      latestSnapshot.accessToken &&
+      snapshot.accessToken !== latestSnapshot.accessToken
+    ) {
+      return latestSnapshot.accessToken
+    }
+
+    if (!latestSnapshot.refreshToken) {
+      currentAdapter.onExpired()
+      return null
+    }
+
+    const latestRefreshExpiresAt = normalizeAuthExpiry(
+      latestSnapshot.refreshExpiresAt
+    )
+    if (
+      latestRefreshExpiresAt !== null &&
+      latestRefreshExpiresAt <= Date.now()
+    ) {
+      currentAdapter.onExpired()
+      return null
+    }
+
+    const tokens = await currentAdapter.refresh(latestSnapshot.refreshToken)
+    if (adapter !== currentAdapter) {
+      return null
+    }
+    currentAdapter.onRefreshed(tokens)
+    return tokens.access_token
+  }
+
+  const pendingRefresh = (
+    currentAdapter.runRefreshExclusive?.(performRefresh) ?? performRefresh()
+  )
+    .then((refreshedAccessToken) => {
       if (adapter !== currentAdapter) {
         return null
       }
-      currentAdapter.onRefreshed(tokens)
-      return tokens.access_token
+      return refreshedAccessToken
     })
-    .catch(() => {
-      if (adapter === currentAdapter) {
+    .catch((error: unknown) => {
+      const shouldExpire =
+        currentAdapter.shouldExpireOnRefreshError?.(error) ?? true
+      if (adapter === currentAdapter && shouldExpire) {
         currentAdapter.onExpired()
       }
       return null

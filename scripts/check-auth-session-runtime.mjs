@@ -88,4 +88,63 @@ assert.equal(await refreshAuthSession("access-failed"), null)
 assert.equal(failedExpiredCalls, 1)
 unregisterFailed()
 
+let transientExpiredCalls = 0
+const unregisterTransient = registerAuthSessionRuntime({
+  getSnapshot: () => ({
+    accessToken: "access-transient",
+    refreshToken: "refresh-transient",
+    accessExpiresAt: now - 1,
+    refreshExpiresAt: now + 60_000,
+  }),
+  refresh: async () => {
+    throw new TypeError("network unavailable")
+  },
+  onRefreshed: () => {
+    throw new Error("unexpected refresh")
+  },
+  onExpired: () => {
+    transientExpiredCalls += 1
+  },
+  shouldExpireOnRefreshError: () => false,
+})
+
+assert.equal(await refreshAuthSession("access-transient"), null)
+assert.equal(transientExpiredCalls, 0)
+unregisterTransient()
+
+let exclusiveRefreshCalls = 0
+let exclusiveSnapshot = {
+  accessToken: "access-before-lock",
+  refreshToken: "refresh-before-lock",
+  accessExpiresAt: now - 1,
+  refreshExpiresAt: now + 60_000,
+}
+const unregisterExclusive = registerAuthSessionRuntime({
+  getSnapshot: () => exclusiveSnapshot,
+  refresh: async () => {
+    exclusiveRefreshCalls += 1
+    throw new Error("unexpected duplicate refresh")
+  },
+  onRefreshed: () => {
+    throw new Error("unexpected refresh")
+  },
+  onExpired: () => {
+    throw new Error("unexpected expiry")
+  },
+  runRefreshExclusive: async (run) => {
+    exclusiveSnapshot = {
+      ...exclusiveSnapshot,
+      accessToken: "access-from-other-tab",
+    }
+    return run()
+  },
+})
+
+assert.equal(
+  await refreshAuthSession("access-before-lock"),
+  "access-from-other-tab",
+)
+assert.equal(exclusiveRefreshCalls, 0)
+unregisterExclusive()
+
 console.log("auth session runtime checks passed")

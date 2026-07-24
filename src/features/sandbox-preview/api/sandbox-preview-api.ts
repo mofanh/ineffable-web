@@ -1,8 +1,7 @@
 import {
-  buildApiHeaders,
   createApiError,
   parseApiError,
-  toApiUrl,
+  requestApi,
 } from "@/lib/api/base-client"
 
 export type SandboxPreviewSessionTicket = {
@@ -14,11 +13,11 @@ export async function createSandboxPreviewSession(
   accessToken: string,
   exposureId: string
 ) {
-  const response = await fetch(
-    toApiUrl(`/gateway/v1/sandbox/exposures/${exposureId}/session`),
+  const response = await requestApi(
+    `/gateway/v1/sandbox/exposures/${exposureId}/session`,
     {
       method: "POST",
-      headers: buildApiHeaders({ accessToken }),
+      accessToken,
     }
   )
 

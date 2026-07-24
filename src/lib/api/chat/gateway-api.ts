@@ -10,10 +10,9 @@ import {
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
 import {
-  buildApiHeaders,
   createApiError,
   parseApiError,
-  toApiUrl,
+  requestApi,
 } from "@/lib/api/base-client"
 export { getApiBaseUrl } from "@/lib/api/base-client"
 
@@ -119,10 +118,10 @@ export async function pollFrontendChannel(
     max: String(max),
   })
 
-  const response = await fetch(
-    toApiUrl(`/gateway/v1/channels/poll?${params.toString()}`),
+  const response = await requestApi(
+    `/gateway/v1/channels/poll?${params.toString()}`,
     {
-      headers: buildApiHeaders({ accessToken }),
+      accessToken,
     }
   )
 
@@ -141,13 +140,11 @@ export async function streamGatewayChat(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
-  const response = await fetch(toApiUrl("/gateway/v1/chat"), {
+  const response = await requestApi("/gateway/v1/chat", {
     method: "POST",
+    accessToken,
     headers: {
-      ...buildApiHeaders({
-        accessToken,
-        accept: "text/event-stream, application/json",
-      }),
+      Accept: "text/event-stream, application/json",
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),

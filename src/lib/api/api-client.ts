@@ -2,15 +2,15 @@ import {
   normalizeGatewayEnvelope,
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
+import type { AuthTokenSet } from "@/lib/api/auth-session-runtime"
 import {
-  buildApiHeaders,
   createApiError,
   createIdempotencyKey,
   getApiBaseUrl,
   isAccessTokenExpiredError,
   parseApiError,
+  requestApi,
   requestApiJson,
-  toApiUrl,
 } from "@/lib/api/base-client"
 
 export {
@@ -220,13 +220,7 @@ export type ModelProfile = {
   max_tokens_per_request?: number | null
 }
 
-export type AuthTokenPair = {
-  access_token: string
-  refresh_token: string
-  access_expires_at: number
-  refresh_expires_at: number
-  session_id: string
-}
+export type AuthTokenPair = AuthTokenSet
 
 export type AuthResponse = {
   user: AppUser
@@ -1771,14 +1765,14 @@ export async function subscribeConversationEvents(
     params.set("after_seq", String(options.afterSeq))
   }
 
-  const response = await fetch(
-    toApiUrl(`/gateway/v1/conversations/subscribe?${params.toString()}`),
+  const response = await requestApi(
+    `/gateway/v1/conversations/subscribe?${params.toString()}`,
     {
       method: "GET",
-      headers: buildApiHeaders({
-        accessToken,
-        accept: "text/event-stream, application/json",
-      }),
+      accessToken,
+      headers: {
+        Accept: "text/event-stream, application/json",
+      },
       signal: options.signal,
     }
   )
@@ -1824,13 +1818,11 @@ export async function streamConversationSend(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
-  const response = await fetch(toApiUrl("/gateway/v1/conversations/send"), {
+  const response = await requestApi("/gateway/v1/conversations/send", {
     method: "POST",
+    accessToken,
     headers: {
-      ...buildApiHeaders({
-        accessToken,
-        accept: "text/event-stream, application/json",
-      }),
+      Accept: "text/event-stream, application/json",
       "Content-Type": "application/json",
       "Idempotency-Key":
         options.idempotencyKey ?? createIdempotencyKey("conversation-send"),

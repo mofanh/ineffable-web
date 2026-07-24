@@ -24,7 +24,7 @@ AppSessionProvider
 - `AppSessionProvider` 负责 token 状态、持久化、主动续期和最终失效清理。
 - API 请求层只负责使用最新 access token、识别认证失败、触发一次续期并重试一次。
 - refresh endpoint 自身不携带 access token，不进入递归续期。
-- refresh token 失败后清理会话并进入登录页，不再强制刷新浏览器页面。
+- refresh token 明确失效后清理会话并进入登录页；临时网络或服务端故障保留会话，不再强制刷新浏览器页面。
 
 ## Phase 1：认证运行时与普通请求重试
 
@@ -48,18 +48,20 @@ AppSessionProvider
 
 ### 实现
 
-- [ ] AppSession 持久化 access/refresh 到期时间。
-- [ ] refresh 成功同步更新 React token state 和 localStorage。
-- [ ] 页面激活、网络恢复及到期前触发静默续期。
-- [ ] conversation SSE、发送流、旧 Gateway stream 和 sandbox preview 接入统一请求。
-- [ ] 跨标签页 token 更新和登出同步到当前 React session。
+- [x] AppSession 持久化 access/refresh 到期时间。
+- [x] refresh 成功同步更新 React token state 和 localStorage。
+- [x] 页面激活、网络恢复及到期前触发静默续期。
+- [x] conversation SSE、发送流、旧 Gateway stream 和 sandbox preview 接入统一请求。
+- [x] 跨标签页 token 更新、登出同步和 refresh 互斥接入当前 React session。
+- [x] 会话恢复遇到临时网络或服务端故障时保留 token，并在页面激活、网络恢复或定时触发时重试。
 
 ### 验收标准
 
-- [ ] 页面闲置后恢复不会因为 access token 正常到期而强制刷新。
-- [ ] 普通 API 和新建 SSE 请求都能在认证失败后静默续期一次。
-- [ ] refresh token 失效时清理会话并由路由进入登录页。
-- [ ] 主动续期和被动 401 续期复用同一个 in-flight Promise。
+- [x] 页面闲置后恢复不会因为 access token 正常到期而强制刷新。
+- [x] 普通 API 和新建 SSE 请求都能在认证失败后静默续期一次。
+- [x] refresh token 失效时清理会话并由路由进入登录页。
+- [x] 主动续期和被动 401 续期复用同一个 in-flight Promise。
+- [x] 多标签页同时到期时，支持 Web Locks 的浏览器只执行一次 refresh。
 
 ## Phase 3：规范、验证与人工回归
 

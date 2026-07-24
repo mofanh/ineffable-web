@@ -32,10 +32,6 @@ export const resources = {
           overviewEmptyDescription: "产生数据后，这里会展示按维度聚合的概览。",
         },
         sessionExpired: {
-          title: "登录状态已过期",
-          description: "正在重新同步会话，页面将自动刷新。",
-          refresh: "立即刷新",
-          error: "登录状态已过期，正在刷新页面。",
           signedOut: "当前未登录。",
         },
         logo: { a: "道·路径", b: "道·交汇", c: "道·周行" },
@@ -1412,11 +1408,6 @@ export const resources = {
             "Dimension-based summaries will appear after data is generated.",
         },
         sessionExpired: {
-          title: "Session expired",
-          description:
-            "Resynchronizing your session; the page will refresh automatically.",
-          refresh: "Refresh now",
-          error: "Your session expired and the page is refreshing.",
           signedOut: "You are not signed in.",
         },
         logo: { a: "Dao · Path", b: "Dao · Convergence", c: "Dao · Cycle" },
