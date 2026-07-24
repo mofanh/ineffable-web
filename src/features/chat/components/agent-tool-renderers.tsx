@@ -99,6 +99,41 @@ function buildResolutionInput(
     .join("\n")
 }
 
+function restoredAnswerState(
+  questions: UserInputQuestion[],
+  answer: string | null | undefined
+) {
+  const selections: Record<string, string> = {}
+  const customAnswers: Record<string, string> = {}
+  if (!answer?.trim()) {
+    return { selections, customAnswers }
+  }
+
+  const answers =
+    questions.length === 1
+      ? [answer.trim()]
+      : answer.split("\n").map((line, index) => {
+          const question = questions[index]
+          const prefix = `${question?.header || question?.question}:`
+          return line.startsWith(prefix) ? line.slice(prefix.length).trim() : line.trim()
+        })
+
+  questions.forEach((question, index) => {
+    const restored = answers[index] ?? ""
+    const option = question.options.find((candidate) => candidate.label === restored)
+    if (option) {
+      selections[question.id] = option.label
+      return
+    }
+    if (restored) {
+      selections[question.id] = "__other__"
+      customAnswers[question.id] = restored
+    }
+  })
+
+  return { selections, customAnswers }
+}
+
 function RequestUserInputCard({
   tool,
   canRespond,
@@ -109,8 +144,16 @@ function RequestUserInputCard({
   onSubmit?: (response: AgentUserInputResponse) => Promise<void>
 }) {
   const questions = React.useMemo(() => requestUserInputQuestions(tool), [tool])
-  const [selections, setSelections] = React.useState<Record<string, string>>({})
-  const [customAnswers, setCustomAnswers] = React.useState<Record<string, string>>({})
+  const restoredAnswer = React.useMemo(
+    () => restoredAnswerState(questions, tool.answer),
+    [questions, tool.answer]
+  )
+  const [selections, setSelections] = React.useState<Record<string, string>>(
+    restoredAnswer.selections
+  )
+  const [customAnswers, setCustomAnswers] = React.useState<Record<string, string>>(
+    restoredAnswer.customAnswers
+  )
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState("")
   const isAnswered = tool.status === "succeeded" && Boolean(tool.answer)

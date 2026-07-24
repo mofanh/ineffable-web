@@ -398,7 +398,7 @@ FrontendMessage 字段：
 2. `update_plan` 是会话级执行状态：从当前会话最新工具状态派生并展示在 composer 上方，不按普通工具 JSON 在消息流中重复展示。
 3. `request_user_input` 使用结构化问题卡收集答案；提交后将可读答案作为下一条普通用户消息走现有 conversation send。工具调用及结果已经保留问题上下文，不调用 `/gateway/v1/runs/resume`；该接口仅用于 approval 等真正可恢复的 run。
 4. waiting 状态应优先读取 tool result content 中的 `status=waiting` / `blocking_need`；transport metadata 的 success 只表示工具成功产生了等待状态，不能覆盖 human need。
-5. 历史消息中的 waiting 工具只有在当前会话仍允许继续输入时才可提交；本地提交后立即标记已回答，避免重复发送同一答案。
+5. 历史消息中的 waiting 工具只有在当前会话仍允许继续输入时才可提交；本地提交后立即标记已回答，历史重建时将紧随问题工具的下一条用户消息恢复为答案，避免重复发送或刷新后丢失选择状态。
 
 ## 7. 联调检查清单
 
