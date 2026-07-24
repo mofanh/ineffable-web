@@ -133,6 +133,11 @@ export function AccountPage() {
 
   const sessionsResource = useApiResource({
     enabled: Boolean(accessToken),
+    cacheKey: [
+      "account-sessions",
+      currentSessionId,
+      currentWorkspace?.id ?? null,
+    ],
     load: loadSessions,
     errorMessage: t("account.feedback.loadFailed"),
   });

@@ -5,6 +5,10 @@ import * as React from "react"
 import { NavSecondary } from "@/components/nav-secondary"
 import { defaultPath, navigation } from "@/routes/navigation"
 import {
+  preloadRouteModule,
+  preloadSystemManagementModules,
+} from "@/routes/route-modules"
+import {
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -452,6 +456,16 @@ function PrimaryNav({
                   tooltip={title}
                   aria-expanded={isGroup ? isOpen : undefined}
                   aria-controls={isGroup ? `${item.id}-navigation` : undefined}
+                  onPointerEnter={() => {
+                    if (isGroup) {
+                      void preloadSystemManagementModules().catch(() => {})
+                    }
+                  }}
+                  onFocus={() => {
+                    if (isGroup) {
+                      void preloadSystemManagementModules().catch(() => {})
+                    }
+                  }}
                   onClick={() => {
                     onSelectEntry(item.id)
                     if (isGroup) {
@@ -513,6 +527,16 @@ function PrimaryNav({
                           >
                             <Link
                               to={child.path}
+                              onPointerEnter={() => {
+                                void preloadRouteModule(child.path).catch(
+                                  () => {}
+                                )
+                              }}
+                              onFocus={() => {
+                                void preloadRouteModule(child.path).catch(
+                                  () => {}
+                                )
+                              }}
                               onClick={() => {
                                 onSelectEntry(child.id)
                                 closeMobileSidebar()

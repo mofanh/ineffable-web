@@ -280,6 +280,7 @@ function useAccessToken() {
 export function AutomationPage() {
   const { t } = useTranslation()
   const accessToken = useAccessToken()
+  const { currentSessionId } = useAuthSession()
   const { conversations, refreshConversations, selectConversation } =
     useConversationSession()
   const [editingAutomation, setEditingAutomation] =
@@ -332,6 +333,7 @@ export function AutomationPage() {
   }, [accessToken, refreshConversations])
 
   const automationResource = useApiResource({
+    cacheKey: ["automations", currentSessionId],
     load: loadAutomationData,
     errorMessage: t("automation.feedback.loadFailed"),
   })

@@ -9,6 +9,12 @@ import {
 } from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
 import { defaultPath } from "@/routes/navigation"
+import {
+  loadSystemModelsModule,
+  loadSystemPlansModule,
+  loadSystemSecretsModule,
+  loadSystemUsersModule,
+} from "@/routes/route-modules"
 
 const App = lazy(() => import("@/App"))
 const AccountPage = lazy(async () => ({
@@ -64,20 +70,16 @@ const AdminLlmSettingsPage = lazy(async () => ({
     .AdminLlmSettingsPage,
 }))
 const SystemModelManagementPage = lazy(async () => ({
-  default: (await import("@/pages/system-management/models-page"))
-    .SystemModelManagementPage,
+  default: (await loadSystemModelsModule()).SystemModelManagementPage,
 }))
 const SystemPlanManagementPage = lazy(async () => ({
-  default: (await import("@/pages/system-management/plans-page"))
-    .SystemPlanManagementPage,
+  default: (await loadSystemPlansModule()).SystemPlanManagementPage,
 }))
 const SystemSecretManagementPage = lazy(async () => ({
-  default: (await import("@/pages/system-management/secrets-page"))
-    .SystemSecretManagementPage,
+  default: (await loadSystemSecretsModule()).SystemSecretManagementPage,
 }))
 const SystemUserManagementPage = lazy(async () => ({
-  default: (await import("@/pages/system-management/users-page"))
-    .SystemUserManagementPage,
+  default: (await loadSystemUsersModule()).SystemUserManagementPage,
 }))
 
 const routeElements: Record<string, React.ReactElement> = {

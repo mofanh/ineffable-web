@@ -327,7 +327,7 @@ export function CreateTeamWorkspacePage() {
 export function TeamWorkspaceMembersPage() {
   const { t } = useTranslation();
   const { workspaceId } = useParams();
-  const { accessToken } = useAuthSession();
+  const { accessToken, currentSessionId } = useAuthSession();
   const { currentWorkspace, workspaces } = useWorkspaceSession();
   const [query, setQuery] = React.useState("");
   const [inviteEmail, setInviteEmail] = React.useState("");
@@ -373,6 +373,7 @@ export function TeamWorkspaceMembersPage() {
   }, [accessToken, targetWorkspaceId]);
   const memberResource = useApiResource({
     enabled: Boolean(accessToken && targetWorkspaceId),
+    cacheKey: ["workspace-members", currentSessionId, targetWorkspaceId],
     load: loadMemberResource,
     errorMessage: t("team.members.loadFailed"),
   });
@@ -923,7 +924,7 @@ function formatMetricNumber(value: number) {
 export function WorkspaceNotificationsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { accessToken, refreshAppData } = useAuthSession();
+  const { accessToken, currentSessionId, refreshAppData } = useAuthSession();
   const { selectWorkspace } = useWorkspaceSession();
   const [actionError, setActionError] = React.useState<AppError | null>(null);
   const [acceptingId, setAcceptingId] = React.useState<string | null>(null);
@@ -934,6 +935,7 @@ export function WorkspaceNotificationsPage() {
   }, [accessToken]);
   const invitationsResource = useApiResource({
     enabled: Boolean(accessToken),
+    cacheKey: ["workspace-invitations", currentSessionId],
     load: loadInvitations,
     errorMessage: t("team.notifications.loadFailed"),
   });

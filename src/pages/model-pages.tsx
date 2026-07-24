@@ -171,7 +171,7 @@ function ModelProfileCard({ profile }: { profile: ModelProfile }) {
 
 export function ModelCenterPage() {
   const { t } = useTranslation();
-  const { accessToken } = useAuthSession();
+  const { accessToken, currentSessionId } = useAuthSession();
   const [query, setQuery] = React.useState("");
   const loadProfiles = React.useCallback(
     () => listModelProfiles(accessToken || ""),
@@ -179,6 +179,7 @@ export function ModelCenterPage() {
   );
   const resource = useApiResource({
     enabled: Boolean(accessToken),
+    cacheKey: ["model-center-profiles", currentSessionId],
     load: loadProfiles,
     errorMessage: t("modelCenter.loadFailed"),
   });
