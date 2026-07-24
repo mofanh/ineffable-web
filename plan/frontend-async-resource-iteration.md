@@ -26,18 +26,18 @@
 
 ## Phase 3：特殊资源边界
 
-- [ ] Workspace 树按 workspace 分区复用 in-flight Promise，并保留部分成功结果。
-- [ ] 编辑器只缓存安全的只读加载结果，不覆盖 dirty/conflict 状态。
-- [ ] Chat 仅复用静态选项和列表查询，不改流式运行状态机。
-- [ ] 登出或认证身份切换时隔离或清理缓存。
+- [x] Workspace 树按 workspace 分区复用 in-flight Promise，并保留部分成功结果。
+- [x] 编辑器只复用进行中的只读请求，并以最新请求提交结果，不覆盖 dirty/conflict 状态。
+- [x] Chat 仅复用静态 Workspace 查询，不改流式运行状态机。
+- [x] 登出或认证身份切换时隔离或清理缓存。
 
 ## 验证
 
 ### 自动化
 
-- [ ] `npm run i18n:check`
-- [ ] `npm run lint`
-- [ ] `npm run build`
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
 
 ### 手动
 

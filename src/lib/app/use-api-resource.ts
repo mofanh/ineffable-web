@@ -149,8 +149,21 @@ export function useApiResource<T>(options: {
       return null
     }
 
+    const cached = readCacheEntry(serializedCacheKey)
+    const hasFreshCache =
+      !force &&
+      cached?.data !== undefined &&
+      Date.now() - cached.updatedAt < staleTime
+    if (hasFreshCache) {
+      if (canCommit()) {
+        setDataState(cached.data as T)
+        setState("success")
+        setError(null)
+      }
+      return cached.data as T
+    }
+
     if (canCommit()) {
-      const cached = readCacheEntry(serializedCacheKey)
       if (cached?.data !== undefined) {
         setDataState(cached.data as T)
       } else if (!retainPreviousData) {

@@ -38,10 +38,8 @@ import {
 import {
   createWorkspaceFile,
   deleteWorkspaceObject,
-  getWorkspaceObjectContent,
   getWorkspaceObjectVersionContent,
   listWorkspaceObjectVersions,
-  listWorkspaceTree,
   renameMoveWorkspaceObject,
   restoreWorkspaceObjectVersion,
   updateWorkspaceObjectContent,
@@ -49,6 +47,10 @@ import {
   type WorkspaceObject,
   type WorkspaceObjectVersion,
 } from "@/features/workspace/api/workspace-api"
+import {
+  getWorkspaceObjectContentDeduped,
+  listWorkspaceTreeDeduped,
+} from "@/features/workspace/api/workspace-resource-api"
 import { downloadTextFile } from "@/features/workspace/model/download"
 import { getCopyName, getUniqueName, getWorkspaceType } from "@/features/workspace/model/workspace-tree"
 import {
@@ -337,6 +339,7 @@ export function WorkspaceObjectEditorPage() {
   const [isCompact, setIsCompact] = React.useState(false)
   const [now, setNow] = React.useState(() => Date.now())
   const ignoredWorkspaceEventKeysRef = React.useRef(new Set<string>())
+  const contentLoadRequestRef = React.useRef(0)
 
   const workspace = workspaces.find((candidate) => candidate.id === workspaceId)
   const isDirty = content !== savedContent
@@ -379,7 +382,7 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
-    const response = await listWorkspaceTree(accessToken, workspaceId)
+    const response = await listWorkspaceTreeDeduped(accessToken, workspaceId)
     setWorkspaceObjects(response.objects)
   }, [accessToken, workspaceId])
 
@@ -391,29 +394,41 @@ export function WorkspaceObjectEditorPage() {
     setIsLoading(true)
     setError(null)
     setSaveState("idle")
+    const requestId = contentLoadRequestRef.current + 1
+    contentLoadRequestRef.current = requestId
 
     try {
-      const [contentResponse] = await Promise.all([
-        getWorkspaceObjectContent(accessToken, workspaceId, objectId),
-        loadWorkspaceTree(),
+      const [contentResponse, treeResponse, versionsResponse] = await Promise.all([
+        getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId),
+        listWorkspaceTreeDeduped(accessToken, workspaceId),
+        listWorkspaceObjectVersions(accessToken, workspaceId, objectId),
       ])
+      if (contentLoadRequestRef.current !== requestId) {
+        return
+      }
       setObject(contentResponse.object)
       setVersion(contentResponse.version)
       setContent(contentResponse.content)
       setSavedContent(contentResponse.content)
+      setWorkspaceObjects(treeResponse.objects)
+      setVersions(versionsResponse.versions)
       setPreviewVersion(null)
       setPreviewContent(null)
-      await loadVersions()
     } catch (loadError) {
+      if (contentLoadRequestRef.current !== requestId) {
+        return
+      }
       reportActionError(
         loadError,
         t("workspace.feedback.loadFailed"),
         t("workspace.feedback.loadFailedTitle"),
       )
     } finally {
-      setIsLoading(false)
+      if (contentLoadRequestRef.current === requestId) {
+        setIsLoading(false)
+      }
     }
-  }, [accessToken, loadVersions, loadWorkspaceTree, objectId, reportActionError, t, workspaceId])
+  }, [accessToken, objectId, reportActionError, t, workspaceId])
 
   React.useEffect(() => {
     void loadContent()
@@ -563,7 +578,11 @@ export function WorkspaceObjectEditorPage() {
           version_id: targetVersion.id,
           expected_version_id: version.id,
         })
-        const contentResponse = await getWorkspaceObjectContent(accessToken, workspaceId, objectId)
+        const contentResponse = await getWorkspaceObjectContentDeduped(
+          accessToken,
+          workspaceId,
+          objectId
+        )
         setObject(response.object)
         setVersion(response.version)
         setContent(contentResponse.content)

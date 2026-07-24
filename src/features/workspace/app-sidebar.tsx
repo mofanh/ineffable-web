@@ -56,11 +56,11 @@ import {
   deleteWorkspaceObject,
   getWorkspaceObjectContent,
   listIncomingWorkspaceInvitations,
-  listWorkspaceTree,
   renameMoveWorkspaceObject,
   type Workspace,
   type WorkspaceObject,
 } from "@/features/workspace/api/workspace-api"
+import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { downloadTextFile } from "@/features/workspace/model/download"
 import {
   buildWorkspaceEntries,
@@ -847,7 +847,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       const results = await Promise.allSettled(
         targetWorkspaces.map(async (workspace) => {
-          const tree = await listWorkspaceTree(accessToken, workspace.id)
+          const tree = await listWorkspaceTreeDeduped(accessToken, workspace.id)
           return [workspace.id, tree.objects] as const
         })
       )

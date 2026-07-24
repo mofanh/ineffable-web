@@ -98,7 +98,7 @@ import {
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/features/chat/api/chat-api"
-import { listWorkspaceTree } from "@/features/workspace/api/workspace-api"
+import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
 import type {
@@ -531,7 +531,7 @@ export function GatewayChatSidebar({
     let cancelled = false
     Promise.all(
       workspaces.map(async (workspace) => {
-        const tree = await listWorkspaceTree(accessToken, workspace.id)
+        const tree = await listWorkspaceTreeDeduped(accessToken, workspace.id)
         return tree.objects
           .filter(
             (object) =>
