@@ -2685,7 +2685,7 @@ export function GatewayChatSidebar({
         onCollapseSidebar={toggleSidebar}
       />
 
-      <SidebarContent className="bg-sidebar/50">
+      <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
           entries={renderedEntries}
           hasOlderEntries={hasOlderEntries}

@@ -181,3 +181,28 @@ chat entries
 - [x] `npm run lint`
 - [x] `npm run build`
 - [x] `git diff --check`
+
+## Phase 7：移动端键盘视口适配
+
+### 实现
+
+- [x] 全屏移动 Sidebar 使用 `100dvh` 作为可见高度回退。
+- [x] 监听 VisualViewport 的 resize 和 scroll，以可见高度及顶部偏移定位全屏聊天面板。
+- [x] 全屏聊天限制根容器溢出，仅允许中间消息区滚动。
+- [x] Composer 增加底部安全区间距。
+- [x] Android Chrome viewport 声明使用 `interactive-widget=resizes-content`。
+
+### 验收标准
+
+- [x] 键盘弹出时 Header 和 Composer 保持在可见区域，中间消息列表缩短。
+- [x] 全屏聊天面板不再继续使用键盘弹出前的布局视口高度。
+- [x] 不支持 VisualViewport 的浏览器回退到动态视口单位。
+- [ ] iOS Safari、iOS Chrome 和 Android Chrome 真机点击输入框时页面根节点不整体上移。
+- [ ] 键盘收起后面板恢复完整高度，消息列表滚动位置无明显跳动。
+
+### 自动验证
+
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] `git diff --check`

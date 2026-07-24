@@ -186,7 +186,7 @@ export function ChatComposer({
   }
 
   return (
-    <SidebarFooter className="p-2">
+    <SidebarFooter className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
       {preInputQueue.length > 0 ? (
         <div className="mb-1.5 space-y-1.5">
           <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">

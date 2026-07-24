@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useVisualViewport } from "@/hooks/use-visual-viewport"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -182,6 +183,7 @@ function Sidebar({
   mobileMode?: "drawer" | "full"
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const visualViewport = useVisualViewport(isMobile && mobileMode === "full")
 
   if (collapsible === "none") {
     return (
@@ -202,7 +204,20 @@ function Sidebar({
     const mobileDrawerClass =
       "data-[side=left]:w-[min(var(--sidebar-width),calc(100vw-1.5rem))] data-[side=right]:w-[min(var(--sidebar-width),calc(100vw-1.5rem))] data-[side=left]:max-w-[calc(100vw-1.5rem)] data-[side=right]:max-w-[calc(100vw-1.5rem)] data-[side=left]:rounded-r-2xl data-[side=right]:rounded-l-2xl"
     const mobileFullClass =
-      "data-[side=left]:w-screen data-[side=right]:w-screen data-[side=left]:max-w-none data-[side=right]:max-w-none rounded-none border-0"
+      "data-[side=left]:w-screen data-[side=right]:w-screen data-[side=left]:max-w-none data-[side=right]:max-w-none gap-0 overflow-hidden overscroll-none rounded-none border-0"
+    const mobileFullStyle =
+      mobileMode === "full"
+        ? {
+            top: `${visualViewport?.offsetTop ?? 0}px`,
+            bottom: "auto",
+            height: visualViewport
+              ? `${visualViewport.height}px`
+              : "100dvh",
+            maxHeight: visualViewport
+              ? `${visualViewport.height}px`
+              : "100dvh",
+          }
+        : undefined
 
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
@@ -218,6 +233,7 @@ function Sidebar({
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              ...mobileFullStyle,
             } as React.CSSProperties
           }
           side={side}
@@ -226,7 +242,9 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     )
