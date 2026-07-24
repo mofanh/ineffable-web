@@ -51,6 +51,10 @@ import {
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { confirm } from "@/lib/app/confirm";
 import { notify } from "@/lib/app/notifications";
+import {
+  invalidateApiResourceCache,
+  useApiResource,
+} from "@/lib/app/use-api-resource";
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 import {
@@ -75,10 +79,7 @@ type PlanInsight = {
 
 export function SystemPlanManagementPage() {
   const { t } = useTranslation();
-  const { accessToken, currentUser } = useAuthSession();
-  const [models, setModels] = React.useState<AdminModelProfile[]>([]);
-  const [plans, setPlans] = React.useState<AdminPlan[]>([]);
-  const [insights, setInsights] = React.useState<AdminPlanInsight[]>([]);
+  const { accessToken, currentSessionId, currentUser } = useAuthSession();
   const [selectedPlanId, setSelectedPlanId] = React.useState("free");
   const [accessRowsByPlanId, setAccessRowsByPlanId] = React.useState<
     Record<string, AdminPlanModelAccess[]>
@@ -98,42 +99,51 @@ export function SystemPlanManagementPage() {
   const isAdmin = currentUser?.role === "admin";
 
   const loadPlans = React.useCallback(async () => {
-    if (!accessToken || !isAdmin) return;
-    setState("loading");
-    setError("");
-    try {
-      const [modelResult, planResult, insightResult] = await Promise.all([
-        listAdminModelProfiles(accessToken),
-        listAdminPlans(accessToken),
-        listAdminPlanInsights(accessToken),
-      ]);
-      setModels(modelResult.profiles);
-      setPlans(planResult.plans);
-      setInsights(insightResult.insights);
-      setSelectedPlanId((current) =>
-        planResult.plans.some(
-          (plan) => plan.id === current && !plan.archived_at,
-        )
-          ? current
-          : (planResult.plans.find((plan) => !plan.archived_at)?.id ?? "free"),
-      );
-    } catch (loadError) {
-      const appError = normalizeAppError(loadError, {
-        fallbackMessage: t("system.plans.loadFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.plans.loadFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
-      setState("idle");
+    if (!accessToken || !isAdmin) {
+      return {
+        models: [] as AdminModelProfile[],
+        plans: [] as AdminPlan[],
+        insights: [] as AdminPlanInsight[],
+      };
     }
-  }, [accessToken, isAdmin, t]);
+    const [modelResult, planResult, insightResult] = await Promise.all([
+      listAdminModelProfiles(accessToken),
+      listAdminPlans(accessToken),
+      listAdminPlanInsights(accessToken),
+    ]);
+    return {
+      models: modelResult.profiles,
+      plans: planResult.plans,
+      insights: insightResult.insights,
+    };
+  }, [accessToken, isAdmin]);
+  const planResource = useApiResource({
+    enabled: Boolean(accessToken && isAdmin),
+    cacheKey: ["system-plans", currentSessionId],
+    load: loadPlans,
+    errorMessage: t("system.plans.loadFailed"),
+  });
+  const models = React.useMemo(
+    () => planResource.data?.models ?? [],
+    [planResource.data?.models],
+  );
+  const plans = React.useMemo(
+    () => planResource.data?.plans ?? [],
+    [planResource.data?.plans],
+  );
+  const insights = React.useMemo(
+    () => planResource.data?.insights ?? [],
+    [planResource.data?.insights],
+  );
 
   React.useEffect(() => {
-    void loadPlans();
-  }, [loadPlans]);
+    if (!plans.length) return;
+    setSelectedPlanId((current) =>
+      plans.some((plan) => plan.id === current && !plan.archived_at)
+        ? current
+        : (plans.find((plan) => !plan.archived_at)?.id ?? "free"),
+    );
+  }, [plans]);
 
   React.useEffect(() => {
     if (!accessToken || !isAdmin || !selectedPlanId) {
@@ -265,10 +275,17 @@ export function SystemPlanManagementPage() {
       const result = editingPlanId
         ? await updateAdminPlan(accessToken, editingPlanId, editingPlan)
         : await createAdminPlan(accessToken, editingPlan);
-      setPlans((current) => [
-        result.plan,
-        ...current.filter((item) => item.id !== result.plan.id),
-      ]);
+      planResource.setData((current) => ({
+        models: current?.models ?? [],
+        plans: [
+          result.plan,
+          ...(current?.plans ?? []).filter(
+            (item) => item.id !== result.plan.id,
+          ),
+        ],
+        insights: current?.insights ?? [],
+      }));
+      invalidateApiResourceCache(["system-users", currentSessionId]);
       setSelectedPlanId(result.plan.id);
       setMessage(
         t("system.plans.savedMessage", { name: result.plan.display_name }),
@@ -307,10 +324,17 @@ export function SystemPlanManagementPage() {
     setError("");
     try {
       const result = await deleteAdminPlan(accessToken, plan.id);
-      setPlans((current) => [
-        result.plan,
-        ...current.filter((item) => item.id !== result.plan.id),
-      ]);
+      planResource.setData((current) => ({
+        models: current?.models ?? [],
+        plans: [
+          result.plan,
+          ...(current?.plans ?? []).filter(
+            (item) => item.id !== result.plan.id,
+          ),
+        ],
+        insights: current?.insights ?? [],
+      }));
+      invalidateApiResourceCache(["system-users", currentSessionId]);
       setSelectedPlanId((current) => (current === plan.id ? "free" : current));
       setMessage(
         t("system.plans.deletedMessage", { name: result.plan.display_name }),
@@ -382,9 +406,11 @@ export function SystemPlanManagementPage() {
       subtitle={t("system.plans.subtitle")}
       metrics={metrics}
       state={state}
+      resourceState={planResource.state}
+      resourceError={planResource.error}
       message={message}
       error={error}
-      onRefresh={() => void loadPlans()}
+      onRefresh={() => void planResource.reload()}
     >
       <AppSectionCard
         title={t("system.plans.pressureTitle")}

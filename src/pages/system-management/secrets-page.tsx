@@ -40,6 +40,7 @@ import {
 } from "@/lib/api/api-client";
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { notify } from "@/lib/app/notifications";
+import { useApiResource } from "@/lib/app/use-api-resource";
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 import {
@@ -61,9 +62,7 @@ type SecretInsight = {
 
 export function SystemSecretManagementPage() {
   const { t } = useTranslation();
-  const { accessToken, currentUser } = useAuthSession();
-  const [secrets, setSecrets] = React.useState<AdminLlmSecret[]>([]);
-  const [models, setModels] = React.useState<AdminModelProfile[]>([]);
+  const { accessToken, currentSessionId, currentUser } = useAuthSession();
   const [query, setQuery] = React.useState("");
   const [editingSecret, setEditingSecret] = React.useState<SecretForm | null>(
     null,
@@ -81,33 +80,35 @@ export function SystemSecretManagementPage() {
   const isAdmin = currentUser?.role === "admin";
 
   const loadSecrets = React.useCallback(async () => {
-    if (!accessToken || !isAdmin) return;
-    setState("loading");
-    setError("");
-    try {
-      const [secretResult, modelResult] = await Promise.all([
-        listAdminLlmSecrets(accessToken),
-        listAdminModelProfiles(accessToken),
-      ]);
-      setSecrets(secretResult.secrets);
-      setModels(modelResult.profiles);
-    } catch (loadError) {
-      const appError = normalizeAppError(loadError, {
-        fallbackMessage: t("system.secrets.loadFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.secrets.loadFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
-      setState("idle");
+    if (!accessToken || !isAdmin) {
+      return {
+        secrets: [] as AdminLlmSecret[],
+        models: [] as AdminModelProfile[],
+      };
     }
-  }, [accessToken, isAdmin, t]);
-
-  React.useEffect(() => {
-    void loadSecrets();
-  }, [loadSecrets]);
+    const [secretResult, modelResult] = await Promise.all([
+      listAdminLlmSecrets(accessToken),
+      listAdminModelProfiles(accessToken),
+    ]);
+    return {
+      secrets: secretResult.secrets,
+      models: modelResult.profiles,
+    };
+  }, [accessToken, isAdmin]);
+  const secretResource = useApiResource({
+    enabled: Boolean(accessToken && isAdmin),
+    cacheKey: ["system-secrets", currentSessionId],
+    load: loadSecrets,
+    errorMessage: t("system.secrets.loadFailed"),
+  });
+  const secrets = React.useMemo(
+    () => secretResource.data?.secrets ?? [],
+    [secretResource.data?.secrets],
+  );
+  const models = React.useMemo(
+    () => secretResource.data?.models ?? [],
+    [secretResource.data?.models],
+  );
 
   const secretInsights = React.useMemo(
     () => buildSecretInsights(secrets, models),
@@ -198,12 +199,15 @@ export function SystemSecretManagementPage() {
     setError("");
     try {
       const result = await upsertAdminLlmSecret(accessToken, editingSecret);
-      setSecrets((current) => [
-        result.secret,
-        ...current.filter(
-          (item) => item.secret_ref !== result.secret.secret_ref,
-        ),
-      ]);
+      secretResource.setData((current) => ({
+        secrets: [
+          result.secret,
+          ...(current?.secrets ?? []).filter(
+            (item) => item.secret_ref !== result.secret.secret_ref,
+          ),
+        ],
+        models: current?.models ?? [],
+      }));
       setMessage(
         t("system.secrets.savedMessage", { ref: result.secret.secret_ref }),
       );
@@ -234,9 +238,11 @@ export function SystemSecretManagementPage() {
       subtitle={t("system.secrets.subtitle")}
       metrics={metrics}
       state={state}
+      resourceState={secretResource.state}
+      resourceError={secretResource.error}
       message={message}
       error={error}
-      onRefresh={() => void loadSecrets()}
+      onRefresh={() => void secretResource.reload()}
     >
       <AppSectionCard
         title={t("system.secrets.healthTitle")}

@@ -47,6 +47,7 @@ import {
 } from "@/lib/api/api-client";
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { notify } from "@/lib/app/notifications";
+import { useApiResource } from "@/lib/app/use-api-resource";
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 import {
@@ -63,12 +64,7 @@ type UserDetails = {
 
 export function SystemUserManagementPage() {
   const { t } = useTranslation();
-  const { accessToken, currentUser } = useAuthSession();
-  const [users, setUsers] = React.useState<AdminUser[]>([]);
-  const [plans, setPlans] = React.useState<AdminPlan[]>([]);
-  const [workspaceUsage, setWorkspaceUsage] = React.useState<
-    AdminWorkspaceUsage[]
-  >([]);
+  const { accessToken, currentSessionId, currentUser } = useAuthSession();
   const [userDetailsByUserId, setUserDetailsByUserId] = React.useState<
     Record<string, UserDetails>
   >({});
@@ -83,10 +79,6 @@ export function SystemUserManagementPage() {
   const [editingUserPlanId, setEditingUserPlanId] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const editingUserIdRef = React.useRef("");
-  const loadUsersPromiseRef = React.useRef<{
-    accessToken: string;
-    promise: Promise<void>;
-  } | null>(null);
   const userDetailsPromisesRef = React.useRef(
     new Map<string, Promise<UserDetails | null>>(),
   );
@@ -95,61 +87,52 @@ export function SystemUserManagementPage() {
   const [error, setError] = React.useState("");
   const isAdmin = currentUser?.role === "admin";
 
-  const loadUsers = React.useCallback(() => {
-    if (!accessToken || !isAdmin) return Promise.resolve();
-    const activeLoad = loadUsersPromiseRef.current;
-    if (activeLoad?.accessToken === accessToken) return activeLoad.promise;
-
-    const promise = (async () => {
-      setState("loading");
-      setError("");
-      try {
-        const [userResult, planResult, workspaceUsageResult] =
-          await Promise.all([
-            listAdminUsers(accessToken),
-            listAdminPlans(accessToken),
-            listAdminWorkspaceUsage(accessToken),
-          ]);
-        setUsers(userResult.users);
-        setPlans(planResult.plans);
-        setWorkspaceUsage(workspaceUsageResult.usage);
-        setEditingUserPlanId((current) =>
-          planResult.plans.some((plan) => plan.id === current)
-            ? current
-            : (planResult.plans[0]?.id ?? ""),
-        );
-      } catch (loadError) {
-        const appError = normalizeAppError(loadError, {
-          fallbackMessage: t("system.users.loadFailed"),
-        });
-        setError(appError.message);
-        notify.error({
-          title: t("system.users.loadFailedTitle"),
-          description: appError.message,
-        });
-      } finally {
-        setState("idle");
-      }
-    })();
-    loadUsersPromiseRef.current = { accessToken, promise };
-    void promise.then(
-      () => {
-        if (loadUsersPromiseRef.current?.promise === promise) {
-          loadUsersPromiseRef.current = null;
-        }
-      },
-      () => {
-        if (loadUsersPromiseRef.current?.promise === promise) {
-          loadUsersPromiseRef.current = null;
-        }
-      },
-    );
-    return promise;
-  }, [accessToken, isAdmin, t]);
+  const loadUsers = React.useCallback(async () => {
+    if (!accessToken || !isAdmin) {
+      return {
+        users: [] as AdminUser[],
+        plans: [] as AdminPlan[],
+        workspaceUsage: [] as AdminWorkspaceUsage[],
+      };
+    }
+    const [userResult, planResult, workspaceUsageResult] = await Promise.all([
+      listAdminUsers(accessToken),
+      listAdminPlans(accessToken),
+      listAdminWorkspaceUsage(accessToken),
+    ]);
+    return {
+      users: userResult.users,
+      plans: planResult.plans,
+      workspaceUsage: workspaceUsageResult.usage,
+    };
+  }, [accessToken, isAdmin]);
+  const userResource = useApiResource({
+    enabled: Boolean(accessToken && isAdmin),
+    cacheKey: ["system-users", currentSessionId],
+    load: loadUsers,
+    errorMessage: t("system.users.loadFailed"),
+  });
+  const users = React.useMemo(
+    () => userResource.data?.users ?? [],
+    [userResource.data?.users],
+  );
+  const plans = React.useMemo(
+    () => userResource.data?.plans ?? [],
+    [userResource.data?.plans],
+  );
+  const workspaceUsage = React.useMemo(
+    () => userResource.data?.workspaceUsage ?? [],
+    [userResource.data?.workspaceUsage],
+  );
 
   React.useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    if (!plans.length) return;
+    setEditingUserPlanId((current) =>
+      plans.some((plan) => plan.id === current)
+        ? current
+        : (plans[0]?.id ?? ""),
+    );
+  }, [plans]);
 
   const loadUserDetails = React.useCallback(
     (userId: string) => {
@@ -302,11 +285,13 @@ export function SystemUserManagementPage() {
         user_id: editingUser.id,
         role: editingRole,
       });
-      setUsers((current) =>
-        current.map((item) =>
+      userResource.setData((current) => ({
+        users: (current?.users ?? []).map((item) =>
           item.id === editingUser.id ? roleResult.user : item,
         ),
-      );
+        plans: current?.plans ?? [],
+        workspaceUsage: current?.workspaceUsage ?? [],
+      }));
 
       if (editingUserPlanId) {
         const planResult = await assignAdminUserPlan(accessToken, {
@@ -363,9 +348,11 @@ export function SystemUserManagementPage() {
       subtitle={t("system.users.subtitle")}
       metrics={metrics}
       state={state}
+      resourceState={userResource.state}
+      resourceError={userResource.error}
       message={message}
       error={error}
-      onRefresh={() => void loadUsers()}
+      onRefresh={() => void userResource.reload()}
     >
       <AppSectionCard
         title={t("system.users.listTitle")}

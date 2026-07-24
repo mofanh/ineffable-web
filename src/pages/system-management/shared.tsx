@@ -2,7 +2,12 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldIcon } from "lucide-react";
 
-import { AppMetricPage, Notice, type AppMetricCard } from "@/components/app";
+import {
+  AppMetricPage,
+  DataState,
+  Notice,
+  type AppMetricCard,
+} from "@/components/app";
 import { Button } from "@/components/ui/button";
 import {
   type AdminModelProfilePayload,
@@ -10,6 +15,8 @@ import {
   type AdminPlanModelAccess,
 } from "@/lib/api/api-client";
 import { i18n } from "@/lib/i18n/i18n";
+import type { AppError } from "@/lib/app/api-errors";
+import type { ApiResourceState } from "@/lib/app/use-api-resource";
 
 export type LoadState = "idle" | "loading" | "saving";
 
@@ -131,6 +138,8 @@ export function SystemPageShell({
   subtitle,
   metrics,
   state,
+  resourceState,
+  resourceError,
   message,
   error,
   onRefresh,
@@ -140,6 +149,8 @@ export function SystemPageShell({
   subtitle: string;
   metrics: AppMetricCard[];
   state: LoadState;
+  resourceState: ApiResourceState;
+  resourceError?: AppError | null;
   message: string;
   error: string;
   onRefresh: () => void;
@@ -152,7 +163,7 @@ export function SystemPageShell({
       title={title}
       subtitle={subtitle}
       metrics={
-        state === "loading"
+        resourceState === "loading"
           ? metrics.map((metric) => ({
               ...metric,
               value: "—",
@@ -165,7 +176,11 @@ export function SystemPageShell({
           type="button"
           variant="outline"
           onClick={onRefresh}
-          disabled={state !== "idle"}
+          disabled={
+            state !== "idle" ||
+            resourceState === "loading" ||
+            resourceState === "refreshing"
+          }
         >
           {t("system.common.refresh")}
         </Button>
@@ -173,7 +188,14 @@ export function SystemPageShell({
     >
       {message ? <Notice tone="success">{message}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
-      {children}
+      <DataState
+        state={resourceState}
+        error={resourceError}
+        empty={false}
+        onRetry={onRefresh}
+      >
+        {children}
+      </DataState>
     </AppMetricPage>
   );
 }

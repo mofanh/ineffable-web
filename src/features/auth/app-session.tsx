@@ -23,6 +23,7 @@ import {
   rememberReturnPath,
   type ReturnRouteState,
 } from "@/lib/app/return-route"
+import { clearApiResourceCache } from "@/lib/app/use-api-resource"
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated"
 
@@ -152,6 +153,7 @@ export function AppSessionProvider({
   const refreshAppDataPromiseRef = React.useRef<Promise<void> | null>(null)
 
   const clearSession = React.useCallback(() => {
+    clearApiResourceCache()
     setStatus("unauthenticated")
     setAccessToken(null)
     setRefreshToken(null)

@@ -54,6 +54,10 @@ import {
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { confirm } from "@/lib/app/confirm";
 import { notify } from "@/lib/app/notifications";
+import {
+  invalidateApiResourceCache,
+  useApiResource,
+} from "@/lib/app/use-api-resource";
 import { getCurrentLocale, i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
 import {
@@ -92,11 +96,7 @@ export function AdminLlmSettingsPage() {
 
 export function SystemModelManagementPage() {
   const { t } = useTranslation();
-  const { accessToken, currentUser } = useAuthSession();
-  const [models, setModels] = React.useState<AdminModelProfile[]>([]);
-  const [usageRows, setUsageRows] = React.useState<AdminModelMonthlyUsage[]>(
-    [],
-  );
+  const { accessToken, currentSessionId, currentUser } = useAuthSession();
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] =
     React.useState<ModelStatusFilter>("active");
@@ -119,33 +119,35 @@ export function SystemModelManagementPage() {
   const isAdmin = currentUser?.role === "admin";
 
   const loadModels = React.useCallback(async () => {
-    if (!accessToken || !isAdmin) return;
-    setState("loading");
-    setError("");
-    try {
+    if (!accessToken || !isAdmin) {
+      return {
+        profiles: [] as AdminModelProfile[],
+        usage: [] as AdminModelMonthlyUsage[],
+      };
+    }
       const [modelResult, usageResult] = await Promise.all([
         listAdminModelProfiles(accessToken),
         listAdminModelMonthlyUsage(accessToken, 6),
       ]);
-      setModels(modelResult.profiles);
-      setUsageRows(usageResult.usage);
-    } catch (loadError) {
-      const appError = normalizeAppError(loadError, {
-        fallbackMessage: t("system.models.loadFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.models.loadFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
-      setState("idle");
-    }
-  }, [accessToken, isAdmin, t]);
-
-  React.useEffect(() => {
-    void loadModels();
-  }, [loadModels]);
+      return {
+        profiles: modelResult.profiles,
+        usage: usageResult.usage,
+      };
+  }, [accessToken, isAdmin]);
+  const modelResource = useApiResource({
+    enabled: Boolean(accessToken && isAdmin),
+    cacheKey: ["system-models", currentSessionId],
+    load: loadModels,
+    errorMessage: t("system.models.loadFailed"),
+  });
+  const models = React.useMemo(
+    () => modelResource.data?.profiles ?? [],
+    [modelResource.data?.profiles],
+  );
+  const usageRows = React.useMemo(
+    () => modelResource.data?.usage ?? [],
+    [modelResource.data?.usage],
+  );
 
   const usageSummary = React.useMemo(
     () => buildModelUsageSummary(models, usageRows),
@@ -304,10 +306,17 @@ export function SystemModelManagementPage() {
       const result = editingModelId
         ? await updateAdminModelProfile(accessToken, editingModelId, payload)
         : await createAdminModelProfile(accessToken, payload);
-      setModels((current) => [
-        result.profile,
-        ...current.filter((item) => item.id !== result.profile.id),
-      ]);
+      modelResource.setData((current) => ({
+        profiles: [
+          result.profile,
+          ...(current?.profiles ?? []).filter(
+            (item) => item.id !== result.profile.id,
+          ),
+        ],
+        usage: current?.usage ?? [],
+      }));
+      invalidateApiResourceCache(["system-plans", currentSessionId]);
+      invalidateApiResourceCache(["system-secrets", currentSessionId]);
       setMessage(
         t("system.models.savedMessage", { name: result.profile.display_name }),
       );
@@ -345,10 +354,17 @@ export function SystemModelManagementPage() {
     setError("");
     try {
       const result = await deleteAdminModelProfile(accessToken, model.id);
-      setModels((current) => [
-        result.profile,
-        ...current.filter((item) => item.id !== result.profile.id),
-      ]);
+      modelResource.setData((current) => ({
+        profiles: [
+          result.profile,
+          ...(current?.profiles ?? []).filter(
+            (item) => item.id !== result.profile.id,
+          ),
+        ],
+        usage: current?.usage ?? [],
+      }));
+      invalidateApiResourceCache(["system-plans", currentSessionId]);
+      invalidateApiResourceCache(["system-secrets", currentSessionId]);
       setMessage(
         t("system.models.deletedMessage", {
           name: result.profile.display_name,
@@ -380,9 +396,11 @@ export function SystemModelManagementPage() {
       subtitle={t("system.models.subtitle")}
       metrics={metrics}
       state={state}
+      resourceState={modelResource.state}
+      resourceError={modelResource.error}
       message={message}
       error={error}
-      onRefresh={() => void loadModels()}
+      onRefresh={() => void modelResource.reload()}
     >
       <AppSectionCard
         title={t("system.models.usageTitle")}
