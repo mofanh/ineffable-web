@@ -90,9 +90,9 @@ export function AgentPlanPanel({ tool }: { tool: ToolCallView | null }) {
                   )}
                 >
                   {item.status === "completed" ? (
-                    <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+                    <CheckCircle2Icon className="mt-0.5 size-3.5 shrink-0 text-foreground/45" />
                   ) : item.status === "in_progress" ? (
-                    <LoaderCircleIcon className="mt-0.5 size-3.5 shrink-0 animate-spin text-sky-600" />
+                    <LoaderCircleIcon className="mt-0.5 size-3.5 shrink-0 animate-spin text-foreground/75" />
                   ) : (
                     <CircleIcon className="mt-0.5 size-3.5 shrink-0 text-foreground/30" />
                   )}

@@ -196,18 +196,18 @@ function isTerminalToolName(name: string) {
 function terminalStatusTone(status: string) {
   const normalized = status.toLowerCase()
   if (normalized === "running") {
-    return "border-sky-500/25 text-sky-700"
+    return "border-foreground/20 text-foreground/75"
   }
   if (normalized === "exited" || normalized === "completed" || normalized === "succeeded") {
-    return "border-emerald-500/25 text-emerald-700"
+    return "border-border text-muted-foreground"
   }
   if (normalized === "interrupted" || normalized === "cancelled" || normalized === "canceled") {
-    return "border-amber-500/25 text-amber-700"
+    return "border-border text-muted-foreground"
   }
   if (normalized === "failed" || normalized === "timed_out" || normalized === "error") {
-    return "border-red-500/25 text-red-600"
+    return "border-destructive/25 text-destructive"
   }
-  return "border-black/10 text-foreground/65"
+  return "border-border text-foreground/65"
 }
 
 function terminalStatusLabel(status: string) {
@@ -251,7 +251,7 @@ function TerminalOutputBlock({ label, content }: { label: string; content: strin
   return (
     <div className="space-y-1">
       <p className="text-[10px] font-medium tracking-wide text-foreground/45">{label}</p>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap wrap-anywhere rounded-md border border-black/5 bg-black/[0.025] px-2.5 py-2 font-mono text-[11px] leading-5 text-foreground/75">
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap wrap-anywhere rounded-md border border-border/60 bg-muted/30 px-2.5 py-2 font-mono text-[11px] leading-5 text-foreground/75">
         {content}
       </pre>
     </div>
@@ -280,7 +280,7 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
   const output = stdout || outputTail
 
   return (
-    <div className="space-y-2 rounded-md border border-black/6 bg-background/45 p-2.5">
+    <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2.5">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-foreground/75">
           <TerminalIcon className="size-3.5 flex-none" />
@@ -302,7 +302,7 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
         {tty ? (
           <Badge
             variant="outline"
-            className="h-5 rounded-full border-black/10 bg-transparent px-1.5 text-[10px] text-foreground/65"
+            className="h-5 rounded-full border-border bg-transparent px-1.5 text-[10px] text-foreground/65"
           >
             TTY
           </Badge>
@@ -332,7 +332,7 @@ function TerminalListResult({ result }: { result: JsonObject }) {
 
   if (!sessions.length) {
     return (
-      <div className="rounded-md border border-black/6 bg-background/45 px-2.5 py-2 text-[11px] text-foreground/60">
+      <div className="rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-[11px] text-foreground/60">
         {i18n.t("chat.agent.noSessions")}
       </div>
     )
@@ -346,7 +346,7 @@ function TerminalListResult({ result }: { result: JsonObject }) {
         return (
           <div
             key={`${sessionId}-${index}`}
-            className="space-y-1.5 rounded-md border border-black/6 bg-background/45 p-2.5"
+            className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 p-2.5"
           >
             <div className="flex min-w-0 items-center gap-2">
               <TerminalIcon className="size-3.5 flex-none text-foreground/55" />
@@ -455,15 +455,15 @@ function sandboxPreviewStatusLabel(status: string) {
 function sandboxPreviewStatusTone(status: string) {
   switch (status.toLowerCase()) {
     case "active":
-      return "border-emerald-500/25 text-emerald-700"
+      return "border-foreground/20 text-foreground/75"
     case "expired":
     case "stopped":
-      return "border-amber-500/25 text-amber-700"
+      return "border-border text-muted-foreground"
     case "tunnel_disconnected":
     case "provider_unavailable":
-      return "border-red-500/25 text-red-600"
+      return "border-destructive/25 text-destructive"
     default:
-      return "border-black/10 text-foreground/65"
+      return "border-border text-foreground/65"
   }
 }
 
@@ -484,9 +484,9 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
   const isActive = result.status.toLowerCase() === "active"
 
   return (
-    <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3.5 text-foreground">
+    <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5 text-foreground">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/12 text-sky-700">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground/5 text-foreground/70">
           <Globe2Icon className="size-4.5" />
         </div>
         <div className="min-w-0 flex-1">

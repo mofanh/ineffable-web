@@ -137,3 +137,25 @@ chat entries
 - [x] `npm run lint`
 - [x] `npm run build`
 - [x] `git diff --check`
+
+## Phase 5：工具调用主题一致性
+
+### 实现
+
+- [x] 移除通用工具状态、request 选择卡、终端结果和 sandbox preview 的固定黄绿蓝配色。
+- [x] 工具容器、选中态、推荐标记和成功状态统一使用黑白语义 token。
+- [x] 失败状态保留 `destructive` 语义，确保异常仍可识别。
+- [x] 计划工具的完成和进行中图标同步收敛为前景色层级。
+
+### 验收标准
+
+- [x] 工具调用在浅色和深色模式下不出现脱离主题的固定强调色。
+- [x] request 等待态仍可通过层级、边框和状态文案识别。
+- [x] 选中项、推荐项、成功项和失败项不依赖具体色板表达语义。
+
+### 自动验证
+
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] `git diff --check`

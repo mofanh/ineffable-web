@@ -35,15 +35,15 @@ function toolStatusLabel(status: ToolCallStatus) {
 function statusTone(status: ToolCallStatus) {
   switch (status) {
     case "waiting":
-      return "border-amber-500/30 bg-amber-500/5 text-amber-700"
+      return "border-foreground/20 bg-muted/60 text-foreground/75"
     case "succeeded":
-      return "border-emerald-500/25 text-emerald-700"
+      return "border-border text-muted-foreground"
     case "failed":
-      return "border-red-500/25 text-red-600"
+      return "border-destructive/25 text-destructive"
     case "cancelled":
-      return "border-amber-500/25 text-amber-700"
+      return "border-border text-muted-foreground"
     default:
-      return "border-black/10 text-foreground/65"
+      return "border-border text-foreground/65"
   }
 }
 

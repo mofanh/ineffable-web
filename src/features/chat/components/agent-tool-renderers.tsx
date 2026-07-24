@@ -175,7 +175,7 @@ function RequestUserInputCard({
       autoOpenActive={false}
       autoOpenWaiting
       lockOpen={isInteractive}
-      className="rounded-xl border border-amber-500/20 bg-amber-500/[0.035] p-3"
+      className="rounded-xl border border-border/70 bg-muted/20 p-3"
     >
       <div className="space-y-4 pr-1">
         {questions.map((question, questionIndex) => (
@@ -185,7 +185,7 @@ function RequestUserInputCard({
                 {question.header ? (
                   <Badge
                     variant="outline"
-                    className="h-5 rounded-full border-amber-500/25 bg-amber-500/5 px-1.5 text-[10px] text-amber-800"
+                    className="h-5 rounded-full border-border bg-background/70 px-1.5 text-[10px] text-muted-foreground"
                   >
                     {question.header}
                   </Badge>
@@ -221,7 +221,7 @@ function RequestUserInputCard({
                     className={cn(
                       "rounded-lg border px-3 py-2 text-left transition-colors",
                       selected
-                        ? "border-amber-500/45 bg-amber-500/10"
+                        ? "border-foreground/35 bg-muted/70"
                         : "border-border/70 bg-background/55 hover:border-foreground/20 hover:bg-background/80",
                       (!isInteractive || isSubmitting) && "cursor-default"
                     )}
@@ -231,13 +231,13 @@ function RequestUserInputCard({
                         className={cn(
                           "size-3.5 rounded-full border",
                           selected
-                            ? "border-amber-600 bg-amber-600 shadow-[inset_0_0_0_3px_var(--color-background)]"
+                            ? "border-foreground bg-foreground shadow-[inset_0_0_0_3px_var(--color-background)]"
                             : "border-foreground/25"
                         )}
                       />
                       <span className="font-medium text-foreground/82">{option.label}</span>
                       {option.recommended ? (
-                        <Badge className="h-5 rounded-full bg-emerald-500/10 px-1.5 text-[10px] text-emerald-700 shadow-none">
+                        <Badge className="h-5 rounded-full border border-border/70 bg-foreground/5 px-1.5 text-[10px] text-foreground/70 shadow-none">
                           {i18n.t("chat.agent.recommended")}
                         </Badge>
                       ) : null}
@@ -265,7 +265,7 @@ function RequestUserInputCard({
                 className={cn(
                   "rounded-lg border px-3 py-2 text-left transition-colors",
                   selections[question.id] === "__other__"
-                    ? "border-amber-500/45 bg-amber-500/10"
+                    ? "border-foreground/35 bg-muted/70"
                     : "border-border/70 bg-background/55 hover:border-foreground/20 hover:bg-background/80",
                   (!isInteractive || isSubmitting) && "cursor-default"
                 )}
@@ -294,7 +294,9 @@ function RequestUserInputCard({
 
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         {isAnswered ? (
-          <p className="text-xs text-emerald-700">{i18n.t("chat.agent.answerSubmitted")}</p>
+          <p className="text-xs text-muted-foreground">
+            {i18n.t("chat.agent.answerSubmitted")}
+          </p>
         ) : isInteractive ? (
           <Button
             type="button"
