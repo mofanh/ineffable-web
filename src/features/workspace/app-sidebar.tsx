@@ -30,6 +30,9 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
@@ -384,9 +387,45 @@ function PrimaryNav({
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
+  const { isMobile, setOpenMobile, state: sidebarState } = useSidebar()
   const [openGroupIds, setOpenGroupIds] = React.useState<Set<string>>(
-    () => new Set(["system-management"])
+    () =>
+      new Set(
+        items
+          .filter((item) =>
+            item.children?.some(
+              (child) => location.pathname === child.path.split("?")[0]
+            )
+          )
+          .map((item) => item.id)
+      )
   )
+
+  React.useEffect(() => {
+    const activeGroup = items.find((item) =>
+      item.children?.some(
+        (child) => location.pathname === child.path.split("?")[0]
+      )
+    )
+    if (!activeGroup) {
+      return
+    }
+
+    setOpenGroupIds((current) => {
+      if (current.has(activeGroup.id)) {
+        return current
+      }
+      const next = new Set(current)
+      next.add(activeGroup.id)
+      return next
+    })
+  }, [items, location.pathname])
+
+  const closeMobileSidebar = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   return (
     <SidebarGroup className="pt-1">
@@ -409,11 +448,21 @@ function PrimaryNav({
                 <SidebarMenuButton
                   type="button"
                   size="lg"
-                  isActive={isActive}
+                  isActive={isActive && (!isGroup || !isOpen)}
                   tooltip={title}
+                  aria-expanded={isGroup ? isOpen : undefined}
+                  aria-controls={isGroup ? `${item.id}-navigation` : undefined}
                   onClick={() => {
                     onSelectEntry(item.id)
                     if (isGroup) {
+                      if (sidebarState === "collapsed" && !isMobile) {
+                        const activeChild = children.find(
+                          (child) =>
+                            location.pathname === child.path.split("?")[0]
+                        )
+                        navigate(activeChild?.path ?? item.path)
+                        return
+                      }
                       setOpenGroupIds((current) => {
                         const next = new Set(current)
                         if (next.has(item.id)) {
@@ -423,69 +472,60 @@ function PrimaryNav({
                         }
                         return next
                       })
-                      if (!isChildActive) {
-                        navigate(item.path)
-                      }
                       return
                     }
                     navigate(item.path)
+                    closeMobileSidebar()
                   }}
                 >
                   <Icon className="text-sidebar-foreground/70" />
                   <span>{title}</span>
+                  {isGroup ? (
+                    isOpen ? (
+                      <ChevronDownIcon
+                        className="ml-auto text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ChevronRightIcon
+                        className="ml-auto text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden"
+                        aria-hidden="true"
+                      />
+                    )
+                  ) : null}
                 </SidebarMenuButton>
-                {isGroup ? (
-                  <SidebarMenuAction
-                    type="button"
-                    aria-label={
-                      isOpen
-                        ? t("sidebar.navigation.collapseSystem")
-                        : t("sidebar.navigation.expandSystem")
-                    }
-                    onClick={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      setOpenGroupIds((current) => {
-                        const next = new Set(current)
-                        if (next.has(item.id)) {
-                          next.delete(item.id)
-                        } else {
-                          next.add(item.id)
-                        }
-                        return next
-                      })
-                    }}
-                  >
-                    {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                  </SidebarMenuAction>
-                ) : null}
                 {isGroup && isOpen ? (
-                  <SidebarMenu className="mt-1 gap-0.5 pl-3">
+                  <SidebarMenuSub
+                    id={`${item.id}-navigation`}
+                    aria-label={title}
+                    className="mt-1"
+                  >
                     {children.map((child) => {
                       const childTitle = t(child.titleKey)
                       const ChildIcon = child.icon
                       const childActive =
                         location.pathname === child.path.split("?")[0]
                       return (
-                        <SidebarMenuItem key={child.id}>
-                          <SidebarMenuButton
-                            type="button"
-                            size="sm"
+                        <SidebarMenuSubItem key={child.id}>
+                          <SidebarMenuSubButton
+                            asChild
                             isActive={childActive}
-                            tooltip={childTitle}
-                            className="pl-4"
-                            onClick={() => {
-                              onSelectEntry(child.id)
-                              navigate(child.path)
-                            }}
                           >
-                            <ChildIcon className="text-sidebar-foreground/60" />
-                            <span>{childTitle}</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
+                            <Link
+                              to={child.path}
+                              onClick={() => {
+                                onSelectEntry(child.id)
+                                closeMobileSidebar()
+                              }}
+                            >
+                              <ChildIcon className="text-sidebar-foreground/60" />
+                              <span>{childTitle}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
                       )
                     })}
-                  </SidebarMenu>
+                  </SidebarMenuSub>
                 ) : null}
               </SidebarMenuItem>
             )

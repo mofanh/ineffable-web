@@ -114,8 +114,6 @@ export const resources = {
           planManagement: "套餐管理",
           secretManagement: "密钥管理",
           userManagement: "用户管理",
-          collapseSystem: "收起系统管理",
-          expandSystem: "展开系统管理",
         },
         sections: {
           team: "团队空间",
@@ -1497,8 +1495,6 @@ export const resources = {
           planManagement: "Plan management",
           secretManagement: "Secret management",
           userManagement: "User management",
-          collapseSystem: "Collapse system management",
-          expandSystem: "Expand system management",
         },
         sections: {
           team: "Team spaces",
