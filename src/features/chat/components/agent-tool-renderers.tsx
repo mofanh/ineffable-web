@@ -171,7 +171,9 @@ function RequestUserInputCard({
       tool={tool}
       title={i18n.t("chat.agent.userInputTitle")}
       icon={<CircleHelpIcon className="size-3.5 flex-none" />}
-      defaultOpen
+      defaultOpen={tool.status === "waiting"}
+      autoOpenActive={false}
+      autoOpenWaiting
       lockOpen={isInteractive}
       className="rounded-xl border border-amber-500/20 bg-amber-500/[0.035] p-3"
     >

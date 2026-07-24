@@ -53,6 +53,8 @@ export function ToolCallShell({
   icon,
   children,
   defaultOpen,
+  autoOpenActive = true,
+  autoOpenWaiting = false,
   lockOpen = false,
   className,
 }: {
@@ -61,6 +63,8 @@ export function ToolCallShell({
   icon?: React.ReactNode
   children: React.ReactNode
   defaultOpen?: boolean
+  autoOpenActive?: boolean
+  autoOpenWaiting?: boolean
   lockOpen?: boolean
   className?: string
 }) {
@@ -69,18 +73,26 @@ export function ToolCallShell({
     tool.status === "succeeded" ||
     tool.status === "failed" ||
     tool.status === "cancelled"
-  const [open, setOpen] = React.useState(defaultOpen ?? isActive)
+  const [open, setOpen] = React.useState(
+    defaultOpen ?? (autoOpenActive && isActive)
+  )
   const previousStatusRef = React.useRef<ToolCallStatus>(tool.status)
 
   React.useEffect(() => {
     const previousStatus = previousStatusRef.current
-    if (isActive) {
+    if (
+      (autoOpenActive && isActive) ||
+      (autoOpenWaiting && tool.status === "waiting")
+    ) {
       setOpen(true)
-    } else if (previousStatus === "running" && isTerminal) {
+    } else if (
+      (previousStatus === "running" || previousStatus === "waiting") &&
+      isTerminal
+    ) {
       setOpen(false)
     }
     previousStatusRef.current = tool.status
-  }, [isActive, isTerminal, tool.status])
+  }, [autoOpenActive, autoOpenWaiting, isActive, isTerminal, tool.status])
 
   return (
     <Collapsible
