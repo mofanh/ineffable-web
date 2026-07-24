@@ -1,29 +1,13 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
-import { notify } from "@/lib/app/notifications"
-import { rememberReturnPath } from "@/lib/app/return-route"
-import { i18n } from "@/lib/i18n/i18n"
+import {
+  getLatestAccessToken,
+  refreshAuthSession,
+} from "@/lib/api/auth-session-runtime"
 
 const API_BASE_URL =
   (import.meta.env.VITE_GATEWAY_API_BASE_URL as string | undefined)?.trim() ||
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   ""
-
-const AUTH_STORAGE_KEYS = {
-  accessToken: "ineffable.auth.access_token",
-  refreshToken: "ineffable.auth.refresh_token",
-  sessionId: "ineffable.auth.session_id",
-}
-
-export type BaseClientToastDetail = {
-  title: string
-  description: string
-  actionLabel?: string
-  onAction?: () => void
-}
-
-let tokenRefreshStarted = false
-let tokenRefreshReloading = false
-let tokenRefreshTimer: number | null = null
 
 export function getApiBaseUrl() {
   return API_BASE_URL || "(same-origin)"
@@ -94,126 +78,65 @@ export function isAccessTokenExpiredError(error: unknown) {
   )
 }
 
-function writeStorage(key: string, value: string | null) {
-  if (typeof window === "undefined") {
-    return
-  }
-
-  if (value) {
-    window.localStorage.setItem(key, value)
-    return
-  }
-
-  window.localStorage.removeItem(key)
-}
-
-function showBaseClientToast(detail: BaseClientToastDetail) {
-  notify.info({
-    title: detail.title,
-    description: detail.description,
-    action: detail.actionLabel
-      ? {
-          label: detail.actionLabel,
-          onClick: detail.onAction ?? refreshExpiredSessionNow,
-        }
-      : undefined,
-  })
-}
-
-async function refreshAccessTokenForReload() {
-  if (typeof window === "undefined") {
-    return
-  }
-
-  const refreshToken = window.localStorage.getItem(
-    AUTH_STORAGE_KEYS.refreshToken,
-  )
-  if (!refreshToken) {
-    writeStorage(AUTH_STORAGE_KEYS.accessToken, null)
-    writeStorage(AUTH_STORAGE_KEYS.sessionId, null)
-    return
-  }
-
-  const response = await fetch(toApiUrl("/gateway/v1/auth/refresh"), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  })
-
-  if (!response.ok) {
-    writeStorage(AUTH_STORAGE_KEYS.accessToken, null)
-    writeStorage(AUTH_STORAGE_KEYS.refreshToken, null)
-    writeStorage(AUTH_STORAGE_KEYS.sessionId, null)
-    return
-  }
-
-  const parsed = (await response.json()) as {
-    tokens?: {
-      access_token?: string
-      refresh_token?: string
-      session_id?: string
-    }
-  }
-
-  writeStorage(
-    AUTH_STORAGE_KEYS.accessToken,
-    parsed.tokens?.access_token ?? null,
-  )
-  writeStorage(
-    AUTH_STORAGE_KEYS.refreshToken,
-    parsed.tokens?.refresh_token ?? null,
-  )
-  writeStorage(AUTH_STORAGE_KEYS.sessionId, parsed.tokens?.session_id ?? null)
-}
-
-export function refreshExpiredSessionNow() {
-  if (typeof window === "undefined" || tokenRefreshReloading) {
-    return
-  }
-
-  rememberReturnPath()
-  tokenRefreshReloading = true
-  if (tokenRefreshTimer != null) {
-    window.clearTimeout(tokenRefreshTimer)
-    tokenRefreshTimer = null
-  }
-
-  void refreshAccessTokenForReload().finally(() => {
-    window.location.reload()
-  })
-}
-
-function scheduleExpiredSessionRefresh(delayMs = 1400) {
-  if (
-    typeof window === "undefined" ||
-    tokenRefreshStarted ||
-    tokenRefreshReloading
-  ) {
-    return
-  }
-
-  tokenRefreshStarted = true
-  showBaseClientToast({
-    title: i18n.t("common.sessionExpired.title"),
-    description: i18n.t("common.sessionExpired.description"),
-    actionLabel: i18n.t("common.sessionExpired.refresh"),
-    onAction: refreshExpiredSessionNow,
-  })
-
-  tokenRefreshTimer = window.setTimeout(() => {
-    refreshExpiredSessionNow()
-  }, delayMs)
-}
-
 export function createApiError(message: string, status?: number) {
-  if (isAccessTokenExpiredError(message)) {
-    scheduleExpiredSessionRefresh()
-    return new Error(i18n.t("common.sessionExpired.error"))
-  }
   return new ApiRequestError(message, { status })
+}
+
+async function responseHasExpiredAccessToken(response: Response) {
+  if (response.status === 401) {
+    return true
+  }
+  if (response.ok) {
+    return false
+  }
+
+  try {
+    return isAccessTokenExpiredError(await response.clone().text())
+  } catch {
+    return false
+  }
+}
+
+export async function requestApi(
+  path: string,
+  options?: RequestInit & {
+    accessToken?: string | null
+    workspaceId?: string | null
+  }
+) {
+  const { accessToken, workspaceId, headers, ...requestInit } = options ?? {}
+  const performRequest = (token: string | null) =>
+    fetch(toApiUrl(path), {
+      ...requestInit,
+      headers: {
+        ...buildApiHeaders({
+          accessToken: token,
+          workspaceId,
+          accept:
+            typeof headers === "object" && headers
+              ? new Headers(headers).get("Accept") ?? undefined
+              : undefined,
+        }),
+        ...(headers ? Object.fromEntries(new Headers(headers).entries()) : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    })
+
+  const initialAccessToken = getLatestAccessToken(accessToken)
+  const response = await performRequest(initialAccessToken)
+  if (
+    !accessToken ||
+    !(await responseHasExpiredAccessToken(response))
+  ) {
+    return response
+  }
+
+  const refreshedAccessToken = await refreshAuthSession(initialAccessToken)
+  if (!refreshedAccessToken) {
+    return response
+  }
+
+  return performRequest(refreshedAccessToken)
 }
 
 export async function requestApiJson<T>(
@@ -225,15 +148,11 @@ export async function requestApiJson<T>(
     body?: unknown
   },
 ) {
-  const response = await fetch(toApiUrl(path), {
+  const response = await requestApi(path, {
     method: options?.method ?? "GET",
-    headers: {
-      ...buildApiHeaders({
-        accessToken: options?.accessToken,
-        workspaceId: options?.workspaceId,
-      }),
-      ...(options?.body ? { "Content-Type": "application/json" } : {}),
-    },
+    accessToken: options?.accessToken,
+    workspaceId: options?.workspaceId,
+    headers: options?.body ? { "Content-Type": "application/json" } : undefined,
     body: options?.body ? JSON.stringify(options.body) : undefined,
   })
 
