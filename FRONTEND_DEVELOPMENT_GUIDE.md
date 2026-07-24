@@ -24,6 +24,17 @@
 
 说明：这层是插件进程与网关的内部边界，不是浏览器 API。
 
+### 2.3 认证请求与静默续期
+
+1. 需要登录态的 HTTP JSON、SSE、流式发送和沙箱预览请求必须通过 `requestApi` / `requestApiJson` 发起，不在 feature 或 page 中直接调用 `fetch`。
+2. 请求层始终读取认证运行时中的最新 access token；收到 401 或明确的 access token 过期响应时，只触发一次 refresh，并使用新 token 重试原请求一次。
+3. 同一标签页的并发续期复用一个 in-flight Promise；支持 Web Locks 的浏览器还会在标签页之间串行化 refresh，避免 refresh token 轮换竞态。
+4. `AppSessionProvider` 持久化 access/refresh token 的到期时间，并在 access token 到期前、页面重新可见、窗口重新聚焦或网络恢复时静默续期。
+5. refresh 成功必须同时更新 React session 和 localStorage。access token 最后写入 localStorage，作为其他标签页读取完整 token 集合的同步信号。
+6. refresh token 明确无效或续期后重试仍然未授权时才清理会话。网络中断、超时或服务端临时错误不得清理本地登录态，应在页面恢复或网络恢复后重试。
+7. 认证过期流程不得调用 `window.location.reload()`；页面状态由 session 与路由自然恢复或进入登录页。
+8. 流式连接建立时支持静默续期；已经建立的 SSE 连接不因本地 token 到期主动断开，断线重连时使用最新 token 和原有事件游标。
+
 ## 3. 前端必须包含的组件与效果
 
 ### 3.1 会话绑定区（Session Bind Panel）

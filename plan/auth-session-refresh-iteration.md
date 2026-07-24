@@ -67,15 +67,15 @@ AppSessionProvider
 
 ### 文档
 
-- [ ] 在前端开发指南和 AGENTS 记录认证请求与静默续期规则。
+- [x] 在前端开发指南和 AGENTS 记录认证请求与静默续期规则。
 
 ### 自动验证
 
-- [ ] `npm run check:auth-session`
-- [ ] `npm run i18n:check`
-- [ ] `npm run lint`
-- [ ] `npm run build`
-- [ ] `git diff --check`
+- [x] `npm run check:auth-session`
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] `git diff --check`
 
 ### 人工验证
 

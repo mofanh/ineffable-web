@@ -166,6 +166,10 @@ routes -> page barrel -> real page
 - 列表概览、指标和图表禁止通过 `items.map(async item => loadDetail(item.id))` 批量制造 N+1 请求；优先使用后端 summary/batch API。用户主动展开单行详情时才按需请求 item detail，并缓存已加载结果。
 - 同一页面生命周期内相同参数的并发加载应复用 in-flight Promise，避免 React StrictMode、重复点击或多个入口同时触发相同请求；请求结束后清理，显式刷新仍可重新加载。
 - React state updater 必须保持纯函数，禁止在 `setState(current => ...)` 内发请求、通知或写外部状态；先计算交互意图，再在 updater 外执行副作用。
+- 需要登录态的 JSON、SSE、流式发送和沙箱预览请求必须通过 `requestApi` / `requestApiJson`，禁止在 feature 或 page 中直接 `fetch` 绕过静默续期。
+- access token 认证失败只允许静默 refresh 并重试原请求一次；同一标签页复用 in-flight refresh，支持 Web Locks 时还应避免多标签页重复 refresh。
+- refresh 成功必须同步 React session 与 localStorage；只有 refresh token 明确无效或重试后仍未授权才清理会话，网络和服务端临时故障不得误登出。
+- 认证过期不得通过 `window.location.reload()` 恢复；页面激活、网络恢复和到期前续期由 `AppSessionProvider` 统一管理。
 
 不要直接写：
 
