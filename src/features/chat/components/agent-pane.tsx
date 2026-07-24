@@ -196,13 +196,13 @@ function isTerminalToolName(name: string) {
 function terminalStatusTone(status: string) {
   const normalized = status.toLowerCase()
   if (normalized === "running") {
-    return "border-foreground/20 text-foreground/75"
+    return "border-sky-500/25 text-sky-700 dark:text-sky-400"
   }
   if (normalized === "exited" || normalized === "completed" || normalized === "succeeded") {
-    return "border-border text-muted-foreground"
+    return "border-emerald-500/25 text-emerald-700 dark:text-emerald-400"
   }
   if (normalized === "interrupted" || normalized === "cancelled" || normalized === "canceled") {
-    return "border-border text-muted-foreground"
+    return "border-amber-500/25 text-amber-700 dark:text-amber-400"
   }
   if (normalized === "failed" || normalized === "timed_out" || normalized === "error") {
     return "border-destructive/25 text-destructive"
@@ -455,10 +455,10 @@ function sandboxPreviewStatusLabel(status: string) {
 function sandboxPreviewStatusTone(status: string) {
   switch (status.toLowerCase()) {
     case "active":
-      return "border-foreground/20 text-foreground/75"
+      return "border-emerald-500/25 text-emerald-700 dark:text-emerald-400"
     case "expired":
     case "stopped":
-      return "border-border text-muted-foreground"
+      return "border-amber-500/25 text-amber-700 dark:text-amber-400"
     case "tunnel_disconnected":
     case "provider_unavailable":
       return "border-destructive/25 text-destructive"
@@ -486,7 +486,7 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
   return (
     <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5 text-foreground">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground/5 text-foreground/70">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-foreground/5 text-sky-700 dark:text-sky-400">
           <Globe2Icon className="size-4.5" />
         </div>
         <div className="min-w-0 flex-1">

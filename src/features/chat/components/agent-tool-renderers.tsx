@@ -170,7 +170,9 @@ function RequestUserInputCard({
     <ToolCallShell
       tool={tool}
       title={i18n.t("chat.agent.userInputTitle")}
-      icon={<CircleHelpIcon className="size-3.5 flex-none" />}
+      icon={
+        <CircleHelpIcon className="size-3.5 flex-none text-amber-600 dark:text-amber-400" />
+      }
       defaultOpen={tool.status === "waiting"}
       autoOpenActive={false}
       autoOpenWaiting
@@ -185,7 +187,7 @@ function RequestUserInputCard({
                 {question.header ? (
                   <Badge
                     variant="outline"
-                    className="h-5 rounded-full border-border bg-background/70 px-1.5 text-[10px] text-muted-foreground"
+                    className="h-5 rounded-full border-amber-500/25 bg-background/70 px-1.5 text-[10px] text-amber-700 dark:text-amber-400"
                   >
                     {question.header}
                   </Badge>
@@ -231,13 +233,13 @@ function RequestUserInputCard({
                         className={cn(
                           "size-3.5 rounded-full border",
                           selected
-                            ? "border-foreground bg-foreground shadow-[inset_0_0_0_3px_var(--color-background)]"
+                            ? "border-amber-600 bg-amber-600 shadow-[inset_0_0_0_3px_var(--color-background)] dark:border-amber-400 dark:bg-amber-400"
                             : "border-foreground/25"
                         )}
                       />
                       <span className="font-medium text-foreground/82">{option.label}</span>
                       {option.recommended ? (
-                        <Badge className="h-5 rounded-full border border-border/70 bg-foreground/5 px-1.5 text-[10px] text-foreground/70 shadow-none">
+                        <Badge className="h-5 rounded-full border border-emerald-500/25 bg-foreground/5 px-1.5 text-[10px] text-emerald-700 shadow-none dark:text-emerald-400">
                           {i18n.t("chat.agent.recommended")}
                         </Badge>
                       ) : null}
@@ -294,7 +296,7 @@ function RequestUserInputCard({
 
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         {isAnswered ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">
             {i18n.t("chat.agent.answerSubmitted")}
           </p>
         ) : isInteractive ? (

@@ -34,14 +34,16 @@ function toolStatusLabel(status: ToolCallStatus) {
 
 function statusTone(status: ToolCallStatus) {
   switch (status) {
+    case "running":
+      return "border-sky-500/25 text-sky-700 dark:text-sky-400"
     case "waiting":
-      return "border-foreground/20 bg-muted/60 text-foreground/75"
+      return "border-amber-500/30 text-amber-700 dark:text-amber-400"
     case "succeeded":
-      return "border-border text-muted-foreground"
+      return "border-emerald-500/25 text-emerald-700 dark:text-emerald-400"
     case "failed":
       return "border-destructive/25 text-destructive"
     case "cancelled":
-      return "border-border text-muted-foreground"
+      return "border-amber-500/25 text-amber-700 dark:text-amber-400"
     default:
       return "border-border text-foreground/65"
   }
