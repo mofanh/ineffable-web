@@ -49,6 +49,21 @@ function StreamingTailDot() {
   )
 }
 
+function ThinkingPlaceholder() {
+  const { t } = useTranslation()
+
+  return (
+    <div
+      className="flex items-center gap-2 text-[14px] text-foreground/60"
+      role="status"
+      aria-live="polite"
+    >
+      <Loader2Icon className="size-3.5 animate-spin" />
+      <span>{t("chat.messages.thinking")}</span>
+    </div>
+  )
+}
+
 function usePrefersReducedMotion() {
   const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(() =>
     typeof window === "undefined"
@@ -89,6 +104,13 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const prefersReducedMotion = usePrefersReducedMotion()
   const messageContentRef = React.useRef<HTMLDivElement | null>(null)
   const hasEntries = entries.length > 0
+  const lastEntry = entries.at(-1)
+  const showThinkingPlaceholder =
+    isSending &&
+    !(
+      lastEntry?.role === "assistant" &&
+      lastEntry.status === "streaming"
+    )
 
   React.useEffect(() => {
     const content = messageContentRef.current
@@ -115,9 +137,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         window.cancelAnimationFrame(animationFrame)
       }
     }
-  }, [hasEntries, onStreamingContentProgress])
+  }, [hasEntries, onStreamingContentProgress, showThinkingPlaceholder])
 
-  if (!hasEntries) {
+  if (!hasEntries && !showThinkingPlaceholder) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="bg-sidebar-accent text-sidebar-accent-foreground flex size-12 items-center justify-center rounded-2xl border border-sidebar-border">
@@ -343,6 +365,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             </div>
           )
         })}
+        {showThinkingPlaceholder ? <ThinkingPlaceholder /> : null}
         </div>
       </div>
 

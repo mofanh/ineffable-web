@@ -495,6 +495,7 @@ export const resources = {
         },
         messages: {
           generating: "正在生成",
+          thinking: "正在思考…",
           startTitle: "从一个任务开始",
           startDescription:
             "让 AI 结合工作区文件分析内容、推进任务，或输入 @ 引用 Agent 描述文件。",
@@ -1891,6 +1892,7 @@ export const resources = {
         },
         messages: {
           generating: "Generating",
+          thinking: "Thinking…",
           startTitle: "Start with a task",
           startDescription:
             "Ask AI to analyze workspace files, move work forward, or type @ to reference an Agent descriptor.",

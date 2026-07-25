@@ -2713,10 +2713,16 @@ export function GatewayChatSidebar({
   )
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault()
-      void handleSend()
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return
     }
+
+    event.preventDefault()
+    void handleSend()
   }
 
   return (
