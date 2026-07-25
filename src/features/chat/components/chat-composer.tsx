@@ -52,7 +52,7 @@ type ChatComposerProps = {
   composer: string
   error: string | null
   isSending: boolean
-  isEnqueueingInput: boolean
+  isSubmittingInput: boolean
   canPromoteToGuided: boolean
   preInputQueue: PreInputQueueItem[]
   agentDescriptorOptions: AgentDescriptorOption[]
@@ -76,7 +76,7 @@ export function ChatComposer({
   composer,
   error,
   isSending,
-  isEnqueueingInput,
+  isSubmittingInput,
   canPromoteToGuided,
   preInputQueue,
   agentDescriptorOptions,
@@ -333,8 +333,8 @@ export function ChatComposer({
             onFocus={handleComposerFocus}
             onBlur={handleComposerBlur}
             onKeyDown={handleComposerKeyDown}
-            readOnly={isEnqueueingInput}
-            aria-busy={isEnqueueingInput}
+            readOnly={isSubmittingInput}
+            aria-busy={isSubmittingInput}
             className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
           />
           <InputGroupAddon
@@ -423,23 +423,23 @@ export function ChatComposer({
                   "rounded-full transition-colors",
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
-                disabled={!composer.trim() || isEnqueueingInput}
+                disabled={!composer.trim() || isSubmittingInput}
                 title={
-                  isEnqueueingInput
-                    ? t("chat.composer.enqueueing")
+                  isSubmittingInput
+                    ? t("chat.composer.submitting")
                     : isSending
                     ? t("chat.composer.enqueue")
                     : t("chat.composer.sendMessage")
                 }
               >
-                {isEnqueueingInput ? (
+                {isSubmittingInput ? (
                   <LoaderCircleIcon className="animate-spin" />
                 ) : (
                   <ArrowUpIcon />
                 )}
                 <span className="sr-only">
-                  {isEnqueueingInput
-                    ? t("chat.composer.enqueueing")
+                  {isSubmittingInput
+                    ? t("chat.composer.submitting")
                     : isSending
                       ? t("chat.composer.joinQueue")
                       : t("chat.composer.send")}

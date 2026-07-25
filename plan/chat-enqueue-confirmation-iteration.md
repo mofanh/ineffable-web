@@ -17,10 +17,13 @@
 - [x] 非 active 分支也等待首个非 queued envelope 后再渲染 user message。
 - [x] 后端返回 queued 时不创建 user/assistant 气泡，只保留正式队列项。
 - [x] 无 live run 时禁用 guided promotion，避免无效 409。
+- [x] 普通 send 与活跃会话追加输入统一在点击后立即显示提交中图标，首个后端
+      envelope 到达后切换为正常流式状态。
 
 ## 验收
 
 - 请求未完成时显示等待效果且队列不变。
+- 普通 send 点击后立即显示提交中图标，不等待首个 SSE 事件才反馈。
 - 失败时队列不变、输入保留、Toast 可见。
 - 成功时只出现一个服务端确认的 queued 项。
 - lint、build、聊天 runtime/resume 与 i18n 检查通过。

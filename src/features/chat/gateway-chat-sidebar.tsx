@@ -353,7 +353,7 @@ export function GatewayChatSidebar({
   > | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
-  const [isEnqueueingInput, setIsEnqueueingInput] = React.useState(false)
+  const [isSubmittingInput, setIsSubmittingInput] = React.useState(false)
   const [unreadConversationIds, setUnreadConversationIds] = React.useState(
     () => new Set<string>()
   )
@@ -2101,6 +2101,7 @@ export function GatewayChatSidebar({
     setEntries([])
     setAwaitingHumanRunId(null)
     setError(null)
+    setIsSubmittingInput(false)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
     pendingOlderLoadMetricsRef.current = null
     olderMessagesInFlightCursorRef.current = null
@@ -2285,7 +2286,6 @@ export function GatewayChatSidebar({
       streamStatusRef.current,
       Boolean(selectedLiveRun)
     )
-
     // 当 LLM 仍在输出（streaming/recovering）时，发送输入只做入队，不中断当前 SSE。
     if (isStreamingNow) {
       const targetConversationId = selectedTargetConversationId
@@ -2295,11 +2295,12 @@ export function GatewayChatSidebar({
 
       setError(null)
       const isGuidedMode = mode === "guided"
+      if (!isGuidedMode) {
+        setIsSubmittingInput(true)
+      }
       const optimisticId = createMessageId(isGuidedMode ? "guided" : "preinput")
       if (isGuidedMode) {
         beginGuidedUserTurn(content, optimisticId)
-      } else {
-        setIsEnqueueingInput(true)
       }
       try {
         let resolvedAsQueue = false
@@ -2317,6 +2318,9 @@ export function GatewayChatSidebar({
           },
           {
             onEnvelope: (envelope) => {
+              if (!isGuidedMode) {
+                setIsSubmittingInput(false)
+              }
               if (envelope.type === "queued") {
                 resolvedAsQueue = true
                 if (isGuidedMode) {
@@ -2369,7 +2373,7 @@ export function GatewayChatSidebar({
         return false
       } finally {
         if (!isGuidedMode) {
-          setIsEnqueueingInput(false)
+          setIsSubmittingInput(false)
         }
       }
     }
@@ -2383,18 +2387,34 @@ export function GatewayChatSidebar({
     abortRef.current = controller
 
     setError(null)
+    if (mode !== "guided") {
+      setIsSubmittingInput(true)
+    }
     updateStreamStatus("streaming")
 
     let targetConversationId = currentConversationId
     if (!targetConversationId) {
-      const createdConversation = await createConversation(buildConversationTitle(content))
-      targetConversationId = createdConversation.id
-      skipNextConversationSyncRef.current = targetConversationId
-      if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
-        window.localStorage.setItem(
-          sandboxStorageKey(targetConversationId),
-          selectedSandboxEnvironmentId
+      try {
+        const createdConversation = await createConversation(buildConversationTitle(content))
+        targetConversationId = createdConversation.id
+        skipNextConversationSyncRef.current = targetConversationId
+        if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
+          window.localStorage.setItem(
+            sandboxStorageKey(targetConversationId),
+            selectedSandboxEnvironmentId
+          )
+        }
+      } catch (createError) {
+        setIsSubmittingInput(false)
+        abortRef.current = null
+        const message = reportChatError(
+          createError,
+          i18n.t("chat.gateway.initFailed"),
+          i18n.t("chat.gateway.initFailedTitle")
         )
+        updateStreamStatus("error")
+        setError(message)
+        return false
       }
     }
 
@@ -2409,6 +2429,7 @@ export function GatewayChatSidebar({
     try {
       await primeConversationCursor(targetConversationId)
     } catch (primeError) {
+      setIsSubmittingInput(false)
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
       clearConversationResumeState(targetConversationId)
@@ -2452,6 +2473,7 @@ export function GatewayChatSidebar({
         {
           signal: controller.signal,
           onEnvelope: (envelope) => {
+            setIsSubmittingInput(false)
             if (envelope.type === "queued") {
               // Phase 6: 服务端已入队，前端也加入本地队列用于 UI 展示
               queued = true
@@ -2478,6 +2500,7 @@ export function GatewayChatSidebar({
       )
 
       if (queued) {
+        setIsSubmittingInput(false)
         abortRef.current = null
         activeStreamConversationIdRef.current = null
         activeRunIdRef.current = null
@@ -2488,6 +2511,7 @@ export function GatewayChatSidebar({
       }
 
       if (!controller.signal.aborted) {
+        setIsSubmittingInput(false)
         abortRef.current = null
         if (!terminalEventSeenRef.current) {
           updateStreamStatus("recovering")
@@ -2496,6 +2520,7 @@ export function GatewayChatSidebar({
         }
       }
     } catch (streamError) {
+      setIsSubmittingInput(false)
       if (controller.signal.aborted) {
         clearRecoveryTimer()
         activeStreamConversationIdRef.current = null
@@ -2551,7 +2576,7 @@ export function GatewayChatSidebar({
 
   async function handleSend() {
     const content = composer.trim()
-    if (!content || !accessToken || isEnqueueingInput) {
+    if (!content || !accessToken || isSubmittingInput) {
       return
     }
 
@@ -2742,7 +2767,7 @@ export function GatewayChatSidebar({
         composer={composer}
         error={error}
         isSending={isSending}
-        isEnqueueingInput={isEnqueueingInput}
+        isSubmittingInput={isSubmittingInput}
         canPromoteToGuided={Boolean(selectedLiveRun)}
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
