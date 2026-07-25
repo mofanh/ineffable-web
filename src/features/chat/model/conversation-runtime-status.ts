@@ -18,19 +18,20 @@ export type ConversationRunObservation = {
   lifecycle: ConversationRunLifecycle
 }
 
-export function shouldTreatConversationInputAsActive(
-  targetConversationId: string | null,
-  activeStreamConversationId: string | null,
-  streamStatus: string,
-  backendRunIsLive: boolean
+export function getLiveRunResumeCursor(
+  backendLiveRunId: string | null,
+  pendingRunId: string | null | undefined,
+  pendingAfterSeq: number | null | undefined
 ) {
-  if (!targetConversationId) {
-    return false
+  if (!backendLiveRunId) {
+    return null
   }
-  const hasLocalStreamForTarget =
-    activeStreamConversationId === targetConversationId &&
-    (streamStatus === "streaming" || streamStatus === "recovering")
-  return hasLocalStreamForTarget || backendRunIsLive
+
+  return {
+    runId: backendLiveRunId,
+    afterSeq:
+      pendingRunId === backendLiveRunId ? (pendingAfterSeq ?? null) : null,
+  }
 }
 
 const AWAITING_HUMAN_STATUSES = new Set(["awaiting_human", "suspended"])

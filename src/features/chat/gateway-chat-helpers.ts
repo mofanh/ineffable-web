@@ -83,6 +83,9 @@ export function getEventFingerprint(event: GatewayChatStreamEvent) {
 
 export function getFinalFingerprint(result: GatewayChatFinalResult) {
   return JSON.stringify({
+    conversation_id: result.conversation_id ?? null,
+    run_id: result.run_id ?? null,
+    gateway_run_id: result.gateway_run_id ?? null,
     output: result.output ?? null,
     session_key: result.session_key ?? null,
     agent_id: result.agent_id ?? null,

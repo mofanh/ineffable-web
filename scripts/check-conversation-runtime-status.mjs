@@ -2,10 +2,10 @@ import assert from "node:assert/strict"
 
 const {
   findNewlyTerminalConversationIds,
+  getLiveRunResumeCursor,
   getConversationRunLifecycle,
   getConversationRuntimeStatus,
   observeConversationRuns,
-  shouldTreatConversationInputAsActive,
 } = await import("../src/features/chat/model/conversation-runtime-status.ts")
 
 function conversation(id, run) {
@@ -66,32 +66,18 @@ assert.equal(
   "completed_unread"
 )
 assert.equal(getConversationRuntimeStatus(completedA, false), null)
-assert.equal(
-  shouldTreatConversationInputAsActive(
-    "conversation-a",
-    "conversation-a",
-    "streaming",
-    false
-  ),
-  true
-)
-assert.equal(
-  shouldTreatConversationInputAsActive(
-    "conversation-a",
-    "conversation-b",
-    "streaming",
-    false
-  ),
-  false
-)
-assert.equal(
-  shouldTreatConversationInputAsActive(
-    "conversation-a",
-    null,
-    "idle",
-    true
-  ),
-  true
-)
+assert.deepEqual(getLiveRunResumeCursor("run-a", "run-a", 12), {
+  runId: "run-a",
+  afterSeq: 12,
+})
+assert.deepEqual(getLiveRunResumeCursor("run-a", null, 12), {
+  runId: "run-a",
+  afterSeq: null,
+})
+assert.deepEqual(getLiveRunResumeCursor("run-a", "run-stale", 12), {
+  runId: "run-a",
+  afterSeq: null,
+})
+assert.equal(getLiveRunResumeCursor(null, "run-stale", 12), null)
 
 console.log("conversation runtime status checks passed")

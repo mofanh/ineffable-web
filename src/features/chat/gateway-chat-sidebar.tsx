@@ -73,9 +73,10 @@ import {
 } from "@/features/chat/model/conversation-resume"
 import {
   findNewlyTerminalConversationIds,
+  getConversationRunLifecycle,
   getConversationRuntimeStatus,
+  getLiveRunResumeCursor,
   observeConversationRuns,
-  shouldTreatConversationInputAsActive,
   type ConversationRunObservation,
 } from "@/features/chat/model/conversation-runtime-status"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
@@ -83,6 +84,7 @@ import { useAppSession } from "@/features/auth/app-session"
 import {
   approveSandboxApproval,
   deletePendingInput,
+  getConversation,
   getConversationEvents,
   getConversationMessages,
   getPendingInputs,
@@ -94,6 +96,7 @@ import {
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
+  type Conversation,
   type ModelProfile,
   type ResumeRunResponse,
   type SandboxEnvironmentView,
@@ -186,17 +189,13 @@ function updateToolInPane(
   }
 }
 
-function entryFingerprint(entry: ChatEntry) {
+function entryContentFingerprint(entry: ChatEntry) {
   if (entry.role === "user" || entry.role === "system") {
     const content = normalizeEntryContent(entry.content)
     return content ? `${entry.role}:${content}` : null
   }
 
   if (entry.role === "assistant") {
-    if (entry.runId) {
-      return `assistant-run:${entry.runId}`
-    }
-
     const content = normalizeEntryContent(paneText(entry))
     return content ? `assistant:${content}` : null
   }
@@ -211,16 +210,21 @@ function removeEntriesCoveredByLatest(
   latestEntries: ChatEntry[]
 ) {
   const latestIds = new Set(latestEntries.map((entry) => entry.id))
-  const latestFingerprintCounts = new Map<string, number>()
+  const latestAssistantRunIds = new Set(
+    latestEntries.flatMap((entry) =>
+      entry.role === "assistant" && entry.runId ? [entry.runId] : []
+    )
+  )
+  const latestContentFingerprintCounts = new Map<string, number>()
 
   latestEntries.forEach((entry) => {
-    const fingerprint = entryFingerprint(entry)
+    const fingerprint = entryContentFingerprint(entry)
     if (!fingerprint) {
       return
     }
-    latestFingerprintCounts.set(
+    latestContentFingerprintCounts.set(
       fingerprint,
-      (latestFingerprintCounts.get(fingerprint) ?? 0) + 1
+      (latestContentFingerprintCounts.get(fingerprint) ?? 0) + 1
     )
   })
 
@@ -231,10 +235,20 @@ function removeEntriesCoveredByLatest(
       continue
     }
 
-    const fingerprint = entryFingerprint(entry)
-    const count = fingerprint ? latestFingerprintCounts.get(fingerprint) ?? 0 : 0
+    if (
+      entry.role === "assistant" &&
+      entry.runId &&
+      latestAssistantRunIds.has(entry.runId)
+    ) {
+      continue
+    }
+
+    const fingerprint = entryContentFingerprint(entry)
+    const count = fingerprint
+      ? latestContentFingerprintCounts.get(fingerprint) ?? 0
+      : 0
     if (fingerprint && count > 0) {
-      latestFingerprintCounts.set(fingerprint, count - 1)
+      latestContentFingerprintCounts.set(fingerprint, count - 1)
       continue
     }
 
@@ -641,12 +655,10 @@ export function GatewayChatSidebar({
   const isPageActive = usePageActive()
 
   React.useEffect(() => {
-    const hasLocalRun =
-      streamStatus === "streaming" || streamStatus === "recovering"
     if (
       !accessToken ||
       !isPageActive ||
-      (!hasLiveConversation && !hasLocalRun)
+      (!hasLiveConversation && !isSubmittingInput)
     ) {
       return
     }
@@ -673,9 +685,9 @@ export function GatewayChatSidebar({
   }, [
     accessToken,
     hasLiveConversation,
+    isSubmittingInput,
     isPageActive,
     refreshConversations,
-    streamStatus,
   ])
 
   const updateStreamStatus = React.useCallback((next: StreamStatus) => {
@@ -706,7 +718,7 @@ export function GatewayChatSidebar({
   const bindStatus = currentConversationId
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
-  const isSending = streamStatus === "streaming" || streamStatus === "recovering"
+  const isSending = Boolean(selectedLiveRun)
   const selectedConversationTitle =
     selectedConversation?.title || i18n.t("chat.header.newChat")
   const headerConversations = React.useMemo(
@@ -715,15 +727,12 @@ export function GatewayChatSidebar({
         id: conversation.id,
         title: conversation.title || i18n.t("chat.gateway.unnamed"),
         updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
-        runtimeStatus:
-          conversation.id === activeStreamConversationIdRef.current && isSending
-            ? "running"
-            : getConversationRuntimeStatus(
-                conversation,
-                unreadConversationIds.has(conversation.id)
-              ),
+        runtimeStatus: getConversationRuntimeStatus(
+          conversation,
+          unreadConversationIds.has(conversation.id)
+        ),
       })),
-    [conversations, isSending, unreadConversationIds]
+    [conversations, unreadConversationIds]
   )
   const handleRefreshConversationList = React.useCallback(() => {
     void refreshConversations()
@@ -1470,20 +1479,52 @@ export function GatewayChatSidebar({
     ])
   }
 
+  function settleConversationRecovery(conversation: Conversation) {
+    const lifecycle = getConversationRunLifecycle(conversation)
+    const runId = conversation.current_run?.id ?? null
+
+    if (lifecycle === "active") {
+      return false
+    }
+    if (lifecycle === "awaiting_human") {
+      markAwaitingHuman(runId)
+      return true
+    }
+    if (lifecycle === "failed") {
+      terminalEventSeenRef.current = true
+      recoveryInFlightRef.current = false
+      clearRecoveryTimer()
+      activeStreamConversationIdRef.current = null
+      activeRunIdRef.current = null
+      clearConversationResumeState(conversation.id)
+      completeAssistantEntry()
+      assistantEntryIdRef.current = null
+      updateStreamStatus("error")
+      setError(i18n.t("chat.gateway.sendFailed"))
+      return true
+    }
+
+    finalizeConversationTurn(conversation.id)
+    return true
+  }
+
   function applyFinal(result: GatewayChatFinalResult) {
     setAwaitingHumanRunId(null)
     const conversationId =
-      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      result.conversation_id ??
+      activeStreamConversationIdRef.current ??
+      currentConversationIdRef.current
+    bindActiveAssistantRun(result.run_id ?? result.gateway_run_id)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
-    activeRunIdRef.current = null
     if (conversationId) {
       clearConversationResumeState(conversationId)
     }
     completeAssistantEntry(result.output)
     assistantEntryIdRef.current = null
+    activeRunIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
     if (conversationId) {
@@ -1759,6 +1800,10 @@ export function GatewayChatSidebar({
         for (const envelope of response.events) {
           applyEnvelopeEvent(envelope)
         }
+        if (response.events.length === 0 && !terminalEventSeenRef.current) {
+          const conversation = await getConversation(accessToken, conversationId)
+          settleConversationRecovery(conversation)
+        }
       } catch (recoveryError) {
         if (!terminalEventSeenRef.current && isTrackedConversation) {
           updateStreamStatus("recovering")
@@ -1848,14 +1893,19 @@ export function GatewayChatSidebar({
         }
       } catch (resumeError) {
         if (controller.signal.aborted) {
-          clearRecoveryTimer()
-          activeStreamConversationIdRef.current = null
-          activeRunIdRef.current = null
-          updateStreamStatus("idle")
+          if (abortRef.current === controller) {
+            clearRecoveryTimer()
+            abortRef.current = null
+            activeStreamConversationIdRef.current = null
+            activeRunIdRef.current = null
+            updateStreamStatus("idle")
+          }
           return
         }
 
-        abortRef.current = null
+        if (abortRef.current === controller) {
+          abortRef.current = null
+        }
         const message = reportChatError(
           resumeError,
           i18n.t("chat.gateway.reconnectFailed"),
@@ -1866,7 +1916,7 @@ export function GatewayChatSidebar({
         setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
         await recoverConversationEvents(conversationId, true)
       } finally {
-        if (!controller.signal.aborted) {
+        if (abortRef.current === controller && !controller.signal.aborted) {
           abortRef.current = null
         }
       }
@@ -2066,29 +2116,33 @@ export function GatewayChatSidebar({
 
     const pendingMatches = readConversationResumeState(currentConversationId)
     const liveRunId = selectedLiveRun?.id ?? null
+    const resumeCursor = getLiveRunResumeCursor(
+      liveRunId,
+      pendingMatches?.runId,
+      pendingMatches?.afterSeq
+    )
 
-    if (pendingMatches?.runId && liveRunId && pendingMatches.runId !== liveRunId) {
+    if (
+      pendingMatches &&
+      (!resumeCursor || pendingMatches.runId !== resumeCursor.runId)
+    ) {
       clearConversationResumeState(currentConversationId)
     }
 
-    const shouldUsePending =
-      pendingMatches != null &&
-      (!pendingMatches.runId || !liveRunId || pendingMatches.runId === liveRunId)
-    const runId = (shouldUsePending ? pendingMatches?.runId : null) ?? liveRunId
-
-    if (!runId) {
-      if (pendingMatches) {
-        clearConversationResumeState(currentConversationId)
-      }
+    if (!resumeCursor) {
       return
     }
 
     const afterSeq =
-      (shouldUsePending ? pendingMatches?.afterSeq : null) ??
+      resumeCursor.afterSeq ??
       conversationSeqRef.current.get(currentConversationId) ??
       null
 
-    void resumeConversationStream(currentConversationId, runId, afterSeq)
+    void resumeConversationStream(
+      currentConversationId,
+      resumeCursor.runId,
+      afterSeq
+    )
   }, [
     accessToken,
     currentConversationId,
@@ -2269,8 +2323,12 @@ export function GatewayChatSidebar({
     await sendContentToApi(response.input)
   }
 
-  // Core send flow: shared by normal send and guided injection fallback.
-  async function sendContentToApi(content: string, mode?: "guided") {
+  // 普通输入始终交给后端裁决立即执行或入队；前端不再推断 run 是否活跃。
+  async function sendContentToApi(
+    content: string,
+    mode?: "guided",
+    onAccepted?: () => void
+  ) {
     if (!accessToken || !content.trim()) {
       return
     }
@@ -2278,33 +2336,17 @@ export function GatewayChatSidebar({
       ? { environment_id: selectedSandboxEnvironmentId }
       : undefined
 
-    const selectedTargetConversationId =
-      currentConversationIdRef.current ?? currentConversationId
-    const isStreamingNow = shouldTreatConversationInputAsActive(
-      selectedTargetConversationId,
-      activeStreamConversationIdRef.current,
-      streamStatusRef.current,
-      Boolean(selectedLiveRun)
-    )
-    // 当 LLM 仍在输出（streaming/recovering）时，发送输入只做入队，不中断当前 SSE。
-    if (isStreamingNow) {
-      const targetConversationId = selectedTargetConversationId
+    if (mode === "guided") {
+      const targetConversationId =
+        currentConversationIdRef.current ?? currentConversationId
       if (!targetConversationId) {
         return
       }
 
       setError(null)
-      const isGuidedMode = mode === "guided"
-      if (!isGuidedMode) {
-        setIsSubmittingInput(true)
-      }
-      const optimisticId = createMessageId(isGuidedMode ? "guided" : "preinput")
-      if (isGuidedMode) {
-        beginGuidedUserTurn(content, optimisticId)
-      }
+      const optimisticId = createMessageId("guided")
+      beginGuidedUserTurn(content, optimisticId)
       try {
-        let resolvedAsQueue = false
-        let deliveredInline = false
         await streamConversationSend(
           accessToken,
           {
@@ -2318,51 +2360,13 @@ export function GatewayChatSidebar({
           },
           {
             onEnvelope: (envelope) => {
-              if (!isGuidedMode) {
-                setIsSubmittingInput(false)
-              }
-              if (envelope.type === "queued") {
-                resolvedAsQueue = true
-                if (isGuidedMode) {
-                  return
-                }
-                if (currentConversationIdRef.current !== targetConversationId) {
-                  return
-                }
-                setPreInputQueue((prev) => {
-                  const id =
-                    envelope.pending_id != null
-                      ? `db-${envelope.pending_id}`
-                      : createMessageId("preinput")
-                  const next = prev.filter((item) => item.id !== optimisticId && item.id !== id)
-                  next.push({ id, content, status: "queued" })
-                  return next
-                })
-                return
-              }
-
-              deliveredInline = true
-              if (!isGuidedMode) {
-                if (currentConversationIdRef.current === targetConversationId) {
-                  appendUserMessage(content)
-                }
-              }
               applyEnvelopeEvent(envelope)
             },
           }
         )
-        if (!resolvedAsQueue && !deliveredInline) {
-          if (!isGuidedMode) {
-            if (currentConversationIdRef.current === targetConversationId) {
-              appendUserMessage(content)
-            }
-          }
-        }
         return true
       } catch (enqueueError) {
-        if (isGuidedMode) {
-          setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
-        }
+        setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
         const message = reportChatError(
           enqueueError,
           i18n.t("chat.gateway.sendFailed"),
@@ -2371,28 +2375,15 @@ export function GatewayChatSidebar({
         )
         setError(message)
         return false
-      } finally {
-        if (!isGuidedMode) {
-          setIsSubmittingInput(false)
-        }
       }
     }
 
-    abortRef.current?.abort()
-    clearRecoveryTimer()
-    recoveryInFlightRef.current = false
-    resetTurnState()
-
     const controller = new AbortController()
-    abortRef.current = controller
-
     setError(null)
-    if (mode !== "guided") {
-      setIsSubmittingInput(true)
-    }
-    updateStreamStatus("streaming")
+    setIsSubmittingInput(true)
 
-    let targetConversationId = currentConversationId
+    let targetConversationId =
+      currentConversationIdRef.current ?? currentConversationId
     if (!targetConversationId) {
       try {
         const createdConversation = await createConversation(buildConversationTitle(content))
@@ -2406,59 +2397,43 @@ export function GatewayChatSidebar({
         }
       } catch (createError) {
         setIsSubmittingInput(false)
-        abortRef.current = null
         const message = reportChatError(
           createError,
           i18n.t("chat.gateway.initFailed"),
           i18n.t("chat.gateway.initFailedTitle")
         )
-        updateStreamStatus("error")
         setError(message)
         return false
       }
     }
 
-    activeStreamConversationIdRef.current = targetConversationId
-    persistResumeState({
-      conversationId: targetConversationId,
-      runId: null,
-      afterSeq: conversationSeqRef.current.get(targetConversationId) ?? null,
-      force: true,
-    })
-
     try {
       await primeConversationCursor(targetConversationId)
     } catch (primeError) {
       setIsSubmittingInput(false)
-      activeStreamConversationIdRef.current = null
-      activeRunIdRef.current = null
-      clearConversationResumeState(targetConversationId)
       const message = reportChatError(
         primeError,
         i18n.t("chat.gateway.initFailed"),
         i18n.t("chat.gateway.initFailedTitle")
       )
-      updateStreamStatus("error")
       setError(message)
-      appendSystemMessage(
-        i18n.t("chat.gateway.sendFailedWithMessage", { message })
-      )
-      updateAssistantEntry((entry) =>
-        entry
-          ? {
-              ...entry,
-              status: "error",
-              pane: finalizePane(entry.pane),
-            }
-          : null
-      )
-      abortRef.current = null
-      return
+      return false
+    }
+
+    let acceptedAsRun = false
+    let accepted = false
+    let queued = false
+    let userMessageCommitted = false
+    const acceptSubmission = () => {
+      if (accepted) {
+        return
+      }
+      accepted = true
+      setIsSubmittingInput(false)
+      onAccepted?.()
     }
 
     try {
-      let queued = false
-      let userMessageCommitted = false
       await streamConversationSend(
         accessToken,
         {
@@ -2473,26 +2448,49 @@ export function GatewayChatSidebar({
         {
           signal: controller.signal,
           onEnvelope: (envelope) => {
-            setIsSubmittingInput(false)
             if (envelope.type === "queued") {
-              // Phase 6: 服务端已入队，前端也加入本地队列用于 UI 展示
+              acceptSubmission()
               queued = true
-              setPreInputQueue((prev) => {
-                const id =
-                  envelope.pending_id != null
-                    ? `db-${envelope.pending_id}`
-                    : createMessageId("preinput")
-                if (prev.some((item) => item.id === id)) {
-                  return prev
-                }
-                return [...prev, { id, content, status: "queued" }]
-              })
+              if (currentConversationIdRef.current === targetConversationId) {
+                setPreInputQueue((prev) => {
+                  const id =
+                    envelope.pending_id != null
+                      ? `db-${envelope.pending_id}`
+                      : createMessageId("preinput")
+                  if (prev.some((item) => item.id === id)) {
+                    return prev
+                  }
+                  return [...prev, { id, content, status: "queued" }]
+                })
+              }
               return
+            }
+
+            acceptSubmission()
+            if (!acceptedAsRun) {
+              acceptedAsRun = true
+              const previousController = abortRef.current
+              abortRef.current = controller
+              previousController?.abort()
+              clearRecoveryTimer()
+              recoveryInFlightRef.current = false
+              resetTurnState()
+              activeStreamConversationIdRef.current = targetConversationId
+              updateStreamStatus("streaming")
+              persistResumeState({
+                conversationId: targetConversationId,
+                runId: null,
+                afterSeq:
+                  conversationSeqRef.current.get(targetConversationId) ?? null,
+                force: true,
+              })
             }
             if (!userMessageCommitted) {
               userMessageCommitted = true
-              appendUserMessage(content)
-              ensureAssistantEntry()
+              if (currentConversationIdRef.current === targetConversationId) {
+                appendUserMessage(content)
+                ensureAssistantEntry()
+              }
             }
             applyEnvelopeEvent(envelope)
           },
@@ -2501,18 +2499,18 @@ export function GatewayChatSidebar({
 
       if (queued) {
         setIsSubmittingInput(false)
-        abortRef.current = null
-        activeStreamConversationIdRef.current = null
-        activeRunIdRef.current = null
-        clearConversationResumeState(targetConversationId)
-        resetTurnState()
-        updateStreamStatus("idle")
-        return
+        return true
+      }
+      if (!acceptedAsRun) {
+        setIsSubmittingInput(false)
+        return false
       }
 
       if (!controller.signal.aborted) {
         setIsSubmittingInput(false)
-        abortRef.current = null
+        if (abortRef.current === controller) {
+          abortRef.current = null
+        }
         if (!terminalEventSeenRef.current) {
           updateStreamStatus("recovering")
           setError(i18n.t("chat.gateway.streamCatchup"))
@@ -2522,18 +2520,21 @@ export function GatewayChatSidebar({
     } catch (streamError) {
       setIsSubmittingInput(false)
       if (controller.signal.aborted) {
-        clearRecoveryTimer()
-        activeStreamConversationIdRef.current = null
-        activeRunIdRef.current = null
-        updateStreamStatus("idle")
-        return
+        if (abortRef.current === controller) {
+          clearRecoveryTimer()
+          abortRef.current = null
+          activeStreamConversationIdRef.current = null
+          activeRunIdRef.current = null
+          updateStreamStatus("idle")
+        }
+        return accepted
       }
 
       const message = reportChatError(
         streamError,
         i18n.t("chat.gateway.sendFailed"),
         i18n.t("chat.gateway.sendFailedTitle"),
-        { toast: false, format: formatSendErrorMessage }
+        { toast: !acceptedAsRun, format: formatSendErrorMessage }
       )
       const recoverable =
         typeof streamError === "object" &&
@@ -2542,36 +2543,45 @@ export function GatewayChatSidebar({
           ? Boolean((streamError as { recoverable?: unknown }).recoverable)
           : true
 
-      if (recoverable) {
-        abortRef.current = null
+      if (acceptedAsRun && recoverable) {
+        if (abortRef.current === controller) {
+          abortRef.current = null
+        }
         updateStreamStatus("recovering")
         setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
         await recoverConversationEvents(targetConversationId, true)
-        return
+        return true
       }
 
-      activeStreamConversationIdRef.current = null
-      activeRunIdRef.current = null
-      clearConversationResumeState(targetConversationId)
-      updateStreamStatus("error")
+      if (acceptedAsRun) {
+        activeStreamConversationIdRef.current = null
+        activeRunIdRef.current = null
+        clearConversationResumeState(targetConversationId)
+        updateStreamStatus("error")
+      }
       setError(message)
-      appendSystemMessage(
-        i18n.t("chat.gateway.sendFailedWithMessage", { message })
-      )
-      updateAssistantEntry((entry) =>
-        entry
-          ? {
-              ...entry,
-              status: "error",
-              pane: finalizePane(entry.pane),
-            }
-          : null
-      )
+      if (acceptedAsRun) {
+        appendSystemMessage(
+          i18n.t("chat.gateway.sendFailedWithMessage", { message })
+        )
+        updateAssistantEntry((entry) =>
+          entry
+            ? {
+                ...entry,
+                status: "error",
+                pane: finalizePane(entry.pane),
+              }
+            : null
+        )
+      }
+      return acceptedAsRun
     } finally {
-      if (!controller.signal.aborted) {
+      if (abortRef.current === controller && !controller.signal.aborted) {
         abortRef.current = null
       }
     }
+
+    return true
   }
 
   async function handleSend() {
@@ -2581,26 +2591,9 @@ export function GatewayChatSidebar({
     }
 
     const submittedComposer = composer
-    const targetConversationId =
-      currentConversationIdRef.current ?? currentConversationId
-    const isActiveInput = shouldTreatConversationInputAsActive(
-      targetConversationId,
-      activeStreamConversationIdRef.current,
-      streamStatusRef.current,
-      Boolean(selectedLiveRun)
-    )
-    // 统一输入：不再由前端判断排队/立即处理，后端根据活跃 run 状态自动决定
-    if (!isActiveInput) {
-      setComposer("")
-    }
-    const accepted = await sendContentToApi(content)
-    if (
-      isActiveInput &&
-      accepted &&
-      currentConversationIdRef.current === targetConversationId
-    ) {
+    await sendContentToApi(content, undefined, () => {
       setComposer((current) => (current === submittedComposer ? "" : current))
-    }
+    })
   }
 
   function handleSandboxEnvironmentChange(value: string) {
@@ -2746,7 +2739,7 @@ export function GatewayChatSidebar({
           hasOlderEntries={hasOlderEntries}
           isLoadingOlderEntries={isLoadingOlderEntries}
           olderEntriesError={olderMessagesError}
-          isSending={isSending}
+          isSubmitting={isSubmittingInput}
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}

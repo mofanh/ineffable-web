@@ -19,6 +19,9 @@ export type GatewayForwardMessage = {
 }
 
 export type GatewayChatFinalResult = {
+  conversation_id?: string
+  run_id?: string
+  gateway_run_id?: string
   output?: string
   session_key?: string
   agent_id?: string
