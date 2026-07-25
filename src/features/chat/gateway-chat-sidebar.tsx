@@ -1514,7 +1514,7 @@ export function GatewayChatSidebar({
       result.conversation_id ??
       activeStreamConversationIdRef.current ??
       currentConversationIdRef.current
-    bindActiveAssistantRun(result.run_id ?? result.gateway_run_id)
+    bindActiveAssistantRun(result.run_id)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
