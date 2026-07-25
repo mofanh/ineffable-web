@@ -46,6 +46,14 @@ export const resources = {
         server: "服务器异常，请稍后重试。",
         unknown: "请求失败，请重试。",
       },
+      routeError: {
+        chunkTitle: "页面资源加载失败",
+        chunkDescription:
+          "可能已发布新版本，或当前网络暂时不可用。请刷新页面加载最新资源。",
+        genericTitle: "页面暂时无法打开",
+        genericDescription: "加载页面时发生错误，请刷新后重试。",
+        reload: "刷新页面",
+      },
       theme: {
         appearance: "外观",
         light: "浅色",
@@ -1423,6 +1431,15 @@ export const resources = {
         validation: "Please check the submitted information.",
         server: "Server error. Please try again later.",
         unknown: "Request failed. Please try again.",
+      },
+      routeError: {
+        chunkTitle: "Unable to load page resources",
+        chunkDescription:
+          "A new version may be available, or the network may be temporarily unavailable. Refresh to load the latest resources.",
+        genericTitle: "Unable to open this page",
+        genericDescription:
+          "An error occurred while loading the page. Refresh and try again.",
+        reload: "Refresh page",
       },
       theme: {
         appearance: "Appearance",

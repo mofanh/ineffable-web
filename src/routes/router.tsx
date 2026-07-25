@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react"
 import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import { FullPageLoading } from "@/components/app/route-loading"
+import { RouteErrorPage } from "@/components/app/route-error-page"
 import {
   RedirectIfAuthenticated,
   RequireAdmin,
@@ -136,6 +137,7 @@ const routeElements: Record<string, React.ReactElement> = {
 export const router = createBrowserRouter([
   {
     path: "/",
+    errorElement: <RouteErrorPage />,
     element: (
       <RedirectIfAuthenticated>
         <AuthLayout />
@@ -158,6 +160,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/sandbox-preview/:exposureId",
+    errorElement: <RouteErrorPage />,
     element: (
       <RequireAuth>
         <Suspense fallback={<FullPageLoading />}>
@@ -168,6 +171,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
+    errorElement: <RouteErrorPage />,
     element: (
       <RequireAuth>
         <Suspense fallback={<FullPageLoading />}>
