@@ -75,6 +75,7 @@ import {
   findNewlyTerminalConversationIds,
   getConversationRuntimeStatus,
   observeConversationRuns,
+  shouldTreatConversationInputAsActive,
   type ConversationRunObservation,
 } from "@/features/chat/model/conversation-runtime-status"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
@@ -2276,18 +2277,18 @@ export function GatewayChatSidebar({
       ? { environment_id: selectedSandboxEnvironmentId }
       : undefined
 
-    const isStreamingNow =
-      streamStatusRef.current === "streaming" ||
-      streamStatusRef.current === "recovering" ||
-      Boolean(activeStreamConversationIdRef.current)
+    const selectedTargetConversationId =
+      currentConversationIdRef.current ?? currentConversationId
+    const isStreamingNow = shouldTreatConversationInputAsActive(
+      selectedTargetConversationId,
+      activeStreamConversationIdRef.current,
+      streamStatusRef.current,
+      Boolean(selectedLiveRun)
+    )
 
     // 当 LLM 仍在输出（streaming/recovering）时，发送输入只做入队，不中断当前 SSE。
     if (isStreamingNow) {
-      const targetConversationId =
-        activeStreamConversationIdRef.current ??
-        currentConversationIdRef.current ??
-        currentConversationId
-
+      const targetConversationId = selectedTargetConversationId
       if (!targetConversationId) {
         return
       }
@@ -2397,17 +2398,6 @@ export function GatewayChatSidebar({
       }
     }
 
-    // 统一输入：所有 send 都立即显示 user 气泡（后端负责决定排队或立即处理）
-    setEntries((current) => [
-      ...current,
-      {
-        id: createMessageId("user"),
-        role: "user",
-        content,
-      },
-    ])
-
-    ensureAssistantEntry()
     activeStreamConversationIdRef.current = targetConversationId
     persistResumeState({
       conversationId: targetConversationId,
@@ -2447,6 +2437,7 @@ export function GatewayChatSidebar({
 
     try {
       let queued = false
+      let userMessageCommitted = false
       await streamConversationSend(
         accessToken,
         {
@@ -2476,12 +2467,22 @@ export function GatewayChatSidebar({
               })
               return
             }
+            if (!userMessageCommitted) {
+              userMessageCommitted = true
+              appendUserMessage(content)
+              ensureAssistantEntry()
+            }
             applyEnvelopeEvent(envelope)
           },
         }
       )
 
       if (queued) {
+        abortRef.current = null
+        activeStreamConversationIdRef.current = null
+        activeRunIdRef.current = null
+        clearConversationResumeState(targetConversationId)
+        resetTurnState()
         updateStreamStatus("idle")
         return
       }
@@ -2555,14 +2556,14 @@ export function GatewayChatSidebar({
     }
 
     const submittedComposer = composer
-    const isActiveInput =
-      streamStatusRef.current === "streaming" ||
-      streamStatusRef.current === "recovering" ||
-      Boolean(activeStreamConversationIdRef.current)
     const targetConversationId =
-      activeStreamConversationIdRef.current ??
-      currentConversationIdRef.current ??
-      currentConversationId
+      currentConversationIdRef.current ?? currentConversationId
+    const isActiveInput = shouldTreatConversationInputAsActive(
+      targetConversationId,
+      activeStreamConversationIdRef.current,
+      streamStatusRef.current,
+      Boolean(selectedLiveRun)
+    )
     // 统一输入：不再由前端判断排队/立即处理，后端根据活跃 run 状态自动决定
     if (!isActiveInput) {
       setComposer("")
@@ -2742,6 +2743,7 @@ export function GatewayChatSidebar({
         error={error}
         isSending={isSending}
         isEnqueueingInput={isEnqueueingInput}
+        canPromoteToGuided={Boolean(selectedLiveRun)}
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
         modelOptions={modelOptions}

@@ -18,6 +18,21 @@ export type ConversationRunObservation = {
   lifecycle: ConversationRunLifecycle
 }
 
+export function shouldTreatConversationInputAsActive(
+  targetConversationId: string | null,
+  activeStreamConversationId: string | null,
+  streamStatus: string,
+  backendRunIsLive: boolean
+) {
+  if (!targetConversationId) {
+    return false
+  }
+  const hasLocalStreamForTarget =
+    activeStreamConversationId === targetConversationId &&
+    (streamStatus === "streaming" || streamStatus === "recovering")
+  return hasLocalStreamForTarget || backendRunIsLive
+}
+
 const AWAITING_HUMAN_STATUSES = new Set(["awaiting_human", "suspended"])
 const FAILED_STATUSES = new Set(["error", "failed"])
 const COMPLETED_STATUSES = new Set(["cancelled", "completed", "succeeded"])

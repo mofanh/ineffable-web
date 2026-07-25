@@ -468,6 +468,7 @@ export const resources = {
           promoting: "引导中 · ",
           deleting: "删除中 · ",
           promoteTitle: "提升为引导输入（立即注入当前对话）",
+          promoteUnavailable: "当前没有可注入的活跃运行",
           promote: "提升为引导",
           deleteFromQueue: "从队列中删除",
           delete: "删除",
@@ -1861,6 +1862,7 @@ export const resources = {
           deleting: "Deleting · ",
           promoteTitle:
             "Promote to guided input and inject it into the current conversation",
+          promoteUnavailable: "No active run is available for guided input",
           promote: "Promote to guided input",
           deleteFromQueue: "Delete from queue",
           delete: "Delete",

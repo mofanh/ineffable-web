@@ -13,6 +13,10 @@
 - [x] 成功后清空输入框；失败时保留或恢复输入并显示 Toast。
 - [x] 响应绑定发起时的 conversation，避免切换会话后误写当前队列。
 - [x] 空 sandbox 选择明确显示为“不使用沙箱”，不再暗示自动选择。
+- [x] active 判定同时使用目标会话的本地 SSE 与后端 `current_run.is_live`。
+- [x] 非 active 分支也等待首个非 queued envelope 后再渲染 user message。
+- [x] 后端返回 queued 时不创建 user/assistant 气泡，只保留正式队列项。
+- [x] 无 live run 时禁用 guided promotion，避免无效 409。
 
 ## 验收
 

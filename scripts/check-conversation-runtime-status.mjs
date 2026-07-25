@@ -5,6 +5,7 @@ const {
   getConversationRunLifecycle,
   getConversationRuntimeStatus,
   observeConversationRuns,
+  shouldTreatConversationInputAsActive,
 } = await import("../src/features/chat/model/conversation-runtime-status.ts")
 
 function conversation(id, run) {
@@ -65,5 +66,32 @@ assert.equal(
   "completed_unread"
 )
 assert.equal(getConversationRuntimeStatus(completedA, false), null)
+assert.equal(
+  shouldTreatConversationInputAsActive(
+    "conversation-a",
+    "conversation-a",
+    "streaming",
+    false
+  ),
+  true
+)
+assert.equal(
+  shouldTreatConversationInputAsActive(
+    "conversation-a",
+    "conversation-b",
+    "streaming",
+    false
+  ),
+  false
+)
+assert.equal(
+  shouldTreatConversationInputAsActive(
+    "conversation-a",
+    null,
+    "idle",
+    true
+  ),
+  true
+)
 
 console.log("conversation runtime status checks passed")

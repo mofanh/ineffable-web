@@ -53,6 +53,7 @@ type ChatComposerProps = {
   error: string | null
   isSending: boolean
   isEnqueueingInput: boolean
+  canPromoteToGuided: boolean
   preInputQueue: PreInputQueueItem[]
   agentDescriptorOptions: AgentDescriptorOption[]
   modelOptions: ModelProfileOption[]
@@ -76,6 +77,7 @@ export function ChatComposer({
   error,
   isSending,
   isEnqueueingInput,
+  canPromoteToGuided,
   preInputQueue,
   agentDescriptorOptions,
   modelOptions,
@@ -216,9 +218,15 @@ export function ChatComposer({
                     size="icon"
                     variant="ghost"
                     className="size-6 rounded-md text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700"
-                    title={t("chat.composer.promoteTitle")}
+                    title={
+                      canPromoteToGuided
+                        ? t("chat.composer.promoteTitle")
+                        : t("chat.composer.promoteUnavailable")
+                    }
                     onClick={() => onPromoteToGuided(item.id)}
-                    disabled={isActionPending(item.status)}
+                    disabled={
+                      !canPromoteToGuided || isActionPending(item.status)
+                    }
                   >
                     <SendHorizontalIcon className="size-3" />
                     <span className="sr-only">{t("chat.composer.promote")}</span>
