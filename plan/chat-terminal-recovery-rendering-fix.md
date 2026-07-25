@@ -61,7 +61,11 @@
 
 - [x] 前端 chat runtime/resume/polling 契约。
 - [x] 前端 i18n、lint、build。
-- [ ] 后端受影响测试、`cargo check`、fmt 和高信号 Clippy。
+- [x] 后端受影响测试、`cargo check`、fmt 和高信号 Clippy。
+
+高信号 Clippy 已对 `ineffable-model` 与 `ineffable-cli` 改动目标通过；全量
+`-D warnings` 仍被仓库既有的 `derivable_impls`、`uninlined_format_args`、
+`manual_clamp` 等 lint 债务阻塞，本轮未扩散无关修改。
 
 ## 运行时验证
 
