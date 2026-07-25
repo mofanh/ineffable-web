@@ -101,6 +101,11 @@ import {
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
+import {
+  BACKGROUND_CONVERSATION_REFRESH_INTERVAL_MS,
+  useActivePageRefresh,
+  usePageActive,
+} from "@/lib/app/page-activity"
 import type {
   GatewayChatFinalResult,
   GatewayChatStreamEnvelope,
@@ -335,6 +340,11 @@ export function GatewayChatSidebar({
   const olderMessagesInFlightCursorRef = React.useRef<string | null>(null)
   const olderLoadResetTimerRef = React.useRef<number | null>(null)
   const sandboxOptionsRequestRef = React.useRef(0)
+  const sandboxOptionsInFlightRef = React.useRef<{
+    key: string
+    requestId: number
+    request: Promise<void>
+  } | null>(null)
   const backgroundRefreshInFlightRef = React.useRef(false)
   const previousRunObservationsRef = React.useRef<Record<
     string,
@@ -433,67 +443,81 @@ export function GatewayChatSidebar({
     }
   }, [accessToken])
 
-  const refreshSandboxOptions = React.useCallback(async () => {
+  const refreshSandboxOptions = React.useCallback(() => {
     if (!accessToken || !currentWorkspace) {
       sandboxOptionsRequestRef.current += 1
+      sandboxOptionsInFlightRef.current = null
       setSandboxOptions([])
       setIsRefreshingSandboxOptions(false)
-      return
+      return Promise.resolve()
+    }
+
+    const requestKey = `${accessToken}:${currentWorkspace.id}`
+    const inFlight = sandboxOptionsInFlightRef.current
+    if (inFlight?.key === requestKey) {
+      return inFlight.request
     }
 
     const requestId = sandboxOptionsRequestRef.current + 1
     sandboxOptionsRequestRef.current = requestId
     setIsRefreshingSandboxOptions(true)
 
-    try {
-      const response = await listSandboxWorkspaceEnvironments(
-        accessToken,
-        currentWorkspace.id
-      )
-      if (sandboxOptionsRequestRef.current !== requestId) {
-        return
-      }
-
-      const providersById = new Map(
-        response.providers.map((provider) => [provider.provider_id, provider])
-      )
-      const nextOptions = response.environments
-        .filter((environment) => {
-          const provider = providersById.get(environment.provider_id)
-          return (
-            provider?.status === "online" &&
-            ["bound", "ready", "busy"].includes(environment.status)
-          )
-        })
-        .map((environment) => ({
-          environmentId: environment.environment_id,
-          label: sandboxOptionLabel(
-            environment,
-            providersById.get(environment.provider_id)
-          ),
-          status: environment.status,
-        }))
-
-      setSandboxOptions(nextOptions)
-      setSelectedSandboxEnvironmentId((current) => {
-        if (
-          !current ||
-          nextOptions.some((option) => option.environmentId === current)
-        ) {
-          return current
-        }
-        window.localStorage.removeItem(
-          sandboxStorageKey(currentConversationIdRef.current)
+    const request = (async () => {
+      try {
+        const response = await listSandboxWorkspaceEnvironments(
+          accessToken,
+          currentWorkspace.id
         )
-        return ""
-      })
-    } catch {
-      // Keep the last successful options when a background refresh fails.
-    } finally {
-      if (sandboxOptionsRequestRef.current === requestId) {
-        setIsRefreshingSandboxOptions(false)
+        if (sandboxOptionsRequestRef.current !== requestId) {
+          return
+        }
+
+        const providersById = new Map(
+          response.providers.map((provider) => [provider.provider_id, provider])
+        )
+        const nextOptions = response.environments
+          .filter((environment) => {
+            const provider = providersById.get(environment.provider_id)
+            return (
+              provider?.status === "online" &&
+              ["bound", "ready", "busy"].includes(environment.status)
+            )
+          })
+          .map((environment) => ({
+            environmentId: environment.environment_id,
+            label: sandboxOptionLabel(
+              environment,
+              providersById.get(environment.provider_id)
+            ),
+            status: environment.status,
+          }))
+
+        setSandboxOptions(nextOptions)
+        setSelectedSandboxEnvironmentId((current) => {
+          if (
+            !current ||
+            nextOptions.some((option) => option.environmentId === current)
+          ) {
+            return current
+          }
+          window.localStorage.removeItem(
+            sandboxStorageKey(currentConversationIdRef.current)
+          )
+          return ""
+        })
+      } catch {
+        // Keep the last successful options when an explicit refresh fails.
+      } finally {
+        if (sandboxOptionsRequestRef.current === requestId) {
+          setIsRefreshingSandboxOptions(false)
+        }
+        if (sandboxOptionsInFlightRef.current?.requestId === requestId) {
+          sandboxOptionsInFlightRef.current = null
+        }
       }
-    }
+    })()
+    sandboxOptionsInFlightRef.current = { key: requestKey, requestId, request }
+    return request
   }, [accessToken, currentWorkspace])
 
   React.useEffect(() => {
@@ -501,24 +525,7 @@ export function GatewayChatSidebar({
 
     return () => {
       sandboxOptionsRequestRef.current += 1
-    }
-  }, [refreshSandboxOptions])
-
-  React.useEffect(() => {
-    function refreshWhenActive() {
-      if (document.visibilityState === "visible") {
-        void refreshSandboxOptions()
-      }
-    }
-
-    window.addEventListener("focus", refreshWhenActive)
-    window.addEventListener("online", refreshWhenActive)
-    document.addEventListener("visibilitychange", refreshWhenActive)
-
-    return () => {
-      window.removeEventListener("focus", refreshWhenActive)
-      window.removeEventListener("online", refreshWhenActive)
-      document.removeEventListener("visibilitychange", refreshWhenActive)
+      sandboxOptionsInFlightRef.current = null
     }
   }, [refreshSandboxOptions])
 
@@ -629,11 +636,16 @@ export function GatewayChatSidebar({
   const hasLiveConversation = conversations.some(
     (conversation) => conversation.current_run?.is_live
   )
+  const isPageActive = usePageActive()
 
   React.useEffect(() => {
     const hasLocalRun =
       streamStatus === "streaming" || streamStatus === "recovering"
-    if (!accessToken || (!hasLiveConversation && !hasLocalRun)) {
+    if (
+      !accessToken ||
+      !isPageActive ||
+      (!hasLiveConversation && !hasLocalRun)
+    ) {
       return
     }
 
@@ -651,11 +663,18 @@ export function GatewayChatSidebar({
       }
     }
 
+    void refreshBackgroundRuns()
     const intervalId = window.setInterval(() => {
       void refreshBackgroundRuns()
-    }, 2500)
+    }, BACKGROUND_CONVERSATION_REFRESH_INTERVAL_MS)
     return () => window.clearInterval(intervalId)
-  }, [accessToken, hasLiveConversation, refreshConversations, streamStatus])
+  }, [
+    accessToken,
+    hasLiveConversation,
+    isPageActive,
+    refreshConversations,
+    streamStatus,
+  ])
 
   const updateStreamStatus = React.useCallback((next: StreamStatus) => {
     streamStatusRef.current = next
@@ -1995,33 +2014,16 @@ export function GatewayChatSidebar({
     }
   )
 
-  React.useEffect(() => {
-    const triggerConversationCatchup = () => {
+  useActivePageRefresh(
+    () => {
       const conversationId =
         activeStreamConversationIdRef.current ?? currentConversationIdRef.current
-      if (!conversationId) {
-        return
+      if (conversationId) {
+        return syncConversationIfBehind(conversationId)
       }
-
-      void syncConversationIfBehind(conversationId)
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        triggerConversationCatchup()
-      }
-    }
-
-    window.addEventListener("focus", triggerConversationCatchup)
-    window.addEventListener("online", triggerConversationCatchup)
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    return () => {
-      window.removeEventListener("focus", triggerConversationCatchup)
-      window.removeEventListener("online", triggerConversationCatchup)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }
-  }, [])
+    },
+    { enabled: Boolean(accessToken) }
+  )
 
   React.useEffect(() => {
     if (!accessToken || !currentConversationId) {

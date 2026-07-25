@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "check:chat-resume": "node --experimental-strip-types scripts/check-conversation-resume-state.mjs",
     "check:chat-runtime": "node --experimental-strip-types scripts/check-conversation-runtime-status.mjs",
+    "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",
     "check:auth-session": "node --experimental-strip-types scripts/check-auth-session-runtime.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
     "lint": "eslint .",
