@@ -23,6 +23,7 @@ import {
   BotIcon,
   FileTextIcon,
   GripVerticalIcon,
+  LoaderCircleIcon,
   SendHorizontalIcon,
   XIcon,
 } from "lucide-react"
@@ -30,7 +31,7 @@ import {
 export type PreInputQueueItem = {
   id: string
   content: string
-  status?: "pending" | "queued" | "promoting" | "deleting"
+  status?: "queued" | "promoting" | "deleting"
 }
 
 export type AgentDescriptorOption = {
@@ -51,6 +52,7 @@ type ChatComposerProps = {
   composer: string
   error: string | null
   isSending: boolean
+  isEnqueueingInput: boolean
   preInputQueue: PreInputQueueItem[]
   agentDescriptorOptions: AgentDescriptorOption[]
   modelOptions: ModelProfileOption[]
@@ -73,6 +75,7 @@ export function ChatComposer({
   composer,
   error,
   isSending,
+  isEnqueueingInput,
   preInputQueue,
   agentDescriptorOptions,
   modelOptions,
@@ -94,7 +97,7 @@ export function ChatComposer({
   const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
 
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
-    status === "pending" || status === "promoting" || status === "deleting"
+    status === "promoting" || status === "deleting"
   const agentTrigger = React.useMemo(() => {
     const match = composer.match(/(^|\s)@([^\s@]*)$/)
     if (!match || match.index == null) {
@@ -200,7 +203,6 @@ export function ChatComposer({
                 className="flex items-start gap-1.5 rounded-lg bg-background px-2.5 py-2 text-[13px] leading-snug shadow-sm"
               >
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground/80">
-                  {item.status === "pending" ? t("chat.composer.pending") : ""}
                   {item.status === "queued" ? t("chat.composer.queued") : ""}
                   {item.status === "promoting" ? t("chat.composer.promoting") : ""}
                   {item.status === "deleting" ? t("chat.composer.deleting") : ""}
@@ -323,6 +325,8 @@ export function ChatComposer({
             onFocus={handleComposerFocus}
             onBlur={handleComposerBlur}
             onKeyDown={handleComposerKeyDown}
+            readOnly={isEnqueueingInput}
+            aria-busy={isEnqueueingInput}
             className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
           />
           <InputGroupAddon
@@ -355,14 +359,14 @@ export function ChatComposer({
                 </SelectContent>
               </Select>
               <Select
-                value={selectedSandboxEnvironmentId || "__auto__"}
+                value={selectedSandboxEnvironmentId || "__disabled__"}
                 onOpenChange={(open) => {
                   if (open) {
                     onSandboxOptionsRefresh()
                   }
                 }}
                 onValueChange={(value) =>
-                  onSandboxEnvironmentChange(value === "__auto__" ? "" : value)
+                  onSandboxEnvironmentChange(value === "__disabled__" ? "" : value)
                 }
               >
                 <SelectTrigger
@@ -378,8 +382,8 @@ export function ChatComposer({
                   <SelectValue placeholder={t("chat.composer.sandbox")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__auto__">
-                    {t("chat.composer.autoSandbox")}
+                  <SelectItem value="__disabled__">
+                    {t("chat.composer.noSandbox")}
                   </SelectItem>
                   {sandboxOptions.map((option) => (
                     <SelectItem
@@ -411,16 +415,26 @@ export function ChatComposer({
                   "rounded-full transition-colors",
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
-                disabled={!composer.trim()}
+                disabled={!composer.trim() || isEnqueueingInput}
                 title={
-                  isSending
+                  isEnqueueingInput
+                    ? t("chat.composer.enqueueing")
+                    : isSending
                     ? t("chat.composer.enqueue")
                     : t("chat.composer.sendMessage")
                 }
               >
-                <ArrowUpIcon />
+                {isEnqueueingInput ? (
+                  <LoaderCircleIcon className="animate-spin" />
+                ) : (
+                  <ArrowUpIcon />
+                )}
                 <span className="sr-only">
-                  {isSending ? t("chat.composer.joinQueue") : t("chat.composer.send")}
+                  {isEnqueueingInput
+                    ? t("chat.composer.enqueueing")
+                    : isSending
+                      ? t("chat.composer.joinQueue")
+                      : t("chat.composer.send")}
                 </span>
               </InputGroupButton>
             </div>

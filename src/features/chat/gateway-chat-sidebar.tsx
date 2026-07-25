@@ -352,6 +352,7 @@ export function GatewayChatSidebar({
   > | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
+  const [isEnqueueingInput, setIsEnqueueingInput] = React.useState(false)
   const [unreadConversationIds, setUnreadConversationIds] = React.useState(
     () => new Set<string>()
   )
@@ -2297,10 +2298,7 @@ export function GatewayChatSidebar({
       if (isGuidedMode) {
         beginGuidedUserTurn(content, optimisticId)
       } else {
-        setPreInputQueue((prev) => [
-          ...prev,
-          { id: optimisticId, content, status: "pending" },
-        ])
+        setIsEnqueueingInput(true)
       }
       try {
         let resolvedAsQueue = false
@@ -2323,6 +2321,9 @@ export function GatewayChatSidebar({
                 if (isGuidedMode) {
                   return
                 }
+                if (currentConversationIdRef.current !== targetConversationId) {
+                  return
+                }
                 setPreInputQueue((prev) => {
                   const id =
                     envelope.pending_id != null
@@ -2337,8 +2338,9 @@ export function GatewayChatSidebar({
 
               deliveredInline = true
               if (!isGuidedMode) {
-                setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
-                appendUserMessage(content)
+                if (currentConversationIdRef.current === targetConversationId) {
+                  appendUserMessage(content)
+                }
               }
               applyEnvelopeEvent(envelope)
             },
@@ -2346,15 +2348,15 @@ export function GatewayChatSidebar({
         )
         if (!resolvedAsQueue && !deliveredInline) {
           if (!isGuidedMode) {
-            setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
-            appendUserMessage(content)
+            if (currentConversationIdRef.current === targetConversationId) {
+              appendUserMessage(content)
+            }
           }
         }
+        return true
       } catch (enqueueError) {
         if (isGuidedMode) {
           setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
-        } else {
-          setPreInputQueue((prev) => prev.filter((item) => item.id !== optimisticId))
         }
         const message = reportChatError(
           enqueueError,
@@ -2363,11 +2365,12 @@ export function GatewayChatSidebar({
           { format: formatSendErrorMessage }
         )
         setError(message)
-        appendSystemMessage(
-          i18n.t("chat.gateway.sendFailedWithMessage", { message })
-        )
+        return false
+      } finally {
+        if (!isGuidedMode) {
+          setIsEnqueueingInput(false)
+        }
       }
-      return
     }
 
     abortRef.current?.abort()
@@ -2547,13 +2550,31 @@ export function GatewayChatSidebar({
 
   async function handleSend() {
     const content = composer.trim()
-    if (!content || !accessToken) {
+    if (!content || !accessToken || isEnqueueingInput) {
       return
     }
 
+    const submittedComposer = composer
+    const isActiveInput =
+      streamStatusRef.current === "streaming" ||
+      streamStatusRef.current === "recovering" ||
+      Boolean(activeStreamConversationIdRef.current)
+    const targetConversationId =
+      activeStreamConversationIdRef.current ??
+      currentConversationIdRef.current ??
+      currentConversationId
     // 统一输入：不再由前端判断排队/立即处理，后端根据活跃 run 状态自动决定
-    setComposer("")
-    await sendContentToApi(content)
+    if (!isActiveInput) {
+      setComposer("")
+    }
+    const accepted = await sendContentToApi(content)
+    if (
+      isActiveInput &&
+      accepted &&
+      currentConversationIdRef.current === targetConversationId
+    ) {
+      setComposer((current) => (current === submittedComposer ? "" : current))
+    }
   }
 
   function handleSandboxEnvironmentChange(value: string) {
@@ -2565,7 +2586,7 @@ export function GatewayChatSidebar({
 
   function handlePromoteToGuided(id: string) {
     const item = preInputQueue.find((q) => q.id === id)
-    if (!item || item.status === "pending" || item.status === "promoting") {
+    if (!item || item.status === "promoting") {
       return
     }
 
@@ -2604,7 +2625,7 @@ export function GatewayChatSidebar({
 
   function handleDeleteFromQueue(id: string) {
     const item = preInputQueue.find((q) => q.id === id)
-    if (!item || item.status === "pending" || item.status === "deleting") {
+    if (!item || item.status === "deleting") {
       return
     }
 
@@ -2720,6 +2741,7 @@ export function GatewayChatSidebar({
         composer={composer}
         error={error}
         isSending={isSending}
+        isEnqueueingInput={isEnqueueingInput}
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
         modelOptions={modelOptions}
