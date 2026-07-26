@@ -22,7 +22,7 @@ type ChatMessageListProps = {
   hasOlderEntries: boolean
   isLoadingOlderEntries: boolean
   olderEntriesError: string | null
-  isSubmitting: boolean
+  isAwaitingResponse: boolean
   showScrollToBottom: boolean
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
   onViewportScroll: () => void
@@ -88,7 +88,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   hasOlderEntries,
   isLoadingOlderEntries,
   olderEntriesError,
-  isSubmitting,
+  isAwaitingResponse,
   showScrollToBottom,
   scrollViewportRef,
   onViewportScroll,
@@ -106,7 +106,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const hasEntries = entries.length > 0
   const lastEntry = entries.at(-1)
   const showThinkingPlaceholder =
-    isSubmitting &&
+    isAwaitingResponse &&
     !(
       lastEntry?.role === "assistant" &&
       lastEntry.status === "streaming"

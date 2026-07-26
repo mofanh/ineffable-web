@@ -719,6 +719,10 @@ export function GatewayChatSidebar({
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
   const isSending = Boolean(selectedLiveRun)
+  const isAwaitingVisibleResponse =
+    isSubmittingInput ||
+    ((streamStatus === "streaming" || streamStatus === "recovering") &&
+      activeStreamConversationIdRef.current === currentConversationId)
   const selectedConversationTitle =
     selectedConversation?.title || i18n.t("chat.header.newChat")
   const headerConversations = React.useMemo(
@@ -2739,7 +2743,7 @@ export function GatewayChatSidebar({
           hasOlderEntries={hasOlderEntries}
           isLoadingOlderEntries={isLoadingOlderEntries}
           olderEntriesError={olderMessagesError}
-          isSubmitting={isSubmittingInput}
+          isAwaitingResponse={isAwaitingVisibleResponse}
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
