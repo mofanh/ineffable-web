@@ -6,11 +6,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import {
-  applyMessageToPane,
-  applyReasoningDeltaToPane,
-  applyTextDeltaToPane,
-  appendUpdateToPane,
-  buildToolView,
   finalizePane,
   getPaneBlocks,
   getLatestToolByName,
@@ -32,16 +27,8 @@ import {
   createEmptySubagent,
   createMessageId,
   getEventFingerprint,
-  getFinalFingerprint,
-  getSubagentId,
-  getSubagentName,
-  getToolCallId,
-  getToolName,
   hasAssistantEntryContent,
-  isReasoningEvent,
   isSubScope,
-  isTextDeltaEvent,
-  isToolEvent,
 } from "@/features/chat/gateway-chat-helpers"
 import type {
   AssistantEntry,
@@ -85,6 +72,9 @@ import {
 } from "@/features/chat/model/conversation-event-routing"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
+import { projectConversationOutputEvent } from "@/features/chat/runtime/conversation-event-projector"
+import { ChatRuntimeStore } from "@/features/chat/runtime/chat-runtime-store"
+import { ConversationRuntimeController } from "@/features/chat/runtime/conversation-runtime-controller"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   approveSandboxApproval,
@@ -117,11 +107,9 @@ import {
   usePageActive,
 } from "@/lib/app/page-activity"
 import type {
-  GatewayChatFinalResult,
   GatewayChatStreamEnvelope,
   GatewayChatStreamEvent,
 } from "@/lib/api/chat/gateway-events"
-import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 import { i18n } from "@/lib/i18n/i18n"
 
 function formatSendErrorMessage(message: string) {
@@ -349,6 +337,10 @@ export function GatewayChatSidebar({
   )
 
   const abortRef = React.useRef<AbortController | null>(null)
+  const runtimeStoreRef = React.useRef(new ChatRuntimeStore())
+  const runtimeControllerRef = React.useRef(
+    new ConversationRuntimeController(runtimeStoreRef.current)
+  )
   const entriesRef = React.useRef<ChatEntry[]>([])
   const assistantEntryIdRef = React.useRef<string | null>(null)
   const activeStreamConversationIdRef = React.useRef<string | null>(null)
@@ -363,7 +355,6 @@ export function GatewayChatSidebar({
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const seenEventRef = React.useRef(new Set<string>())
-  const seenFinalRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
   const lastViewportScrollTopRef = React.useRef(0)
@@ -426,8 +417,10 @@ export function GatewayChatSidebar({
   )
 
   React.useEffect(() => {
+    const runtimeController = runtimeControllerRef.current
     return () => {
       abortRef.current?.abort()
+      runtimeController.disconnectAll()
       if (recoveryTimerRef.current != null) {
         window.clearTimeout(recoveryTimerRef.current)
       }
@@ -1120,6 +1113,7 @@ export function GatewayChatSidebar({
     }
 
     abortRef.current?.abort()
+    runtimeControllerRef.current.disconnectAll()
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
@@ -1128,7 +1122,6 @@ export function GatewayChatSidebar({
     updateStreamStatus("idle")
     assistantEntryIdRef.current = null
     seenEventRef.current = new Set()
-    seenFinalRef.current = new Set()
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
     lastViewportScrollTopRef.current = 0
@@ -1185,7 +1178,6 @@ export function GatewayChatSidebar({
 
   function resetSeenCaches() {
     seenEventRef.current = new Set()
-    seenFinalRef.current = new Set()
   }
 
   function resetTurnState() {
@@ -1273,89 +1265,18 @@ export function GatewayChatSidebar({
     )
   }
 
-  function updateAgentPane(pane: AgentPaneState, event: GatewayChatStreamEvent) {
-    const eventName = event.event
-    const content = event.content ?? ""
-
-    if (isTextDeltaEvent(eventName)) {
-      return applyTextDeltaToPane(pane, content)
-    }
-
-    if (isReasoningEvent(eventName)) {
-      return applyReasoningDeltaToPane(pane, content)
-    }
-
-    if (eventName === "message") {
-      return applyMessageToPane(pane, content)
-    }
-
-    return appendUpdateToPane(pane, content)
-  }
-
-  function updateToolCalls(pane: AgentPaneState, event: GatewayChatStreamEvent) {
-    const { toolId, tool } = buildToolView(pane, event, getToolCallId, getToolName)
-    return upsertToolInPane(pane, toolId, tool)
-  }
-
   function applyMainEvent(event: GatewayChatStreamEvent) {
     ensureAssistantEntry()
-
-    updateAssistantEntry((entry) => {
-      const current = entry ?? createAssistantEntry("streaming", activeRunIdRef.current)
-
-      return {
-        ...current,
-        status: current.status === "error" ? "error" : "streaming",
-        pane: isToolEvent(event.event)
-          ? updateToolCalls(current.pane, event)
-          : updateAgentPane(current.pane, event),
-      }
-    })
+    updateAssistantEntry((entry) =>
+      projectConversationOutputEvent(entry, event, activeRunIdRef.current)
+    )
   }
 
   function applySubagentEvent(event: GatewayChatStreamEvent) {
-    const subagentId = getSubagentId(event) || `subagent-${event.seq ?? Date.now()}`
-    const subagentName = getSubagentName(event)
     ensureAssistantEntry()
-
-    updateAssistantEntry((entry) => {
-      const current = entry ?? createAssistantEntry("streaming", activeRunIdRef.current)
-
-      const existing =
-        current.subagents[subagentId] ?? createEmptySubagent(subagentId, subagentName)
-      let nextSubagent: SubagentView = {
-        ...existing,
-        name: subagentName,
-      }
-
-      nextSubagent = isToolEvent(event.event)
-        ? ({ ...nextSubagent, ...updateToolCalls(nextSubagent, event) } as SubagentView)
-        : ({ ...nextSubagent, ...updateAgentPane(nextSubagent, event) } as SubagentView)
-
-      if (
-        event.event === "subagent_done" ||
-        event.event === "subagent_completed" ||
-        event.event === "subagent_finished"
-      ) {
-        nextSubagent = {
-          ...finalizePane(nextSubagent),
-          id: nextSubagent.id,
-          name: nextSubagent.name,
-          status: "done",
-        }
-      }
-
-      return {
-        ...current,
-        subagentOrder: current.subagentOrder.includes(subagentId)
-          ? current.subagentOrder
-          : [...current.subagentOrder, subagentId],
-        subagents: {
-          ...current.subagents,
-          [subagentId]: nextSubagent,
-        },
-      }
-    })
+    updateAssistantEntry((entry) =>
+      projectConversationOutputEvent(entry, event, activeRunIdRef.current)
+    )
   }
 
   function appendSystemMessage(content: string) {
@@ -1543,34 +1464,6 @@ export function GatewayChatSidebar({
     return true
   }
 
-  function applyFinal(result: GatewayChatFinalResult) {
-    setAwaitingHumanRunId(null)
-    const conversationId =
-      result.conversation_id ??
-      activeStreamConversationIdRef.current ??
-      currentConversationIdRef.current
-    bindActiveAssistantRun(result.run_id)
-    terminalEventSeenRef.current = true
-    recoveryInFlightRef.current = false
-    clearRecoveryTimer()
-    activeStreamConversationIdRef.current = null
-    if (conversationId) {
-      clearConversationResumeState(conversationId)
-    }
-    completeAssistantEntry(result.output)
-    assistantEntryIdRef.current = null
-    activeRunIdRef.current = null
-    setError(null)
-    updateStreamStatus("completed")
-    if (conversationId) {
-      void Promise.all([
-        refreshConversations(),
-        syncLatestConversationMessagesPage(conversationId),
-        refreshPendingInputsForConversation(conversationId),
-      ])
-    }
-  }
-
   function applyResumeResponse(
     response: ResumeRunResponse,
     conversationId: string
@@ -1583,12 +1476,12 @@ export function GatewayChatSidebar({
       response.forward_messages.forEach((message, index) => {
         const messageMetadata = objectValue(message.metadata)
         applyEvent(
-          canonicalizeGatewayEvent({
+          {
             run_id: response.run_id ?? undefined,
             seq: index + 1,
             ts_ms: Date.now(),
             stream: "resume",
-            event: "message",
+            event: "assistant.snapshot",
             phase: "resume",
             scope:
               typeof message.scope === "string" ? message.scope : "main",
@@ -1599,7 +1492,7 @@ export function GatewayChatSidebar({
               conversation_id: conversationId,
               conversation_run_id: response.run_id,
             },
-          })
+          }
         )
       })
     }
@@ -1756,7 +1649,7 @@ export function GatewayChatSidebar({
       upsertApprovalEntry(approvalEntry)
       const metadata = objectValue(event.metadata)
       const runState = stringValue(metadata?.run_state)
-      if (event.event === "run_awaiting_human" || runState === "awaiting_human") {
+      if (event.event === "run.awaiting_human" || runState === "awaiting_human") {
         markAwaitingHuman(approvalEntry.runId)
       }
       return
@@ -1788,7 +1681,7 @@ export function GatewayChatSidebar({
       return
     }
 
-    if (event.event === "error" || event.event.endsWith("_error")) {
+    if (event.event === "run.failed") {
       const conversationId = identity.conversationId
       const errorMessage = formatSendErrorMessage(
         (event.content ?? "Gateway stream failed").trim()
@@ -1823,10 +1716,8 @@ export function GatewayChatSidebar({
     }
 
     if (
-      event.event === "completed" ||
-      event.event === "run_completed" ||
-      event.event === "cancelled" ||
-      event.event === "run_cancelled"
+      event.event === "run.completed" ||
+      event.event === "run.cancelled"
     ) {
       const conversationId = identity.conversationId
       if (conversationId) {
@@ -1950,8 +1841,6 @@ export function GatewayChatSidebar({
       recoveryInFlightRef.current = false
       resetTurnState()
 
-      const controller = new AbortController()
-      abortRef.current = controller
       activeStreamConversationIdRef.current = conversationId
       activeRunIdRef.current = runId ?? null
       updateStreamStatus("recovering")
@@ -1964,42 +1853,33 @@ export function GatewayChatSidebar({
       })
 
       try {
-        await subscribeConversationEvents(
-          accessToken,
+        const outcome = await runtimeControllerRef.current.connect(
           conversationId,
-          {
-            runId,
-            afterSeq,
-            signal: controller.signal,
-            onEnvelope: (envelope) => {
-              applyEnvelopeEvent(envelope)
-            },
-          }
+          runId ?? null,
+          afterSeq ?? null,
+          applyEnvelopeEvent,
+          (targetConversationId, targetRunId, cursor, signal, onEnvelope) =>
+            subscribeConversationEvents(accessToken, targetConversationId, {
+              runId: targetRunId,
+              afterSeq: cursor,
+              signal,
+              onEnvelope,
+            })
         )
 
-        if (!controller.signal.aborted) {
-          abortRef.current = null
-          if (!terminalEventSeenRef.current) {
-            updateStreamStatus("recovering")
-            setError(i18n.t("chat.gateway.streamCatchup"))
-            await recoverConversationEvents(conversationId, true)
-          }
-        }
-      } catch (resumeError) {
-        if (controller.signal.aborted) {
-          if (abortRef.current === controller) {
-            clearRecoveryTimer()
-            abortRef.current = null
-            activeStreamConversationIdRef.current = null
-            activeRunIdRef.current = null
-            updateStreamStatus("idle")
-          }
+        if (outcome === "aborted") {
+          clearRecoveryTimer()
+          activeStreamConversationIdRef.current = null
+          activeRunIdRef.current = null
+          updateStreamStatus("idle")
           return
         }
-
-        if (abortRef.current === controller) {
-          abortRef.current = null
+        if (!terminalEventSeenRef.current) {
+          updateStreamStatus("recovering")
+          setError(i18n.t("chat.gateway.streamCatchup"))
+          await recoverConversationEvents(conversationId, true)
         }
+      } catch (resumeError) {
         const message = reportChatError(
           resumeError,
           i18n.t("chat.gateway.reconnectFailed"),
@@ -2009,10 +1889,6 @@ export function GatewayChatSidebar({
         updateStreamStatus("recovering")
         setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
         await recoverConversationEvents(conversationId, true)
-      } finally {
-        if (abortRef.current === controller && !controller.signal.aborted) {
-          abortRef.current = null
-        }
       }
     }
   )
@@ -2029,6 +1905,11 @@ export function GatewayChatSidebar({
           "Ignoring gateway envelope without conversation/run identity",
           envelope
         )
+        return
+      }
+      const previousRuntime = runtimeStoreRef.current.get(identity.conversationId)
+      const nextRuntime = runtimeStoreRef.current.applyEvent(envelope.event)
+      if (!nextRuntime || nextRuntime === previousRuntime) {
         return
       }
       setConversationLastSeq(identity.conversationId, envelope.event.seq)
@@ -2055,17 +1936,6 @@ export function GatewayChatSidebar({
       if (conversationId) {
         void recoverConversationEvents(conversationId, true)
       }
-      return
-    }
-
-    if (envelope.type === "final") {
-      const fingerprint = getFinalFingerprint(envelope.result)
-      if (seenFinalRef.current.has(fingerprint)) {
-        return
-      }
-
-      seenFinalRef.current.add(fingerprint)
-      applyFinal(envelope.result)
       return
     }
 
@@ -2253,6 +2123,7 @@ export function GatewayChatSidebar({
   function startNewChat() {
     selectConversationTarget(null)
     abortRef.current?.abort()
+    runtimeControllerRef.current.disconnectAll()
     updateStreamStatus("idle")
     clearConversation()
   }
@@ -2263,6 +2134,7 @@ export function GatewayChatSidebar({
 
     if (!conversationId || !accessToken) {
       abortRef.current?.abort()
+      runtimeControllerRef.current.disconnectAll()
       return
     }
 

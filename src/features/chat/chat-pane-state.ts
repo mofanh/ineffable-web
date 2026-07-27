@@ -92,14 +92,6 @@ function getMetadataBoolean(
 }
 
 function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
-  const output = (event.content ?? "").trim().toLowerCase()
-  if (
-    output.includes('"status":"waiting"') ||
-    output.includes('"kind":"user_input"')
-  ) {
-    return "waiting"
-  }
-
   const metadataStatus =
     getMetadataValue(event.metadata, "status") ||
     getMetadataValue(event.metadata, "tool_status") ||
@@ -135,9 +127,6 @@ function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
     return "failed"
   }
 
-  if (output.startsWith("error:") || output.includes("\"success\":false")) {
-    return "failed"
-  }
   return "succeeded"
 }
 
@@ -543,19 +532,19 @@ export function buildToolView(
       null,
   }
 
-  if (event.event === "tool_call_start") {
+  if (event.event === "tool.call.started") {
     nextTool.status = "running"
-  } else if (event.event === "tool_call_delta") {
+  } else if (event.event === "tool.call.delta") {
     nextTool.status = "running"
     nextTool.input = appendChunk(
       nextTool.input,
       getMetadataValue(event.metadata, "arguments_delta") || event.content || ""
     )
-  } else if (event.event === "tool_call_done") {
+  } else if (event.event === "tool.call.completed") {
     nextTool.status = "running"
     nextTool.input =
       getMetadataValue(event.metadata, "full_arguments") || nextTool.input || event.content || ""
-  } else if (event.event === "tool_result") {
+  } else if (event.event === "tool.result") {
     nextTool.status = statusFromToolResult(event)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")
   }

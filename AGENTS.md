@@ -222,6 +222,20 @@ return (
 - 会话列表应展示运行中、等待操作、失败和完成未查看状态；后台刷新必须复用 in-flight 请求并保持有界频率。
 - 第一版只对当前会话维持实时展示，后台会话通过 conversation 列表刷新和 event cursor 补拉恢复，不维护无限 SSE 连接。
 
+## Agent Run 前端运行时
+
+- `runtime/conversation-run-reducer.ts` 只根据 canonical lifecycle event 更新业务状态；
+  transport EOF、断线和重连只能更新 connection state，不能生成 completed/failed。
+- `ChatRuntimeStore` 按 conversation 隔离 run、cursor、terminal 与连接状态；所有 live/replay
+  event 必须先通过 identity、run_id 和 seq 校验再进入 UI projector。
+- `ConversationRuntimeController` 只管理浏览器订阅和取消。切换会话调用 disconnect，不调用
+  后端 stop；用户显式 stop 仍针对指定 conversation。
+- `conversation-event-projector.ts` 是 assistant/tool/subagent 输出的唯一 live projector。
+  前端不解析 `tool=... call_id=...` 文本头，也不根据 tool output JSON 子串推断状态。
+- SSE byte parser 只能保留在 `src/lib/api/chat/sse-stream.ts`；feature API 复用该 parser。
+- product chat 只消费 v1 canonical event kind。legacy event 转换属于 gateway，不能重新放回
+  React 组件或前端 normalizer。
+
 ## 国际化
 
 - 用户可见文案必须通过 `i18next` 资源输出，不在 page、feature、app service 或 UI primitive 中新增硬编码业务文案。

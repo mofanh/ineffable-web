@@ -2,6 +2,7 @@ import {
   normalizeGatewayEnvelope,
   type GatewayChatStreamEnvelope,
 } from "@/lib/api/chat/gateway-events"
+import { parseSseStream } from "@/lib/api/chat/sse-stream"
 import type { AuthTokenSet } from "@/lib/api/auth-session-runtime"
 import {
   createApiError,
@@ -466,63 +467,6 @@ export type ResumeRunResponse = {
 
 function withRecoverableFlag(error: Error, recoverable: boolean) {
   return Object.assign(error, { recoverable })
-}
-
-async function parseSseStream(
-  response: Response,
-  onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
-) {
-  if (!response.body) {
-    throw new Error("Stream body is empty")
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
-
-  const flushEvent = (rawEvent: string) => {
-    const lines = rawEvent.split(/\r?\n/)
-    const dataLines = lines
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice(5).trimStart())
-
-    if (!dataLines.length) {
-      return
-    }
-
-    let parsed: unknown = dataLines.join("\n")
-    try {
-      parsed = JSON.parse(dataLines.join("\n")) as unknown
-    } catch {
-      parsed = dataLines.join("\n")
-    }
-
-    const envelope = normalizeGatewayEnvelope(parsed)
-    if (envelope) {
-      onEnvelope(envelope)
-    }
-  }
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) {
-      break
-    }
-
-    buffer += decoder.decode(value, { stream: true })
-    let separatorIndex = buffer.search(/\r?\n\r?\n/)
-    while (separatorIndex >= 0) {
-      const rawEvent = buffer.slice(0, separatorIndex)
-      buffer = buffer.slice(separatorIndex + (buffer[separatorIndex] === "\r" ? 4 : 2))
-      flushEvent(rawEvent)
-      separatorIndex = buffer.search(/\r?\n\r?\n/)
-    }
-  }
-
-  buffer += decoder.decode()
-  if (buffer.trim()) {
-    flushEvent(buffer)
-  }
 }
 
 export function registerUser(payload: {
@@ -1813,7 +1757,11 @@ export async function subscribeConversationEvents(
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
   try {
     if (contentType.includes("text/event-stream")) {
-      await parseSseStream(response, options.onEnvelope)
+      await parseSseStream(
+        response,
+        normalizeGatewayEnvelope,
+        options.onEnvelope
+      )
       return
     }
 
@@ -1867,7 +1815,11 @@ export async function streamConversationSend(
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
   try {
     if (contentType.includes("text/event-stream")) {
-      await parseSseStream(response, options.onEnvelope)
+      await parseSseStream(
+        response,
+        normalizeGatewayEnvelope,
+        options.onEnvelope
+      )
       return
     }
 

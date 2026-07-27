@@ -2,10 +2,7 @@ import {
   createEmptyAgentPane,
   hasAgentPaneContent,
 } from "@/features/chat/chat-pane-state"
-import type {
-  GatewayChatFinalResult,
-  GatewayChatStreamEvent,
-} from "@/lib/api/chat/gateway-events"
+import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import type { AssistantEntry, SubagentView } from "@/features/chat/gateway-chat-types"
 
 export const STORAGE_KEYS = {
@@ -81,44 +78,20 @@ export function getEventFingerprint(event: GatewayChatStreamEvent) {
   })
 }
 
-export function getFinalFingerprint(result: GatewayChatFinalResult) {
-  return JSON.stringify({
-    conversation_id: result.conversation_id ?? null,
-    run_id: result.run_id ?? null,
-    gateway_run_id: result.gateway_run_id ?? null,
-    output: result.output ?? null,
-    session_key: result.session_key ?? null,
-    agent_id: result.agent_id ?? null,
-  })
-}
-
-export function isSessionKeyEvent(eventName: string) {
-  return eventName === "session_key" || eventName.endsWith("session_key")
-}
-
-export function extractSessionKeyFromEvent(event: GatewayChatStreamEvent) {
-  const metadataSessionKey = getMetadataValue(event.metadata, "session_key")
-  if (metadataSessionKey) {
-    return metadataSessionKey
-  }
-
-  return (event.content ?? "").trim()
-}
-
 export function isTextDeltaEvent(eventName: string) {
-  return eventName === "text_delta" || eventName.endsWith("text_delta")
+  return eventName === "model.text.delta"
 }
 
 export function isReasoningEvent(eventName: string) {
-  return eventName === "reasoning_delta" || eventName.endsWith("reasoning_delta")
+  return eventName === "model.reasoning.delta"
 }
 
 export function isToolEvent(eventName: string) {
   return (
-    eventName === "tool_call_start" ||
-    eventName === "tool_call_delta" ||
-    eventName === "tool_call_done" ||
-    eventName === "tool_result"
+    eventName === "tool.call.started" ||
+    eventName === "tool.call.delta" ||
+    eventName === "tool.call.completed" ||
+    eventName === "tool.result"
   )
 }
 

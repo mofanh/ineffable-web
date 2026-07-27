@@ -33,7 +33,6 @@ import type {
   ConversationMessageRecord,
 } from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
-import { canonicalizeGatewayEvent } from "@/lib/api/chat/gateway-events"
 
 // History replay invariants:
 // 1. Replay must rebuild the same structural blocks the live SSE path produced.
@@ -81,7 +80,7 @@ export function applyEventToPaneState(
     return applyReasoningDeltaToPane(pane, content)
   }
 
-  if (eventName === "message") {
+  if (eventName === "assistant.snapshot") {
     return applyMessageToPane(pane, content)
   }
 
@@ -140,26 +139,26 @@ function buildHistoryEvent(
       ? { ...message.metadata_json }
       : null
 
-  let eventName = "message"
+  let eventName = "assistant.snapshot"
   let role = message.role
 
   if (message.message_type === "tool_call") {
-    eventName = "tool_call_done"
+    eventName = "tool.call.completed"
     role = "tool_call"
   } else if (message.message_type === "tool_result") {
-    eventName = "tool_result"
+    eventName = "tool.result"
     role = "tool"
   } else if (message.message_type === "output") {
-    eventName = "message"
+    eventName = "assistant.snapshot"
     role = "assistant"
   } else if (message.message_type === "system") {
-    eventName = "message"
+    eventName = "assistant.snapshot"
     role = "system"
   } else if (message.message_type !== "input") {
-    eventName = "message"
+    eventName = "assistant.snapshot"
   }
 
-  return canonicalizeGatewayEvent({
+  return {
     run_id: message.run_id ?? message.conversation_id,
     seq,
     ts_ms: Date.parse(message.created_at),
@@ -174,7 +173,7 @@ function buildHistoryEvent(
         ? stripInlineThinkBlocks(message.content)
         : message.content,
     metadata,
-  })
+  }
 }
 
 function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) {
@@ -252,12 +251,12 @@ function buildAssistantEntryFromMessages(
     ) {
       pane = applyEventToPaneState(
         pane,
-        canonicalizeGatewayEvent({
+        {
           run_id: message.run_id ?? message.conversation_id,
           seq: index * 2 + 1,
           ts_ms: Date.parse(message.created_at),
           stream: "history",
-          event: "reasoning_delta",
+          event: "model.reasoning.delta",
           phase: "history",
           scope:
             message.metadata_json &&
@@ -271,7 +270,7 @@ function buildAssistantEntryFromMessages(
             message.metadata_json && typeof message.metadata_json === "object"
               ? { ...message.metadata_json }
               : null,
-        })
+        }
       )
     }
 

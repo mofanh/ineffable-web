@@ -10,7 +10,7 @@ const event = {
   seq: 7,
   ts_ms: 1,
   stream: "chat",
-  event: "completed",
+  event: "run.completed",
   metadata: {
     conversation_id: "conversation-a",
     conversation_run_id: "product-run-a",

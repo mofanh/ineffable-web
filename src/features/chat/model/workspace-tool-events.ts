@@ -8,7 +8,7 @@ import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { dispatchWorkspaceObjectsChanged } from "@/lib/workspace-events"
 
 export function notifyWorkspaceToolResult(event: GatewayChatStreamEvent) {
-  if (event.event !== "tool_result") {
+  if (event.event !== "tool.result") {
     return
   }
 
