@@ -94,6 +94,7 @@ import {
   promotePendingInput,
   rejectSandboxApproval,
   resumeRunWithApproval,
+  resumeRunWithUserInput,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
@@ -188,6 +189,20 @@ function updateToolInPane(
       [toolId]: updater(tool),
     },
   }
+}
+
+function findToolInEntries(entries: ChatEntry[], toolId: string) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    if (entry.role !== "assistant") continue
+    const mainTool = entry.pane.tools[toolId]
+    if (mainTool) return mainTool
+    for (const subagentId of entry.subagentOrder) {
+      const subagentTool = entry.subagents[subagentId]?.tools[toolId]
+      if (subagentTool) return subagentTool
+    }
+  }
+  return null
 }
 
 function entryContentFingerprint(entry: ChatEntry) {
@@ -1611,6 +1626,39 @@ export function GatewayChatSidebar({
       return
     }
 
+    const resumedRunState = response.run_state?.trim().toLowerCase()
+    if (resumedRunState === "failed" || resumedRunState === "busy_rejected") {
+      const errorMessage = formatSendErrorMessage(
+        response.output?.trim() || i18n.t("chat.gateway.sendFailed")
+      )
+      setAwaitingHumanRunId(null)
+      terminalEventSeenRef.current = true
+      activeRunIdRef.current = null
+      updateStreamStatus("error")
+      setError(errorMessage)
+      updateAssistantEntry((entry) =>
+        entry
+          ? {
+              ...entry,
+              status: "error",
+              pane: finalizePane(entry.pane),
+            }
+          : null
+      )
+      appendSystemMessage(
+        i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
+      )
+      void refreshConversations().catch(() => {})
+      return
+    }
+    if (
+      resumedRunState === "awaiting_human" ||
+      resumedRunState === "suspended"
+    ) {
+      markAwaitingHuman(response.run_id ?? null)
+      return
+    }
+
     if (response.output?.trim()) {
       assistantEntryIdRef.current = null
       ensureAssistantEntry()
@@ -2301,7 +2349,12 @@ export function GatewayChatSidebar({
   }
 
   async function handleSubmitUserInput(response: AgentUserInputResponse) {
-    if (!accessToken) {
+    if (!accessToken || !currentWorkspace) {
+      throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
+    }
+
+    const pendingTool = findToolInEntries(entries, response.toolId)
+    if (!pendingTool || (!pendingTool.runId && !pendingTool.sessionKey)) {
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
 
@@ -2311,8 +2364,7 @@ export function GatewayChatSidebar({
         if (entry.role !== "assistant") return entry
         const pane = updateToolInPane(entry.pane, response.toolId, (tool) => ({
           ...tool,
-          status: "succeeded",
-          answer: response.input,
+          status: "running",
         }))
         const subagents = Object.fromEntries(
           entry.subagentOrder.map((subagentId) => {
@@ -2324,8 +2376,7 @@ export function GatewayChatSidebar({
                     ...subagent,
                     ...updateToolInPane(subagent, response.toolId, (tool) => ({
                       ...tool,
-                      status: "succeeded",
-                      answer: response.input,
+                      status: "running",
                     })),
                   }
                 : subagent,
@@ -2336,7 +2387,63 @@ export function GatewayChatSidebar({
       })
     )
 
-    await sendContentToApi(response.input)
+    try {
+      const resumed = await resumeRunWithUserInput(
+        accessToken,
+        currentWorkspace.id,
+        {
+          run_id: pendingTool.runId,
+          session_key: pendingTool.sessionKey,
+          need_id: response.toolId,
+          input: response.input,
+        }
+      )
+      applyResumeResponse(resumed)
+      setEntries((current) =>
+        current.map((entry) => {
+          if (entry.role !== "assistant") return entry
+          const pane = updateToolInPane(entry.pane, response.toolId, (tool) => ({
+            ...tool,
+            status: "succeeded",
+            answer: response.input,
+          }))
+          const subagents = Object.fromEntries(
+            entry.subagentOrder.map((subagentId) => {
+              const subagent = entry.subagents[subagentId]
+              return [
+                subagentId,
+                subagent
+                  ? {
+                      ...subagent,
+                      ...updateToolInPane(subagent, response.toolId, (tool) => ({
+                        ...tool,
+                        status: "succeeded",
+                        answer: response.input,
+                      })),
+                    }
+                  : subagent,
+              ]
+            })
+          ) as Record<string, SubagentView>
+          return { ...entry, pane, subagents }
+        })
+      )
+    } catch (submitError) {
+      setEntries((current) =>
+        current.map((entry) => {
+          if (entry.role !== "assistant") return entry
+          return {
+            ...entry,
+            pane: updateToolInPane(
+              entry.pane,
+              response.toolId,
+              (tool) => ({ ...tool, status: "failed" })
+            ),
+          }
+        })
+      )
+      throw submitError
+    }
   }
 
   // 普通输入始终交给后端裁决立即执行或入队；前端不再推断 run 是否活跃。

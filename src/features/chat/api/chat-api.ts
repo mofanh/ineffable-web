@@ -13,6 +13,7 @@ export {
   promotePendingInput,
   rejectSandboxApproval,
   resumeRunWithApproval,
+  resumeRunWithUserInput,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,

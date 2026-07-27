@@ -1712,6 +1712,32 @@ export function resumeRunWithApproval(
   })
 }
 
+export function resumeRunWithUserInput(
+  accessToken: string | null,
+  workspaceId: string | null,
+  payload: {
+    run_id?: string | null
+    session_key?: string | null
+    need_id: string
+    input: string
+  }
+) {
+  return requestApiJson<ResumeRunResponse>("/gateway/v1/runs/resume", {
+    method: "POST",
+    accessToken,
+    workspaceId,
+    body: {
+      run_id: payload.run_id,
+      session_key: payload.session_key,
+      resolution: {
+        kind: "user_input",
+        need_id: payload.need_id,
+        input: payload.input,
+      },
+    },
+  })
+}
+
 export async function getConversationEvents(
   accessToken: string,
   conversationId: string,
