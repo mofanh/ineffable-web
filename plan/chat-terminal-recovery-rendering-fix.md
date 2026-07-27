@@ -88,3 +88,31 @@
 
 自动验证已通过 `npm run lint` 与 `npm run build`；以上视觉验收项保留到部署后的
 MiniMax/DeepSeek 运行时回归。
+
+## Phase 5：新会话选择身份原子提交
+
+### 根因
+
+`startNewChat` 只更新 React Context 中的 `currentConversationId`，供异步发送与
+SSE 回调读取的 `currentConversationIdRef` 要等 effect 才同步。新建后立即输入时，
+发送目标可能仍读取前一个会话 ID；创建接口返回后也存在 state 已切换而 ref 尚未
+更新的窗口。
+
+### 实施
+
+- [x] 会话选择先同步更新 ref，再提交 Context state。
+- [x] 新建空会话、列表切换和创建会话成功统一使用同一选择入口。
+- [x] runtime 契约检查覆盖清空和绑定新会话时的同步可见性。
+
+### 自动验收
+
+- [x] `npm run check:chat-runtime`
+- [x] `npm run check:chat-resume`
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
+
+### 运行时验收
+
+- [ ] 在旧会话打开时点击新建，立即输入并发送，消息只显示在新会话。
+- [ ] 新会话创建后切回旧会话，两边历史与 live run 均保持独立。

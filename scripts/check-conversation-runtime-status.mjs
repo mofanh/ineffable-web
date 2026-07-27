@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 
 const {
   findNewlyTerminalConversationIds,
@@ -7,6 +8,9 @@ const {
   getConversationRuntimeStatus,
   observeConversationRuns,
 } = await import("../src/features/chat/model/conversation-runtime-status.ts")
+const {
+  commitConversationSelection,
+} = await import("../src/features/chat/model/conversation-selection.ts")
 
 function conversation(id, run) {
   return {
@@ -79,5 +83,53 @@ assert.deepEqual(getLiveRunResumeCursor("run-a", "run-stale", 12), {
   afterSeq: null,
 })
 assert.equal(getLiveRunResumeCursor(null, "run-stale", 12), null)
+
+const selectionRef = { current: "conversation-old" }
+let selectedConversationId = "conversation-old"
+let refObservedBySelector = null
+commitConversationSelection(
+  selectionRef,
+  (conversationId) => {
+    refObservedBySelector = selectionRef.current
+    selectedConversationId = conversationId
+  },
+  null
+)
+assert.equal(selectionRef.current, null)
+assert.equal(refObservedBySelector, null)
+assert.equal(selectedConversationId, null)
+
+commitConversationSelection(
+  selectionRef,
+  (conversationId) => {
+    refObservedBySelector = selectionRef.current
+    selectedConversationId = conversationId
+  },
+  "conversation-new"
+)
+assert.equal(selectionRef.current, "conversation-new")
+assert.equal(refObservedBySelector, "conversation-new")
+assert.equal(selectedConversationId, "conversation-new")
+
+const sidebarSource = readFileSync(
+  new URL(
+    "../src/features/chat/gateway-chat-sidebar.tsx",
+    import.meta.url
+  ),
+  "utf8"
+)
+assert.match(sidebarSource, /selectConversationTarget\(null\)/)
+assert.match(
+  sidebarSource,
+  /selectConversationTarget\(targetConversationId\)/
+)
+assert.match(
+  sidebarSource,
+  /onSelectConversation=\{selectConversationTarget\}/
+)
+assert.doesNotMatch(
+  sidebarSource,
+  /onSelectConversation=\{selectConversation\}/
+)
 
 console.log("conversation runtime status checks passed")

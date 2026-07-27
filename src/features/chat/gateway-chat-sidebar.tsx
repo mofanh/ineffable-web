@@ -79,6 +79,7 @@ import {
   observeConversationRuns,
   type ConversationRunObservation,
 } from "@/features/chat/model/conversation-runtime-status"
+import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { useAppSession } from "@/features/auth/app-session"
 import {
@@ -370,6 +371,17 @@ export function GatewayChatSidebar({
   const [isSubmittingInput, setIsSubmittingInput] = React.useState(false)
   const [unreadConversationIds, setUnreadConversationIds] = React.useState(
     () => new Set<string>()
+  )
+
+  const selectConversationTarget = React.useCallback(
+    (conversationId: string | null) => {
+      commitConversationSelection(
+        currentConversationIdRef,
+        selectConversation,
+        conversationId
+      )
+    },
+    [selectConversation]
   )
 
   const refreshPendingInputsForConversation = React.useCallback(
@@ -2177,9 +2189,9 @@ export function GatewayChatSidebar({
   }
 
   function startNewChat() {
+    selectConversationTarget(null)
     abortRef.current?.abort()
     updateStreamStatus("idle")
-    selectConversation(null)
     clearConversation()
   }
 
@@ -2392,6 +2404,7 @@ export function GatewayChatSidebar({
       try {
         const createdConversation = await createConversation(buildConversationTitle(content))
         targetConversationId = createdConversation.id
+        selectConversationTarget(targetConversationId)
         skipNextConversationSyncRef.current = targetConversationId
         if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
           window.localStorage.setItem(
@@ -2729,7 +2742,7 @@ export function GatewayChatSidebar({
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
         conversations={headerConversations}
-        onSelectConversation={selectConversation}
+        onSelectConversation={selectConversationTarget}
         onRefreshConversations={handleRefreshConversationList}
         onStartNewChat={startNewChat}
         isFullScreen={isFullScreen}
