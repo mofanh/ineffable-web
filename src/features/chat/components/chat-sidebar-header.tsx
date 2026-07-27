@@ -129,12 +129,14 @@ function runtimeStatusBadge(status: ConversationRuntimeStatus) {
   const labels: Record<ConversationRuntimeStatus, string> = {
     running: i18n.t("chat.header.status.running"),
     awaiting_human: i18n.t("chat.header.status.awaitingHuman"),
+    suspended: i18n.t("chat.header.status.suspended"),
     completed_unread: i18n.t("chat.header.status.completedUnread"),
     failed: i18n.t("chat.header.status.failed"),
   }
   const tones: Record<ConversationRuntimeStatus, StatusBadgeTone> = {
     running: "warning",
     awaiting_human: "warning",
+    suspended: "neutral",
     completed_unread: "success",
     failed: "danger",
   }

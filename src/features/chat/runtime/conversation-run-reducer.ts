@@ -5,6 +5,7 @@ export type RunLifecycle =
   | "idle"
   | "running"
   | "awaiting_human"
+  | "suspended"
   | "completed"
   | "failed"
   | "cancelled"
@@ -56,8 +57,9 @@ function lifecycleFromEvent(
     case "run.resumed":
       return "running"
     case "run.awaiting_human":
-    case "run.suspended":
       return "awaiting_human"
+    case "run.suspended":
+      return "suspended"
     case "run.completed":
       return "completed"
     case "run.failed":
@@ -144,7 +146,9 @@ export function reduceConversationRunRuntime(
     runId: identity.runId,
     lifecycle: nextLifecycle,
     connection:
-      terminal || nextLifecycle === "awaiting_human"
+      terminal ||
+      nextLifecycle === "awaiting_human" ||
+      nextLifecycle === "suspended"
         ? "closed"
         : state.connection,
     lastSeq: Math.floor(seq),

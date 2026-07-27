@@ -1446,6 +1446,17 @@ export function GatewayChatSidebar({
       markAwaitingHuman(runId)
       return true
     }
+    if (lifecycle === "suspended") {
+      recoveryInFlightRef.current = false
+      clearRecoveryTimer()
+      activeStreamConversationIdRef.current = null
+      activeRunIdRef.current = null
+      setAwaitingHumanRunId(null)
+      completeAssistantEntry()
+      assistantEntryIdRef.current = null
+      updateStreamStatus("idle")
+      return true
+    }
     if (lifecycle === "failed") {
       terminalEventSeenRef.current = true
       recoveryInFlightRef.current = false
@@ -1560,11 +1571,17 @@ export function GatewayChatSidebar({
       void refreshConversations().catch(() => {})
       return
     }
-    if (
-      resumedRunState === "awaiting_human" ||
-      resumedRunState === "suspended"
-    ) {
+    if (resumedRunState === "awaiting_human") {
       markAwaitingHuman(response.run_id ?? null)
+      return
+    }
+    if (resumedRunState === "suspended") {
+      setAwaitingHumanRunId(null)
+      recoveryInFlightRef.current = false
+      clearRecoveryTimer()
+      activeRunIdRef.current = null
+      updateStreamStatus("idle")
+      void refreshConversations().catch(() => {})
       return
     }
 

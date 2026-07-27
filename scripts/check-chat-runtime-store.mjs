@@ -44,6 +44,14 @@ assert.equal(
   "transport EOF must not create a business terminal state"
 )
 
+const suspended = reduceConversationRunRuntime(afterTransportClose, {
+  type: "event",
+  event: event("conversation-a", "run-a", 2, "run.suspended"),
+})
+assert.equal(suspended.lifecycle, "suspended")
+assert.equal(suspended.terminalEventSeen, false)
+assert.equal(suspended.connection, "closed")
+
 const afterOutOfOrder = reduceConversationRunRuntime(afterTransportClose, {
   type: "event",
   event: event("conversation-a", "run-a", 1, "run.completed"),

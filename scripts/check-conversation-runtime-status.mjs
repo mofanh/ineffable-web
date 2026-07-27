@@ -41,11 +41,17 @@ const awaiting = conversation(
   run("run-b", "awaiting_human", false)
 )
 const failed = conversation("conversation-c", run("run-c", "failed", false))
+const suspended = conversation(
+  "conversation-d",
+  run("run-d", "suspended", false)
+)
 
 assert.equal(getConversationRunLifecycle(active), "active")
 assert.equal(getConversationRuntimeStatus(active, false), "running")
 assert.equal(getConversationRuntimeStatus(awaiting, false), "awaiting_human")
 assert.equal(getConversationRuntimeStatus(failed, false), "failed")
+assert.equal(getConversationRunLifecycle(suspended), "suspended")
+assert.equal(getConversationRuntimeStatus(suspended, false), "suspended")
 
 const previous = observeConversationRuns([active, awaiting])
 const completedA = conversation(

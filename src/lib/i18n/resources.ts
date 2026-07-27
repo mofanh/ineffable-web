@@ -463,6 +463,7 @@ export const resources = {
           status: {
             running: "运行中",
             awaitingHuman: "等待操作",
+            suspended: "已暂停",
             completedUnread: "已完成",
             failed: "失败",
           },
@@ -1866,6 +1867,7 @@ export const resources = {
           status: {
             running: "Running",
             awaitingHuman: "Needs input",
+            suspended: "Paused",
             completedUnread: "Completed",
             failed: "Failed",
           },

@@ -3,12 +3,14 @@ import type { Conversation } from "@/lib/api/api-client"
 export type ConversationRuntimeStatus =
   | "running"
   | "awaiting_human"
+  | "suspended"
   | "completed_unread"
   | "failed"
 
 export type ConversationRunLifecycle =
   | "active"
   | "awaiting_human"
+  | "suspended"
   | "completed"
   | "failed"
   | "idle"
@@ -34,7 +36,8 @@ export function getLiveRunResumeCursor(
   }
 }
 
-const AWAITING_HUMAN_STATUSES = new Set(["awaiting_human", "suspended"])
+const AWAITING_HUMAN_STATUSES = new Set(["awaiting_human"])
+const SUSPENDED_STATUSES = new Set(["suspended"])
 const FAILED_STATUSES = new Set(["error", "failed"])
 const COMPLETED_STATUSES = new Set(["cancelled", "completed", "succeeded"])
 
@@ -52,6 +55,9 @@ export function getConversationRunLifecycle(
   }
   if (AWAITING_HUMAN_STATUSES.has(status)) {
     return "awaiting_human"
+  }
+  if (SUSPENDED_STATUSES.has(status)) {
+    return "suspended"
   }
   if (FAILED_STATUSES.has(status)) {
     return "failed"
@@ -102,7 +108,9 @@ export function findNewlyTerminalConversationIds(
 
     const after = getConversationRunLifecycle(conversation)
     const wasInProgress =
-      before.lifecycle === "active" || before.lifecycle === "awaiting_human"
+      before.lifecycle === "active" ||
+      before.lifecycle === "awaiting_human" ||
+      before.lifecycle === "suspended"
     const isTerminal = after === "completed" || after === "failed"
     return wasInProgress && isTerminal ? [conversation.id] : []
   })
@@ -118,6 +126,9 @@ export function getConversationRuntimeStatus(
   }
   if (lifecycle === "awaiting_human") {
     return "awaiting_human"
+  }
+  if (lifecycle === "suspended") {
+    return "suspended"
   }
   if (lifecycle === "failed") {
     return "failed"
