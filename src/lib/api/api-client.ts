@@ -459,6 +459,7 @@ export type ResumeRunResponse = {
   run_id?: string | null
   run_state?: string | null
   pending_need?: Record<string, unknown> | null
+  checkpoint?: Record<string, unknown> | null
   resumable?: boolean | null
   forward_messages?: import("@/lib/api/chat/gateway-events").GatewayForwardMessage[]
 }
@@ -1703,6 +1704,7 @@ export function resumeRunWithApproval(
     body: {
       run_id: payload.run_id,
       session_key: payload.session_key,
+      idempotency_key: `approval:${payload.run_id ?? payload.session_key ?? "unknown"}:${payload.need_id}:${payload.approved}`,
       resolution: {
         kind: "approval",
         need_id: payload.need_id,
@@ -1729,6 +1731,7 @@ export function resumeRunWithUserInput(
     body: {
       run_id: payload.run_id,
       session_key: payload.session_key,
+      idempotency_key: `user_input:${payload.run_id ?? payload.session_key ?? "unknown"}:${payload.need_id}`,
       resolution: {
         kind: "user_input",
         need_id: payload.need_id,

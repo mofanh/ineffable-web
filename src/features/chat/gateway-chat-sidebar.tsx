@@ -79,6 +79,10 @@ import {
   observeConversationRuns,
   type ConversationRunObservation,
 } from "@/features/chat/model/conversation-runtime-status"
+import {
+  eventBelongsToConversation,
+  getConversationEventIdentity,
+} from "@/features/chat/model/conversation-event-routing"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { useAppSession } from "@/features/auth/app-session"
@@ -1567,9 +1571,17 @@ export function GatewayChatSidebar({
     }
   }
 
-  function applyResumeResponse(response: ResumeRunResponse) {
+  function applyResumeResponse(
+    response: ResumeRunResponse,
+    conversationId: string
+  ) {
+    if (currentConversationIdRef.current !== conversationId) {
+      void refreshConversations().catch(() => {})
+      return
+    }
     if (Array.isArray(response.forward_messages)) {
       response.forward_messages.forEach((message, index) => {
+        const messageMetadata = objectValue(message.metadata)
         applyEvent(
           canonicalizeGatewayEvent({
             run_id: response.run_id ?? undefined,
@@ -1582,7 +1594,11 @@ export function GatewayChatSidebar({
               typeof message.scope === "string" ? message.scope : "main",
             role: typeof message.role === "string" ? message.role : "assistant",
             content: message.content,
-            metadata: message.metadata ?? null,
+            metadata: {
+              ...(messageMetadata ?? {}),
+              conversation_id: conversationId,
+              conversation_run_id: response.run_id,
+            },
           })
         )
       })
@@ -1669,23 +1685,35 @@ export function GatewayChatSidebar({
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
-    activeStreamConversationIdRef.current = null
-    activeRunIdRef.current = null
-    if (currentConversationIdRef.current) {
-      clearConversationResumeState(currentConversationIdRef.current)
+    if (activeStreamConversationIdRef.current === conversationId) {
+      activeStreamConversationIdRef.current = null
     }
+    if (!response.run_id || activeRunIdRef.current === response.run_id) {
+      activeRunIdRef.current = null
+    }
+    clearConversationResumeState(conversationId)
     setError(null)
     updateStreamStatus("completed")
-    if (currentConversationIdRef.current) {
-      void Promise.all([
-        refreshConversations(),
-        syncLatestConversationMessagesPage(currentConversationIdRef.current),
-        refreshPendingInputsForConversation(currentConversationIdRef.current),
-      ])
-    }
+    void Promise.all([
+      refreshConversations(),
+      syncLatestConversationMessagesPage(conversationId),
+      refreshPendingInputsForConversation(conversationId),
+    ])
   }
 
   function applyEvent(event: GatewayChatStreamEvent) {
+    const identity = getConversationEventIdentity(event)
+    if (!identity) {
+      console.warn("Ignoring gateway event without conversation/run identity", event)
+      return
+    }
+    if (
+      !eventBelongsToConversation(event, currentConversationIdRef.current)
+    ) {
+      void refreshConversations().catch(() => {})
+      return
+    }
+
     // ── Pending Input 事件 ──
     if (event.event === "pending_input_queued") {
       const content = parsePendingInputContent(event)
@@ -1761,15 +1789,18 @@ export function GatewayChatSidebar({
     }
 
     if (event.event === "error" || event.event.endsWith("_error")) {
-      const conversationId =
-        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      const conversationId = identity.conversationId
       const errorMessage = formatSendErrorMessage(
         (event.content ?? "Gateway stream failed").trim()
       )
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
-      activeStreamConversationIdRef.current = null
-      activeRunIdRef.current = null
+      if (activeStreamConversationIdRef.current === conversationId) {
+        activeStreamConversationIdRef.current = null
+      }
+      if (activeRunIdRef.current === identity.runId) {
+        activeRunIdRef.current = null
+      }
       if (conversationId) {
         clearConversationResumeState(conversationId)
       }
@@ -1797,8 +1828,7 @@ export function GatewayChatSidebar({
       event.event === "cancelled" ||
       event.event === "run_cancelled"
     ) {
-      const conversationId =
-        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      const conversationId = identity.conversationId
       if (conversationId) {
         finalizeConversationTurn(conversationId)
       } else {
@@ -1992,55 +2022,39 @@ export function GatewayChatSidebar({
       return
     }
 
-    const conversationId =
-      activeStreamConversationIdRef.current ?? currentConversationIdRef.current
-
-    if (
-      envelope.type === "event" &&
-      typeof envelope.event.run_id === "string" &&
-      envelope.event.run_id.trim()
-    ) {
-      bindActiveAssistantRun(envelope.event.run_id)
-    }
-
-    if (
-      conversationId &&
-      envelope.type === "event" &&
-      typeof envelope.event.seq === "number"
-    ) {
-      setConversationLastSeq(conversationId, envelope.event.seq)
-    }
-
-    if (conversationId && envelope.type === "event") {
+    if (envelope.type === "event") {
+      const identity = getConversationEventIdentity(envelope.event)
+      if (!identity) {
+        console.warn(
+          "Ignoring gateway envelope without conversation/run identity",
+          envelope
+        )
+        return
+      }
+      setConversationLastSeq(identity.conversationId, envelope.event.seq)
       persistResumeState({
-        conversationId,
-        runId: activeRunIdRef.current,
-        afterSeq:
-          typeof envelope.event.seq === "number"
-            ? envelope.event.seq
-            : conversationSeqRef.current.get(conversationId) ?? null,
+        conversationId: identity.conversationId,
+        runId: identity.runId,
+        afterSeq: envelope.event.seq,
       })
+      if (currentConversationIdRef.current !== identity.conversationId) {
+        void refreshConversations().catch(() => {})
+        return
+      }
+      bindActiveAssistantRun(identity.runId)
     }
 
     if (envelope.type === "error") {
       const errorMessage = formatSendErrorMessage(envelope.error)
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
-      activeStreamConversationIdRef.current = null
-      updateStreamStatus("error")
+      updateStreamStatus("recovering")
       setError(errorMessage)
-      updateAssistantEntry((entry) =>
-        entry
-          ? {
-              ...entry,
-              status: "error",
-              pane: finalizePane(entry.pane),
-            }
-          : null
-      )
-      appendSystemMessage(
-        i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
-      )
+      const conversationId =
+        activeStreamConversationIdRef.current ?? currentConversationIdRef.current
+      if (conversationId) {
+        void recoverConversationEvents(conversationId, true)
+      }
       return
     }
 
@@ -2318,6 +2332,10 @@ export function GatewayChatSidebar({
         return
       }
 
+      const targetConversationId = currentConversationIdRef.current
+      if (!targetConversationId) {
+        throw new Error(i18n.t("chat.gateway.approvalFailed"))
+      }
       const resumed = await resumeRunWithApproval(
         accessToken,
         currentWorkspace.id,
@@ -2328,7 +2346,7 @@ export function GatewayChatSidebar({
           approved,
         }
       )
-      applyResumeResponse(resumed)
+      applyResumeResponse(resumed, targetConversationId)
     } catch (approvalError) {
       const message = reportChatError(
         approvalError,
@@ -2387,6 +2405,10 @@ export function GatewayChatSidebar({
       })
     )
 
+    const targetConversationId = currentConversationIdRef.current
+    if (!targetConversationId) {
+      throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
+    }
     try {
       const resumed = await resumeRunWithUserInput(
         accessToken,
@@ -2398,7 +2420,7 @@ export function GatewayChatSidebar({
           input: response.input,
         }
       )
-      applyResumeResponse(resumed)
+      applyResumeResponse(resumed, targetConversationId)
       setEntries((current) =>
         current.map((entry) => {
           if (entry.role !== "assistant") return entry
