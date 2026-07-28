@@ -16,6 +16,10 @@ import {
   listConversations,
   type Conversation,
 } from "@/features/chat/api/chat-api"
+import {
+  reconcileConversationSelection,
+  shouldApplyConversationListRefresh,
+} from "@/features/chat/model/conversation-selection"
 import { type Workspace } from "@/features/workspace/api/workspace-api"
 import { defaultPath } from "@/routes/navigation"
 import { i18n } from "@/lib/i18n/i18n"
@@ -79,6 +83,7 @@ const STORAGE_KEYS = {
   sessionId: "ineffable.auth.session_id",
   workspaceId: "ineffable.auth.workspace_id",
   conversationId: "ineffable.chat.conversation_id",
+  newConversationDraft: "ineffable.chat.new_conversation_draft",
 }
 const AUTH_REFRESH_LOCK_NAME = "ineffable.auth.refresh"
 
@@ -189,6 +194,8 @@ export function AppSessionProvider({
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
   const refreshAppDataPromiseRef = React.useRef<Promise<void> | null>(null)
   const initialBootstrapStartedRef = React.useRef(false)
+  const conversationSelectionVersionRef = React.useRef(0)
+  const conversationRefreshRequestRef = React.useRef(0)
 
   const clearSession = React.useCallback(() => {
     clearApiResourceCache()
@@ -209,6 +216,7 @@ export function AppSessionProvider({
     writeStorage(STORAGE_KEYS.sessionId, null)
     writeStorage(STORAGE_KEYS.workspaceId, null)
     writeStorage(STORAGE_KEYS.conversationId, null)
+    writeStorage(STORAGE_KEYS.newConversationDraft, null)
   }, [])
 
   const persistTokens = React.useCallback(
@@ -251,6 +259,9 @@ export function AppSessionProvider({
       tokenOverride?: string | null,
     ) => {
       const token = tokenOverride ?? accessToken
+      const requestId = ++conversationRefreshRequestRef.current
+      const selectionVersionAtRequest =
+        conversationSelectionVersionRef.current
 
       if (!token) {
         setConversations([])
@@ -263,13 +274,27 @@ export function AppSessionProvider({
         limit: 100,
         offset: 0,
       })
+      if (
+        !shouldApplyConversationListRefresh({
+          requestId,
+          latestRequestId: conversationRefreshRequestRef.current,
+          selectionVersionAtRequest,
+          currentSelectionVersion: conversationSelectionVersionRef.current,
+        })
+      ) {
+        return
+      }
 
       setConversations(response.conversations)
       setCurrentConversationId((current) => {
-        const nextId =
-          current && response.conversations.some((item) => item.id === current)
-            ? current
-            : (response.conversations[0]?.id ?? null)
+        const nextId = reconcileConversationSelection({
+          currentConversationId: current,
+          availableConversationIds: response.conversations.map(
+            (conversation) => conversation.id,
+          ),
+          preserveNewConversationDraft:
+            readStorage(STORAGE_KEYS.newConversationDraft) === "true",
+        })
         writeStorage(STORAGE_KEYS.conversationId, nextId)
         return nextId
       })
@@ -492,8 +517,10 @@ export function AppSessionProvider({
         ]
         return next
       })
+      conversationSelectionVersionRef.current += 1
       setCurrentConversationId(conversation.id)
       writeStorage(STORAGE_KEYS.conversationId, conversation.id)
+      writeStorage(STORAGE_KEYS.newConversationDraft, null)
       return conversation
     },
     [accessToken],
@@ -501,8 +528,13 @@ export function AppSessionProvider({
 
   const selectConversation = React.useCallback(
     (conversationId: string | null) => {
+      conversationSelectionVersionRef.current += 1
       setCurrentConversationId(conversationId)
       writeStorage(STORAGE_KEYS.conversationId, conversationId)
+      writeStorage(
+        STORAGE_KEYS.newConversationDraft,
+        conversationId == null ? "true" : null,
+      )
     },
     [],
   )

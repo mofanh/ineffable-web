@@ -10,6 +10,8 @@ const {
 } = await import("../src/features/chat/model/conversation-runtime-status.ts")
 const {
   commitConversationSelection,
+  reconcileConversationSelection,
+  shouldApplyConversationListRefresh,
 } = await import("../src/features/chat/model/conversation-selection.ts")
 const {
   shouldApplyConversationProjection,
@@ -37,6 +39,63 @@ function run(id, status, isLive) {
     is_live: isLive,
   }
 }
+
+assert.equal(
+  reconcileConversationSelection({
+    currentConversationId: null,
+    availableConversationIds: ["conversation-a"],
+    preserveNewConversationDraft: true,
+  }),
+  null,
+  "a background list refresh must not replace an explicit new-conversation draft",
+)
+assert.equal(
+  reconcileConversationSelection({
+    currentConversationId: null,
+    availableConversationIds: ["conversation-a"],
+    preserveNewConversationDraft: false,
+  }),
+  "conversation-a",
+  "initial hydration may select the latest available conversation",
+)
+assert.equal(
+  reconcileConversationSelection({
+    currentConversationId: "conversation-b",
+    availableConversationIds: ["conversation-a"],
+    preserveNewConversationDraft: false,
+  }),
+  "conversation-a",
+  "an unavailable persisted conversation should fall back to an available one",
+)
+assert.equal(
+  shouldApplyConversationListRefresh({
+    requestId: 1,
+    latestRequestId: 1,
+    selectionVersionAtRequest: 3,
+    currentSelectionVersion: 4,
+  }),
+  false,
+  "a list response started before entering a new draft must be discarded",
+)
+assert.equal(
+  shouldApplyConversationListRefresh({
+    requestId: 1,
+    latestRequestId: 2,
+    selectionVersionAtRequest: 4,
+    currentSelectionVersion: 4,
+  }),
+  false,
+  "an older list response must not overwrite a newer refresh",
+)
+assert.equal(
+  shouldApplyConversationListRefresh({
+    requestId: 2,
+    latestRequestId: 2,
+    selectionVersionAtRequest: 4,
+    currentSelectionVersion: 4,
+  }),
+  true,
+)
 
 assert.equal(
   shouldApplyConversationProjection({
