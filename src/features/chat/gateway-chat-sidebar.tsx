@@ -70,6 +70,7 @@ import {
   eventBelongsToConversation,
   getConversationEventIdentity,
 } from "@/features/chat/model/conversation-event-routing"
+import { shouldApplyConversationProjection } from "@/features/chat/model/conversation-projection"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { projectConversationOutputEvent } from "@/features/chat/runtime/conversation-event-projector"
@@ -354,6 +355,7 @@ export function GatewayChatSidebar({
   const hydratedConversationIdRef = React.useRef<string | null>(hydratedConversationId)
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
+  const messageProjectionRequestRef = React.useRef(0)
   const seenEventRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
@@ -1063,7 +1065,14 @@ export function GatewayChatSidebar({
         return
       }
 
-      setIsLoadingMessages(true)
+      const projectsCurrentConversation =
+        currentConversationIdRef.current === conversationId
+      const projectionRequestId = projectsCurrentConversation
+        ? ++messageProjectionRequestRef.current
+        : null
+      if (projectionRequestId != null) {
+        setIsLoadingMessages(true)
+      }
 
       try {
         const response = await getConversationMessages(
@@ -1072,6 +1081,17 @@ export function GatewayChatSidebar({
           { limit: CONVERSATION_MESSAGES_PAGE_LIMIT }
         )
         const latestEntries = mapConversationMessagesToEntries(response.messages)
+        setConversationLastSeq(conversationId, response.next_seq ?? 0)
+        if (
+          !shouldApplyConversationProjection({
+            conversationId,
+            selectedConversationId: currentConversationIdRef.current,
+            requestId: projectionRequestId,
+            latestRequestId: messageProjectionRequestRef.current,
+          })
+        ) {
+          return
+        }
         const shouldReplaceTranscript =
           hydratedConversationIdRef.current !== conversationId ||
           entriesRef.current.length === 0
@@ -1089,21 +1109,39 @@ export function GatewayChatSidebar({
           setOlderMessagesCursor(response.page?.before ?? null)
           setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
         }
-        setConversationLastSeq(conversationId, response.next_seq ?? 0)
         setHydratedConversationId(conversationId)
         setOlderMessagesError(null)
         setError(null)
       } catch (error) {
-        setHydratedConversationId(null)
+        if (
+          shouldApplyConversationProjection({
+            conversationId,
+            selectedConversationId: currentConversationIdRef.current,
+            requestId: projectionRequestId,
+            latestRequestId: messageProjectionRequestRef.current,
+          })
+        ) {
+          setHydratedConversationId(null)
+        }
         throw error
       } finally {
-        setIsLoadingMessages(false)
+        if (
+          shouldApplyConversationProjection({
+            conversationId,
+            selectedConversationId: currentConversationIdRef.current,
+            requestId: projectionRequestId,
+            latestRequestId: messageProjectionRequestRef.current,
+          })
+        ) {
+          setIsLoadingMessages(false)
+        }
       }
     },
     [accessToken, setConversationLastSeq]
   )
 
   React.useEffect(() => {
+    messageProjectionRequestRef.current += 1
     if (
       currentConversationId &&
       skipNextConversationSyncRef.current === currentConversationId
@@ -2117,7 +2155,10 @@ export function GatewayChatSidebar({
   ])
 
   function clearConversation() {
+    messageProjectionRequestRef.current += 1
     setEntries([])
+    setHydratedConversationId(null)
+    setIsLoadingMessages(false)
     setAwaitingHumanRunId(null)
     setError(null)
     setIsSubmittingInput(false)
@@ -2422,8 +2463,10 @@ export function GatewayChatSidebar({
       try {
         const createdConversation = await createConversation(buildConversationTitle(content))
         targetConversationId = createdConversation.id
-        selectConversationTarget(targetConversationId)
         skipNextConversationSyncRef.current = targetConversationId
+        clearConversation()
+        setIsSubmittingInput(true)
+        selectConversationTarget(targetConversationId)
         if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
           window.localStorage.setItem(
             sandboxStorageKey(targetConversationId),

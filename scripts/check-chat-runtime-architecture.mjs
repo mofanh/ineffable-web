@@ -25,6 +25,12 @@ assert.doesNotMatch(
 assert.match(sidebar, /new ConversationRuntimeController/)
 assert.match(sidebar, /runtimeStoreRef\.current\.applyEvent/)
 assert.match(sidebar, /projectConversationOutputEvent/)
+assert.match(sidebar, /messageProjectionRequestRef/)
+assert.match(sidebar, /shouldApplyConversationProjection/)
+assert.match(
+  sidebar,
+  /clearConversation\(\)[\s\S]*selectConversationTarget\(targetConversationId\)/
+)
 assert.match(projector, /"assistant\.snapshot"/)
 assert.match(projector, /"subagent\.completed"/)
 

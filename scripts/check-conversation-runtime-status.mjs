@@ -11,6 +11,9 @@ const {
 const {
   commitConversationSelection,
 } = await import("../src/features/chat/model/conversation-selection.ts")
+const {
+  shouldApplyConversationProjection,
+} = await import("../src/features/chat/model/conversation-projection.ts")
 
 function conversation(id, run) {
   return {
@@ -34,6 +37,36 @@ function run(id, status, isLive) {
     is_live: isLive,
   }
 }
+
+assert.equal(
+  shouldApplyConversationProjection({
+    conversationId: "old",
+    selectedConversationId: "new",
+    requestId: 1,
+    latestRequestId: 2,
+  }),
+  false,
+  "a late response from the previous conversation must not replace the new transcript",
+)
+assert.equal(
+  shouldApplyConversationProjection({
+    conversationId: "new",
+    selectedConversationId: "new",
+    requestId: 1,
+    latestRequestId: 2,
+  }),
+  false,
+  "an older request for the same conversation must not replace a newer response",
+)
+assert.equal(
+  shouldApplyConversationProjection({
+    conversationId: "new",
+    selectedConversationId: "new",
+    requestId: 2,
+    latestRequestId: 2,
+  }),
+  true,
+)
 
 const active = conversation("conversation-a", run("run-a", "streaming", true))
 const awaiting = conversation(
