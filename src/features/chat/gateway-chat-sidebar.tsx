@@ -1799,6 +1799,14 @@ export function GatewayChatSidebar({
       return
     }
 
+    if (streamStatusRef.current === "recovering") {
+      // 恢复/追赶路径在收到首个真实业务事件（文本/推理/工具增量）时立即切换为
+      // 流式状态并清除“正在重新连接会话流”提示，避免 LLM 已开始输出时 banner
+      // 一直残留到 run 终态。run.failed/approval/user_input 等分支已提前返回。
+      updateStreamStatus("streaming")
+      setError(null)
+    }
+
     applyMainEvent(event)
   }
 
