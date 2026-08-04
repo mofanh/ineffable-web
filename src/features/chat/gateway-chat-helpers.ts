@@ -39,15 +39,50 @@ export function getMetadataValue(
   return typeof value === "string" ? value : ""
 }
 
+function firstToolCall(metadata: Record<string, unknown> | null | undefined) {
+  const toolCalls = metadata?.tool_calls
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    return null
+  }
+
+  const first = toolCalls[0]
+  return first && typeof first === "object" ? (first as Record<string, unknown>) : null
+}
+
 export function getToolCallId(event: GatewayChatStreamEvent) {
-  return (
-    getMetadataValue(event.metadata, "tool_call_id") ||
-    `${event.event}-${event.seq ?? Date.now()}`
-  )
+  const direct = getMetadataValue(event.metadata, "tool_call_id")
+  if (direct) {
+    return direct
+  }
+
+  const toolCalls = event.metadata?.tool_calls
+  if (Array.isArray(toolCalls) && toolCalls.length === 1) {
+    const callId = firstToolCall(event.metadata)?.id
+    if (typeof callId === "string" && callId) {
+      return callId
+    }
+  }
+
+  return `${event.event}-${event.seq ?? Date.now()}`
 }
 
 export function getToolName(event: GatewayChatStreamEvent) {
-  return getMetadataValue(event.metadata, "tool_name") || "unknown_tool"
+  const direct = getMetadataValue(event.metadata, "tool_name")
+  if (direct) {
+    return direct
+  }
+
+  const toolCalls = event.metadata?.tool_calls
+  if (Array.isArray(toolCalls) && toolCalls.length === 1) {
+    const name = firstToolCall(event.metadata)?.name
+    if (typeof name === "string" && name) {
+      return name
+    }
+  }
+
+  // Empty (not "unknown_tool") so buildToolView's `|| existing.name` keeps an
+  // already-resolved tool name from earlier tool events in the same lifecycle.
+  return ""
 }
 
 export function isSubScope(event: GatewayChatStreamEvent) {
