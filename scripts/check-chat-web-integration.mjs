@@ -21,9 +21,82 @@ import {
   WebNodeSeat,
 } from "../src/features/chat/components/web-node-registry.tsx"
 import { WEB_NODE_SCHEMA_VERSION } from "../src/features/chat/web-node.ts"
+import {
+  getToolCallSummary,
+  getToolCallTitle,
+} from "../src/features/chat/model/tool-call-presentation.ts"
+import { i18n } from "../src/lib/i18n/i18n.ts"
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
+
+const runningCommand = {
+  id: "tool-command",
+  name: "exec_command",
+  input: JSON.stringify({ command: "npm   run  build\n" }),
+  output: "",
+  status: "running",
+}
+assert.equal(getToolCallSummary(runningCommand), "npm run build")
+assert.equal(
+  getToolCallSummary({
+    ...runningCommand,
+    status: "succeeded",
+    output: JSON.stringify({ exit_code: 0, output: "build complete\nnext line" }),
+  }),
+  `${i18n.t("chat.agent.exitCode")} 0 · build complete next line`
+)
+assert.equal(
+  getToolCallSummary({
+    ...runningCommand,
+    status: "failed",
+    output: JSON.stringify({ error: "permission denied\nretry with access" }),
+  }),
+  "permission denied retry with access"
+)
+const fileRead = {
+  id: "tool-read",
+  name: "read_file",
+  input: JSON.stringify({ path: "src/app.ts" }),
+  output: JSON.stringify({ start_line: 1, end_line: 100 }),
+  status: "succeeded",
+}
+assert.match(getToolCallTitle(fileRead), /src\/app\.ts/)
+assert.equal(
+  getToolCallSummary(fileRead),
+  `${i18n.t("chat.agent.lineRange")} 1–100`
+)
+assert.equal(
+  getToolCallSummary({
+    id: "tool-unknown",
+    name: "unknown_tool",
+    input: "plain   streaming input",
+    output: "",
+    status: "running",
+  }),
+  "plain streaming input"
+)
+assert.equal(
+  getToolCallSummary({
+    id: "tool-search",
+    name: "web_search",
+    input: JSON.stringify({ query: "latest agent runtime" }),
+    output: "",
+    status: "running",
+  }),
+  "latest agent runtime"
+)
+assert.equal(
+  getToolCallSummary({
+    id: "tool-incomplete",
+    name: "exec_command",
+    input: '{"command":"npm run',
+    output: "",
+    status: "running",
+  }),
+  null,
+  "partial JSON must degrade safely until the canonical arguments are complete"
+)
 
 function event(seq, kind, content = null, metadata = {}, scope = "main") {
   return {

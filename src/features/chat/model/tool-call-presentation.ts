@@ -5,6 +5,98 @@ import {
 } from "@/features/chat/model/chat-parsing"
 import { i18n } from "@/lib/i18n/i18n"
 
+const TOOL_SUMMARY_MAX_LENGTH = 140
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function inlineSummary(value: string) {
+  const normalized = value
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!normalized) return null
+  return normalized.length <= TOOL_SUMMARY_MAX_LENGTH
+    ? normalized
+    : `${normalized.slice(0, TOOL_SUMMARY_MAX_LENGTH - 1).trimEnd()}…`
+}
+
+function firstString(
+  object: Record<string, unknown> | null,
+  keys: readonly string[]
+) {
+  for (const key of keys) {
+    const value = stringValue(object?.[key])
+    if (value.trim()) return value
+  }
+  return ""
+}
+
+function toolInputSummary(tool: ToolCallView) {
+  const input = parseJsonObject(tool.input)
+  const structured = firstString(input, [
+    "command",
+    "cmd",
+    "query",
+    "q",
+    "url",
+    "path",
+    "source_path",
+    "environment_id",
+  ])
+  if (structured) return inlineSummary(structured)
+
+  const raw = tool.input.trim()
+  return raw && !raw.startsWith("{") ? inlineSummary(raw) : null
+}
+
+function toolOutputSummary(tool: ToolCallView) {
+  const output = parseJsonObject(tool.output)
+  const nestedResult = output?.result
+  const result =
+    nestedResult && typeof nestedResult === "object" && !Array.isArray(nestedResult)
+      ? (nestedResult as Record<string, unknown>)
+      : output
+  const exitCode =
+    numberValue(result?.exit_code) ?? numberValue(result?.exitCode)
+  const startLine =
+    numberValue(result?.start_line) ?? numberValue(result?.startLine)
+  const endLine = numberValue(result?.end_line) ?? numberValue(result?.endLine)
+
+  const statusSummary =
+    exitCode !== null
+      ? `${i18n.t("chat.agent.exitCode")} ${exitCode}`
+      : startLine !== null && endLine !== null
+        ? `${i18n.t("chat.agent.lineRange")} ${startLine}–${endLine}`
+        : null
+  const preferredText = firstString(
+    result,
+    tool.status === "failed"
+      ? ["error", "failure", "reason", "message", "stderr", "output", "content"]
+      : ["summary", "message", "output", "content", "stdout", "stderr"]
+  )
+  const textSummary = inlineSummary(
+    preferredText || (output === null ? tool.output : "")
+  )
+
+  return inlineSummary(
+    [statusSummary, textSummary].filter(Boolean).join(" · ")
+  )
+}
+
+export function getToolCallSummary(tool: ToolCallView) {
+  if (
+    tool.status === "succeeded" ||
+    tool.status === "failed" ||
+    tool.status === "cancelled"
+  ) {
+    return toolOutputSummary(tool) ?? toolInputSummary(tool)
+  }
+
+  return toolInputSummary(tool)
+}
+
 function titleWithTarget(
   key: "readFile" | "writeFile" | "createFolder" | "deleteObject" | "listDirectory",
   target: string

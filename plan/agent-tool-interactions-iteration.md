@@ -211,17 +211,17 @@ chat entries
 
 ### 目标与边界
 
-- [ ] 由集中式 tool presentation 从类型化 `ToolCallView` 派生标题与单行摘要。
-- [ ] 摘要只解释参数和结果，不从自由文本反推 tool settlement 状态。
-- [ ] 运行中优先展示目标、命令或查询；终态优先展示行范围、退出码或结果首行。
-- [ ] 摘要必须有长度上限并归一化空白，避免长参数或输出撑开消息布局。
-- [ ] 不修改 Gateway/Agentic 协议，不增加 Tool WebNode 之外的渲染路径。
+- [x] 由集中式 tool presentation 从类型化 `ToolCallView` 派生标题与单行摘要。
+- [x] 摘要只解释参数和结果，不从自由文本反推 tool settlement 状态。
+- [x] 运行中优先展示目标、命令或查询；终态优先展示行范围、退出码或结果首行。
+- [x] 摘要必须有长度上限并归一化空白，避免长参数或输出撑开消息布局。
+- [x] 不修改 Gateway/Agentic 协议，不增加 Tool WebNode 之外的渲染路径。
 
 ### 验收标准
 
-- [ ] 文件、命令、搜索与未知工具都有确定性 presentation 回归覆盖。
-- [ ] 参数尚未完成或结果不是 JSON 时仍能安全降级，不抛异常。
-- [ ] failed/cancelled 状态继续来自 canonical tool result，不做字符串嗅探。
+- [x] 文件、命令、搜索与未知工具都有确定性 presentation 回归覆盖。
+- [x] 参数尚未完成或结果不是 JSON 时仍能安全降级，不抛异常。
+- [x] failed/cancelled 状态继续来自 canonical tool result，不做字符串嗅探。
 
 ## Phase 9：Tool WebNode 紧凑状态轨迹
 
