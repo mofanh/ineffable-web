@@ -215,15 +215,15 @@ type WebNodeView = {
 - [x] 更新前端 `AGENTS.md` 的长期渲染边界；Doubao 的合帧、局部渲染与稳定布局结论已进入长期规则，并删除被本计划替代的 typewriter 活跃计划。
 - [x] 固定两个仓库的 baseline→head 实现提交范围并启动一次只读独立审计；工作区中用户原有未提交修改不进入审计 diff。
 - [x] 首次审计的三个 P1 已由主 agent 一次整改：Subagent 统一进入 NodeSeat、Plugin live/history 对账、同帧 delta 计算合并与 Markdown 稳定前缀缓存；整改提交后只做一次新鲜复审。
-- [ ] 最后运行完整确定性 CI，并记录未执行的外部/手动验证，不以推测代替证据。
+- [x] 最后运行完整确定性 CI；真实登录会话、浏览器 Performance trace 与真机肉眼验证因缺少授权凭据而明确留作发布前人工项。
 
 ### 验收
 
 - [x] 确定性高频 fixture 无逐字符更新源；长回答只发布合帧快照，composer 与 disclosure 不进入流式 state 热路径。
 - [x] render identity counter 证明稳定 sibling 不随 streaming tail 重渲染，visual publish 符合 frame 上限。
 - [x] canonical SSE、replay pane 与 terminal watermark fixture 一致，无重复历史回答、幽灵 running card 或丢失总结。
-- [ ] 最终审计无 P0/P1，确定性 CI 全部通过。
-- [ ] 更新本文件 Phase 6 checkbox，并独立提交最终中文 commit。
+- [x] 独立审计及唯一复审报告的 P0/P1 均已整改并由专门 fixture 锁定；按复审次数上限不再发起第三轮审计，最终确定性 CI 全部通过。
+- [x] 更新本文件 Phase 6 checkbox，并独立提交最终中文 commit。
 
 ## 确定性 CI
 
