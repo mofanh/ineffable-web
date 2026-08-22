@@ -597,35 +597,34 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
   block: ThinkBlock
   streaming: boolean
 }) {
-  const [open, setOpen] = React.useState(block.open)
-
-  React.useEffect(() => {
-    setOpen(block.open)
-  }, [block.open])
-
-  const handleOpenChange = React.useCallback(
-    (nextOpen: boolean) => {
-      if (block.open && !nextOpen) {
-        return
-      }
-
-      setOpen(nextOpen)
-    },
-    [block.open]
+  const [open, setOpen] = React.useState(false)
+  const latestLine = React.useMemo(
+    () =>
+      block.content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .at(-1) ?? "",
+    [block.content]
   )
 
   return (
-    <Collapsible open={open} onOpenChange={handleOpenChange} className="flex flex-col">
+    <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col">
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="group flex items-center gap-1 text-left text-[14px] text-foreground/60 select-none transition-colors hover:text-foreground/80"
+          className="group flex min-h-6 min-w-0 items-center gap-2 text-left text-[12px] text-foreground/60 select-none transition-colors hover:text-foreground/85 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         >
           <span className="inline-flex items-center gap-1.5">
             <BrainCircuitIcon className="size-3.5" />
             <span>{i18n.t("chat.agent.thinking")}</span>
           </span>
-          <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
+          {!open && latestLine ? (
+            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/45">
+              {latestLine}
+            </span>
+          ) : null}
+          <ChevronDownIcon className="ml-auto size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
         </button>
       </CollapsibleTrigger>
 
@@ -673,7 +672,7 @@ const ToolCallCard = React.memo(function ToolCallCard({
     <ToolCallShell
       tool={tool}
       title={getToolCallTitle(tool) ?? undefined}
-      lockOpen={tool.status === "running"}
+      autoOpenActive={false}
     >
       {tool.input.trim() ? (
         <div className="space-y-1">

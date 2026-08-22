@@ -3,11 +3,20 @@ import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { hasAgentPaneContent } from "@/features/chat/chat-pane-state"
-import type { ChatEntry } from "@/features/chat/gateway-chat-types"
+import {
+  getPaneBlocks,
+  hasAgentPaneContent,
+} from "@/features/chat/chat-pane-state"
+import type { ChatEntry, SubagentView } from "@/features/chat/gateway-chat-types"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   ArrowDownIcon,
   CheckIcon,
+  ChevronDownIcon,
   Loader2Icon,
   ShieldAlertIcon,
   SparklesIcon,
@@ -33,21 +42,84 @@ type ChatMessageListProps = {
   onRejectApproval: (entryId: string) => void
   activeHumanRunId: string | null
   onSubmitUserInput: (response: AgentUserInputResponse) => Promise<void>
+  isFullScreen: boolean
 }
 
-function StreamingTailDot() {
+function RunActivity() {
   const { t } = useTranslation()
+  const [startedAt] = React.useState(() => Date.now())
+  const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [startedAt])
 
   return (
-    <span
-      className="relative flex size-3 items-center justify-center"
-      aria-label={t("chat.messages.generating")}
-    >
-      <span className="absolute inline-flex size-3 rounded-full bg-emerald-500/35 animate-ping" />
-      <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+    <span className="inline-flex items-center gap-2 text-[11px] text-foreground/48" role="status">
+      <Loader2Icon className="size-3 animate-spin motion-reduce:animate-none" />
+      <span>
+        {elapsedSeconds >= 15
+          ? t("chat.messages.generatingFor", { seconds: elapsedSeconds })
+          : t("chat.messages.generating")}
+      </span>
     </span>
   )
 }
+
+function subagentSummary(subagent: SubagentView) {
+  const lastBlock = getPaneBlocks(subagent).at(-1)
+  if (!lastBlock) return ""
+  if (lastBlock.type === "tool") return subagent.tools[lastBlock.toolId]?.name ?? ""
+  return lastBlock.content.split("\n").filter(Boolean).at(-1)?.trim() ?? ""
+}
+
+const SubagentNodeGroup = React.memo(function SubagentNodeGroup({
+  subagent,
+  prefersReducedMotion,
+}: {
+  subagent: SubagentView
+  prefersReducedMotion: boolean
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = React.useState(false)
+  const summary = subagentSummary(subagent)
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="group flex min-h-7 w-full min-w-0 items-center gap-2 rounded-md text-left text-xs text-foreground/62 hover:text-foreground/85 focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <span className="shrink-0 font-medium">
+            {t("chat.messages.subtask", { name: subagent.name })}
+          </span>
+          {!open && summary ? (
+            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/42">
+              {summary}
+            </span>
+          ) : null}
+          <span className="ml-auto shrink-0 text-[10px]">
+            {subagent.status === "streaming"
+              ? t("chat.messages.running")
+              : t("chat.messages.completed")}
+          </span>
+          <ChevronDownIcon className="size-3.5 shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="animated-collapsible-content mt-2 border-l border-sidebar-border/70 pl-3">
+        <WebNodeList
+          pane={subagent}
+          isStreaming={subagent.status === "streaming"}
+          prefersReducedMotion={prefersReducedMotion}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  )
+})
 
 function ThinkingPlaceholder() {
   const { t } = useTranslation()
@@ -99,6 +171,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onRejectApproval,
   activeHumanRunId,
   onSubmitUserInput,
+  isFullScreen,
 }: ChatMessageListProps) {
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -170,9 +243,18 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             onLoadOlderConversationMessagesPage()
           }
         }}
-        className="h-full min-h-0 overflow-y-auto px-3 py-4"
+        className={cn(
+          "h-full min-h-0 overflow-y-auto py-4",
+          isFullScreen ? "px-5 md:px-8" : "px-3"
+        )}
       >
-        <div ref={messageContentRef} className="flex min-h-full flex-col gap-7">
+        <div
+          ref={messageContentRef}
+          className={cn(
+            "mx-auto flex min-h-full w-full flex-col gap-7",
+            isFullScreen && "max-w-[760px]"
+          )}
+        >
         {hasOlderEntries ? (
           <div className="flex justify-center">
             <Button
@@ -207,7 +289,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           if (entry.role === "user") {
             return (
               <div key={entry.id} className="flex justify-end">
-                <div className="max-w-[88%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
+                <div className="max-w-[82%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
                   <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
                 </div>
               </div>
@@ -326,33 +408,11 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       }
 
                       return (
-                        <div
+                        <SubagentNodeGroup
                           key={subagentId}
-                          className="space-y-3 rounded-xl border border-sidebar-border/70 bg-black/2.5 px-3 py-3"
-                        >
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="min-w-0 truncate font-medium text-foreground/75">
-                              {t("chat.messages.subtask", { name: subagent.name })}
-                            </span>
-                            <span
-                              className={cn(
-                                "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
-                                subagent.status === "streaming"
-                                  ? "bg-sky-500/10 text-sky-700"
-                                  : "bg-emerald-500/10 text-emerald-700"
-                              )}
-                            >
-                              {subagent.status === "streaming"
-                                ? t("chat.messages.running")
-                                : t("chat.messages.completed")}
-                            </span>
-                          </div>
-                          <WebNodeList
-                            pane={subagent}
-                            isStreaming={subagent.status === "streaming"}
-                            prefersReducedMotion={prefersReducedMotion}
-                          />
-                        </div>
+                          subagent={subagent}
+                          prefersReducedMotion={prefersReducedMotion}
+                        />
                       )
                     })}
                   </div>
@@ -360,7 +420,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
                 {showStreamingTail ? (
                   <div className="flex items-center pt-1 text-foreground/70">
-                    <StreamingTailDot />
+                    <RunActivity />
                   </div>
                 ) : null}
               </div>

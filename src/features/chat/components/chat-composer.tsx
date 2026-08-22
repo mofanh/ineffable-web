@@ -49,6 +49,7 @@ export type ModelProfileOption = {
 }
 
 type ChatComposerProps = {
+  isFullScreen: boolean
   composer: string
   error: string | null
   isSending: boolean
@@ -73,6 +74,7 @@ type ChatComposerProps = {
 }
 
 export function ChatComposer({
+  isFullScreen,
   composer,
   error,
   isSending,
@@ -191,7 +193,12 @@ export function ChatComposer({
   }
 
   return (
-    <SidebarFooter className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+    <SidebarFooter
+      className={cn(
+        "w-full p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]",
+        isFullScreen && "mx-auto max-w-[780px] px-5 md:px-2"
+      )}
+    >
       {preInputQueue.length > 0 ? (
         <div className="mb-1.5 space-y-1.5">
           <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">

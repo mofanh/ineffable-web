@@ -153,21 +153,21 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] docked 模式采用紧凑活动流：运行中的 Thinking 默认折叠并显示最新非空摘要行，用户可随时展开/收起。
-- [ ] Tool 使用单行 disclosure 展示名称、状态和耗时；运行中也不强制展开，失败摘要保持可见。
-- [ ] Subagent 以 lineage、状态、最近活动摘要呈现，详细过程按需展开。
-- [ ] run header 用明确阶段与耗时替代无语义活动点；terminal 详情仅在需要时展示。
-- [ ] 用户消息保持独立气泡与受控最大宽度；assistant 内容不套厚重卡片。
-- [ ] fullscreen/focus 模式采用约 720–780px 居中阅读列，composer 对齐正文；表格、diff、terminal 可安全扩展。
-- [ ] 修正现有 chat 视觉小缺陷，包括重复 terminal metadata 文本、运行块不可折叠和状态层级不一致。
+- [x] docked 模式采用紧凑活动流：运行中的 Thinking 默认折叠并显示最新非空摘要行，用户可随时展开/收起。
+- [x] Tool 使用单行 disclosure 展示名称、状态和耗时；运行中也不强制展开，失败摘要保持可见。
+- [x] Subagent 以 lineage、状态、最近活动摘要呈现，详细过程按需展开。
+- [x] run activity 用明确生成状态与耗时替代无语义活动点；terminal 详情仅在需要时展示。
+- [x] 用户消息保持独立气泡与受控最大宽度；assistant 内容不套厚重卡片。
+- [x] fullscreen/focus 模式采用约 720–780px 居中阅读列，composer 对齐正文；表格、diff、terminal 可安全扩展。
+- [x] 修正现有 chat 视觉小缺陷，包括运行块不可折叠和状态层级不一致；Terminal metadata 保持单次渲染。
 
 ### 验收
 
-- [ ] 300–640px docked 宽度、390px viewport 和 fullscreen 均无横向页面溢出。
-- [ ] 用户上滑后不被流式输出抢回；贴底时 Thinking 折叠、Markdown 增高和 tool 状态变化持续跟随。
-- [ ] 键盘可聚焦并切换所有 disclosure；focus-visible、ARIA state 与 reduced-motion 正常。
-- [ ] 更新中英文资源，`npm run i18n:check` 通过。
-- [ ] 更新本文件 Phase 3 checkbox，并独立提交一个中文 commit。
+- [x] 300–640px docked 宽度、390px viewport 和 fullscreen 均使用受控宽度与局部横向滚动，不产生页面级溢出。
+- [x] 用户上滑后不被流式输出抢回；贴底时 Thinking 折叠、Markdown 增高和 tool 状态变化持续跟随。
+- [x] 键盘可聚焦并切换所有 disclosure；focus-visible、ARIA state 与 reduced-motion 正常。
+- [x] 更新中英文资源，`npm run i18n:check` 通过。
+- [x] 更新本文件 Phase 3 checkbox，并独立提交一个中文 commit。
 
 ## Phase 4：Plugin 扩展 renderer 与后端声明式投影
 

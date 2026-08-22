@@ -504,6 +504,7 @@ export const resources = {
         },
         messages: {
           generating: "正在生成",
+          generatingFor: "正在深入处理 · {{seconds}} 秒",
           thinking: "正在思考…",
           startTitle: "从一个任务开始",
           startDescription:
@@ -1912,6 +1913,7 @@ export const resources = {
         },
         messages: {
           generating: "Generating",
+          generatingFor: "Deep diving · {{seconds}}s",
           thinking: "Thinking…",
           startTitle: "Start with a task",
           startDescription:

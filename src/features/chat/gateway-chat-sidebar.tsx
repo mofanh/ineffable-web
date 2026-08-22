@@ -2863,6 +2863,7 @@ export function GatewayChatSidebar({
             awaitingHumanRunId ?? selectedConversation?.current_run_id ?? null
           }
           onSubmitUserInput={handleSubmitUserInput}
+          isFullScreen={isFullScreen}
         />
         {isLoadingMessages ? (
           <div className="px-4 pb-3 text-xs text-muted-foreground">
@@ -2874,6 +2875,7 @@ export function GatewayChatSidebar({
       <AgentPlanPanel tool={currentPlanTool} />
 
       <ChatComposer
+        isFullScreen={isFullScreen}
         composer={composer}
         error={error}
         isSending={isSending}
