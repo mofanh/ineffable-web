@@ -236,6 +236,25 @@ return (
 - product chat 只消费 v1 canonical event kind。legacy event 转换属于 gateway，不能重新放回
   React 组件或前端 normalizer。
 
+## Conversation Web Plugin 渲染
+
+- Assistant 的 text、reasoning、update、tool、subagent 与声明式 Plugin view 必须先投影为
+  `WebNodeView`，再由唯一 `WebNodeRendererRegistry -> WebNodeSeat` 路径渲染；不得恢复
+  内置 JSX switch、feature flag 双轨或第二套 Plugin 容器/状态模型。
+- Default Web Plugin 的固定 renderer 与扩展 renderer 共用 node identity、视觉调度和
+  fallback。扩展 renderer 只负责展示，不得修改 canonical transcript、run lifecycle、
+  terminal watermark 或 Agentic/Gateway 状态。
+- canonical reducer/projector 即时消费全部事件；高频正文、reasoning 和 tool argument
+  视觉更新由 frame scheduler 合并，每帧至多发布一次。terminal、error、awaiting-human、
+  approval 和显式 stop 必须立即 flush。
+- 流式 Markdown 只重算不稳定尾块；settled 后全量解析并按需高亮。HTML 保持禁用，代码、
+  表格和长文本只能在消息列内部滚动，不得撑破 docked/fullscreen 布局。
+- Plugin metadata 只接受版本化、声明式、限大小的 JSON payload；禁止 remote module、脚本、
+  HTML、CSS 与 iframe。unknown、schema mismatch、payload 非法及 renderer exception 均使用
+  统一 fallback card，不能中断同 turn 其他 Node。
+- Workspace artifact view 只消费已授权 tool result 中的 object/version 引用，复用现有
+  Workspace 路由与鉴权；不得把文件 bytes 放入事件、Node payload 或未经鉴权的 raw 请求。
+
 ## 国际化
 
 - 用户可见文案必须通过 `i18next` 资源输出，不在 page、feature、app service 或 UI primitive 中新增硬编码业务文案。

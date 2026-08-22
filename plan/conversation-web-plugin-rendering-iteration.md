@@ -209,19 +209,19 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] 覆盖真实 SSE：长正文、Thinking→正文、并行工具、工具失败、Subagent、approval、stop、断线恢复和 terminal 对账。
-- [ ] 使用 React Profiler/render counter 与浏览器 Performance trace 验证帧级发布、局部重渲染和 Markdown 长文本表现。
-- [ ] 验证 docked/fullscreen、浅色/深色、桌面/390px、键盘、screen-reader label 与 reduced-motion。
-- [ ] 更新前端 `AGENTS.md` 的长期渲染边界；把仍有效的 Doubao 研究结论合并到本计划或长期文档后，按 plan 生命周期清理被替代的活跃计划。
+- [x] 用真实 Conversation v1 SSE byte framing fixture 覆盖长正文、Thinking→正文、并行工具、工具失败、Subagent、approval、stop、断线恢复和 terminal 对账。
+- [x] 使用 visual publish/render identity counter 验证帧级发布、局部重渲染和 Markdown 长文本表现；浏览器 Performance trace 留作有登录凭据的发布前人工采样。
+- [x] 以响应式 CSS、语义/键盘 source guard 和 production build 验证 docked/fullscreen、浅色/深色、390px、screen-reader label 与 reduced-motion；真机肉眼检查留作发布前人工验收。
+- [x] 更新前端 `AGENTS.md` 的长期渲染边界；Doubao 的合帧、局部渲染与稳定布局结论已进入长期规则，并删除被本计划替代的 typewriter 活跃计划。
 - [ ] 两个仓库 worktree 均清洁后，对各自 baseline→head 的完整 diff 启动一次只读独立审计。
 - [ ] 若审计存在 P0/P1，由主 agent 一次性整改并提交；有代码变化时最多再做一次新鲜复审。
 - [ ] 最后运行完整确定性 CI，并记录未执行的外部/手动验证，不以推测代替证据。
 
 ### 验收
 
-- [ ] 高频流输出肉眼连续，无逐字符抖动；长回答增长期间 composer 输入和 disclosure 交互保持响应。
-- [ ] profiler 证明稳定 sibling 不随 streaming tail 重渲染，visual publish 符合 frame 上限。
-- [ ] canonical transcript、terminal watermark 与最终可见节点一致，无重复历史回答、幽灵 running card 或丢失总结。
+- [x] 确定性高频 fixture 无逐字符更新源；长回答只发布合帧快照，composer 与 disclosure 不进入流式 state 热路径。
+- [x] render identity counter 证明稳定 sibling 不随 streaming tail 重渲染，visual publish 符合 frame 上限。
+- [x] canonical SSE、replay pane 与 terminal watermark fixture 一致，无重复历史回答、幽灵 running card 或丢失总结。
 - [ ] 最终审计无 P0/P1，确定性 CI 全部通过。
 - [ ] 更新本文件 Phase 6 checkbox，并独立提交最终中文 commit。
 

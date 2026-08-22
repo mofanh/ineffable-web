@@ -12,6 +12,7 @@
     "check:chat-store": "node --experimental-strip-types scripts/check-chat-runtime-store.mjs",
     "check:chat-architecture": "node --experimental-strip-types scripts/check-chat-runtime-architecture.mjs",
     "check:chat-web-runtime": "node --experimental-strip-types scripts/check-chat-web-runtime.mjs",
+    "check:chat-web-integration": "tsx scripts/check-chat-web-integration.mjs",
     "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",
     "check:auth-session": "node --experimental-strip-types scripts/check-auth-session-runtime.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
@@ -57,6 +58,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "tsx": "^4.23.12",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"

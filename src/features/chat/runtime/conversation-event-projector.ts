@@ -46,7 +46,8 @@ function projectPaneEvent(
           status: "failed",
           payload: null,
           fallback: {
-            title: "Unsupported plugin view",
+            title: "Plugin view unavailable",
+            localizationKey: "unsupportedPluginView",
             summary: validation.reason,
           },
         })

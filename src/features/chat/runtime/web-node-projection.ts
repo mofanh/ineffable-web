@@ -112,6 +112,7 @@ export class WebNodeProjectionCache {
             payload: { artifacts },
             fallback: {
               title: "Workspace artifacts",
+              localizationKey: "workspaceArtifacts",
               summary: artifacts.map((artifact) => artifact.path).join(", "),
             },
           }

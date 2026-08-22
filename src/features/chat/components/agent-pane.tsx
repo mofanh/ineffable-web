@@ -86,7 +86,9 @@ const WorkspaceArtifactCard = React.memo(function WorkspaceArtifactCard({
         <span className="block truncate text-[10px] text-foreground/45">
           {artifact.mimeType}
           {size ? ` · ${size}` : ""}
-          {artifact.versionId ? ` · ${artifact.versionId.slice(0, 8)}` : " · current"}
+          {artifact.versionId
+            ? ` · ${artifact.versionId.slice(0, 8)}`
+            : ` · ${i18n.t("chat.agent.currentVersion")}`}
         </span>
       </span>
       <ExternalLinkIcon className="size-3.5 flex-none text-foreground/35 group-hover:text-foreground/60" />
@@ -109,7 +111,7 @@ const WorkspaceArtifactsRenderer: WebNodeRenderer<WorkspaceArtifactsWebNodePaylo
       {overflow.length ? (
         <details className="rounded-lg border border-border/50 px-2.5 py-1.5 text-xs text-foreground/55">
           <summary className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            +{overflow.length} artifacts
+            {i18n.t("chat.agent.moreArtifacts", { count: overflow.length })}
           </summary>
           <div className="mt-2 grid min-w-0 gap-1.5 sm:grid-cols-2">
             {overflow.map((artifact) => (
@@ -809,7 +811,11 @@ const ToolNodeRenderer: WebNodeRenderer<ToolWebNodePayload | null> = ({
 
 const FallbackNodeRenderer: WebNodeRenderer = ({ node }) => (
   <div className="rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-foreground/65">
-    <p className="font-medium text-foreground/80">{node.fallback.title}</p>
+    <p className="font-medium text-foreground/80">
+      {node.fallback.localizationKey
+        ? i18n.t(`chat.agent.${node.fallback.localizationKey}`)
+        : node.fallback.title}
+    </p>
     {node.fallback.summary ? (
       <p className="mt-1 whitespace-pre-wrap wrap-anywhere leading-5">
         {node.fallback.summary}

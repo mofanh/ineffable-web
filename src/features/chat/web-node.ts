@@ -36,6 +36,7 @@ export type WebNodeStatus =
 export type WebNodeFallback = {
   title: string
   summary?: string
+  localizationKey?: "unsupportedPluginView" | "workspaceArtifacts"
 }
 
 export type WebNodeView<TPayload = unknown> = {
@@ -91,7 +92,10 @@ export function validateWebNodeView(value: unknown): WebNodeValidation {
     candidate.fallback.title.length > 160 ||
     (candidate.fallback.summary !== undefined &&
       (typeof candidate.fallback.summary !== "string" ||
-        candidate.fallback.summary.length > 1000))
+        candidate.fallback.summary.length > 1000)) ||
+    (candidate.fallback.localizationKey !== undefined &&
+      candidate.fallback.localizationKey !== "unsupportedPluginView" &&
+      candidate.fallback.localizationKey !== "workspaceArtifacts")
   ) {
     return { ok: false, reason: "web_node_fallback" }
   }
