@@ -26,6 +26,7 @@ import {
   type WebNodeRenderer,
 } from "@/features/chat/components/web-node-registry"
 import { getToolCallTitle } from "@/features/chat/model/tool-call-presentation"
+import { splitIncrementalMarkdown } from "@/features/chat/runtime/incremental-markdown"
 import {
   WebNodeProjectionCache,
   type ReasoningWebNodePayload,
@@ -65,33 +66,138 @@ markdownIt.renderer.rules.link_open = (tokens, index, options, _env, self) => {
   return self.renderToken(tokens, index, options)
 }
 
-const MARKDOWN_BASE_CLASS =
-  "whitespace-normal wrap-anywhere [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5 [&_li]:my-1 [&_li]:leading-6 [&_pre]:mt-2 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-black/5 [&_pre]:px-3 [&_pre]:py-2 [&_pre]:text-xs [&_pre]:leading-6 [&_code]:vertical-middle [&_code]:inline-block [&_code]:rounded-sm [&_code]:border [&_code]:border-black/12 [&_code]:bg-black/5 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.92em] [&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:px-0 [&_pre_code]:py-0 [&_pre_code]:text-inherit [&_blockquote]:mt-2 [&_blockquote]:border-l-2 [&_blockquote]:border-foreground/15 [&_blockquote]:pl-3 [&_blockquote]:opacity-80 [&_a]:underline [&_a]:underline-offset-3"
+function codeBlockShell(content: string, language: string) {
+  const escapedLanguage = markdownIt.utils.escapeHtml(language || "text")
+  const copyLabel = markdownIt.utils.escapeHtml(i18n.t("chat.agent.copyCode"))
+  return `<div class="chat-code-block"><div class="chat-code-header"><span>${escapedLanguage}</span><button type="button" data-copy-code aria-label="${copyLabel}" title="${copyLabel}">⧉</button></div>${content}</div>`
+}
+
+const defaultFenceRenderer = markdownIt.renderer.rules.fence?.bind(
+  markdownIt.renderer.rules
+)
+markdownIt.renderer.rules.fence = (tokens, index, options, env, self) => {
+  const token = tokens[index]
+  const language = token.info.trim().split(/\s+/)[0] || "text"
+  const rendered = defaultFenceRenderer
+    ? defaultFenceRenderer(tokens, index, options, env, self)
+    : self.renderToken(tokens, index, options)
+  return codeBlockShell(rendered, language)
+}
+
+const MARKDOWN_BASE_CLASS = "whitespace-normal wrap-anywhere"
 
 const THINK_MARKDOWN_CLASS =
   "space-y-4 [&_li>ol]:mt-1 [&_li>ol]:gap-1 [&_li>ul]:mt-1 [&_li>ul]:gap-1 [&_ol]:ml-2 [&_ol]:gap-2 [&_ul]:ml-2 [&_ul]:gap-2"
 
+async function renderSettledMarkdown(content: string) {
+  const { highlightSettledCode } = await import(
+    "@/features/chat/runtime/chat-syntax-highlighter"
+  )
+  const tokens = markdownIt.parse(content, {})
+
+  await Promise.all(
+    tokens.map(async (token) => {
+      if (token.type !== "fence") return
+      const language = token.info.trim().split(/\s+/)[0] || "text"
+      try {
+        const highlighted = await highlightSettledCode(token.content, language)
+        if (!highlighted) return
+        token.type = "html_block"
+        token.tag = ""
+        token.nesting = 0
+        token.content = codeBlockShell(highlighted, language)
+      } catch {
+        // Unknown languages remain escaped markdown-it code blocks.
+      }
+    })
+  )
+
+  return markdownIt.renderer.render(tokens, markdownIt.options, {})
+}
+
+const MarkdownFragment = React.memo(function MarkdownFragment({
+  content,
+  settled,
+}: {
+  content: string
+  settled: boolean
+}) {
+  const plainHtml = React.useMemo(() => markdownIt.render(content), [content])
+  const [highlightedHtml, setHighlightedHtml] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!settled || !content.includes("```")) {
+      setHighlightedHtml(null)
+      return
+    }
+
+    let cancelled = false
+    void renderSettledMarkdown(content).then((html) => {
+      if (!cancelled) setHighlightedHtml(html)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [content, settled])
+
+  return <div dangerouslySetInnerHTML={{ __html: highlightedHtml ?? plainHtml }} />
+})
+
 function MarkdownContent({
   content,
+  streaming = false,
   className,
 }: {
   content: string
+  streaming?: boolean
   className?: string
 }) {
-  const renderedHtml = React.useMemo(() => markdownIt.render(content), [content])
+  const segments = React.useMemo(
+    () => splitIncrementalMarkdown(content, !streaming),
+    [content, streaming]
+  )
+  const handleCodeCopy = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const button = target.closest<HTMLButtonElement>("[data-copy-code]")
+      if (!button) return
+      const code = button.closest(".chat-code-block")?.querySelector("code")
+      if (!code?.textContent || !navigator.clipboard) return
+      void navigator.clipboard.writeText(code.textContent)
+    },
+    []
+  )
 
-  return <div className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+  return (
+    <div
+      className={cn("chat-markdown", className)}
+      data-streaming={streaming || undefined}
+      onClick={handleCodeCopy}
+    >
+      {segments.map((segment) => (
+        <MarkdownFragment
+          key={segment.id}
+          content={segment.content}
+          settled={!streaming && segment.stable}
+        />
+      ))}
+    </div>
+  )
 }
 
 const AgentTextBlock = React.memo(function AgentTextBlock({
   content,
+  streaming,
 }: {
   content: string
+  streaming: boolean
 }) {
   return (
     <div className="text-[15px] leading-8 text-foreground">
       <MarkdownContent
         content={content}
+        streaming={streaming}
         className={cn(MARKDOWN_BASE_CLASS, "text-[15px] leading-8")}
       />
     </div>
@@ -486,8 +592,10 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
 
 const ThinkBlockView = React.memo(function ThinkBlockView({
   block,
+  streaming,
 }: {
   block: ThinkBlock
+  streaming: boolean
 }) {
   const [open, setOpen] = React.useState(block.open)
 
@@ -524,6 +632,7 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
       <CollapsibleContent className="animated-collapsible-content relative ml-[6.5px] border-l-[0.5px] border-border/50 pt-2 pl-3.5 text-xs text-foreground/65 [&_code]:text-xs">
         <MarkdownContent
           content={block.content}
+          streaming={streaming}
           className={cn(MARKDOWN_BASE_CLASS, THINK_MARKDOWN_CLASS)}
         />
       </CollapsibleContent>
@@ -594,12 +703,20 @@ const ToolCallCard = React.memo(function ToolCallCard({
 })
 
 const TextNodeRenderer: WebNodeRenderer<TextWebNodePayload> = ({ node }) => (
-  <AgentTextBlock content={node.payload.content} />
+  <AgentTextBlock
+    content={node.payload.content}
+    streaming={node.payload.streaming}
+  />
 )
 
 const ReasoningNodeRenderer: WebNodeRenderer<ReasoningWebNodePayload> = ({
   node,
-}) => <ThinkBlockView block={node.payload.block} />
+}) => (
+  <ThinkBlockView
+    block={node.payload.block}
+    streaming={node.payload.streaming}
+  />
+)
 
 const UpdateNodeRenderer: WebNodeRenderer<UpdateWebNodePayload> = ({ node }) => (
   <p className="text-sm leading-7 text-foreground/72">{node.payload.content}</p>

@@ -9,6 +9,7 @@ import {
   webNodeRendererKey,
 } from "../src/features/chat/web-node.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
+import { splitIncrementalMarkdown } from "../src/features/chat/runtime/incremental-markdown.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -142,5 +143,37 @@ assert.equal(
   "stable sibling must retain its WebNode identity"
 )
 assert.notEqual(firstProjection[1], secondProjection[1])
+
+const markdown = [
+  "# Stable heading\n\n",
+  "Stable paragraph.\n\n",
+  "```ts\nconst value = 1\n\nconst next = 2\n```\n\n",
+  "Streaming tail",
+].join("")
+const streamingSegments = splitIncrementalMarkdown(markdown, false)
+assert.equal(streamingSegments.length, 4)
+assert.equal(streamingSegments[0].stable, true)
+assert.equal(streamingSegments[1].stable, true)
+assert.equal(streamingSegments[2].stable, false)
+assert.match(streamingSegments[2].content, /const next = 2/)
+const settledSegments = splitIncrementalMarkdown(markdown, true)
+assert.deepEqual(settledSegments, [
+  { id: "document", content: markdown, stable: true },
+])
+
+const longMarkdown = `${"paragraph content\n\n".repeat(6000)}tail`
+const longSegments = splitIncrementalMarkdown(longMarkdown, false)
+const longerSegments = splitIncrementalMarkdown(`${longMarkdown} grows`, false)
+assert.ok(longMarkdown.length > 100_000)
+assert.equal(longSegments[0].id, longerSegments[0].id)
+assert.equal(longSegments[0].content, longerSegments[0].content)
+assert.ok(longSegments.filter((segment) => !segment.stable).length <= 2)
+
+const { highlightSettledCode } = await import(
+  "../src/features/chat/runtime/chat-syntax-highlighter.ts"
+)
+const highlighted = await highlightSettledCode("const value = 1", "ts")
+assert.match(highlighted ?? "", /class="shiki(?:\s|\")/)
+assert.equal(await highlightSettledCode("plain", "unknown-language"), null)
 
 console.log("chat web runtime checks passed")

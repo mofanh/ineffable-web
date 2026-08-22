@@ -38,6 +38,10 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --chat-prose-muted: var(--muted-foreground);
+    --chat-prose-border: var(--border);
+    --chat-code-background: oklch(0.97 0 0);
+    --chat-code-header: oklch(0.94 0 0);
 }
 
 .dark {
@@ -72,6 +76,10 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --chat-prose-muted: var(--muted-foreground);
+    --chat-prose-border: var(--border);
+    --chat-code-background: oklch(0.19 0 0);
+    --chat-code-header: oklch(0.23 0 0);
 }
 
 @theme inline {
@@ -163,5 +171,168 @@
 
   .animated-collapsible-content[data-state="closed"] {
     animation: collapsible-content-up 160ms ease-in;
+  }
+
+  .chat-markdown > div > :first-child {
+    margin-top: 0;
+  }
+
+  .chat-markdown > div > :last-child {
+    margin-bottom: 0;
+  }
+
+  .chat-markdown p,
+  .chat-markdown ul,
+  .chat-markdown ol,
+  .chat-markdown blockquote,
+  .chat-markdown table,
+  .chat-markdown .chat-code-block {
+    margin-block: 0.65rem;
+  }
+
+  .chat-markdown ul,
+  .chat-markdown ol {
+    padding-left: 1.35rem;
+  }
+
+  .chat-markdown ul {
+    list-style: disc;
+  }
+
+  .chat-markdown ol {
+    list-style: decimal;
+  }
+
+  .chat-markdown li {
+    margin-block: 0.2rem;
+  }
+
+  .chat-markdown h1,
+  .chat-markdown h2,
+  .chat-markdown h3 {
+    margin-block: 1.15em 0.45em;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: -0.015em;
+  }
+
+  .chat-markdown h1 {
+    font-size: 1.35em;
+  }
+
+  .chat-markdown h2 {
+    font-size: 1.18em;
+  }
+
+  .chat-markdown h3 {
+    font-size: 1.06em;
+  }
+
+  .chat-markdown blockquote {
+    border-left: 2px solid var(--chat-prose-border);
+    padding-left: 0.8rem;
+    color: var(--chat-prose-muted);
+  }
+
+  .chat-markdown a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .chat-markdown :not(pre) > code {
+    display: inline;
+    border: 1px solid var(--chat-prose-border);
+    border-radius: 0.3rem;
+    background: var(--chat-code-background);
+    padding: 0.12rem 0.35rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+  }
+
+  .chat-markdown .chat-code-block {
+    overflow: hidden;
+    border: 1px solid var(--chat-prose-border);
+    border-radius: 0.65rem;
+    background: var(--chat-code-background);
+  }
+
+  .chat-markdown .chat-code-header {
+    display: flex;
+    min-height: 1.9rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--chat-prose-border);
+    background: var(--chat-code-header);
+    padding-inline: 0.7rem;
+    color: var(--chat-prose-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.68rem;
+  }
+
+  .chat-markdown .chat-code-header button {
+    border-radius: 0.3rem;
+    padding: 0.15rem 0.35rem;
+  }
+
+  .chat-markdown .chat-code-header button:hover,
+  .chat-markdown .chat-code-header button:focus-visible {
+    background: var(--background);
+    color: var(--foreground);
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+
+  .chat-markdown pre,
+  .chat-markdown .shiki {
+    margin: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    background: transparent !important;
+    padding: 0.8rem;
+    font-size: 0.75rem;
+    line-height: 1.65;
+  }
+
+  .chat-markdown pre code {
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  .chat-markdown table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.86em;
+  }
+
+  .chat-markdown th,
+  .chat-markdown td {
+    border: 1px solid var(--chat-prose-border);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .chat-markdown th {
+    background: var(--chat-code-background);
+    font-weight: 600;
+  }
+
+  .chat-markdown .shiki span {
+    color: var(--shiki-light);
+  }
+
+  .dark .chat-markdown .shiki span {
+    color: var(--shiki-dark);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-collapsible-content[data-state="open"],
+  .animated-collapsible-content[data-state="closed"] {
+    animation: none;
   }
 }

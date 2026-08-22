@@ -135,19 +135,19 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] 将 assistant Markdown 拆成稳定顶层块与最多两个不稳定尾块；稳定块复用已解析结果。
-- [ ] streaming 阶段只解析尾部并以低成本代码展示；settled 后执行一次完整 parse 自愈未闭合 fence、表格和引用。
-- [ ] settled code block 按需加载语法高亮；高亮失败回退为安全纯文本代码块。
-- [ ] 建立 `--chat-*` Markdown 语义 token，映射现有主题 token，覆盖正文、标题、引用、列表、表格、inline code 和 code block。
-- [ ] 保持 Markdown HTML 禁用、链接安全属性、超宽表格/代码横向滚动与复制操作。
+- [x] 将 assistant Markdown 拆成稳定顶层块与最多两个不稳定尾块；稳定块复用已解析结果。
+- [x] streaming 阶段只解析尾部并以低成本代码展示；settled 后执行一次完整 parse 自愈未闭合 fence、表格和引用。
+- [x] settled code block 按需加载语法高亮；高亮失败回退为安全纯文本代码块。
+- [x] 建立 `--chat-*` Markdown 语义 token，映射现有主题 token，覆盖正文、标题、引用、列表、表格、inline code 和 code block。
+- [x] 保持 Markdown HTML 禁用、链接安全属性、超宽表格/代码横向滚动与复制操作。
 
 ### 验收
 
-- [ ] 10k/100k 字符流式 fixture 中，已稳定块 identity 不变，单次更新只重算尾部块。
-- [ ] settled 全量解析结果覆盖未闭合 code fence、跨块引用和表格，且不丢正文。
-- [ ] 明暗主题、超长无空格文本、宽表格和代码块不撑破 docked/fullscreen 容器。
-- [ ] 新增异步高亮 chunk 不进入未登录公共入口，生产构建无大 chunk 警告回归。
-- [ ] 更新本文件 Phase 2 checkbox，并独立提交一个中文 commit。
+- [x] 10k/100k 字符流式 fixture 中，已稳定块 identity 不变，单次更新只重算尾部块。
+- [x] settled 全量解析结果覆盖未闭合 code fence、跨块引用和表格，且不丢正文。
+- [x] 明暗主题、超长无空格文本、宽表格和代码块不撑破 docked/fullscreen 容器。
+- [x] 新增异步高亮 chunk 不进入未登录公共入口，生产构建无大 chunk 警告回归。
+- [x] 更新本文件 Phase 2 checkbox，并独立提交一个中文 commit。
 
 ## Phase 3：Reasoning、Tool、Subagent 与对话布局重构
 
