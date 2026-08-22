@@ -8,6 +8,7 @@ import {
   isWebNodeView,
   webNodeRendererKey,
 } from "../src/features/chat/web-node.ts"
+import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -88,6 +89,18 @@ assert.deepEqual(hiddenPublishes, [["background-delta"]])
 hiddenHost.flushFrame()
 assert.equal(hiddenPublishes.length, 1)
 
+const discardedHost = fakeSchedulerHost()
+const discardedPublishes = []
+const discardedScheduler = new VisualUpdateScheduler(
+  discardedHost.host,
+  (updates) => discardedPublishes.push([...updates])
+)
+discardedScheduler.enqueue("stale-conversation-delta")
+discardedScheduler.discardPending()
+discardedHost.flushFrame()
+discardedHost.flushTimer()
+assert.deepEqual(discardedPublishes, [])
+
 const node = createDefaultWebNode({
   renderer: "text",
   nodeId: "node-1",
@@ -98,5 +111,36 @@ const node = createDefaultWebNode({
 assert.equal(isWebNodeView(node), true)
 assert.equal(webNodeRendererKey(node), "ineffable.web.default:text")
 assert.equal(isWebNodeView({ ...node, nodeId: "" }), false)
+
+const firstBlock = { id: "text-1", type: "text", content: "stable" }
+const tailBlock = { id: "text-2", type: "text", content: "a" }
+const pane = {
+  activeThinkBlockId: null,
+  activeThinkMode: null,
+  pendingTagBuffer: "",
+  blockOrder: [firstBlock.id, tailBlock.id],
+  blocks: { [firstBlock.id]: firstBlock, [tailBlock.id]: tailBlock },
+  tools: {},
+  receivedTextDelta: true,
+}
+const projectionCache = new WebNodeProjectionCache()
+const firstProjection = projectionCache.project(pane, {
+  streaming: true,
+  canRespondToUserInput: false,
+})
+const nextTailBlock = { ...tailBlock, content: "ab" }
+const secondProjection = projectionCache.project(
+  {
+    ...pane,
+    blocks: { ...pane.blocks, [tailBlock.id]: nextTailBlock },
+  },
+  { streaming: true, canRespondToUserInput: false }
+)
+assert.equal(
+  firstProjection[0],
+  secondProjection[0],
+  "stable sibling must retain its WebNode identity"
+)
+assert.notEqual(firstProjection[1], secondProjection[1])
 
 console.log("chat web runtime checks passed")

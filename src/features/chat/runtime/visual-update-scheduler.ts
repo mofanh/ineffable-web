@@ -70,6 +70,12 @@ export class VisualUpdateScheduler<T> {
     return this.pending.length > 0
   }
 
+  discardPending() {
+    if (this.disposed) return
+    this.cancelScheduledFlushes()
+    this.pending = []
+  }
+
   dispose() {
     if (this.disposed) return
     this.disposed = true

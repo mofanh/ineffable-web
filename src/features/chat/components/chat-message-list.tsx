@@ -13,7 +13,7 @@ import {
   SparklesIcon,
   XIcon,
 } from "lucide-react"
-import { AgentPane } from "@/features/chat/components/agent-pane"
+import { WebNodeList } from "@/features/chat/components/agent-pane"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import { cn } from "@/lib/utils"
 
@@ -307,7 +307,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           return (
             <div key={entry.id} className="flex w-full justify-start">
               <div className="w-full min-w-0 space-y-5 pb-1 text-foreground">
-                <AgentPane
+                <WebNodeList
                   pane={entry.pane}
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}
@@ -347,7 +347,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                                 : t("chat.messages.completed")}
                             </span>
                           </div>
-                          <AgentPane
+                          <WebNodeList
                             pane={subagent}
                             isStreaming={subagent.status === "streaming"}
                             prefersReducedMotion={prefersReducedMotion}

@@ -10,7 +10,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
-  getPaneBlocks,
   type AgentPaneState,
   type ThinkBlock,
   type ToolCallView,
@@ -20,7 +19,20 @@ import {
   type AgentUserInputResponse,
 } from "@/features/chat/components/agent-tool-renderers"
 import { ToolCallShell } from "@/features/chat/components/tool-call-shell"
+import {
+  registerDefaultWebNodeRenderer,
+  WebNodeRendererRegistry,
+  WebNodeSeat,
+  type WebNodeRenderer,
+} from "@/features/chat/components/web-node-registry"
 import { getToolCallTitle } from "@/features/chat/model/tool-call-presentation"
+import {
+  WebNodeProjectionCache,
+  type ReasoningWebNodePayload,
+  type TextWebNodePayload,
+  type ToolWebNodePayload,
+  type UpdateWebNodePayload,
+} from "@/features/chat/runtime/web-node-projection"
 import { cn } from "@/lib/utils"
 import { getCurrentLocale, i18n } from "@/lib/i18n/i18n"
 import {
@@ -71,80 +83,15 @@ function MarkdownContent({
   return <div className={className} dangerouslySetInnerHTML={{ __html: renderedHtml }} />
 }
 
-const TYPEWRITER_INTERVAL_MS = 32
-const TYPEWRITER_MAX_STEP = 20
-const TYPEWRITER_CATCH_UP_STEPS = 8
-
-function useTypewriterContent(
-  content: string,
-  isStreaming: boolean,
-  prefersReducedMotion: boolean
-) {
-  const characters = React.useMemo(() => Array.from(content), [content])
-  const hasAnimatedRef = React.useRef(isStreaming)
-  const [visibleLength, setVisibleLength] = React.useState(() =>
-    isStreaming ? 0 : characters.length
-  )
-
-  React.useEffect(() => {
-    if (isStreaming) {
-      hasAnimatedRef.current = true
-    }
-
-    if (prefersReducedMotion || (!isStreaming && !hasAnimatedRef.current)) {
-      setVisibleLength(characters.length)
-      return
-    }
-
-    if (visibleLength > characters.length) {
-      setVisibleLength(characters.length)
-      return
-    }
-
-    if (visibleLength === characters.length) {
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      setVisibleLength((currentLength) => {
-        const remaining = characters.length - currentLength
-        const step = Math.min(
-          TYPEWRITER_MAX_STEP,
-          Math.max(1, Math.ceil(remaining / TYPEWRITER_CATCH_UP_STEPS))
-        )
-
-        return Math.min(characters.length, currentLength + step)
-      })
-    }, TYPEWRITER_INTERVAL_MS)
-
-    return () => window.clearTimeout(timer)
-  }, [characters.length, isStreaming, prefersReducedMotion, visibleLength])
-
-  return React.useMemo(
-    () => characters.slice(0, visibleLength).join(""),
-    [characters, visibleLength]
-  )
-}
-
 const AgentTextBlock = React.memo(function AgentTextBlock({
   content,
-  isStreaming,
-  prefersReducedMotion,
 }: {
   content: string
-  isStreaming: boolean
-  prefersReducedMotion: boolean
 }) {
-  const visibleContent = useTypewriterContent(
-    content,
-    isStreaming,
-    prefersReducedMotion
-  )
-
   return (
     <div className="text-[15px] leading-8 text-foreground">
       <MarkdownContent
-        content={visibleContent}
+        content={content}
         className={cn(MARKDOWN_BASE_CLASS, "text-[15px] leading-8")}
       />
     </div>
@@ -539,19 +486,10 @@ function SandboxPreviewResultCard({ result }: { result: SandboxPreviewResult }) 
 
 const ThinkBlockView = React.memo(function ThinkBlockView({
   block,
-  isStreaming,
-  prefersReducedMotion,
 }: {
   block: ThinkBlock
-  isStreaming: boolean
-  prefersReducedMotion: boolean
 }) {
   const [open, setOpen] = React.useState(block.open)
-  const visibleContent = useTypewriterContent(
-    block.content,
-    isStreaming && block.open,
-    prefersReducedMotion
-  )
 
   React.useEffect(() => {
     setOpen(block.open)
@@ -585,7 +523,7 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
 
       <CollapsibleContent className="animated-collapsible-content relative ml-[6.5px] border-l-[0.5px] border-border/50 pt-2 pl-3.5 text-xs text-foreground/65 [&_code]:text-xs">
         <MarkdownContent
-          content={visibleContent}
+          content={block.content}
           className={cn(MARKDOWN_BASE_CLASS, THINK_MARKDOWN_CLASS)}
         />
       </CollapsibleContent>
@@ -655,7 +593,52 @@ const ToolCallCard = React.memo(function ToolCallCard({
   )
 })
 
-export const AgentPane = React.memo(function AgentPane({
+const TextNodeRenderer: WebNodeRenderer<TextWebNodePayload> = ({ node }) => (
+  <AgentTextBlock content={node.payload.content} />
+)
+
+const ReasoningNodeRenderer: WebNodeRenderer<ReasoningWebNodePayload> = ({
+  node,
+}) => <ThinkBlockView block={node.payload.block} />
+
+const UpdateNodeRenderer: WebNodeRenderer<UpdateWebNodePayload> = ({ node }) => (
+  <p className="text-sm leading-7 text-foreground/72">{node.payload.content}</p>
+)
+
+const ToolNodeRenderer: WebNodeRenderer<ToolWebNodePayload | null> = ({
+  node,
+  context,
+}) =>
+  node.payload ? (
+    <ToolCallCard
+      tool={node.payload.tool}
+      canRespondToUserInput={node.payload.canRespondToUserInput}
+      onSubmitUserInput={context.onSubmitUserInput}
+    />
+  ) : null
+
+const FallbackNodeRenderer: WebNodeRenderer = ({ node }) => (
+  <div className="rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-foreground/65">
+    <p className="font-medium text-foreground/80">{node.fallback.title}</p>
+    {node.fallback.summary ? (
+      <p className="mt-1 whitespace-pre-wrap wrap-anywhere leading-5">
+        {node.fallback.summary}
+      </p>
+    ) : null}
+  </div>
+)
+
+const DEFAULT_WEB_NODE_REGISTRY = new WebNodeRendererRegistry()
+registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "text", TextNodeRenderer)
+registerDefaultWebNodeRenderer(
+  DEFAULT_WEB_NODE_REGISTRY,
+  "reasoning",
+  ReasoningNodeRenderer
+)
+registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "update", UpdateNodeRenderer)
+registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "tool", ToolNodeRenderer)
+
+export const WebNodeList = React.memo(function WebNodeList({
   pane,
   isStreaming = false,
   prefersReducedMotion = false,
@@ -669,55 +652,31 @@ export const AgentPane = React.memo(function AgentPane({
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
 }) {
   useTranslation()
-  const blocks = getPaneBlocks(pane)
+  const [projectionCache] = React.useState(() => new WebNodeProjectionCache())
+  const nodes = React.useMemo(
+    () =>
+      projectionCache.project(pane, {
+        streaming: isStreaming,
+        canRespondToUserInput,
+      }),
+    [canRespondToUserInput, isStreaming, pane, projectionCache]
+  )
+  const context = React.useMemo(
+    () => ({ prefersReducedMotion, onSubmitUserInput }),
+    [onSubmitUserInput, prefersReducedMotion]
+  )
 
   return (
     <div className="space-y-3 text-sm">
-      {blocks.map((block) => {
-        if (block.type === "text") {
-          return (
-            <AgentTextBlock
-              key={block.id}
-              content={block.content}
-              isStreaming={isStreaming}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-          )
-        }
-
-        if (block.type === "think") {
-          return (
-            <ThinkBlockView
-              key={block.id}
-              block={block}
-              isStreaming={isStreaming}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-          )
-        }
-
-        if (block.type === "update") {
-          return (
-            <p key={block.id} className="text-sm leading-7 text-foreground/72">
-              {block.content}
-            </p>
-          )
-        }
-
-        const tool = pane.tools[block.toolId]
-        if (!tool) {
-          return null
-        }
-
-        return (
-          <ToolCallCard
-            key={block.id}
-            tool={tool}
-            canRespondToUserInput={canRespondToUserInput}
-            onSubmitUserInput={onSubmitUserInput}
-          />
-        )
-      })}
+      {nodes.map((node) => (
+        <WebNodeSeat
+          key={node.nodeId}
+          node={node}
+          registry={DEFAULT_WEB_NODE_REGISTRY}
+          context={context}
+          fallbackRenderer={FallbackNodeRenderer}
+        />
+      ))}
     </div>
   )
 })

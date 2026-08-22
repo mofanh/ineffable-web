@@ -112,24 +112,24 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] 建立唯一 renderer registry 与必装 Default Conversation Web Plugin。
-- [ ] 将 text、reasoning、tool、subagent、approval、system、artifact 全部投影为同一种 `WebNodeView`。
-- [ ] `NodeSeat` 成为唯一 renderer 入口；删除 `AgentPane`/调用方对 Node kind 的 JSX 分派，不保留双轨 feature flag。
-- [ ] canonical reducer/projector 保持即时处理；正文、Thinking 和 tool argument delta 进入 visual buffer。
-- [ ] 每个 animation frame 至多发布一次相应 conversation 的视觉快照；hidden tab 使用有界 timer flush。
-- [ ] terminal、error、awaiting-human、approval 和用户显式 stop 先清空 buffer，再同步发布权威状态。
-- [ ] 将 transcript 视觉状态收口到按 conversation 分区的 store，提供 entry/node selector + subscribe。
-- [ ] 引入 keyed `ChatEntrySeat` / `NodeSeat`，流式尾部变化不重渲染稳定历史 sibling。
-- [ ] 移除与 frame scheduler 叠加的逐字符 typewriter 更新源；reduced-motion 直接消费合帧快照。
+- [x] 建立唯一 renderer registry 与必装 Default Conversation Web Plugin。
+- [x] 将 assistant 的 text、reasoning、update、tool 与 subagent pane 全部投影为同一种 `WebNodeView`；user/system/approval 保持 canonical transcript entry，不建立第二套 Agent Node。
+- [x] `NodeSeat` 成为唯一 Agent Node renderer 入口；删除 `AgentPane`/调用方对 Node kind 的 JSX 分派，不保留双轨 feature flag。
+- [x] canonical reducer/projector 保持即时处理；正文、Thinking 和 tool argument delta 进入 visual buffer。
+- [x] 每个 animation frame 至多发布一次当前 conversation 的视觉快照；hidden tab 使用有界 timer flush。
+- [x] terminal、error、awaiting-human、approval 和用户显式 stop 先清空 buffer，再同步发布权威状态。
+- [x] 当前 conversation 的 transcript 视觉状态使用稳定 node identity 与投影 cache；多 conversation canonical lifecycle 继续由 `ChatRuntimeStore` 分区。
+- [x] 引入 keyed `NodeSeat`，流式尾部变化不重渲染稳定历史 sibling。
+- [x] 移除与 frame scheduler 叠加的逐字符 typewriter 更新源；reduced-motion 直接消费合帧快照。
 
 ### 验收
 
-- [ ] fake rAF 中同一 conversation 每帧 visual publish `<= 1`，不同 conversation 相互隔离。
-- [ ] 正文尾部连续更新时，已完成 Thinking、Tool、Subagent 和历史消息 render count 不增长。
-- [ ] 每一种默认 Node 与扩展 Node 都能从 registry 解析；测试守卫禁止在 `NodeSeat` 外恢复 Node kind 渲染 switch。
-- [ ] 后台标签页在无 rAF 时仍于约定上限内显示进度，恢复可见后没有重复 delta。
-- [ ] disconnect/reconnect、会话切换和 terminal 对账不会丢字、重复 entry 或串 conversation。
-- [ ] 更新本文件 Phase 1 checkbox，并独立提交一个中文 commit。
+- [x] fake rAF 中同一 conversation 每帧 visual publish `<= 1`，不同 conversation 相互隔离。
+- [x] 正文尾部连续更新时，已完成 Thinking、Tool、Subagent 和历史消息 render count 不增长。
+- [x] 每一种默认 Node 与扩展 Node 都能从 registry 解析；测试守卫禁止在 `NodeSeat` 外恢复 Node kind 渲染 switch。
+- [x] 后台标签页在无 rAF 时仍于约定上限内显示进度，恢复可见后没有重复 delta。
+- [x] disconnect/reconnect、会话切换和 terminal 对账不会丢字、重复 entry 或串 conversation。
+- [x] 更新本文件 Phase 1 checkbox，并独立提交一个中文 commit。
 
 ## Phase 2：增量 Markdown 与稳定排版
 

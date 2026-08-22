@@ -13,6 +13,11 @@ const paneState = source("src/features/chat/chat-pane-state.ts")
 const projector = source(
   "src/features/chat/runtime/conversation-event-projector.ts"
 )
+const messageList = source("src/features/chat/components/chat-message-list.tsx")
+const agentPane = source("src/features/chat/components/agent-pane.tsx")
+const webNodeRegistry = source(
+  "src/features/chat/components/web-node-registry.tsx"
+)
 
 assert.doesNotMatch(apiClient, /getReader\(\)/)
 assert.match(sseParser, /getReader\(\)/)
@@ -33,5 +38,9 @@ assert.match(
 )
 assert.match(projector, /"assistant\.snapshot"/)
 assert.match(projector, /"subagent\.completed"/)
+assert.doesNotMatch(messageList, /\bAgentPane\b/)
+assert.doesNotMatch(agentPane, /export const AgentPane/)
+assert.match(agentPane, /<WebNodeSeat/)
+assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer\)/)
 
 console.log("chat runtime architecture checks passed")

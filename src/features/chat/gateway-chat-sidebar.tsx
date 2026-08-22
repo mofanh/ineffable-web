@@ -76,6 +76,11 @@ import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-
 import { projectConversationOutputEvent } from "@/features/chat/runtime/conversation-event-projector"
 import { ChatRuntimeStore } from "@/features/chat/runtime/chat-runtime-store"
 import { ConversationRuntimeController } from "@/features/chat/runtime/conversation-runtime-controller"
+import {
+  browserVisualSchedulerHost,
+  VisualUpdateScheduler,
+  type VisualUpdatePriority,
+} from "@/features/chat/runtime/visual-update-scheduler"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   approveSandboxApproval,
@@ -272,6 +277,10 @@ type GatewayChatSidebarProps = {
   onFullScreenChange: (isFullScreen: boolean) => void
 }
 
+type AssistantEntryUpdater = (
+  entry: AssistantEntry | undefined
+) => AssistantEntry | null
+
 export function GatewayChatSidebar({
   isFullScreen,
   onFullScreenChange,
@@ -344,6 +353,21 @@ export function GatewayChatSidebar({
   )
   const entriesRef = React.useRef<ChatEntry[]>([])
   const assistantEntryIdRef = React.useRef<string | null>(null)
+  const [assistantVisualScheduler] = React.useState(
+    () =>
+      new VisualUpdateScheduler<AssistantEntryUpdater>(
+      browserVisualSchedulerHost(),
+      (updates) => {
+        setEntries((current) =>
+          updates.reduce(
+            (nextEntries, update) =>
+              applyAssistantEntryUpdate(nextEntries, update),
+            current
+          )
+        )
+      }
+    )
+  )
   const activeStreamConversationIdRef = React.useRef<string | null>(null)
   const activeRunIdRef = React.useRef<string | null>(null)
   const terminalEventSeenRef = React.useRef(false)
@@ -429,8 +453,9 @@ export function GatewayChatSidebar({
       if (olderLoadResetTimerRef.current != null) {
         window.clearTimeout(olderLoadResetTimerRef.current)
       }
+      assistantVisualScheduler.dispose()
     }
-  }, [])
+  }, [assistantVisualScheduler])
 
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
@@ -1141,6 +1166,7 @@ export function GatewayChatSidebar({
   )
 
   React.useEffect(() => {
+    assistantVisualScheduler.discardPending()
     messageProjectionRequestRef.current += 1
     if (
       currentConversationId &&
@@ -1193,6 +1219,7 @@ export function GatewayChatSidebar({
       )
     })
   }, [
+    assistantVisualScheduler,
     clearRecoveryTimer,
     currentConversationId,
     reportChatError,
@@ -1225,46 +1252,44 @@ export function GatewayChatSidebar({
     resetSeenCaches()
   }
 
-  function updateAssistantEntry(
-    updater: (entry: AssistantEntry | undefined) => AssistantEntry | null
+  function applyAssistantEntryUpdate(
+    current: ChatEntry[],
+    updater: AssistantEntryUpdater
   ) {
-    setEntries((current) => {
-      const assistantId = assistantEntryIdRef.current
-      if (!assistantId) {
-        const created = updater(undefined)
-        if (!created) {
-          return current
-        }
-        assistantEntryIdRef.current = created.id
-        return [...current, created]
-      }
+    const assistantId = assistantEntryIdRef.current
+    if (!assistantId) {
+      const created = updater(undefined)
+      if (!created) return current
+      assistantEntryIdRef.current = created.id
+      return [...current, created]
+    }
 
-      const index = current.findIndex(
-        (entry) => entry.role === "assistant" && entry.id === assistantId
-      )
-      if (index < 0) {
-        const created = updater(undefined)
-        if (!created) {
-          return current
-        }
-        assistantEntryIdRef.current = created.id
-        return [...current, created]
-      }
+    const index = current.findIndex(
+      (entry) => entry.role === "assistant" && entry.id === assistantId
+    )
+    if (index < 0) {
+      const created = updater(undefined)
+      if (!created) return current
+      assistantEntryIdRef.current = created.id
+      return [...current, created]
+    }
 
-      const existing = current[index]
-      if (existing.role !== "assistant") {
-        return current
-      }
+    const existing = current[index]
+    if (existing.role !== "assistant") return current
 
-      const next = updater(existing)
-      if (!next) {
-        return current
-      }
+    const next = updater(existing)
+    if (!next || next === existing) return current
 
-      const cloned = [...current]
-      cloned[index] = next
-      return cloned
-    })
+    const cloned = [...current]
+    cloned[index] = next
+    return cloned
+  }
+
+  function updateAssistantEntry(
+    updater: AssistantEntryUpdater,
+    priority: VisualUpdatePriority = "immediate"
+  ) {
+    assistantVisualScheduler.enqueue(updater, priority)
   }
 
   function ensureAssistantEntry() {
@@ -1304,16 +1329,16 @@ export function GatewayChatSidebar({
   }
 
   function applyMainEvent(event: GatewayChatStreamEvent) {
-    ensureAssistantEntry()
     updateAssistantEntry((entry) =>
-      projectConversationOutputEvent(entry, event, activeRunIdRef.current)
+      projectConversationOutputEvent(entry, event, activeRunIdRef.current),
+      "frame"
     )
   }
 
   function applySubagentEvent(event: GatewayChatStreamEvent) {
-    ensureAssistantEntry()
     updateAssistantEntry((entry) =>
-      projectConversationOutputEvent(entry, event, activeRunIdRef.current)
+      projectConversationOutputEvent(entry, event, activeRunIdRef.current),
+      "frame"
     )
   }
 
