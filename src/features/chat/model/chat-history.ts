@@ -33,6 +33,7 @@ import type {
   ConversationMessageRecord,
 } from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
+import { projectDeclaredWebNode } from "@/features/chat/runtime/plugin-web-node-projection"
 
 // History replay invariants:
 // 1. Replay must rebuild the same structural blocks the live SSE path produced.
@@ -72,19 +73,14 @@ export function applyEventToPaneState(
   const eventName = event.event
   const content = event.content ?? ""
 
-  if (isTextDeltaEvent(eventName)) {
-    return applyTextDeltaToPane(pane, content)
-  }
-
-  if (isReasoningEvent(eventName)) {
-    return applyReasoningDeltaToPane(pane, content)
-  }
-
-  if (eventName === "assistant.snapshot") {
-    return applyMessageToPane(pane, content)
-  }
-
-  return appendUpdateToPane(pane, content)
+  const nextPane = isTextDeltaEvent(eventName)
+    ? applyTextDeltaToPane(pane, content)
+    : isReasoningEvent(eventName)
+      ? applyReasoningDeltaToPane(pane, content)
+      : eventName === "assistant.snapshot"
+        ? applyMessageToPane(pane, content)
+        : appendUpdateToPane(pane, content)
+  return projectDeclaredWebNode(nextPane, event)
 }
 
 function getMessageReasoningContent(message: ConversationMessageRecord) {
@@ -127,7 +123,12 @@ function hasRenderableConversationMessageContent(
     return true
   }
 
-  return Boolean(getMessageReasoningContent(message).trim())
+  return Boolean(
+    getMessageReasoningContent(message).trim() ||
+      (message.metadata_json &&
+        typeof message.metadata_json === "object" &&
+        message.metadata_json.web_view !== undefined)
+  )
 }
 
 function buildHistoryEvent(
@@ -179,10 +180,18 @@ function buildHistoryEvent(
 function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) {
   const lastAssistantIndexByScope = new Map<string, number>()
 
+  const isDeclaredPluginView = (message: ConversationMessageRecord) =>
+    Boolean(
+      message.metadata_json &&
+        typeof message.metadata_json === "object" &&
+        message.metadata_json.web_view !== undefined
+    )
+
   messages.forEach((message, index) => {
     const isAssistantOutput =
-      message.message_type === "output" ||
-      (message.role === "assistant" && message.message_type !== "tool_call")
+      !isDeclaredPluginView(message) &&
+      (message.message_type === "output" ||
+        (message.role === "assistant" && message.message_type !== "tool_call"))
     if (!isAssistantOutput) {
       return
     }
@@ -206,8 +215,9 @@ function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) 
 
   return messages.filter((message, index) => {
     const isAssistantOutput =
-      message.message_type === "output" ||
-      (message.role === "assistant" && message.message_type !== "tool_call")
+      !isDeclaredPluginView(message) &&
+      (message.message_type === "output" ||
+        (message.role === "assistant" && message.message_type !== "tool_call"))
     if (!isAssistantOutput) {
       return true
     }
@@ -315,7 +325,7 @@ function buildAssistantEntryFromMessages(
 
     if (isToolEvent(event.event)) {
       const { toolId, tool } = buildToolView(pane, event, getToolCallId, getToolName)
-      pane = upsertToolInPane(pane, toolId, tool)
+      pane = projectDeclaredWebNode(upsertToolInPane(pane, toolId, tool), event)
       return
     }
 

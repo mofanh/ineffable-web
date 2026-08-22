@@ -3,7 +3,6 @@ import {
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
   appendUpdateToPane,
-  appendPluginNodeToPane,
   buildToolView,
   finalizePane,
   upsertToolInPane,
@@ -26,44 +25,24 @@ import type {
   SubagentView,
 } from "@/features/chat/gateway-chat-types"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
-import {
-  createDefaultWebNode,
-  validateWebNodeView,
-} from "@/features/chat/web-node"
+import { projectDeclaredWebNode } from "@/features/chat/runtime/plugin-web-node-projection"
 
 function projectPaneEvent(
   pane: AgentPaneState,
   event: GatewayChatStreamEvent
 ) {
-  const declaredNode = event.metadata?.web_view
-  if (declaredNode !== undefined) {
-    const validation = validateWebNodeView(declaredNode)
-    const node = validation.ok
-      ? validation.node
-      : createDefaultWebNode({
-          renderer: "fallback",
-          nodeId: `invalid-web-node-${event.seq}`,
-          status: "failed",
-          payload: null,
-          fallback: {
-            title: "Plugin view unavailable",
-            localizationKey: "unsupportedPluginView",
-            summary: validation.reason,
-          },
-        })
-    return appendPluginNodeToPane(pane, node)
-  }
   const content = event.content ?? ""
+  let nextPane: AgentPaneState
   if (isTextDeltaEvent(event.event)) {
-    return applyTextDeltaToPane(pane, content)
+    nextPane = applyTextDeltaToPane(pane, content)
+  } else if (isReasoningEvent(event.event)) {
+    nextPane = applyReasoningDeltaToPane(pane, content)
+  } else if (event.event === "assistant.snapshot") {
+    nextPane = applyMessageToPane(pane, content)
+  } else {
+    nextPane = appendUpdateToPane(pane, content)
   }
-  if (isReasoningEvent(event.event)) {
-    return applyReasoningDeltaToPane(pane, content)
-  }
-  if (event.event === "assistant.snapshot") {
-    return applyMessageToPane(pane, content)
-  }
-  return appendUpdateToPane(pane, content)
+  return projectDeclaredWebNode(nextPane, event)
 }
 
 function projectToolEvent(
@@ -76,7 +55,7 @@ function projectToolEvent(
     getToolCallId,
     getToolName
   )
-  return upsertToolInPane(pane, toolId, tool)
+  return projectDeclaredWebNode(upsertToolInPane(pane, toolId, tool), event)
 }
 
 export function projectConversationOutputEvent(

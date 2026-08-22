@@ -15,9 +15,11 @@ import {
 } from "@/components/ui/collapsible"
 import {
   type AgentPaneState,
+  getPaneBlocks,
   type ThinkBlock,
   type ToolCallView,
 } from "@/features/chat/chat-pane-state"
+import type { SubagentView } from "@/features/chat/gateway-chat-types"
 import {
   renderSpecializedTool,
   type AgentUserInputResponse,
@@ -30,7 +32,7 @@ import {
   type WebNodeRenderer,
 } from "@/features/chat/components/web-node-registry"
 import { getToolCallTitle } from "@/features/chat/model/tool-call-presentation"
-import { splitIncrementalMarkdown } from "@/features/chat/runtime/incremental-markdown"
+import { IncrementalMarkdownProjector } from "@/features/chat/runtime/incremental-markdown"
 import {
   WORKSPACE_WEB_PLUGIN_ID,
   workspaceArtifactHref,
@@ -39,6 +41,7 @@ import {
 import {
   WebNodeProjectionCache,
   type ReasoningWebNodePayload,
+  type SubagentWebNodePayload,
   type TextWebNodePayload,
   type ToolWebNodePayload,
   type UpdateWebNodePayload,
@@ -60,6 +63,55 @@ import {
 } from "lucide-react"
 
 type FrontendNoticePayload = { title: string; body?: string }
+
+function subagentSummary(subagent: SubagentView) {
+  const lastBlock = getPaneBlocks(subagent).at(-1)
+  if (!lastBlock) return ""
+  if (lastBlock.type === "tool") return subagent.tools[lastBlock.toolId]?.name ?? ""
+  if (lastBlock.type === "plugin") {
+    return lastBlock.node.fallback.summary ?? lastBlock.node.fallback.title
+  }
+  return lastBlock.content.split("\n").filter(Boolean).at(-1)?.trim() ?? ""
+}
+
+const SubagentNodeRenderer: WebNodeRenderer<SubagentWebNodePayload> = ({
+  node,
+  context,
+}) => {
+  const { subagent } = node.payload
+  const [open, setOpen] = React.useState(false)
+  const summary = subagentSummary(subagent)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="group flex min-h-7 w-full min-w-0 items-center gap-2 rounded-md text-left text-xs text-foreground/62 hover:text-foreground/85 focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          <span className="shrink-0 font-medium">
+            {i18n.t("chat.messages.subtask", { name: subagent.name })}
+          </span>
+          {!open && summary ? (
+            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/42">{summary}</span>
+          ) : null}
+          <span className="ml-auto shrink-0 text-[10px]">
+            {subagent.status === "streaming"
+              ? i18n.t("chat.messages.running")
+              : i18n.t("chat.messages.completed")}
+          </span>
+          <ChevronDownIcon className="size-3.5 shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="animated-collapsible-content mt-2 border-l border-sidebar-border/70 pl-3">
+        <WebNodeList
+          pane={subagent}
+          isStreaming={subagent.status === "streaming"}
+          prefersReducedMotion={context.prefersReducedMotion}
+        />
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
 
 function formatArtifactSize(sizeBytes: number | null) {
   if (sizeBytes === null) return null
@@ -228,9 +280,10 @@ function MarkdownContent({
   streaming?: boolean
   className?: string
 }) {
+  const [projector] = React.useState(() => new IncrementalMarkdownProjector())
   const segments = React.useMemo(
-    () => splitIncrementalMarkdown(content, !streaming),
-    [content, streaming]
+    () => projector.project(content, !streaming),
+    [content, projector, streaming]
   )
   const handleCodeCopy = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -844,6 +897,11 @@ registerDefaultWebNodeRenderer(
 )
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "update", UpdateNodeRenderer)
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "tool", ToolNodeRenderer)
+registerDefaultWebNodeRenderer(
+  DEFAULT_WEB_NODE_REGISTRY,
+  "subagent",
+  SubagentNodeRenderer
+)
 DEFAULT_WEB_NODE_REGISTRY.register<FrontendNoticePayload>(
   FRONTEND_WEB_PLUGIN_ID,
   "notice",
@@ -895,22 +953,27 @@ export const WebNodeList = React.memo(function WebNodeList({
   prefersReducedMotion = false,
   canRespondToUserInput = false,
   onSubmitUserInput,
+  subagentOrder = [],
+  subagents = {},
 }: {
   pane: AgentPaneState
   isStreaming?: boolean
   prefersReducedMotion?: boolean
   canRespondToUserInput?: boolean
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
+  subagentOrder?: string[]
+  subagents?: Record<string, SubagentView>
 }) {
   useTranslation()
   const [projectionCache] = React.useState(() => new WebNodeProjectionCache())
   const nodes = React.useMemo(
     () =>
-      projectionCache.project(pane, {
-        streaming: isStreaming,
-        canRespondToUserInput,
-      }),
-    [canRespondToUserInput, isStreaming, pane, projectionCache]
+      projectionCache.project(
+        pane,
+        { streaming: isStreaming, canRespondToUserInput },
+        { order: subagentOrder, records: subagents }
+      ),
+    [canRespondToUserInput, isStreaming, pane, projectionCache, subagentOrder, subagents]
   )
   const context = React.useMemo(
     () => ({ prefersReducedMotion, onSubmitUserInput }),

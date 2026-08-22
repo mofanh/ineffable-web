@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
+import React from "react"
+import TestRenderer, { act } from "react-test-renderer"
 
 import { finalizePane, getPaneBlocks } from "../src/features/chat/chat-pane-state.ts"
-import { createAssistantEntry } from "../src/features/chat/model/chat-history.ts"
+import {
+  createAssistantEntry,
+  mapConversationMessagesToEntries,
+} from "../src/features/chat/model/chat-history.ts"
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector.ts"
 import {
   createConversationRunRuntime,
@@ -11,6 +16,11 @@ import {
   normalizeGatewayEnvelope,
 } from "../src/lib/api/chat/gateway-events.ts"
 import { parseSseStream } from "../src/lib/api/chat/sse-stream.ts"
+import {
+  WebNodeRendererRegistry,
+  WebNodeSeat,
+} from "../src/features/chat/components/web-node-registry.tsx"
+import { WEB_NODE_SCHEMA_VERSION } from "../src/features/chat/web-node.ts"
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
@@ -75,7 +85,18 @@ const events = [
   event(14, "run.awaiting_human"),
   event(15, "run.resumed"),
   event(16, "model.text.delta", "\n\nFinal summary."),
-  event(17, "run.completed"),
+  event(17, "model.text.delta", "Plugin explanation.", {
+    web_view: {
+      schemaVersion: 1,
+      pluginId: "ineffable.web.frontend",
+      renderer: "notice",
+      nodeId: "notice-terminal",
+      status: "settled",
+      payload: { title: "Plugin result" },
+      fallback: { title: "Plugin result" },
+    },
+  }),
+  event(18, "run.completed"),
 ]
 
 const encoder = new TextEncoder()
@@ -133,12 +154,11 @@ function semanticPane(pane) {
       return { type: block.type, content: block.content, ...(block.type === "think" ? { open: block.open } : {}) }
     }),
     tools: pane.tools,
-    receivedTextDelta: pane.receivedTextDelta,
   }
 }
 assert.equal(live.runtime.lifecycle, "completed")
 assert.equal(live.runtime.terminalEventSeen, true)
-assert.equal(live.runtime.lastSeq, 17)
+assert.equal(live.runtime.lastSeq, 18)
 assert.deepEqual(semanticPane(live.entry.pane), semanticPane(replay.entry.pane))
 assert.equal(live.entry.subagentOrder.length, 1)
 assert.equal(live.entry.subagents["sub-1"].status, "done")
@@ -147,8 +167,55 @@ assert.equal(live.entry.pane.tools["tool-b"].status, "succeeded")
 assert.equal(live.entry.pane.tools["approval-1"].status, "waiting")
 assert.ok(
   getPaneBlocks(live.entry.pane).some(
-    (block) => block.type === "text" && block.content.endsWith("Final summary.")
+    (block) => block.type === "text" && block.content.includes("Final summary.")
   )
+)
+assert.ok(
+  getPaneBlocks(live.entry.pane).some(
+    (block) => block.type === "text" && block.content.includes("Plugin explanation.")
+  ),
+  "declarative view must not swallow content from the same event"
+)
+assert.ok(
+  getPaneBlocks(live.entry.pane).some(
+    (block) => block.type === "plugin" && block.node.nodeId === "notice-terminal"
+  )
+)
+
+const historyEntries = mapConversationMessagesToEntries([
+  {
+    id: "message-plugin",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "assistant",
+    message_type: "output",
+    content: "Plugin explanation.",
+    content_json: null,
+    metadata_json: events[16].metadata,
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  },
+])
+assert.equal(historyEntries.length, 1)
+const historyAssistant = historyEntries[0]
+assert.equal(historyAssistant.role, "assistant")
+assert.ok(
+  historyAssistant.role === "assistant" &&
+    getPaneBlocks(historyAssistant.pane).some(
+      (block) => block.type === "plugin" && block.node.nodeId === "notice-terminal"
+    ),
+  "canonical history must rebuild the declared Plugin node"
+)
+const isolatedLivePlugin = projectConversationOutputEvent(
+  undefined,
+  events[16],
+  runId
+)
+assert.ok(historyAssistant.role === "assistant")
+assert.deepEqual(
+  semanticPane(finalizePane(isolatedLivePlugin.pane)),
+  semanticPane(historyAssistant.pane),
+  "live Plugin projection and canonical terminal history must reconcile"
 )
 
 let disconnected = createConversationRunRuntime(conversationId)
@@ -162,7 +229,7 @@ for (const item of events.slice(5)) {
   disconnected = reduceConversationRunRuntime(disconnected, { type: "event", event: item })
 }
 assert.equal(disconnected.lifecycle, "completed")
-assert.equal(disconnected.lastSeq, 17)
+assert.equal(disconnected.lastSeq, 18)
 
 let cancelled = createConversationRunRuntime("conversation-cancelled")
 cancelled = reduceConversationRunRuntime(cancelled, {
@@ -191,5 +258,55 @@ cancelled = reduceConversationRunRuntime(cancelled, {
 })
 assert.equal(cancelled.lifecycle, "cancelled")
 assert.equal(cancelled.terminalEventSeen, true)
+
+const exceptionRegistry = new WebNodeRendererRegistry().register(
+  "ineffable.web.fixture",
+  "exception",
+  ({ node }) => {
+    if (node.payload.fail) throw new Error("fixture renderer failed")
+    return React.createElement("span", null, node.payload.label)
+  }
+)
+const fallbackRenderer = ({ node }) =>
+  React.createElement("span", null, `fallback:${node.fallback.title}`)
+const exceptionNode = {
+  schemaVersion: WEB_NODE_SCHEMA_VERSION,
+  pluginId: "ineffable.web.fixture",
+  renderer: "exception",
+  nodeId: "exception-node",
+  status: "settled",
+  payload: { fail: true, label: "broken" },
+  fallback: { title: "Safe view" },
+}
+const originalConsoleError = console.error
+console.error = () => {}
+let exceptionTree
+try {
+  await act(() => {
+    exceptionTree = TestRenderer.create(
+      React.createElement(WebNodeSeat, {
+        node: exceptionNode,
+        registry: exceptionRegistry,
+        context: { prefersReducedMotion: false },
+        fallbackRenderer,
+      })
+    )
+  })
+  assert.match(JSON.stringify(exceptionTree.toJSON()), /fallback:Safe view/)
+  await act(() => {
+    exceptionTree.update(
+      React.createElement(WebNodeSeat, {
+        node: { ...exceptionNode, payload: { fail: false, label: "recovered" } },
+        registry: exceptionRegistry,
+        context: { prefersReducedMotion: false },
+        fallbackRenderer,
+      })
+    )
+  })
+  assert.match(JSON.stringify(exceptionTree.toJSON()), /recovered/)
+} finally {
+  console.error = originalConsoleError
+  exceptionTree?.unmount()
+}
 
 console.log("chat web integration checks passed")

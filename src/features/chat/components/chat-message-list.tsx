@@ -3,20 +3,10 @@ import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import {
-  getPaneBlocks,
-  hasAgentPaneContent,
-} from "@/features/chat/chat-pane-state"
-import type { ChatEntry, SubagentView } from "@/features/chat/gateway-chat-types"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ArrowDownIcon,
   CheckIcon,
-  ChevronDownIcon,
   Loader2Icon,
   ShieldAlertIcon,
   SparklesIcon,
@@ -68,61 +58,6 @@ function RunActivity() {
     </span>
   )
 }
-
-function subagentSummary(subagent: SubagentView) {
-  const lastBlock = getPaneBlocks(subagent).at(-1)
-  if (!lastBlock) return ""
-  if (lastBlock.type === "tool") return subagent.tools[lastBlock.toolId]?.name ?? ""
-  if (lastBlock.type === "plugin") {
-    return lastBlock.node.fallback.summary ?? lastBlock.node.fallback.title
-  }
-  return lastBlock.content.split("\n").filter(Boolean).at(-1)?.trim() ?? ""
-}
-
-const SubagentNodeGroup = React.memo(function SubagentNodeGroup({
-  subagent,
-  prefersReducedMotion,
-}: {
-  subagent: SubagentView
-  prefersReducedMotion: boolean
-}) {
-  const { t } = useTranslation()
-  const [open, setOpen] = React.useState(false)
-  const summary = subagentSummary(subagent)
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="group flex min-h-7 w-full min-w-0 items-center gap-2 rounded-md text-left text-xs text-foreground/62 hover:text-foreground/85 focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <span className="shrink-0 font-medium">
-            {t("chat.messages.subtask", { name: subagent.name })}
-          </span>
-          {!open && summary ? (
-            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/42">
-              {summary}
-            </span>
-          ) : null}
-          <span className="ml-auto shrink-0 text-[10px]">
-            {subagent.status === "streaming"
-              ? t("chat.messages.running")
-              : t("chat.messages.completed")}
-          </span>
-          <ChevronDownIcon className="size-3.5 shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="animated-collapsible-content mt-2 border-l border-sidebar-border/70 pl-3">
-        <WebNodeList
-          pane={subagent}
-          isStreaming={subagent.status === "streaming"}
-          prefersReducedMotion={prefersReducedMotion}
-        />
-      </CollapsibleContent>
-    </Collapsible>
-  )
-})
 
 function ThinkingPlaceholder() {
   const { t } = useTranslation()
@@ -400,26 +335,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
                   }
                   onSubmitUserInput={onSubmitUserInput}
+                  subagentOrder={entry.subagentOrder}
+                  subagents={entry.subagents}
                 />
-
-                {entry.subagentOrder.length ? (
-                  <div className="space-y-4 border-t border-sidebar-border/70 pt-4">
-                    {entry.subagentOrder.map((subagentId) => {
-                      const subagent = entry.subagents[subagentId]
-                      if (!subagent || !hasAgentPaneContent(subagent)) {
-                        return null
-                      }
-
-                      return (
-                        <SubagentNodeGroup
-                          key={subagentId}
-                          subagent={subagent}
-                          prefersReducedMotion={prefersReducedMotion}
-                        />
-                      )
-                    })}
-                  </div>
-                ) : null}
 
                 {showStreamingTail ? (
                   <div className="flex items-center pt-1 text-foreground/70">

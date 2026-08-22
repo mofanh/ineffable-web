@@ -18,6 +18,7 @@ const agentPane = source("src/features/chat/components/agent-pane.tsx")
 const webNodeRegistry = source(
   "src/features/chat/components/web-node-registry.tsx"
 )
+const history = source("src/features/chat/model/chat-history.ts")
 
 assert.doesNotMatch(apiClient, /getReader\(\)/)
 assert.match(sseParser, /getReader\(\)/)
@@ -42,5 +43,9 @@ assert.doesNotMatch(messageList, /\bAgentPane\b/)
 assert.doesNotMatch(agentPane, /export const AgentPane/)
 assert.match(agentPane, /<WebNodeSeat/)
 assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer\)/)
+assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)
+assert.match(agentPane, /registerDefaultWebNodeRenderer\([\s\S]*"subagent"/)
+assert.match(history, /projectDeclaredWebNode/)
+assert.match(history, /metadata_json\.web_view !== undefined/)
 
 console.log("chat runtime architecture checks passed")

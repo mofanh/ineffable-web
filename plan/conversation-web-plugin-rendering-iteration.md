@@ -213,8 +213,8 @@ type WebNodeView = {
 - [x] 使用 visual publish/render identity counter 验证帧级发布、局部重渲染和 Markdown 长文本表现；浏览器 Performance trace 留作有登录凭据的发布前人工采样。
 - [x] 以响应式 CSS、语义/键盘 source guard 和 production build 验证 docked/fullscreen、浅色/深色、390px、screen-reader label 与 reduced-motion；真机肉眼检查留作发布前人工验收。
 - [x] 更新前端 `AGENTS.md` 的长期渲染边界；Doubao 的合帧、局部渲染与稳定布局结论已进入长期规则，并删除被本计划替代的 typewriter 活跃计划。
-- [ ] 两个仓库 worktree 均清洁后，对各自 baseline→head 的完整 diff 启动一次只读独立审计。
-- [ ] 若审计存在 P0/P1，由主 agent 一次性整改并提交；有代码变化时最多再做一次新鲜复审。
+- [x] 固定两个仓库的 baseline→head 实现提交范围并启动一次只读独立审计；工作区中用户原有未提交修改不进入审计 diff。
+- [x] 首次审计的三个 P1 已由主 agent 一次整改：Subagent 统一进入 NodeSeat、Plugin live/history 对账、同帧 delta 计算合并与 Markdown 稳定前缀缓存；整改提交后只做一次新鲜复审。
 - [ ] 最后运行完整确定性 CI，并记录未执行的外部/手动验证，不以推测代替证据。
 
 ### 验收

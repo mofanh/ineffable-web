@@ -70,7 +70,7 @@ type WebNodeSeatProps = {
 }
 
 class WebNodeErrorBoundary extends React.Component<
-  { children: React.ReactNode; fallback: React.ReactNode; resetKey: string },
+  { children: React.ReactNode; fallback: React.ReactNode; resetKey: WebNodeView },
   { failed: boolean }
 > {
   state = { failed: false }
@@ -79,7 +79,7 @@ class WebNodeErrorBoundary extends React.Component<
     return { failed: true }
   }
 
-  componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
+  componentDidUpdate(previous: Readonly<{ resetKey: WebNodeView }>) {
     if (this.state.failed && previous.resetKey !== this.props.resetKey) {
       this.setState({ failed: false })
     }
@@ -100,7 +100,7 @@ export const WebNodeSeat = React.memo(function WebNodeSeat({
   return (
     <WebNodeErrorBoundary
       fallback={fallback}
-      resetKey={`${node.nodeId}:${node.status}`}
+      resetKey={node}
     >
       {registry.render(node, context, fallbackRenderer)}
     </WebNodeErrorBoundary>

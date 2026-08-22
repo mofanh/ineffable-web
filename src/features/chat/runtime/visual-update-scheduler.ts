@@ -25,6 +25,7 @@ export function browserVisualSchedulerHost(): VisualSchedulerHost {
 export class VisualUpdateScheduler<T> {
   private readonly host: VisualSchedulerHost
   private readonly publish: (updates: readonly T[]) => void
+  private readonly mergePending: ((previous: T, next: T) => T | null) | null
   private readonly fallbackDelayMs: number
   private pending: T[] = []
   private frameHandle: number | null = null
@@ -34,16 +35,24 @@ export class VisualUpdateScheduler<T> {
   constructor(
     host: VisualSchedulerHost,
     publish: (updates: readonly T[]) => void,
-    fallbackDelayMs = DEFAULT_FALLBACK_DELAY_MS
+    fallbackDelayMs = DEFAULT_FALLBACK_DELAY_MS,
+    mergePending?: (previous: T, next: T) => T | null
   ) {
     this.host = host
     this.publish = publish
     this.fallbackDelayMs = fallbackDelayMs
+    this.mergePending = mergePending ?? null
   }
 
   enqueue(update: T, priority: VisualUpdatePriority = "frame") {
     if (this.disposed) return
-    this.pending.push(update)
+    const previous = this.pending.at(-1)
+    const merged =
+      previous !== undefined && this.mergePending
+        ? this.mergePending(previous, update)
+        : null
+    if (merged === null) this.pending.push(update)
+    else this.pending[this.pending.length - 1] = merged
 
     if (priority === "immediate") {
       this.flushNow()

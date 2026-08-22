@@ -4,6 +4,8 @@ import type {
   ThinkBlock,
   ToolCallView,
 } from "../chat-pane-state.ts"
+import { hasAgentPaneContent } from "../chat-pane-state.ts"
+import type { SubagentView } from "../gateway-chat-types.ts"
 import {
   WEB_NODE_SCHEMA_VERSION,
   createDefaultWebNode,
@@ -39,6 +41,15 @@ export type WorkspaceArtifactsWebNodePayload = {
   artifacts: WorkspaceArtifactReference[]
 }
 
+export type SubagentWebNodePayload = {
+  subagent: SubagentView
+}
+
+export type SubagentProjection = {
+  order: string[]
+  records: Record<string, SubagentView>
+}
+
 export type ProjectPaneOptions = {
   streaming: boolean
   canRespondToUserInput: boolean
@@ -56,8 +67,16 @@ export class WebNodeProjectionCache {
   private readonly cache = new Map<string, CachedProjection>()
   private artifactSignature = ""
   private artifactNode: WebNodeView<WorkspaceArtifactsWebNodePayload> | null = null
+  private readonly subagentNodes = new Map<
+    string,
+    { subagent: SubagentView; node: WebNodeView<SubagentWebNodePayload> }
+  >()
 
-  project(pane: AgentPaneState, options: ProjectPaneOptions) {
+  project(
+    pane: AgentPaneState,
+    options: ProjectPaneOptions,
+    subagents?: SubagentProjection
+  ) {
     const lastBlockId = pane.blockOrder.at(-1)
     const liveNodeIds = new Set(pane.blockOrder)
     const nodes = pane.blockOrder.flatMap((blockId) => {
@@ -118,7 +137,30 @@ export class WebNodeProjectionCache {
           }
         : null
     }
-    return this.artifactNode ? [...nodes, this.artifactNode] : nodes
+    const projectedSubagents = (subagents?.order ?? []).flatMap((subagentId) => {
+      const subagent = subagents?.records[subagentId]
+      if (!subagent || !hasAgentPaneContent(subagent)) return []
+      const cached = this.subagentNodes.get(subagentId)
+      if (cached?.subagent === subagent) return [cached.node]
+      const node = createDefaultWebNode<SubagentWebNodePayload>({
+        renderer: "subagent",
+        nodeId: `subagent-${subagentId}`,
+        status: subagent.status === "streaming" ? "running" : "settled",
+        payload: { subagent },
+        fallback: { title: subagent.name },
+      })
+      this.subagentNodes.set(subagentId, { subagent, node })
+      return [node]
+    })
+    const liveSubagentIds = new Set(subagents?.order ?? [])
+    for (const subagentId of this.subagentNodes.keys()) {
+      if (!liveSubagentIds.has(subagentId)) this.subagentNodes.delete(subagentId)
+    }
+    return [
+      ...nodes,
+      ...(this.artifactNode ? [this.artifactNode] : []),
+      ...projectedSubagents,
+    ]
   }
 }
 

@@ -81,6 +81,7 @@ import {
   VisualUpdateScheduler,
   type VisualUpdatePriority,
 } from "@/features/chat/runtime/visual-update-scheduler"
+import { mergeAssistantDeltaEvents } from "@/features/chat/runtime/assistant-event-coalescing"
 import { useAppSession } from "@/features/auth/app-session"
 import {
   approveSandboxApproval,
@@ -281,6 +282,34 @@ type AssistantEntryUpdater = (
   entry: AssistantEntry | undefined
 ) => AssistantEntry | null
 
+type AssistantVisualUpdate =
+  | { kind: "updater"; updater: AssistantEntryUpdater }
+  | {
+      kind: "event"
+      event: GatewayChatStreamEvent
+      runId: string | null
+    }
+
+function mergeAssistantVisualUpdate(
+  previous: AssistantVisualUpdate,
+  next: AssistantVisualUpdate
+): AssistantVisualUpdate | null {
+  if (
+    previous.kind !== "event" ||
+    next.kind !== "event" ||
+    previous.runId !== next.runId
+  ) {
+    return null
+  }
+  const mergedEvent = mergeAssistantDeltaEvents(previous.event, next.event)
+  if (!mergedEvent) return null
+  return {
+    kind: "event",
+    runId: next.runId,
+    event: mergedEvent,
+  }
+}
+
 export function GatewayChatSidebar({
   isFullScreen,
   onFullScreenChange,
@@ -355,17 +384,29 @@ export function GatewayChatSidebar({
   const assistantEntryIdRef = React.useRef<string | null>(null)
   const [assistantVisualScheduler] = React.useState(
     () =>
-      new VisualUpdateScheduler<AssistantEntryUpdater>(
+      new VisualUpdateScheduler<AssistantVisualUpdate>(
       browserVisualSchedulerHost(),
       (updates) => {
         setEntries((current) =>
           updates.reduce(
-            (nextEntries, update) =>
-              applyAssistantEntryUpdate(nextEntries, update),
+            (nextEntries, update) => {
+              const updater =
+                update.kind === "updater"
+                  ? update.updater
+                  : (entry: AssistantEntry | undefined) =>
+                      projectConversationOutputEvent(
+                        entry,
+                        update.event,
+                        update.runId
+                      )
+              return applyAssistantEntryUpdate(nextEntries, updater)
+            },
             current
           )
         )
-      }
+      },
+      80,
+      mergeAssistantVisualUpdate
     )
   )
   const activeStreamConversationIdRef = React.useRef<string | null>(null)
@@ -1289,7 +1330,7 @@ export function GatewayChatSidebar({
     updater: AssistantEntryUpdater,
     priority: VisualUpdatePriority = "immediate"
   ) {
-    assistantVisualScheduler.enqueue(updater, priority)
+    assistantVisualScheduler.enqueue({ kind: "updater", updater }, priority)
   }
 
   function ensureAssistantEntry() {
@@ -1329,15 +1370,15 @@ export function GatewayChatSidebar({
   }
 
   function applyMainEvent(event: GatewayChatStreamEvent) {
-    updateAssistantEntry((entry) =>
-      projectConversationOutputEvent(entry, event, activeRunIdRef.current),
+    assistantVisualScheduler.enqueue(
+      { kind: "event", event, runId: activeRunIdRef.current },
       "frame"
     )
   }
 
   function applySubagentEvent(event: GatewayChatStreamEvent) {
-    updateAssistantEntry((entry) =>
-      projectConversationOutputEvent(entry, event, activeRunIdRef.current),
+    assistantVisualScheduler.enqueue(
+      { kind: "event", event, runId: activeRunIdRef.current },
       "frame"
     )
   }

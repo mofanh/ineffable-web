@@ -48,3 +48,47 @@ export function splitIncrementalMarkdown(
     stable: index < stableBefore,
   }))
 }
+
+export class IncrementalMarkdownProjector {
+  private previousContent = ""
+  private previousSegments: IncrementalMarkdownSegment[] = []
+  lastScannedCharacters = 0
+
+  project(content: string, settled: boolean) {
+    if (!content) {
+      this.previousContent = ""
+      this.previousSegments = []
+      this.lastScannedCharacters = 0
+      return []
+    }
+    if (settled) {
+      const segments = splitIncrementalMarkdown(content, true)
+      this.previousContent = content
+      this.previousSegments = segments
+      this.lastScannedCharacters = content.length
+      return segments
+    }
+
+    const canReuse =
+      this.previousContent.length > 0 &&
+      this.previousSegments[0]?.id !== "document" &&
+      content.startsWith(this.previousContent)
+    const stablePrefix = canReuse
+      ? this.previousSegments.filter((segment) => segment.stable)
+      : []
+    const stableEnd = stablePrefix.reduce(
+      (length, segment) => length + segment.content.length,
+      0
+    )
+    const tail = content.slice(stableEnd)
+    this.lastScannedCharacters = tail.length
+    const tailSegments = splitIncrementalMarkdown(tail, false).map((segment) => ({
+      ...segment,
+      id: `segment-${stableEnd + Number(segment.id.slice("segment-".length))}`,
+    }))
+    const segments = [...stablePrefix, ...tailSegments]
+    this.previousContent = content
+    this.previousSegments = segments
+    return segments
+  }
+}

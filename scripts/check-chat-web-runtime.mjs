@@ -11,11 +11,15 @@ import {
   webNodeRendererKey,
 } from "../src/features/chat/web-node.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
-import { splitIncrementalMarkdown } from "../src/features/chat/runtime/incremental-markdown.ts"
+import {
+  IncrementalMarkdownProjector,
+  splitIncrementalMarkdown,
+} from "../src/features/chat/runtime/incremental-markdown.ts"
 import {
   extractWorkspaceArtifact,
   workspaceArtifactHref,
 } from "../src/features/chat/runtime/workspace-artifacts.ts"
+import { mergeAssistantDeltaEvents } from "../src/features/chat/runtime/assistant-event-coalescing.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -160,6 +164,30 @@ assert.equal(
 )
 assert.notEqual(firstProjection[1], secondProjection[1])
 
+const subagent = {
+  ...pane,
+  id: "subagent-1",
+  name: "Verifier",
+  status: "done",
+}
+const projectionWithSubagent = projectionCache.project(
+  pane,
+  { streaming: true, canRespondToUserInput: false },
+  { order: [subagent.id], records: { [subagent.id]: subagent } }
+)
+const subagentNode = projectionWithSubagent.at(-1)
+const projectionAfterMainTail = projectionCache.project(
+  { ...pane, blocks: { ...pane.blocks, [tailBlock.id]: nextTailBlock } },
+  { streaming: true, canRespondToUserInput: false },
+  { order: [subagent.id], records: { [subagent.id]: subagent } }
+)
+assert.equal(subagentNode?.renderer, "subagent")
+assert.equal(
+  subagentNode,
+  projectionAfterMainTail.at(-1),
+  "subagent NodeSeat projection must retain identity during main text updates"
+)
+
 const markdown = [
   "# Stable heading\n\n",
   "Stable paragraph.\n\n",
@@ -184,6 +212,50 @@ assert.ok(longMarkdown.length > 100_000)
 assert.equal(longSegments[0].id, longerSegments[0].id)
 assert.equal(longSegments[0].content, longerSegments[0].content)
 assert.ok(longSegments.filter((segment) => !segment.stable).length <= 2)
+const incrementalProjector = new IncrementalMarkdownProjector()
+const cachedLongSegments = incrementalProjector.project(longMarkdown, false)
+const extendedLongSegments = incrementalProjector.project(
+  `${longMarkdown}\n\nsmall appended tail`,
+  false
+)
+assert.equal(cachedLongSegments[0], extendedLongSegments[0])
+assert.ok(
+  incrementalProjector.lastScannedCharacters < longMarkdown.length / 10,
+  "append must scan only the unstable markdown tail"
+)
+
+const mergedHost = fakeSchedulerHost()
+const mergedPublishes = []
+const mergedScheduler = new VisualUpdateScheduler(
+  mergedHost.host,
+  (updates) => mergedPublishes.push([...updates]),
+  80,
+  (previous, next) => `${previous}${next}`
+)
+for (let index = 0; index < 1000; index += 1) mergedScheduler.enqueue("x")
+mergedHost.flushFrame()
+assert.equal(mergedPublishes[0].length, 1)
+assert.equal(mergedPublishes[0][0].length, 1000)
+
+const deltaHost = fakeSchedulerHost()
+const deltaPublishes = []
+const deltaScheduler = new VisualUpdateScheduler(
+  deltaHost.host,
+  (updates) => deltaPublishes.push([...updates]),
+  80,
+  mergeAssistantDeltaEvents
+)
+for (let seq = 1; seq <= 1000; seq += 1) {
+  deltaScheduler.enqueue({
+    event: "model.text.delta",
+    seq,
+    content: "x",
+    metadata: { conversation_id: "conversation-1" },
+  })
+}
+deltaHost.flushFrame()
+assert.equal(deltaPublishes[0].length, 1)
+assert.equal(deltaPublishes[0][0].content.length, 1000)
 
 const { highlightSettledCode } = await import(
   "../src/features/chat/runtime/chat-syntax-highlighter.ts"
