@@ -29,6 +29,12 @@ import {
 import { i18n } from "../src/lib/i18n/i18n.ts"
 import { parseLeadingJsonObject } from "../src/features/chat/model/leading-json-object.ts"
 import { extractWorkspaceArtifact } from "../src/features/chat/runtime/workspace-artifacts.ts"
+import { WebNodeList } from "../src/features/chat/components/agent-pane.tsx"
+
+globalThis.React = React
+globalThis.IS_REACT_ACT_ENVIRONMENT = true
+globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0)
+globalThis.cancelAnimationFrame = (handle) => clearTimeout(handle)
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
@@ -201,14 +207,14 @@ const liveTerminalResult = event(
     status: "succeeded",
   }
 )
-let liveTerminalEntry = projectConversationOutputEvent(
+const runningTerminalEntry = projectConversationOutputEvent(
   undefined,
   liveTerminalCall,
   runId
 )
-const liveTerminalBlockId = liveTerminalEntry.pane.blockOrder[0]
-liveTerminalEntry = projectConversationOutputEvent(
-  liveTerminalEntry,
+const liveTerminalBlockId = runningTerminalEntry.pane.blockOrder[0]
+const liveTerminalEntry = projectConversationOutputEvent(
+  runningTerminalEntry,
   liveTerminalResult,
   runId
 )
@@ -264,6 +270,111 @@ assert.equal(
   getToolCallSummary(liveTerminalTool),
   "history replay and live projection must derive the same terminal summary"
 )
+
+let toolWebNodeTree
+await act(() => {
+  toolWebNodeTree = TestRenderer.create(
+    React.createElement(WebNodeList, {
+      pane: runningTerminalEntry.pane,
+      isStreaming: true,
+    })
+  )
+})
+let renderedToolButtons = toolWebNodeTree.root.findAll(
+  (node) => node.props["data-tool-call-id"] === "tool-terminal-replay"
+)
+assert.equal(renderedToolButtons.length, 1)
+assert.equal(renderedToolButtons[0].props["data-tool-status"], "running")
+await act(() => {
+  toolWebNodeTree.update(
+    React.createElement(WebNodeList, {
+      pane: liveTerminalEntry.pane,
+      isStreaming: false,
+    })
+  )
+})
+renderedToolButtons = toolWebNodeTree.root.findAll(
+  (node) => node.props["data-tool-call-id"] === "tool-terminal-replay"
+)
+assert.equal(renderedToolButtons.length, 1)
+assert.equal(renderedToolButtons[0].props["data-tool-status"], "succeeded")
+const liveSummaryNodes = toolWebNodeTree.root.findAll(
+  (node) => node.props["data-tool-summary"] === true
+)
+assert.equal(liveSummaryNodes.length, 1)
+assert.equal(
+  liveSummaryNodes[0].children.join(""),
+  getToolCallSummary(liveTerminalTool),
+  "the production Tool WebNode must update its collapsed summary in place"
+)
+await act(() => renderedToolButtons[0].props.onClick({ defaultPrevented: false }))
+const expandedTerminalTree = JSON.stringify(toolWebNodeTree.toJSON())
+assert.match(expandedTerminalTree, new RegExp(i18n.t("chat.agent.session")))
+assert.match(expandedTerminalTree, new RegExp(i18n.t("chat.agent.exitCode")))
+await act(() => toolWebNodeTree.unmount())
+
+let historyToolWebNodeTree
+await act(() => {
+  historyToolWebNodeTree = TestRenderer.create(
+    React.createElement(WebNodeList, {
+      pane: terminalHistoryEntries[0].pane,
+      isStreaming: false,
+    })
+  )
+})
+const historyToolButton = historyToolWebNodeTree.root.findAll(
+  (node) => node.props["data-tool-call-id"] === "tool-terminal-replay"
+)
+assert.equal(historyToolButton.length, 1)
+assert.equal(historyToolButton[0].props["data-tool-status"], "succeeded")
+const historySummaryNodes = historyToolWebNodeTree.root.findAll(
+  (node) => node.props["data-tool-summary"] === true
+)
+assert.equal(historySummaryNodes.length, 1)
+assert.equal(
+  historySummaryNodes[0].children.join(""),
+  getToolCallSummary(historyTerminalTool),
+  "history refresh must render the same Tool WebNode identity and summary"
+)
+await act(() => historyToolWebNodeTree.unmount())
+
+const previewCall = event(103, "tool.call.completed", null, {
+  tool_call_id: "tool-preview-replay",
+  tool_name: "expose_sandbox_port",
+  full_arguments: JSON.stringify({ port: 4173 }),
+})
+const repeatedPreviewPayload = JSON.stringify({
+  exposure_id: "exposure-history",
+  preview_url: "https://preview.example.test",
+  label: "Agent Preview",
+  port: 4173,
+  status: "active",
+}).repeat(2)
+const previewResult = event(104, "tool.result", repeatedPreviewPayload, {
+  tool_call_id: "tool-preview-replay",
+  tool_name: "expose_sandbox_port",
+  status: "succeeded",
+})
+const previewEntry = projectConversationOutputEvent(
+  projectConversationOutputEvent(undefined, previewCall, runId),
+  previewResult,
+  runId
+)
+let previewWebNodeTree
+await act(() => {
+  previewWebNodeTree = TestRenderer.create(
+    React.createElement(WebNodeList, {
+      pane: previewEntry.pane,
+      isStreaming: false,
+    })
+  )
+})
+assert.match(
+  JSON.stringify(previewWebNodeTree.toJSON()),
+  /Agent Preview/,
+  "concatenated JSON must still select the production sandbox preview renderer"
+)
+await act(() => previewWebNodeTree.unmount())
 
 const longText = `${"A long streaming paragraph with stable markdown.\n\n".repeat(2600)}Done.`
 const events = [
@@ -606,7 +717,7 @@ try {
   assert.match(JSON.stringify(exceptionTree.toJSON()), /recovered/)
 } finally {
   console.error = originalConsoleError
-  exceptionTree?.unmount()
+  if (exceptionTree) await act(() => exceptionTree.unmount())
 }
 
 console.log("chat web integration checks passed")

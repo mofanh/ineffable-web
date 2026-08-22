@@ -268,6 +268,7 @@ chat entries
 - [x] 将前导 JSON 解析收敛为共享实现，摘要、terminal、preview 与 artifact 复用。
 - [x] 重复拼接 JSON 下保留 terminal 专用详情和 Workspace artifact 投影。
 - [x] 新增真实 history mapper 的 tool call/result 回放，与 live summary 做一致性断言。
+- [x] 最终只读复审无 P0/P1；补齐生产 Tool WebNode 的 live、history、terminal 与 preview 组件级覆盖。
 - [x] 整改后重新通过完整自动验证与真实历史 terminal 展开检查。
 
 ### 非目标
