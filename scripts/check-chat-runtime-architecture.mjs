@@ -15,6 +15,9 @@ const projector = source(
 )
 const messageList = source("src/features/chat/components/chat-message-list.tsx")
 const agentPane = source("src/features/chat/components/agent-pane.tsx")
+const toolCallShell = source(
+  "src/features/chat/components/tool-call-shell.tsx"
+)
 const webNodeRegistry = source(
   "src/features/chat/components/web-node-registry.tsx"
 )
@@ -46,6 +49,7 @@ assert.doesNotMatch(messageList, /\bAgentPane\b/)
 assert.doesNotMatch(agentPane, /export const AgentPane/)
 assert.match(agentPane, /<WebNodeSeat/)
 assert.match(agentPane, /getToolCallPresentation\(tool\)/)
+assert.match(toolCallShell, /data-tool-call-id=\{tool\.id\}/)
 assert.doesNotMatch(toolPresentation, /tool\.output\.(includes|startsWith)/)
 assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer\)/)
 assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)

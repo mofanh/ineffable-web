@@ -242,19 +242,25 @@ chat entries
 
 ### 自动验证
 
-- [ ] `npm run check:chat-web-runtime`
-- [ ] `npm run check:chat-web-integration`
-- [ ] `npm run check:chat-architecture`
-- [ ] `npm run i18n:check`
-- [ ] `npm run lint`
-- [ ] `npm run build`
-- [ ] `git diff --check`
+- [x] `npm run check:chat-web-runtime`
+- [x] `npm run check:chat-web-integration`
+- [x] `npm run check:chat-architecture`
+- [x] `npm run i18n:check`
+- [x] `npm run lint`
+- [x] `npm run build`
+- [x] `git diff --check`
 
 ### 真实浏览器验证
 
-- [ ] 使用真实 Gateway 触发至少一个工具调用，确认 running 阶段摘要实时更新。
-- [ ] 工具结算后卡片原位切换为终态，不重复创建 Tool 节点。
-- [ ] 刷新历史后标题、摘要、状态与 live 路径语义一致。
+- [x] 使用真实 Gateway 触发至少一个工具调用，确认 running 阶段摘要实时更新。
+- [x] 工具结算后卡片原位切换为终态，不重复创建 Tool 节点。
+- [x] 刷新历史后标题、摘要、状态与 live 路径语义一致。
+
+### 非阻塞运行时发现
+
+本地 `exec_command` 验收返回 `capability route not found`，但该次 canonical tool result
+未携带失败 settlement，现有 projector 因而按协议默认显示 succeeded。前端保持不从
+输出字符串反推状态；该 Gateway/Capability 状态契约异常不在本轮展示层范围内。
 
 ### 非目标
 

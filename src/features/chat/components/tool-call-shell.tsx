@@ -126,6 +126,7 @@ export function ToolCallShell({
       <CollapsibleTrigger asChild>
         <button
           type="button"
+          data-tool-call-id={tool.id}
           data-tool-status={tool.status}
           className="group flex min-h-7 w-full min-w-0 items-center gap-2 text-left text-[12px] text-foreground/62 select-none transition-colors hover:text-foreground/85 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         >
