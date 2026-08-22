@@ -32,6 +32,7 @@ import {
   type WebNodeRenderer,
 } from "@/features/chat/components/web-node-registry"
 import { getToolCallPresentation } from "@/features/chat/model/tool-call-presentation"
+import { parseLeadingJsonObject } from "@/features/chat/model/leading-json-object"
 import { IncrementalMarkdownProjector } from "@/features/chat/runtime/incremental-markdown"
 import {
   WORKSPACE_WEB_PLUGIN_ID,
@@ -353,18 +354,6 @@ function booleanValue(value: unknown) {
   return typeof value === "boolean" ? value : null
 }
 
-function parseJsonObject(value: string) {
-  if (!value.trim()) {
-    return null
-  }
-
-  try {
-    return objectValue(JSON.parse(value))
-  } catch {
-    return null
-  }
-}
-
 function isTerminalToolName(name: string) {
   return (
     name === "exec_command" ||
@@ -567,7 +556,7 @@ function renderTerminalToolResult(tool: ToolCallView) {
     return null
   }
 
-  const result = parseJsonObject(tool.output)
+  const result = parseLeadingJsonObject(tool.output)
   if (!result) {
     return null
   }
@@ -597,7 +586,7 @@ function sandboxPreviewResult(tool: ToolCallView): SandboxPreviewResult | null {
     return null
   }
 
-  const parsed = parseJsonObject(tool.output)
+  const parsed = parseLeadingJsonObject(tool.output)
   if (!parsed) {
     return null
   }

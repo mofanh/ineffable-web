@@ -3,6 +3,7 @@ import {
   parseJsonObject,
   stringValue,
 } from "@/features/chat/model/chat-parsing"
+import { parseLeadingJsonObject } from "@/features/chat/model/leading-json-object"
 import { i18n } from "@/lib/i18n/i18n"
 
 const TOOL_SUMMARY_MAX_LENGTH = 140
@@ -37,36 +38,6 @@ function firstString(
   return ""
 }
 
-function parseLeadingJsonObject(value: string | null | undefined) {
-  const direct = parseJsonObject(value)
-  if (direct || !value) return direct
-
-  const source = value.trimStart()
-  if (!source.startsWith("{")) return null
-  let depth = 0
-  let inString = false
-  let escaped = false
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index]
-    if (inString) {
-      if (escaped) escaped = false
-      else if (character === "\\") escaped = true
-      else if (character === '"') inString = false
-      continue
-    }
-    if (character === '"') {
-      inString = true
-      continue
-    }
-    if (character === "{") depth += 1
-    else if (character === "}") {
-      depth -= 1
-      if (depth === 0) return parseJsonObject(source.slice(0, index + 1))
-    }
-  }
-  return null
-}
-
 function toolInputSummary(tool: ToolCallView) {
   const input = parseJsonObject(tool.input)
   const structured = firstString(input, [
@@ -88,6 +59,10 @@ function toolInputSummary(tool: ToolCallView) {
 function toolOutputSummary(tool: ToolCallView) {
   const output = parseLeadingJsonObject(tool.output)
   const nestedResult = output?.result
+  const nestedResultText =
+    typeof nestedResult === "string" && !parseLeadingJsonObject(nestedResult)
+      ? nestedResult
+      : ""
   const result =
     nestedResult && typeof nestedResult === "object" && !Array.isArray(nestedResult)
       ? (nestedResult as Record<string, unknown>)
@@ -108,7 +83,7 @@ function toolOutputSummary(tool: ToolCallView) {
         : null
   const preferredText = firstString(
     result,
-    tool.status === "failed"
+    tool.status === "failed" || tool.status === "cancelled"
       ? [
           "error",
           "failure_reason",
@@ -135,7 +110,7 @@ function toolOutputSummary(tool: ToolCallView) {
         ]
   )
   const textSummary = inlineSummary(
-    preferredText || (output === null ? tool.output : "")
+    preferredText || nestedResultText || (output === null ? tool.output : "")
   )
 
   return inlineSummary(

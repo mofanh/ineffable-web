@@ -27,6 +27,8 @@ import {
   getToolCallTitle,
 } from "../src/features/chat/model/tool-call-presentation.ts"
 import { i18n } from "../src/lib/i18n/i18n.ts"
+import { parseLeadingJsonObject } from "../src/features/chat/model/leading-json-object.ts"
+import { extractWorkspaceArtifact } from "../src/features/chat/runtime/workspace-artifacts.ts"
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
@@ -119,6 +121,44 @@ assert.equal(
   null,
   "partial JSON must degrade safely until the canonical arguments are complete"
 )
+assert.equal(
+  getToolCallSummary({
+    ...runningCommand,
+    status: "failed",
+    output: JSON.stringify({ result: "permission denied" }),
+  }),
+  "permission denied"
+)
+assert.equal(
+  getToolCallSummary({
+    ...fileRead,
+    status: "cancelled",
+    output: JSON.stringify({ error: "cancelled by user" }),
+  }),
+  "cancelled by user"
+)
+const repeatedArtifactOutput = JSON.stringify({
+  workspace_id: "workspace-1",
+  object_id: "object-1",
+  version_id: "version-1",
+  path: "reports/result.md",
+  mime_type: "text/markdown",
+  size_bytes: 42,
+}).repeat(2)
+assert.deepEqual(
+  parseLeadingJsonObject(repeatedArtifactOutput),
+  JSON.parse(repeatedArtifactOutput.slice(0, repeatedArtifactOutput.length / 2))
+)
+assert.equal(
+  extractWorkspaceArtifact({
+    id: "tool-artifact",
+    name: "publish_sandbox_file",
+    input: "",
+    output: repeatedArtifactOutput,
+    status: "succeeded",
+  })?.artifactId,
+  "workspace-1:object-1:version-1"
+)
 
 function event(seq, kind, content = null, metadata = {}, scope = "main") {
   return {
@@ -137,6 +177,93 @@ function event(seq, kind, content = null, metadata = {}, scope = "main") {
     },
   }
 }
+
+const duplicateTerminalPayload = JSON.stringify({
+  session_id: "session-history",
+  status: "exited",
+  start_line: 1,
+  end_line: 2,
+  exit_code: 0,
+  stdout: "done",
+})
+const liveTerminalCall = event(101, "tool.call.completed", null, {
+  tool_call_id: "tool-terminal-replay",
+  tool_name: "terminal_read",
+  full_arguments: JSON.stringify({ session_id: "session-history" }),
+})
+const liveTerminalResult = event(
+  102,
+  "tool.result",
+  duplicateTerminalPayload.repeat(2),
+  {
+    tool_call_id: "tool-terminal-replay",
+    tool_name: "terminal_read",
+    status: "succeeded",
+  }
+)
+let liveTerminalEntry = projectConversationOutputEvent(
+  undefined,
+  liveTerminalCall,
+  runId
+)
+const liveTerminalBlockId = liveTerminalEntry.pane.blockOrder[0]
+liveTerminalEntry = projectConversationOutputEvent(
+  liveTerminalEntry,
+  liveTerminalResult,
+  runId
+)
+assert.equal(
+  liveTerminalEntry.pane.blockOrder[0],
+  liveTerminalBlockId,
+  "tool settlement must update the original canonical tool block"
+)
+const terminalHistoryEntries = mapConversationMessagesToEntries([
+  {
+    id: "terminal-call-history",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "assistant",
+    message_type: "tool_call",
+    content: JSON.stringify({ session_id: "session-history" }),
+    metadata_json: {
+      scope: "main",
+      tool_call_id: "tool-terminal-replay",
+      tool_name: "terminal_read",
+      full_arguments: JSON.stringify({ session_id: "session-history" }),
+    },
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  },
+  {
+    id: "terminal-result-history",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "tool",
+    message_type: "tool_result",
+    content: duplicateTerminalPayload.repeat(2),
+    metadata_json: {
+      scope: "main",
+      tool_call_id: "tool-terminal-replay",
+      tool_name: "terminal_read",
+      status: "succeeded",
+    },
+    created_at: "2026-08-22T00:00:01Z",
+    updated_at: "2026-08-22T00:00:01Z",
+  },
+])
+assert.equal(terminalHistoryEntries.length, 1)
+assert.equal(terminalHistoryEntries[0].role, "assistant")
+const liveTerminalTool = liveTerminalEntry.pane.tools["tool-terminal-replay"]
+const historyTerminalTool =
+  terminalHistoryEntries[0].role === "assistant"
+    ? terminalHistoryEntries[0].pane.tools["tool-terminal-replay"]
+    : null
+assert.ok(liveTerminalTool && historyTerminalTool)
+assert.equal(
+  getToolCallSummary(historyTerminalTool),
+  getToolCallSummary(liveTerminalTool),
+  "history replay and live projection must derive the same terminal summary"
+)
 
 const longText = `${"A long streaming paragraph with stable markdown.\n\n".repeat(2600)}Done.`
 const events = [

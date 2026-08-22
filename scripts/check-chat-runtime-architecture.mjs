@@ -25,6 +25,9 @@ const history = source("src/features/chat/model/chat-history.ts")
 const toolPresentation = source(
   "src/features/chat/model/tool-call-presentation.ts"
 )
+const workspaceArtifacts = source(
+  "src/features/chat/runtime/workspace-artifacts.ts"
+)
 
 assert.doesNotMatch(apiClient, /getReader\(\)/)
 assert.match(sseParser, /getReader\(\)/)
@@ -51,6 +54,8 @@ assert.match(agentPane, /<WebNodeSeat/)
 assert.match(agentPane, /getToolCallPresentation\(tool\)/)
 assert.match(toolCallShell, /data-tool-call-id=\{tool\.id\}/)
 assert.doesNotMatch(toolPresentation, /tool\.output\.(includes|startsWith)/)
+assert.match(agentPane, /parseLeadingJsonObject\(tool\.output\)/)
+assert.match(workspaceArtifacts, /parseLeadingJsonObject\(tool\.output\)/)
 assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer\)/)
 assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)
 assert.match(agentPane, /registerDefaultWebNodeRenderer\([\s\S]*"subagent"/)

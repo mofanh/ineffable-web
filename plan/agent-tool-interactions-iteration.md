@@ -262,6 +262,14 @@ chat entries
 未携带失败 settlement，现有 projector 因而按协议默认显示 succeeded。前端保持不从
 输出字符串反推状态；该 Gateway/Capability 状态契约异常不在本轮展示层范围内。
 
+### 最终审计整改
+
+- [x] `result` 为普通错误字符串及 cancelled error 时，折叠态优先展示失败原因。
+- [x] 将前导 JSON 解析收敛为共享实现，摘要、terminal、preview 与 artifact 复用。
+- [x] 重复拼接 JSON 下保留 terminal 专用详情和 Workspace artifact 投影。
+- [x] 新增真实 history mapper 的 tool call/result 回放，与 live summary 做一致性断言。
+- [x] 整改后重新通过完整自动验证与真实历史 terminal 展开检查。
+
 ### 非目标
 
 - 不修改后端 tool schema、事件 kind、settlement 或持久化内容。

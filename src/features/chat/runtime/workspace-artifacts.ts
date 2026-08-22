@@ -1,4 +1,5 @@
 import type { ToolCallView } from "@/features/chat/chat-pane-state"
+import { parseLeadingJsonObject } from "../model/leading-json-object.ts"
 
 export const WORKSPACE_WEB_PLUGIN_ID = "ineffable.web.workspace"
 
@@ -53,12 +54,9 @@ export function extractWorkspaceArtifact(
   ) {
     return null
   }
-  let result: JsonObject | null = null
-  try {
-    result = objectValue(JSON.parse(tool.output))
-  } catch {
-    return null
-  }
+  const parsed = parseLeadingJsonObject(tool.output)
+  const result = objectValue(parsed?.result) ?? parsed
+  if (!result) return null
   const object = objectValue(result?.object) ?? result
   const workspaceId = stringValue(object?.workspace_id ?? result?.workspace_id)
   const objectId = stringValue(
