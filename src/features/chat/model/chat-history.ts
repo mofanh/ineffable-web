@@ -252,6 +252,7 @@ function buildAssistantEntryFromMessages(
   let pane = createEmptyAgentPane()
   const subagents: Record<string, SubagentView> = {}
   const subagentOrder: string[] = []
+  const snapshotContentByScope = new Map<string, string>()
 
   compactedMessages.forEach((message, index) => {
     const reasoningContent = getMessageReasoningContent(message)
@@ -284,9 +285,37 @@ function buildAssistantEntryFromMessages(
       )
     }
 
-    const event = buildHistoryEvent(message, index + 1)
+    let event = buildHistoryEvent(message, index + 1)
     if (!event) {
       return
+    }
+
+    if (event.event === "assistant.snapshot") {
+      const metadata =
+        event.metadata && typeof event.metadata === "object"
+          ? event.metadata
+          : null
+      const scope =
+        metadata && typeof metadata.scope === "string" && metadata.scope.trim()
+          ? metadata.scope.trim()
+          : "main"
+      const subagentId =
+        metadata &&
+        typeof metadata.subagent_id === "string" &&
+        metadata.subagent_id.trim()
+          ? metadata.subagent_id.trim()
+          : ""
+      const scopeKey = `${scope}::${subagentId}`
+      const snapshotContent = event.content ?? ""
+      const previousSnapshot = snapshotContentByScope.get(scopeKey) ?? ""
+      snapshotContentByScope.set(scopeKey, snapshotContent)
+      if (previousSnapshot && snapshotContent.startsWith(previousSnapshot)) {
+        event = {
+          ...event,
+          event: "model.text.delta",
+          content: snapshotContent.slice(previousSnapshot.length),
+        }
+      }
     }
 
     if (isSubScope(event)) {
@@ -302,7 +331,10 @@ function buildAssistantEntryFromMessages(
               getToolCallId,
               getToolName
             )
-            return upsertToolInPane(existing, toolId, tool) as SubagentView
+            return projectDeclaredWebNode(
+              upsertToolInPane(existing, toolId, tool),
+              event
+            ) as SubagentView
           })()
         : ({
             ...applyEventToPaneState(existing, event),

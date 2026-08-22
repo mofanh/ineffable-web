@@ -218,6 +218,84 @@ assert.deepEqual(
   "live Plugin projection and canonical terminal history must reconcile"
 )
 
+const cumulativePluginNode = events[16].metadata.web_view
+let cumulativeLive = projectConversationOutputEvent(
+  undefined,
+  event(30, "model.text.delta", "A", { web_view: cumulativePluginNode }),
+  runId
+)
+cumulativeLive = projectConversationOutputEvent(
+  cumulativeLive,
+  event(31, "model.text.delta", "B"),
+  runId
+)
+const cumulativeHistory = mapConversationMessagesToEntries([
+  {
+    id: "plugin-snapshot",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "assistant",
+    message_type: "output",
+    content: "A",
+    metadata_json: { web_view: cumulativePluginNode },
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  },
+  {
+    id: "terminal-snapshot",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "assistant",
+    message_type: "output",
+    content: "AB",
+    metadata_json: {},
+    created_at: "2026-08-22T00:00:01Z",
+    updated_at: "2026-08-22T00:00:01Z",
+  },
+])
+assert.equal(cumulativeHistory.length, 1)
+assert.ok(cumulativeHistory[0].role === "assistant")
+assert.deepEqual(
+  semanticPane(finalizePane(cumulativeLive.pane)),
+  semanticPane(cumulativeHistory[0].pane),
+  "cumulative terminal snapshot must append only the suffix around a Plugin node"
+)
+
+const subagentToolHistory = mapConversationMessagesToEntries([
+  {
+    id: "subagent-tool-plugin",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "tool",
+    message_type: "tool_result",
+    content: "done",
+    metadata_json: {
+      scope: "sub",
+      subagent_id: "sub-tool",
+      subagent_name: "Tool verifier",
+      tool_call_id: "sub-tool-call",
+      tool_name: "web_search",
+      status: "succeeded",
+      web_view: {
+        ...cumulativePluginNode,
+        nodeId: "subagent-tool-view",
+      },
+    },
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  },
+])
+assert.equal(subagentToolHistory.length, 1)
+assert.ok(subagentToolHistory[0].role === "assistant")
+assert.ok(
+  subagentToolHistory[0].role === "assistant" &&
+    getPaneBlocks(subagentToolHistory[0].subagents["sub-tool"]).some(
+      (block) =>
+        block.type === "plugin" && block.node.nodeId === "subagent-tool-view"
+    ),
+  "subagent tool history must preserve the declared Plugin node"
+)
+
 let disconnected = createConversationRunRuntime(conversationId)
 for (const item of events.slice(0, 8)) {
   disconnected = reduceConversationRunRuntime(disconnected, { type: "event", event: item })
