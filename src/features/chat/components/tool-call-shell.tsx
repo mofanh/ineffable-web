@@ -1,5 +1,4 @@
 import * as React from "react"
-import { Badge } from "@/components/ui/badge"
 import {
   Collapsible,
   CollapsibleContent,
@@ -35,23 +34,41 @@ function toolStatusLabel(status: ToolCallStatus) {
 function statusTone(status: ToolCallStatus) {
   switch (status) {
     case "running":
-      return "border-sky-500/25 text-sky-700 dark:text-sky-400"
+      return "text-sky-700 dark:text-sky-400"
     case "waiting":
-      return "border-amber-500/30 text-amber-700 dark:text-amber-400"
+      return "text-amber-700 dark:text-amber-400"
     case "succeeded":
-      return "border-emerald-500/25 text-emerald-700 dark:text-emerald-400"
+      return "text-emerald-700 dark:text-emerald-400"
     case "failed":
-      return "border-destructive/25 text-destructive"
+      return "text-destructive"
     case "cancelled":
-      return "border-amber-500/25 text-amber-700 dark:text-amber-400"
+      return "text-amber-700 dark:text-amber-400"
     default:
-      return "border-border text-foreground/65"
+      return "text-foreground/65"
+  }
+}
+
+function statusMarkerTone(status: ToolCallStatus) {
+  switch (status) {
+    case "running":
+      return "bg-sky-500"
+    case "waiting":
+      return "bg-amber-500"
+    case "succeeded":
+      return "bg-emerald-500"
+    case "failed":
+      return "bg-destructive"
+    case "cancelled":
+      return "bg-amber-500"
+    default:
+      return "bg-foreground/35"
   }
 }
 
 export function ToolCallShell({
   tool,
   title,
+  summary,
   icon,
   children,
   defaultOpen,
@@ -62,6 +79,7 @@ export function ToolCallShell({
 }: {
   tool: ToolCallView
   title?: React.ReactNode
+  summary?: React.ReactNode
   icon?: React.ReactNode
   children: React.ReactNode
   defaultOpen?: boolean
@@ -108,22 +126,40 @@ export function ToolCallShell({
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="group flex min-h-6 w-full items-center gap-2 text-left text-[12px] text-foreground/62 select-none transition-colors hover:text-foreground/85 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
+          data-tool-status={tool.status}
+          className="group flex min-h-7 w-full min-w-0 items-center gap-2 text-left text-[12px] text-foreground/62 select-none transition-colors hover:text-foreground/85 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         >
-          <span className="inline-flex min-w-0 items-center gap-1.5">
+          <span className="inline-flex min-w-0 max-w-[52%] shrink-0 items-center gap-1.5">
             {icon ?? <WrenchIcon className="size-3.5 flex-none" />}
             <span className="truncate">{title ?? tool.name}</span>
           </span>
-          <span className="ml-auto inline-flex items-center gap-1.5">
-            <Badge
-              variant="outline"
+          {!open && summary ? (
+            <span
+              data-tool-summary
               className={cn(
-                "h-5 shrink-0 rounded-full bg-transparent px-1.5 text-[10px]",
-                statusTone(tool.status)
+                "min-w-0 flex-1 truncate text-[11px] text-foreground/45",
+                tool.status === "failed" && "text-destructive/85"
               )}
             >
-              {toolStatusLabel(tool.status)}
-            </Badge>
+              {summary}
+            </span>
+          ) : null}
+          <span
+            aria-live="polite"
+            className={cn(
+              "ml-auto inline-flex shrink-0 items-center gap-1 text-[10px]",
+              statusTone(tool.status)
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 rounded-full",
+                statusMarkerTone(tool.status),
+                tool.status === "running" && "animate-pulse"
+              )}
+            />
+            {toolStatusLabel(tool.status)}
             <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
           </span>
         </button>

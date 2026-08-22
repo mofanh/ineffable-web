@@ -227,16 +227,16 @@ chat entries
 
 ### 实现
 
-- [ ] `ToolCallShell` 折叠行复用 presentation 摘要，布局与“思考过程”保持同一信息层级。
-- [ ] running/pending 保持稳定卡片并局部更新摘要；success 自动收起；failure 保留可见原因。
-- [ ] 展开区继续提供完整 input/output，专用 request、preview、terminal 与 artifact renderer 不回归。
-- [ ] 连续工具节点保持各自稳定 identity，不合并 canonical tool call。
+- [x] `ToolCallShell` 折叠行复用 presentation 摘要，布局与“思考过程”保持同一信息层级。
+- [x] running/pending 保持稳定卡片并局部更新摘要；success 自动收起；failure 保留可见原因。
+- [x] 展开区继续提供完整 input/output，专用 request、preview、terminal 与 artifact renderer 不回归。
+- [x] 连续工具节点保持各自稳定 identity，不合并 canonical tool call。
 
 ### 验收标准
 
-- [ ] 窄栏下标题、摘要、状态和展开按钮不会互相挤出容器。
-- [ ] 折叠成功工具无需展开即可理解动作和结果。
-- [ ] 失败工具无需展开即可看到受控错误摘要，展开后仍可查看原始输出。
+- [x] 窄栏下标题、摘要、状态和展开按钮不会互相挤出容器。
+- [x] 折叠成功工具无需展开即可理解动作和结果。
+- [x] 失败工具无需展开即可看到受控错误摘要，展开后仍可查看原始输出。
 
 ## Phase 10：集成与真实流式验收
 

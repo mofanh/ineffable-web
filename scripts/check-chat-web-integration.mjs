@@ -22,6 +22,7 @@ import {
 } from "../src/features/chat/components/web-node-registry.tsx"
 import { WEB_NODE_SCHEMA_VERSION } from "../src/features/chat/web-node.ts"
 import {
+  getToolCallPresentation,
   getToolCallSummary,
   getToolCallTitle,
 } from "../src/features/chat/model/tool-call-presentation.ts"
@@ -67,6 +68,11 @@ assert.equal(
   `${i18n.t("chat.agent.lineRange")} 1–100`
 )
 assert.equal(
+  getToolCallPresentation({ ...fileRead, output: "", status: "running" }).summary,
+  null,
+  "the collapsed row must not repeat a target already present in its title"
+)
+assert.equal(
   getToolCallSummary({
     id: "tool-unknown",
     name: "unknown_tool",
@@ -85,6 +91,22 @@ assert.equal(
     status: "running",
   }),
   "latest agent runtime"
+)
+assert.equal(
+  getToolCallSummary({
+    id: "tool-terminal-history",
+    name: "terminal_read",
+    input: JSON.stringify({ session_id: "session-1" }),
+    output: JSON.stringify({
+      start_line: 1,
+      end_line: 77,
+      exit_code: null,
+      stdout: "first terminal line\nsecond terminal line",
+      output_tail: "second terminal line",
+    }).repeat(2),
+    status: "succeeded",
+  }),
+  `${i18n.t("chat.agent.lineRange")} 1–77 · first terminal line second terminal line`
 )
 assert.equal(
   getToolCallSummary({

@@ -31,7 +31,7 @@ import {
   WebNodeSeat,
   type WebNodeRenderer,
 } from "@/features/chat/components/web-node-registry"
-import { getToolCallTitle } from "@/features/chat/model/tool-call-presentation"
+import { getToolCallPresentation } from "@/features/chat/model/tool-call-presentation"
 import { IncrementalMarkdownProjector } from "@/features/chat/runtime/incremental-markdown"
 import {
   WORKSPACE_WEB_PLUGIN_ID,
@@ -792,6 +792,7 @@ const ToolCallCard = React.memo(function ToolCallCard({
 
   const terminalResult = renderTerminalToolResult(tool)
   const previewResult = sandboxPreviewResult(tool)
+  const presentation = getToolCallPresentation(tool)
 
   if (previewResult) {
     return <SandboxPreviewResultCard result={previewResult} />
@@ -800,7 +801,8 @@ const ToolCallCard = React.memo(function ToolCallCard({
   return (
     <ToolCallShell
       tool={tool}
-      title={getToolCallTitle(tool) ?? undefined}
+      title={presentation.title}
+      summary={presentation.summary}
       autoOpenActive={false}
     >
       {tool.input.trim() ? (

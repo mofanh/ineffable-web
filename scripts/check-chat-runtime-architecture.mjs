@@ -19,6 +19,9 @@ const webNodeRegistry = source(
   "src/features/chat/components/web-node-registry.tsx"
 )
 const history = source("src/features/chat/model/chat-history.ts")
+const toolPresentation = source(
+  "src/features/chat/model/tool-call-presentation.ts"
+)
 
 assert.doesNotMatch(apiClient, /getReader\(\)/)
 assert.match(sseParser, /getReader\(\)/)
@@ -42,6 +45,8 @@ assert.match(projector, /"subagent\.completed"/)
 assert.doesNotMatch(messageList, /\bAgentPane\b/)
 assert.doesNotMatch(agentPane, /export const AgentPane/)
 assert.match(agentPane, /<WebNodeSeat/)
+assert.match(agentPane, /getToolCallPresentation\(tool\)/)
+assert.doesNotMatch(toolPresentation, /tool\.output\.(includes|startsWith)/)
 assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer\)/)
 assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)
 assert.match(agentPane, /registerDefaultWebNodeRenderer\([\s\S]*"subagent"/)

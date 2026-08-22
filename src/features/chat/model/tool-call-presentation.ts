@@ -6,6 +6,10 @@ import {
 import { i18n } from "@/lib/i18n/i18n"
 
 const TOOL_SUMMARY_MAX_LENGTH = 140
+const ANSI_ESCAPE_SEQUENCE = new RegExp(
+  `${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`,
+  "g"
+)
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null
@@ -13,7 +17,7 @@ function numberValue(value: unknown) {
 
 function inlineSummary(value: string) {
   const normalized = value
-    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(ANSI_ESCAPE_SEQUENCE, "")
     .replace(/\s+/g, " ")
     .trim()
   if (!normalized) return null
@@ -31,6 +35,36 @@ function firstString(
     if (value.trim()) return value
   }
   return ""
+}
+
+function parseLeadingJsonObject(value: string | null | undefined) {
+  const direct = parseJsonObject(value)
+  if (direct || !value) return direct
+
+  const source = value.trimStart()
+  if (!source.startsWith("{")) return null
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (character === "\\") escaped = true
+      else if (character === '"') inString = false
+      continue
+    }
+    if (character === '"') {
+      inString = true
+      continue
+    }
+    if (character === "{") depth += 1
+    else if (character === "}") {
+      depth -= 1
+      if (depth === 0) return parseJsonObject(source.slice(0, index + 1))
+    }
+  }
+  return null
 }
 
 function toolInputSummary(tool: ToolCallView) {
@@ -52,11 +86,13 @@ function toolInputSummary(tool: ToolCallView) {
 }
 
 function toolOutputSummary(tool: ToolCallView) {
-  const output = parseJsonObject(tool.output)
+  const output = parseLeadingJsonObject(tool.output)
   const nestedResult = output?.result
   const result =
     nestedResult && typeof nestedResult === "object" && !Array.isArray(nestedResult)
       ? (nestedResult as Record<string, unknown>)
+      : typeof nestedResult === "string"
+        ? parseLeadingJsonObject(nestedResult) ?? output
       : output
   const exitCode =
     numberValue(result?.exit_code) ?? numberValue(result?.exitCode)
@@ -73,8 +109,30 @@ function toolOutputSummary(tool: ToolCallView) {
   const preferredText = firstString(
     result,
     tool.status === "failed"
-      ? ["error", "failure", "reason", "message", "stderr", "output", "content"]
-      : ["summary", "message", "output", "content", "stdout", "stderr"]
+      ? [
+          "error",
+          "failure_reason",
+          "failure",
+          "reason",
+          "message",
+          "stderr",
+          "output",
+          "output_tail",
+          "content",
+          "next_action",
+          "command",
+        ]
+      : [
+          "summary",
+          "message",
+          "output",
+          "content",
+          "stdout",
+          "output_tail",
+          "stderr",
+          "next_action",
+          "command",
+        ]
   )
   const textSummary = inlineSummary(
     preferredText || (output === null ? tool.output : "")
@@ -95,6 +153,20 @@ export function getToolCallSummary(tool: ToolCallView) {
   }
 
   return toolInputSummary(tool)
+}
+
+export function getToolCallPresentation(tool: ToolCallView) {
+  const title = getToolCallTitle(tool) ?? tool.name
+  const summary = getToolCallSummary(tool)
+  const normalizedTitle = inlineSummary(title)
+
+  return {
+    title,
+    summary:
+      summary && normalizedTitle?.includes(summary)
+        ? null
+        : summary,
+  }
 }
 
 function titleWithTarget(
@@ -149,6 +221,12 @@ export function getToolCallTitle(tool: ToolCallView) {
         : i18n.t("chat.agent.toolTitles.checkFile")
     case "apply_patch":
       return i18n.t("chat.agent.toolTitles.editFiles")
+    case "exec_command":
+    case "terminal_read":
+    case "terminal_write":
+    case "write_stdin":
+    case "terminal_stop":
+      return i18n.t("chat.agent.terminalSession")
     default:
       return null
   }
