@@ -206,3 +206,58 @@ chat entries
 - [x] `npm run lint`
 - [x] `npm run build`
 - [x] `git diff --check`
+
+## Phase 8：工具折叠摘要契约
+
+### 目标与边界
+
+- [ ] 由集中式 tool presentation 从类型化 `ToolCallView` 派生标题与单行摘要。
+- [ ] 摘要只解释参数和结果，不从自由文本反推 tool settlement 状态。
+- [ ] 运行中优先展示目标、命令或查询；终态优先展示行范围、退出码或结果首行。
+- [ ] 摘要必须有长度上限并归一化空白，避免长参数或输出撑开消息布局。
+- [ ] 不修改 Gateway/Agentic 协议，不增加 Tool WebNode 之外的渲染路径。
+
+### 验收标准
+
+- [ ] 文件、命令、搜索与未知工具都有确定性 presentation 回归覆盖。
+- [ ] 参数尚未完成或结果不是 JSON 时仍能安全降级，不抛异常。
+- [ ] failed/cancelled 状态继续来自 canonical tool result，不做字符串嗅探。
+
+## Phase 9：Tool WebNode 紧凑状态轨迹
+
+### 实现
+
+- [ ] `ToolCallShell` 折叠行复用 presentation 摘要，布局与“思考过程”保持同一信息层级。
+- [ ] running/pending 保持稳定卡片并局部更新摘要；success 自动收起；failure 保留可见原因。
+- [ ] 展开区继续提供完整 input/output，专用 request、preview、terminal 与 artifact renderer 不回归。
+- [ ] 连续工具节点保持各自稳定 identity，不合并 canonical tool call。
+
+### 验收标准
+
+- [ ] 窄栏下标题、摘要、状态和展开按钮不会互相挤出容器。
+- [ ] 折叠成功工具无需展开即可理解动作和结果。
+- [ ] 失败工具无需展开即可看到受控错误摘要，展开后仍可查看原始输出。
+
+## Phase 10：集成与真实流式验收
+
+### 自动验证
+
+- [ ] `npm run check:chat-web-runtime`
+- [ ] `npm run check:chat-web-integration`
+- [ ] `npm run check:chat-architecture`
+- [ ] `npm run i18n:check`
+- [ ] `npm run lint`
+- [ ] `npm run build`
+- [ ] `git diff --check`
+
+### 真实浏览器验证
+
+- [ ] 使用真实 Gateway 触发至少一个工具调用，确认 running 阶段摘要实时更新。
+- [ ] 工具结算后卡片原位切换为终态，不重复创建 Tool 节点。
+- [ ] 刷新历史后标题、摘要、状态与 live 路径语义一致。
+
+### 非目标
+
+- 不修改后端 tool schema、事件 kind、settlement 或持久化内容。
+- 不把工具调用聚合成工作流/DAG，也不隐藏诊断所需的完整 input/output。
+- 不为某个 provider 建立绕过 Default Web Plugin registry 的专用消息路径。
