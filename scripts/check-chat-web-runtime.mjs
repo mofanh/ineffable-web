@@ -12,6 +12,10 @@ import {
 } from "../src/features/chat/web-node.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
 import { splitIncrementalMarkdown } from "../src/features/chat/runtime/incremental-markdown.ts"
+import {
+  extractWorkspaceArtifact,
+  workspaceArtifactHref,
+} from "../src/features/chat/runtime/workspace-artifacts.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -187,5 +191,89 @@ const { highlightSettledCode } = await import(
 const highlighted = await highlightSettledCode("const value = 1", "ts")
 assert.match(highlighted ?? "", /class="shiki(?:\s|\")/)
 assert.equal(await highlightSettledCode("plain", "unknown-language"), null)
+
+const artifactFixtures = [
+  ["report.md", "text/markdown"],
+  ["analysis.ts", "text/plain"],
+  ["data.json", "application/json"],
+  ["chart.png", "image/png"],
+  ["archive.bin", "application/octet-stream"],
+]
+for (const [path, expectedMime] of artifactFixtures) {
+  const artifact = extractWorkspaceArtifact({
+    id: `tool-${path}`,
+    name: "workspace_write_file",
+    input: "",
+    output: JSON.stringify({
+      object: { id: `object-${path}`, workspace_id: "workspace-1", path },
+      version_id: "version-1",
+      version_no: 1,
+    }),
+    status: "succeeded",
+  })
+  assert.equal(artifact?.mimeType, expectedMime)
+  assert.equal(artifact?.path, path)
+  assert.equal(
+    workspaceArtifactHref(artifact),
+    `/workspace/workspace-1/objects/object-${path}`
+  )
+  assert.equal("content" in artifact, false)
+}
+assert.equal(
+  extractWorkspaceArtifact({
+    id: "failed",
+    name: "publish_sandbox_file",
+    input: "",
+    output: JSON.stringify({ workspace_id: "secret", object_id: "secret" }),
+    status: "failed",
+  }),
+  null
+)
+
+const artifactTool = {
+  id: "publish-1",
+  name: "publish_sandbox_file",
+  input: "",
+  output: JSON.stringify({
+    workspace_id: "workspace-1",
+    object_id: "object-1",
+    version_id: "version-1",
+    path: "results/report.md",
+    mime_type: "text/markdown",
+    size_bytes: 42,
+  }),
+  status: "succeeded",
+}
+const artifactPane = {
+  ...pane,
+  blockOrder: [...pane.blockOrder, "tool-block"],
+  blocks: {
+    ...pane.blocks,
+    "tool-block": { id: "tool-block", type: "tool", toolId: artifactTool.id },
+  },
+  tools: { [artifactTool.id]: artifactTool },
+}
+const artifactProjectionCache = new WebNodeProjectionCache()
+const artifactProjection = artifactProjectionCache.project(artifactPane, {
+  streaming: true,
+  canRespondToUserInput: false,
+})
+const artifactNode = artifactProjection.at(-1)
+const artifactProjectionAfterText = artifactProjectionCache.project(
+  {
+    ...artifactPane,
+    blocks: {
+      ...artifactPane.blocks,
+      [tailBlock.id]: { ...tailBlock, content: "changed text" },
+    },
+  },
+  { streaming: true, canRespondToUserInput: false }
+)
+assert.equal(artifactNode?.renderer, "artifact-stack")
+assert.equal(
+  artifactNode,
+  artifactProjectionAfterText.at(-1),
+  "settled artifact stack must retain identity when only text changes"
+)
 
 console.log("chat web runtime checks passed")

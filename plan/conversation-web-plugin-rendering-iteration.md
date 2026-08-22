@@ -192,18 +192,18 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] 从已有、已授权的 canonical metadata/tool result 提取 Workspace object/version 引用，不读取或复制文件 bytes 到事件。
-- [ ] finished turn 展示 artifact chips/cards：标题、类型、大小、版本/来源与打开入口；过多产物折叠为 overflow。
-- [ ] 点击后复用现有 Workspace 查看/编辑路由、权限与版本能力，不新增 iframe 文档系统。
-- [ ] 对对象删除、无权限、版本变化和未知 MIME 提供稳定错误/降级状态。
-- [ ] artifact 作为独立 Node 保持稳定 identity，正文后续更新不重新渲染已完成卡片。
+- [x] 从已有、已授权的 canonical metadata/tool result 提取 Workspace object/version 引用，不读取或复制文件 bytes 到事件。
+- [x] finished turn 展示 artifact chips/cards：标题、类型、大小、版本/来源与打开入口；过多产物折叠为 overflow。
+- [x] 点击后复用现有 Workspace 查看/编辑路由、权限与版本能力，不新增 iframe 文档系统。
+- [x] 对象删除、无权限和版本变化沿用 Workspace 路由的鉴权/错误状态；未知 MIME 在卡片降级为通用文件类型。
+- [x] artifact 作为独立 Node 保持稳定 identity，正文后续更新不重新渲染已完成卡片。
 
 ### 验收
 
-- [ ] Markdown、代码、JSON、图片/未知类型引用均使用真实 Workspace fixture 正确展示或降级。
-- [ ] 未授权或失效引用不泄露名称之外的内容，不发起未鉴权 raw/download 请求。
-- [ ] 多 artifact 在 docked/fullscreen 下可扫描且不撑破消息列。
-- [ ] 更新本文件 Phase 5 checkbox，并独立提交一个中文 commit。
+- [x] Markdown、代码、JSON、图片/未知类型引用均使用真实 Workspace fixture 正确展示或降级。
+- [x] 未授权或失效引用不泄露名称之外的内容，不发起未鉴权 raw/download 请求。
+- [x] 多 artifact 在 docked/fullscreen 下可扫描且不撑破消息列。
+- [x] 更新本文件 Phase 5 checkbox，并独立提交一个中文 commit。
 
 ## Phase 6：集成验收、文档收口与最终独立审计
 

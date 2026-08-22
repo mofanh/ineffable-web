@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import MarkdownIt from "markdown-it"
+import { Link } from "react-router-dom"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,11 +32,17 @@ import {
 import { getToolCallTitle } from "@/features/chat/model/tool-call-presentation"
 import { splitIncrementalMarkdown } from "@/features/chat/runtime/incremental-markdown"
 import {
+  WORKSPACE_WEB_PLUGIN_ID,
+  workspaceArtifactHref,
+  type WorkspaceArtifactReference,
+} from "@/features/chat/runtime/workspace-artifacts"
+import {
   WebNodeProjectionCache,
   type ReasoningWebNodePayload,
   type TextWebNodePayload,
   type ToolWebNodePayload,
   type UpdateWebNodePayload,
+  type WorkspaceArtifactsWebNodePayload,
 } from "@/features/chat/runtime/web-node-projection"
 import { cn } from "@/lib/utils"
 import { getCurrentLocale, i18n } from "@/lib/i18n/i18n"
@@ -47,11 +54,73 @@ import {
   BrainCircuitIcon,
   ChevronDownIcon,
   ExternalLinkIcon,
+  FileIcon,
   Globe2Icon,
   TerminalIcon,
 } from "lucide-react"
 
 type FrontendNoticePayload = { title: string; body?: string }
+
+function formatArtifactSize(sizeBytes: number | null) {
+  if (sizeBytes === null) return null
+  if (sizeBytes < 1024) return `${sizeBytes} B`
+  if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const WorkspaceArtifactCard = React.memo(function WorkspaceArtifactCard({
+  artifact,
+}: {
+  artifact: WorkspaceArtifactReference
+}) {
+  const title = artifact.path.split("/").filter(Boolean).at(-1) ?? artifact.path
+  const size = formatArtifactSize(artifact.sizeBytes)
+  return (
+    <Link
+      to={workspaceArtifactHref(artifact)}
+      className="group flex min-w-0 items-center gap-2.5 rounded-lg border border-border/65 bg-muted/20 px-2.5 py-2 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <FileIcon className="size-4 flex-none text-foreground/45" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-foreground/80">{title}</span>
+        <span className="block truncate text-[10px] text-foreground/45">
+          {artifact.mimeType}
+          {size ? ` · ${size}` : ""}
+          {artifact.versionId ? ` · ${artifact.versionId.slice(0, 8)}` : " · current"}
+        </span>
+      </span>
+      <ExternalLinkIcon className="size-3.5 flex-none text-foreground/35 group-hover:text-foreground/60" />
+    </Link>
+  )
+})
+
+const WorkspaceArtifactsRenderer: WebNodeRenderer<WorkspaceArtifactsWebNodePayload> = ({
+  node,
+}) => {
+  const visible = node.payload.artifacts.slice(0, 4)
+  const overflow = node.payload.artifacts.slice(4)
+  return (
+    <section className="space-y-1.5" aria-label={node.fallback.title}>
+      <div className="grid min-w-0 gap-1.5 sm:grid-cols-2">
+        {visible.map((artifact) => (
+          <WorkspaceArtifactCard key={artifact.artifactId} artifact={artifact} />
+        ))}
+      </div>
+      {overflow.length ? (
+        <details className="rounded-lg border border-border/50 px-2.5 py-1.5 text-xs text-foreground/55">
+          <summary className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            +{overflow.length} artifacts
+          </summary>
+          <div className="mt-2 grid min-w-0 gap-1.5 sm:grid-cols-2">
+            {overflow.map((artifact) => (
+              <WorkspaceArtifactCard key={artifact.artifactId} artifact={artifact} />
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </section>
+  )
+}
 
 const markdownIt = new MarkdownIt({
   breaks: true,
@@ -782,6 +851,34 @@ DEFAULT_WEB_NODE_REGISTRY.register<FrontendNoticePayload>(
         value.title.length <= 160 &&
         (value.body === undefined ||
           (typeof value.body === "string" && value.body.length <= 2000))
+    )
+  }
+)
+DEFAULT_WEB_NODE_REGISTRY.register<WorkspaceArtifactsWebNodePayload>(
+  WORKSPACE_WEB_PLUGIN_ID,
+  "artifact-stack",
+  WorkspaceArtifactsRenderer,
+  (payload): payload is WorkspaceArtifactsWebNodePayload => {
+    const value = objectValue(payload)
+    return Boolean(
+      value &&
+        Array.isArray(value.artifacts) &&
+        value.artifacts.every((item) => {
+          const artifact = objectValue(item)
+          return Boolean(
+            artifact &&
+              typeof artifact.artifactId === "string" &&
+              typeof artifact.workspaceId === "string" &&
+              typeof artifact.objectId === "string" &&
+              typeof artifact.path === "string" &&
+              typeof artifact.mimeType === "string" &&
+              typeof artifact.source === "string" &&
+              (artifact.versionId === null ||
+                typeof artifact.versionId === "string") &&
+              (artifact.sizeBytes === null ||
+                typeof artifact.sizeBytes === "number")
+          )
+        })
     )
   }
 )

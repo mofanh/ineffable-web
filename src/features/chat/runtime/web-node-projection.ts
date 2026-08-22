@@ -5,10 +5,16 @@ import type {
   ToolCallView,
 } from "../chat-pane-state.ts"
 import {
+  WEB_NODE_SCHEMA_VERSION,
   createDefaultWebNode,
   type WebNodeStatus,
   type WebNodeView,
 } from "../web-node.ts"
+import {
+  extractWorkspaceArtifact,
+  WORKSPACE_WEB_PLUGIN_ID,
+  type WorkspaceArtifactReference,
+} from "./workspace-artifacts.ts"
 
 export type TextWebNodePayload = {
   content: string
@@ -29,6 +35,10 @@ export type ToolWebNodePayload = {
   canRespondToUserInput: boolean
 }
 
+export type WorkspaceArtifactsWebNodePayload = {
+  artifacts: WorkspaceArtifactReference[]
+}
+
 export type ProjectPaneOptions = {
   streaming: boolean
   canRespondToUserInput: boolean
@@ -44,6 +54,8 @@ type CachedProjection = {
 
 export class WebNodeProjectionCache {
   private readonly cache = new Map<string, CachedProjection>()
+  private artifactSignature = ""
+  private artifactNode: WebNodeView<WorkspaceArtifactsWebNodePayload> | null = null
 
   project(pane: AgentPaneState, options: ProjectPaneOptions) {
     const lastBlockId = pane.blockOrder.at(-1)
@@ -80,7 +92,32 @@ export class WebNodeProjectionCache {
     for (const nodeId of this.cache.keys()) {
       if (!liveNodeIds.has(nodeId)) this.cache.delete(nodeId)
     }
-    return nodes
+    const artifacts = pane.blockOrder.flatMap((blockId) => {
+      const block = pane.blocks[blockId]
+      if (block?.type !== "tool") return []
+      const tool = pane.tools[block.toolId]
+      const artifact = tool ? extractWorkspaceArtifact(tool) : null
+      return artifact ? [artifact] : []
+    })
+    const artifactSignature = JSON.stringify(artifacts)
+    if (artifactSignature !== this.artifactSignature) {
+      this.artifactSignature = artifactSignature
+      this.artifactNode = artifacts.length
+        ? {
+            schemaVersion: WEB_NODE_SCHEMA_VERSION,
+            pluginId: WORKSPACE_WEB_PLUGIN_ID,
+            renderer: "artifact-stack",
+            nodeId: `workspace-artifacts-${artifacts[0].artifactId}`,
+            status: "settled",
+            payload: { artifacts },
+            fallback: {
+              title: "Workspace artifacts",
+              summary: artifacts.map((artifact) => artifact.path).join(", "),
+            },
+          }
+        : null
+    }
+    return this.artifactNode ? [...nodes, this.artifactNode] : nodes
   }
 }
 
