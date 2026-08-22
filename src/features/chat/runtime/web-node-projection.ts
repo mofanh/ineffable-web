@@ -93,6 +93,9 @@ export function projectPaneBlockToWebNode(
   block: PaneBlock,
   options: ProjectPaneOptions
 ): WebNodeView {
+  if (block.type === "plugin") {
+    return block.node
+  }
   if (block.type === "text") {
     return createDefaultWebNode<TextWebNodePayload>({
       renderer: "text",

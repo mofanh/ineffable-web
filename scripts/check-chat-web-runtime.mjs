@@ -6,6 +6,8 @@ import {
 import {
   createDefaultWebNode,
   isWebNodeView,
+  MAX_WEB_NODE_PAYLOAD_BYTES,
+  validateWebNodeView,
   webNodeRendererKey,
 } from "../src/features/chat/web-node.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
@@ -112,6 +114,16 @@ const node = createDefaultWebNode({
 assert.equal(isWebNodeView(node), true)
 assert.equal(webNodeRendererKey(node), "ineffable.web.default:text")
 assert.equal(isWebNodeView({ ...node, nodeId: "" }), false)
+assert.equal(validateWebNodeView({ ...node, schemaVersion: 2 }).ok, false)
+assert.equal(
+  validateWebNodeView({ ...node, payload: { moduleUrl: "https://evil.invalid/ui.js" } })
+    .ok,
+  false
+)
+assert.equal(
+  validateWebNodeView({ ...node, payload: "x".repeat(MAX_WEB_NODE_PAYLOAD_BYTES) }).ok,
+  false
+)
 
 const firstBlock = { id: "text-1", type: "text", content: "stable" }
 const tailBlock = { id: "text-2", type: "text", content: "a" }

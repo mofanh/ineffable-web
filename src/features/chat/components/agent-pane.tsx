@@ -5,6 +5,9 @@ import MarkdownIt from "markdown-it"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  FRONTEND_WEB_PLUGIN_ID,
+} from "@/features/chat/web-node"
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -47,6 +50,8 @@ import {
   Globe2Icon,
   TerminalIcon,
 } from "lucide-react"
+
+type FrontendNoticePayload = { title: string; body?: string }
 
 const markdownIt = new MarkdownIt({
   breaks: true,
@@ -744,6 +749,17 @@ const FallbackNodeRenderer: WebNodeRenderer = ({ node }) => (
   </div>
 )
 
+const FrontendNoticeRenderer: WebNodeRenderer<FrontendNoticePayload> = ({
+  node,
+}) => (
+  <aside className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-2.5">
+    <p className="text-xs font-medium text-foreground/85">{node.payload.title}</p>
+    {node.payload.body ? (
+      <p className="mt-1 text-xs leading-5 text-foreground/60">{node.payload.body}</p>
+    ) : null}
+  </aside>
+)
+
 const DEFAULT_WEB_NODE_REGISTRY = new WebNodeRendererRegistry()
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "text", TextNodeRenderer)
 registerDefaultWebNodeRenderer(
@@ -753,6 +769,22 @@ registerDefaultWebNodeRenderer(
 )
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "update", UpdateNodeRenderer)
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "tool", ToolNodeRenderer)
+DEFAULT_WEB_NODE_REGISTRY.register<FrontendNoticePayload>(
+  FRONTEND_WEB_PLUGIN_ID,
+  "notice",
+  FrontendNoticeRenderer,
+  (payload): payload is FrontendNoticePayload => {
+    const value = objectValue(payload)
+    return Boolean(
+      value &&
+        typeof value.title === "string" &&
+        value.title.trim() &&
+        value.title.length <= 160 &&
+        (value.body === undefined ||
+          (typeof value.body === "string" && value.body.length <= 2000))
+    )
+  }
+)
 
 export const WebNodeList = React.memo(function WebNodeList({
   pane,

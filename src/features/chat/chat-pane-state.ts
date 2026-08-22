@@ -1,4 +1,5 @@
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
+import type { WebNodeView } from "@/features/chat/web-node"
 
 // Pane invariants:
 // 1. A think block may only contain contiguous reasoning or tagged-think content.
@@ -51,7 +52,13 @@ export type ToolBlock = {
   toolId: string
 }
 
-export type PaneBlock = TextBlock | ThinkBlock | UpdateBlock | ToolBlock
+export type PluginBlock = {
+  id: string
+  type: "plugin"
+  node: WebNodeView
+}
+
+export type PaneBlock = TextBlock | ThinkBlock | UpdateBlock | ToolBlock | PluginBlock
 
 export type AgentPaneState = {
   activeThinkBlockId: string | null
@@ -204,6 +211,28 @@ export function appendUpdateToPane(pane: AgentPaneState, content: string) {
         type: "update",
         content: next,
       } satisfies UpdateBlock,
+    },
+  }
+}
+
+export function appendPluginNodeToPane(
+  pane: AgentPaneState,
+  node: WebNodeView
+) {
+  const basePane = endThinkSegmentBeforeStructuralBlock(pane)
+  const existing = basePane.blocks[node.nodeId]
+  return {
+    ...basePane,
+    blockOrder: existing
+      ? basePane.blockOrder
+      : [...basePane.blockOrder, node.nodeId],
+    blocks: {
+      ...basePane.blocks,
+      [node.nodeId]: {
+        id: node.nodeId,
+        type: "plugin",
+        node,
+      } satisfies PluginBlock,
     },
   }
 }

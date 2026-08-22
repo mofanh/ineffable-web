@@ -3,6 +3,7 @@ import {
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
   appendUpdateToPane,
+  appendPluginNodeToPane,
   buildToolView,
   finalizePane,
   upsertToolInPane,
@@ -25,11 +26,32 @@ import type {
   SubagentView,
 } from "@/features/chat/gateway-chat-types"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
+import {
+  createDefaultWebNode,
+  validateWebNodeView,
+} from "@/features/chat/web-node"
 
 function projectPaneEvent(
   pane: AgentPaneState,
   event: GatewayChatStreamEvent
 ) {
+  const declaredNode = event.metadata?.web_view
+  if (declaredNode !== undefined) {
+    const validation = validateWebNodeView(declaredNode)
+    const node = validation.ok
+      ? validation.node
+      : createDefaultWebNode({
+          renderer: "fallback",
+          nodeId: `invalid-web-node-${event.seq}`,
+          status: "failed",
+          payload: null,
+          fallback: {
+            title: "Unsupported plugin view",
+            summary: validation.reason,
+          },
+        })
+    return appendPluginNodeToPane(pane, node)
+  }
   const content = event.content ?? ""
   if (isTextDeltaEvent(event.event)) {
     return applyTextDeltaToPane(pane, content)

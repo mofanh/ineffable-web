@@ -173,20 +173,20 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] 复用 Phase 1 的唯一 registry 注册一个非默认 Plugin renderer，不新增另一套容器或状态模型。
-- [ ] 对 `WebNodeView` 做版本、plugin/renderer identity、payload 大小与 renderer-specific schema 校验。
-- [ ] unknown renderer、未安装 plugin、版本不兼容或 payload 非法时使用统一 fallback card，不抛出渲染树异常。
-- [ ] backend 仅在 `crates/plugin/channels/frontend/**` 定义/验证 Web manifest 或 projection 数据，复用现有 metadata 透传。
-- [ ] 禁止 remote code/module URL、任意 HTML/CSS/iframe；交互动作只映射到前端已有且鉴权的命令。
-- [ ] 增加一个最小示例 renderer，证明扩展 Plugin Node 可以与 Default Web Plugin Node 混排并独立更新。
+- [x] 复用 Phase 1 的唯一 registry 注册一个非默认 Plugin renderer，不新增另一套容器或状态模型。
+- [x] 对 `WebNodeView` 做版本、plugin/renderer identity、payload 大小与 renderer-specific schema 校验。
+- [x] unknown renderer、未安装 plugin、版本不兼容或 payload 非法时使用统一 fallback card，不抛出渲染树异常。
+- [x] backend 仅在 `crates/plugin/channels/frontend/**` 定义/验证 Web manifest 或 projection 数据，复用现有 metadata 透传。
+- [x] 禁止 remote code/module URL、任意 HTML/CSS/iframe；交互动作只映射到前端已有且鉴权的命令。
+- [x] 增加一个最小示例 renderer，证明扩展 Plugin Node 可以与 Default Web Plugin Node 混排并独立更新。
 
 ### 验收
 
-- [ ] fixture 覆盖合法、unknown、schema mismatch、oversized payload 和 renderer exception 五类路径。
-- [ ] Plugin view 失败不影响同一 turn 的正文、其他 Node、terminal reconciliation 或后续消息。
-- [ ] 后端 diff 的生产代码路径严格位于 `crates/plugin/channels/frontend/**`；若无需后端变化，在计划中记录复用证据而不制造空抽象。
-- [ ] frontend plugin crate 定向测试、check、Clippy 通过；前端 lint/build 通过。
-- [ ] 更新本文件 Phase 4 checkbox，并在对应仓库分别提交独立中文 commit（无后端 diff 时只提交前端）。
+- [x] fixture 覆盖合法、unknown、schema mismatch、oversized payload 和 renderer exception 五类路径。
+- [x] Plugin view 失败不影响同一 turn 的正文、其他 Node、terminal reconciliation 或后续消息。
+- [x] 后端 diff 的生产代码路径严格位于 `crates/plugin/channels/frontend/**`；若无需后端变化，在计划中记录复用证据而不制造空抽象。
+- [x] frontend plugin crate 定向测试、check、Clippy 通过；前端 lint/build 通过。
+- [x] 更新本文件 Phase 4 checkbox，并在对应仓库分别提交独立中文 commit（无后端 diff 时只提交前端）。
 
 ## Phase 5：Workspace Artifact 展示闭环
 

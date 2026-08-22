@@ -73,6 +73,9 @@ function subagentSummary(subagent: SubagentView) {
   const lastBlock = getPaneBlocks(subagent).at(-1)
   if (!lastBlock) return ""
   if (lastBlock.type === "tool") return subagent.tools[lastBlock.toolId]?.name ?? ""
+  if (lastBlock.type === "plugin") {
+    return lastBlock.node.fallback.summary ?? lastBlock.node.fallback.title
+  }
   return lastBlock.content.split("\n").filter(Boolean).at(-1)?.trim() ?? ""
 }
 
