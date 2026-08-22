@@ -111,6 +111,13 @@ discardedScheduler.discardPending()
 discardedHost.flushFrame()
 discardedHost.flushTimer()
 assert.deepEqual(discardedPublishes, [])
+discardedScheduler.enqueue("live-delta-after-effect-replay")
+discardedHost.flushFrame()
+assert.deepEqual(
+  discardedPublishes,
+  [["live-delta-after-effect-replay"]],
+  "effect cleanup must cancel stale work without permanently disabling the scheduler"
+)
 
 const node = createDefaultWebNode({
   renderer: "text",

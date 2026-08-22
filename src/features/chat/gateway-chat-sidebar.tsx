@@ -494,7 +494,10 @@ export function GatewayChatSidebar({
       if (olderLoadResetTimerRef.current != null) {
         window.clearTimeout(olderLoadResetTimerRef.current)
       }
-      assistantVisualScheduler.dispose()
+      // React Strict Mode replays effect setup/cleanup while preserving component
+      // state. Permanently disposing this state-owned scheduler here would leave
+      // the replayed mount unable to publish any subsequent SSE visual updates.
+      assistantVisualScheduler.discardPending()
     }
   }, [assistantVisualScheduler])
 
