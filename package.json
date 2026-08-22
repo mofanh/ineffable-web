@@ -11,6 +11,7 @@
     "check:chat-routing": "node --experimental-strip-types scripts/check-conversation-event-routing.mjs",
     "check:chat-store": "node --experimental-strip-types scripts/check-chat-runtime-store.mjs",
     "check:chat-architecture": "node --experimental-strip-types scripts/check-chat-runtime-architecture.mjs",
+    "check:chat-web-runtime": "node --experimental-strip-types scripts/check-chat-web-runtime.mjs",
     "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",
     "check:auth-session": "node --experimental-strip-types scripts/check-auth-session-runtime.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",

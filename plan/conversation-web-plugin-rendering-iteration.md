@@ -94,19 +94,19 @@ type WebNodeView = {
 
 ### 实现
 
-- [ ] 固定 `WebNodeView`、`VisualConversationSnapshot`、稳定 node identity、发布优先级与 terminal flush 契约。
-- [ ] 建立可注入的 frame/timer scheduler，支持浏览器 rAF、后台标签页 timer fallback 和测试 fake clock。
-- [ ] 为现有真实事件 fixture 建立 live、replay、terminal reconciliation 等价性基线。
-- [ ] 增加 render-count/performance harness，记录高频 delta、长 Markdown 和稳定 sibling 的改造前基线。
-- [ ] 明确唯一 renderer registry、Default Web Plugin 的必装 renderer 集合、允许的交互和安全 fallback；后端仅验证 frontend plugin
+- [x] 固定 `WebNodeView`、`VisualConversationSnapshot`、稳定 node identity、发布优先级与 terminal flush 契约。
+- [x] 建立可注入的 frame/timer scheduler，支持浏览器 rAF、后台标签页 timer fallback 和测试 fake clock。
+- [x] 为现有真实事件 fixture 建立 live、replay、terminal reconciliation 等价性基线。
+- [x] 增加 render-count/performance harness，记录高频 delta、长 Markdown 和稳定 sibling 的改造前基线。
+- [x] 明确唯一 renderer registry、Default Web Plugin 的必装 renderer 集合、允许的交互和安全 fallback；后端仅验证 frontend plugin
   现有 metadata 透传能力，不改其他 crate。
 
 ### 验收
 
-- [ ] 1000 个同帧正文 delta 不改变 canonical 事件计数，且性能测试能准确统计 visual publish 次数。
-- [ ] terminal/error/approval 事件在测试中不等待下一帧即可观察。
-- [ ] live、replay 和 canonical terminal transcript 的最终 pane fixture 深度相等。
-- [ ] 更新本文件 Phase 0 checkbox，并独立提交一个中文 commit。
+- [x] 1000 个同帧正文 delta 不改变 canonical 事件计数，且性能测试能准确统计 visual publish 次数。
+- [x] terminal/error/approval 事件在测试中不等待下一帧即可观察。
+- [x] live、replay 和 canonical terminal transcript 的最终 pane fixture 深度相等。
+- [x] 更新本文件 Phase 0 checkbox，并独立提交一个中文 commit。
 
 ## Phase 1：统一 WebNode renderer 与细粒度视觉调度
 
