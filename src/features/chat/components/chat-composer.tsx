@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SidebarFooter } from "@/components/ui/sidebar"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
@@ -23,6 +24,7 @@ import {
   BotIcon,
   FileTextIcon,
   GripVerticalIcon,
+  GitBranchIcon,
   LoaderCircleIcon,
   SendHorizontalIcon,
   XIcon,
@@ -62,11 +64,16 @@ type ChatComposerProps = {
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   isRefreshingSandboxOptions: boolean
   selectedSandboxEnvironmentId: string
+  agentIterationRequested: boolean
+  agentIterationMode: "disabled" | "declarative_only" | "artifact_allowed" | "runtime_lab_allowed"
+  isAgentIterationLoading: boolean
+  agentIterationUnavailableReason?: string | null
   onComposerChange: (value: string) => void
   onComposerKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onModelProfileChange: (value: string) => void
   onSandboxEnvironmentChange: (value: string) => void
   onSandboxOptionsRefresh: () => void
+  onAgentIterationChange: (requested: boolean) => void
   onSend: () => void
   onStop: () => void
   onPromoteToGuided: (id: string) => void
@@ -87,11 +94,16 @@ export function ChatComposer({
   sandboxOptions,
   isRefreshingSandboxOptions,
   selectedSandboxEnvironmentId,
+  agentIterationRequested,
+  agentIterationMode,
+  isAgentIterationLoading,
+  agentIterationUnavailableReason,
   onComposerChange,
   onComposerKeyDown,
   onModelProfileChange,
   onSandboxEnvironmentChange,
   onSandboxOptionsRefresh,
+  onAgentIterationChange,
   onSend,
   onStop,
   onPromoteToGuided,
@@ -344,6 +356,22 @@ export function ChatComposer({
             aria-busy={isSubmittingInput}
             className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
           />
+          <div className="flex items-center justify-between border-t border-sidebar-border px-3 py-1.5">
+            <label className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <GitBranchIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{t("chat.composer.nodeIteration")}</span>
+              <span className="rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[10px]">
+                {t(`chat.composer.iterationMode.${agentIterationMode}`)}
+              </span>
+            </label>
+            <Switch
+              checked={agentIterationRequested}
+              disabled={isAgentIterationLoading}
+              aria-label={t("chat.composer.nodeIteration")}
+              title={agentIterationUnavailableReason ?? t("chat.composer.nodeIterationHint")}
+              onCheckedChange={onAgentIterationChange}
+            />
+          </div>
           <InputGroupAddon
             align="block-end"
             className="justify-between border-t border-sidebar-border bg-sidebar-accent/15 px-2 py-1.5 [.border-t]:pt-1.5"

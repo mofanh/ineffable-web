@@ -1788,6 +1788,7 @@ export async function streamConversationSend(
     sandbox?: {
       environment_id?: string
     }
+    agent_iteration_requested?: boolean
   },
   options: {
     signal?: AbortSignal
@@ -1832,6 +1833,73 @@ export async function streamConversationSend(
       error instanceof Error ? error : new Error("Failed to read gateway stream")
     throw withRecoverableFlag(next, true)
   }
+}
+
+export type AgentIterationMode =
+  | "disabled"
+  | "declarative_only"
+  | "artifact_allowed"
+  | "runtime_lab_allowed"
+
+export type AgentEvolutionProjection = {
+  conversation_id: string
+  workspace_id?: string | null
+  requested: boolean
+  effective_mode: AgentIterationMode
+  unavailable_reason?: string | null
+  definition_usage: number
+  definitions: Array<{
+    fingerprint: string
+    parent_fingerprint?: string | null
+    display_name?: string | null
+    evaluation_count: number
+    latest_verdict?: string | null
+    admitted_for_future_selection: boolean
+    created_at: string
+  }>
+  evaluations: Array<Record<string, unknown>>
+  runtime_labs: Array<Record<string, unknown>>
+  runtime_lab_quote: {
+    available: boolean
+    unavailable_reason?: string | null
+    requires_confirmation: true
+    ttl_seconds?: number | null
+    max_live_labs?: number | null
+    max_components: number
+    allowed_component_kinds: string[]
+    max_estimated_credits?: number | null
+  }
+}
+
+export function getAgentEvolutionProjection(
+  accessToken: string,
+  conversationId: string,
+  workspaceId?: string
+) {
+  const query = new URLSearchParams({ conversation_id: conversationId })
+  if (workspaceId) query.set("workspace_id", workspaceId)
+  return requestApiJson<AgentEvolutionProjection>(
+    `/gateway/v1/plugins/agent-evolution?${query.toString()}`,
+    { accessToken }
+  )
+}
+
+export function setAgentIterationRequested(
+  accessToken: string,
+  payload: {
+    conversation_id: string
+    workspace_id?: string
+    requested: boolean
+  }
+) {
+  return requestApiJson<AgentEvolutionProjection>(
+    "/gateway/v1/plugins/agent-evolution/iteration",
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify(payload),
+    }
+  )
 }
 
 export function stopConversationRun(

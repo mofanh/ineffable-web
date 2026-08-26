@@ -89,6 +89,7 @@ import {
   getConversation,
   getConversationEvents,
   getConversationMessages,
+  getAgentEvolutionProjection,
   getPendingInputs,
   listModelProfiles,
   listSandboxWorkspaceEnvironments,
@@ -99,6 +100,8 @@ import {
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
+  setAgentIterationRequested,
+  type AgentEvolutionProjection,
   type Conversation,
   type ModelProfile,
   type ResumeRunResponse,
@@ -348,6 +351,9 @@ export function GatewayChatSidebar({
   const [modelProfiles, setModelProfiles] = React.useState<ModelProfile[]>([])
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
+  const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
+  const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
+  const [isAgentIterationLoading, setIsAgentIterationLoading] = React.useState(false)
   const [awaitingHumanRunId, setAwaitingHumanRunId] = React.useState<string | null>(null)
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
     AgentDescriptorOption[]
@@ -460,6 +466,62 @@ export function GatewayChatSidebar({
     },
     [selectConversation]
   )
+
+  React.useEffect(() => {
+    const conversationId = currentConversationId
+    if (!accessToken || !conversationId) {
+      setAgentEvolution(null)
+      return
+    }
+    let cancelled = false
+    setIsAgentIterationLoading(true)
+    void getAgentEvolutionProjection(accessToken, conversationId, currentWorkspace?.id)
+      .then((projection) => {
+        if (cancelled) return
+        setAgentEvolution(projection)
+        setAgentIterationRequestedState(projection.requested)
+      })
+      .catch((caught) => {
+        if (cancelled) return
+        setAgentEvolution(null)
+        reportChatError(
+          caught,
+          i18n.t("chat.composer.iterationLoadFailed"),
+          i18n.t("chat.composer.iterationLoadFailedTitle")
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setIsAgentIterationLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, currentConversationId, currentWorkspace?.id, reportChatError])
+
+  async function handleAgentIterationChange(requested: boolean) {
+    setAgentIterationRequestedState(requested)
+    const conversationId = currentConversationIdRef.current
+    if (!accessToken || !conversationId) return
+    setIsAgentIterationLoading(true)
+    try {
+      const projection = await setAgentIterationRequested(accessToken, {
+        conversation_id: conversationId,
+        workspace_id: currentWorkspace?.id,
+        requested,
+      })
+      setAgentEvolution(projection)
+      setAgentIterationRequestedState(projection.requested)
+    } catch (caught) {
+      setAgentIterationRequestedState(agentEvolution?.requested ?? false)
+      reportChatError(
+        caught,
+        i18n.t("chat.composer.iterationUpdateFailed"),
+        i18n.t("chat.composer.iterationUpdateFailedTitle")
+      )
+    } finally {
+      setIsAgentIterationLoading(false)
+    }
+  }
 
   const refreshPendingInputsForConversation = React.useCallback(
     async (conversationId: string) => {
@@ -2509,6 +2571,7 @@ export function GatewayChatSidebar({
             input_mode: mode,
             model_profile_id: selectedModelProfileId || undefined,
             sandbox: sandboxPayload,
+            agent_iteration_requested: agentIterationRequested,
           },
           {
             onEnvelope: (envelope) => {
@@ -2599,6 +2662,7 @@ export function GatewayChatSidebar({
           input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
           model_profile_id: selectedModelProfileId || undefined,
           sandbox: sandboxPayload,
+          agent_iteration_requested: agentIterationRequested,
         },
         {
           signal: controller.signal,
@@ -2932,12 +2996,19 @@ export function GatewayChatSidebar({
         sandboxOptions={sandboxOptions}
         isRefreshingSandboxOptions={isRefreshingSandboxOptions}
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
+        agentIterationRequested={agentIterationRequested}
+        agentIterationMode={agentEvolution?.effective_mode ?? "disabled"}
+        isAgentIterationLoading={isAgentIterationLoading}
+        agentIterationUnavailableReason={agentEvolution?.unavailable_reason}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
         onModelProfileChange={setSelectedModelProfileId}
         onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
         onSandboxOptionsRefresh={() => {
           void refreshSandboxOptions()
+        }}
+        onAgentIterationChange={(requested) => {
+          void handleAgentIterationChange(requested)
         }}
         onSend={() => {
           void handleSend()
