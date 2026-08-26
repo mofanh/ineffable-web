@@ -1,8 +1,10 @@
 export {
   approveSandboxApproval,
+  admitAgentDefinition,
   createConversation,
   deletePendingInput,
   getConversation,
+  evaluateAgentDefinition,
   getAgentEvolutionProjection,
   getConversationEvents,
   getConversationMessages,
@@ -13,6 +15,7 @@ export {
   listSandboxWorkspaceEnvironments,
   promotePendingInput,
   rejectSandboxApproval,
+  runRuntimeLabCommand,
   resumeRunWithApproval,
   resumeRunWithUserInput,
   stopConversationRun,

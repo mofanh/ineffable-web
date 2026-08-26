@@ -1868,6 +1868,10 @@ export type AgentEvolutionProjection = {
     max_components: number
     allowed_component_kinds: string[]
     max_estimated_credits?: number | null
+    monthly_credit_limit?: number | null
+    charged_credits: number
+    reserved_credits: number
+    remaining_credit_capacity?: number | null
   }
 }
 
@@ -1898,6 +1902,69 @@ export function setAgentIterationRequested(
       method: "POST",
       accessToken,
       body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function evaluateAgentDefinition(
+  accessToken: string,
+  payload: {
+    conversation_id: string
+    workspace_id?: string
+    baseline_fingerprint: string
+    candidate_fingerprint: string
+    fixture_version: string
+    assertion:
+      | { kind: "assistant_contains"; value: string }
+      | { kind: "assistant_exact"; value: string }
+    fixture_content: string
+    model_profile_id?: string
+    trigger: Record<string, unknown> & { kind: string }
+  },
+  idempotencyKey = createIdempotencyKey("agent-evaluation")
+) {
+  const response = await requestApi(
+    "/gateway/v1/plugins/agent-evolution/evaluate",
+    {
+      method: "POST",
+      accessToken,
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify(payload),
+    }
+  )
+  if (!response.ok) {
+    throw createApiError(await parseApiError(response), response.status)
+  }
+  return (await response.json()) as Record<string, unknown>
+}
+
+export function admitAgentDefinition(
+  accessToken: string,
+  evaluationId: string
+) {
+  return requestApiJson<{ admitted: boolean }>(
+    "/gateway/v1/plugins/agent-evolution/admit",
+    {
+      method: "POST",
+      accessToken,
+      body: { evaluation_id: evaluationId },
+    }
+  )
+}
+
+export function runRuntimeLabCommand(
+  accessToken: string,
+  command: Record<string, unknown> & { action: string }
+) {
+  return requestApiJson<Record<string, unknown>>(
+    "/gateway/v1/plugins/agent-evolution/runtime-labs",
+    {
+      method: "POST",
+      accessToken,
+      body: command,
     }
   )
 }

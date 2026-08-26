@@ -353,6 +353,8 @@ export function GatewayChatSidebar({
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
   const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
+  const [agentIterationConversationId, setAgentIterationConversationId] =
+    React.useState<string | null>(null)
   const [isAgentIterationLoading, setIsAgentIterationLoading] = React.useState(false)
   const [awaitingHumanRunId, setAwaitingHumanRunId] = React.useState<string | null>(null)
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
@@ -469,21 +471,29 @@ export function GatewayChatSidebar({
 
   React.useEffect(() => {
     const conversationId = currentConversationId
+    setAgentEvolution(null)
+    setAgentIterationRequestedState(false)
+    setAgentIterationConversationId(conversationId)
     if (!accessToken || !conversationId) {
-      setAgentEvolution(null)
+      setIsAgentIterationLoading(false)
       return
     }
     let cancelled = false
     setIsAgentIterationLoading(true)
     void getAgentEvolutionProjection(accessToken, conversationId, currentWorkspace?.id)
       .then((projection) => {
-        if (cancelled) return
+        if (
+          cancelled ||
+          currentConversationIdRef.current !== projection.conversation_id
+        ) return
         setAgentEvolution(projection)
         setAgentIterationRequestedState(projection.requested)
+        setAgentIterationConversationId(projection.conversation_id)
       })
       .catch((caught) => {
         if (cancelled) return
         setAgentEvolution(null)
+        setAgentIterationRequestedState(false)
         reportChatError(
           caught,
           i18n.t("chat.composer.iterationLoadFailed"),
@@ -499,8 +509,9 @@ export function GatewayChatSidebar({
   }, [accessToken, currentConversationId, currentWorkspace?.id, reportChatError])
 
   async function handleAgentIterationChange(requested: boolean) {
-    setAgentIterationRequestedState(requested)
     const conversationId = currentConversationIdRef.current
+    setAgentIterationConversationId(conversationId)
+    setAgentIterationRequestedState(requested)
     if (!accessToken || !conversationId) return
     setIsAgentIterationLoading(true)
     try {
@@ -509,17 +520,27 @@ export function GatewayChatSidebar({
         workspace_id: currentWorkspace?.id,
         requested,
       })
+      if (currentConversationIdRef.current !== projection.conversation_id) return
       setAgentEvolution(projection)
       setAgentIterationRequestedState(projection.requested)
+      setAgentIterationConversationId(projection.conversation_id)
     } catch (caught) {
-      setAgentIterationRequestedState(agentEvolution?.requested ?? false)
+      if (currentConversationIdRef.current === conversationId) {
+        setAgentIterationRequestedState(
+          agentEvolution?.conversation_id === conversationId
+            ? agentEvolution.requested
+            : false
+        )
+      }
       reportChatError(
         caught,
         i18n.t("chat.composer.iterationUpdateFailed"),
         i18n.t("chat.composer.iterationUpdateFailedTitle")
       )
     } finally {
-      setIsAgentIterationLoading(false)
+      if (currentConversationIdRef.current === conversationId) {
+        setIsAgentIterationLoading(false)
+      }
     }
   }
 
@@ -2549,10 +2570,15 @@ export function GatewayChatSidebar({
     const sandboxPayload = selectedSandboxEnvironmentId
       ? { environment_id: selectedSandboxEnvironmentId }
       : undefined
+    const submissionConversationId =
+      currentConversationIdRef.current ?? currentConversationId
+    const iterationRequestedForSubmission =
+      agentIterationConversationId === submissionConversationId
+        ? agentIterationRequested
+        : false
 
     if (mode === "guided") {
-      const targetConversationId =
-        currentConversationIdRef.current ?? currentConversationId
+      const targetConversationId = submissionConversationId
       if (!targetConversationId) {
         return
       }
@@ -2571,7 +2597,7 @@ export function GatewayChatSidebar({
             input_mode: mode,
             model_profile_id: selectedModelProfileId || undefined,
             sandbox: sandboxPayload,
-            agent_iteration_requested: agentIterationRequested,
+            agent_iteration_requested: iterationRequestedForSubmission,
           },
           {
             onEnvelope: (envelope) => {
@@ -2597,8 +2623,7 @@ export function GatewayChatSidebar({
     setError(null)
     setIsSubmittingInput(true)
 
-    let targetConversationId =
-      currentConversationIdRef.current ?? currentConversationId
+    let targetConversationId = submissionConversationId
     if (!targetConversationId) {
       try {
         const createdConversation = await createConversation(buildConversationTitle(content))
@@ -2662,7 +2687,7 @@ export function GatewayChatSidebar({
           input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
           model_profile_id: selectedModelProfileId || undefined,
           sandbox: sandboxPayload,
-          agent_iteration_requested: agentIterationRequested,
+          agent_iteration_requested: iterationRequestedForSubmission,
         },
         {
           signal: controller.signal,
