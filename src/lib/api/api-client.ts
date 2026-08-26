@@ -1872,6 +1872,8 @@ export type AgentEvolutionProjection = {
     charged_credits: number
     reserved_credits: number
     remaining_credit_capacity?: number | null
+    active_cloud_sandboxes: number
+    max_active_cloud_sandboxes?: number | null
   }
 }
 
@@ -1901,7 +1903,7 @@ export function setAgentIterationRequested(
     {
       method: "POST",
       accessToken,
-      body: JSON.stringify(payload),
+      body: payload,
     }
   )
 }

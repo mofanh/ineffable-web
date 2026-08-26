@@ -355,6 +355,7 @@ export function GatewayChatSidebar({
   const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
   const [agentIterationConversationId, setAgentIterationConversationId] =
     React.useState<string | null>(null)
+  const [isAgentIterationResolved, setIsAgentIterationResolved] = React.useState(false)
   const [isAgentIterationLoading, setIsAgentIterationLoading] = React.useState(false)
   const [awaitingHumanRunId, setAwaitingHumanRunId] = React.useState<string | null>(null)
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
@@ -474,6 +475,7 @@ export function GatewayChatSidebar({
     setAgentEvolution(null)
     setAgentIterationRequestedState(false)
     setAgentIterationConversationId(conversationId)
+    setIsAgentIterationResolved(false)
     if (!accessToken || !conversationId) {
       setIsAgentIterationLoading(false)
       return
@@ -489,11 +491,13 @@ export function GatewayChatSidebar({
         setAgentEvolution(projection)
         setAgentIterationRequestedState(projection.requested)
         setAgentIterationConversationId(projection.conversation_id)
+        setIsAgentIterationResolved(true)
       })
       .catch((caught) => {
         if (cancelled) return
         setAgentEvolution(null)
         setAgentIterationRequestedState(false)
+        setIsAgentIterationResolved(false)
         reportChatError(
           caught,
           i18n.t("chat.composer.iterationLoadFailed"),
@@ -512,6 +516,7 @@ export function GatewayChatSidebar({
     const conversationId = currentConversationIdRef.current
     setAgentIterationConversationId(conversationId)
     setAgentIterationRequestedState(requested)
+    setIsAgentIterationResolved(true)
     if (!accessToken || !conversationId) return
     setIsAgentIterationLoading(true)
     try {
@@ -524,13 +529,16 @@ export function GatewayChatSidebar({
       setAgentEvolution(projection)
       setAgentIterationRequestedState(projection.requested)
       setAgentIterationConversationId(projection.conversation_id)
+      setIsAgentIterationResolved(true)
     } catch (caught) {
       if (currentConversationIdRef.current === conversationId) {
+        const hasLoadedProjection = agentEvolution?.conversation_id === conversationId
         setAgentIterationRequestedState(
-          agentEvolution?.conversation_id === conversationId
+          hasLoadedProjection
             ? agentEvolution.requested
             : false
         )
+        setIsAgentIterationResolved(hasLoadedProjection)
       }
       reportChatError(
         caught,
@@ -2574,8 +2582,9 @@ export function GatewayChatSidebar({
       currentConversationIdRef.current ?? currentConversationId
     const iterationRequestedForSubmission =
       agentIterationConversationId === submissionConversationId
+      && isAgentIterationResolved
         ? agentIterationRequested
-        : false
+        : undefined
 
     if (mode === "guided") {
       const targetConversationId = submissionConversationId
