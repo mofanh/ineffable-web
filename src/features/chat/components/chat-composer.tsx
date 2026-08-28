@@ -362,7 +362,7 @@ export function ChatComposer({
             className="cursor-default flex-nowrap items-center justify-between gap-1 px-3 pb-3 pt-1"
           >
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
-              <div className="min-w-0 flex-1">
+              <div className="flex w-fit min-w-0 max-w-40 shrink">
                 <Select
                   value={selectedModelProfileId || "__default__"}
                   onValueChange={(value) =>
@@ -388,7 +388,7 @@ export function ChatComposer({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="flex w-fit min-w-0 max-w-40 shrink">
                 <Select
                   value={selectedSandboxEnvironmentId || "__disabled__"}
                   onOpenChange={(open) => {
