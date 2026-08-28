@@ -5,6 +5,7 @@ import TestRenderer, { act } from "react-test-renderer"
 import { finalizePane, getPaneBlocks } from "../src/features/chat/chat-pane-state.ts"
 import {
   createAssistantEntry,
+  findAssistantEntryIdForRun,
   mapConversationMessagesToEntries,
 } from "../src/features/chat/model/chat-history.ts"
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector.ts"
@@ -593,6 +594,57 @@ assert.deepEqual(
   semanticPane(cumulativeHistory[0].pane),
   "cumulative terminal snapshot must append only the suffix around a Plugin node"
 )
+
+const partialMarkdownTable = [
+  "| # | Node | Stage |",
+  "| --- | --- | --- |",
+  "| 1 | input_recorder | before_model |",
+].join("\n")
+const refreshedEntries = mapConversationMessagesToEntries([
+  {
+    id: "partial-markdown-snapshot",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "assistant",
+    message_type: "output",
+    content: partialMarkdownTable,
+    metadata_json: {},
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  },
+])
+const refreshedAssistantId = findAssistantEntryIdForRun(refreshedEntries, runId)
+assert.equal(refreshedAssistantId, "partial-markdown-snapshot")
+const refreshedAssistant = refreshedEntries.find(
+  (entry) => entry.role === "assistant" && entry.id === refreshedAssistantId
+)
+assert.ok(refreshedAssistant?.role === "assistant")
+const continuedAssistant = projectConversationOutputEvent(
+  refreshedAssistant,
+  event(32, "model.text.delta", "\n| 2 | compact | before_model |"),
+  runId
+)
+const continuedTextBlock = getPaneBlocks(continuedAssistant.pane).find(
+  (block) => block.type === "text"
+)
+assert.equal(
+  continuedTextBlock?.content,
+  `${partialMarkdownTable}\n| 2 | compact | before_model |`,
+  "refresh resume must append SSE Markdown to the persisted entry for the same run"
+)
+let refreshedMarkdownTree
+await act(() => {
+  refreshedMarkdownTree = TestRenderer.create(
+    React.createElement(WebNodeList, {
+      pane: continuedAssistant.pane,
+      isStreaming: true,
+    })
+  )
+})
+const refreshedMarkdownJson = JSON.stringify(refreshedMarkdownTree.toJSON())
+assert.match(refreshedMarkdownJson, /<table>/)
+assert.match(refreshedMarkdownJson, /compact/)
+await act(() => refreshedMarkdownTree.unmount())
 
 const subagentToolHistory = mapConversationMessagesToEntries([
   {

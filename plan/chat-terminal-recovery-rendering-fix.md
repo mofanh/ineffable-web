@@ -116,3 +116,25 @@ SSE 回调读取的 `currentConversationIdRef` 要等 effect 才同步。新建�
 
 - [ ] 在旧会话打开时点击新建，立即输入并发送，消息只显示在新会话。
 - [ ] 新会话创建后切回旧会话，两边历史与 live run 均保持独立。
+
+## Phase 6：刷新后 Markdown 流续接
+
+### 根因
+
+历史接口恢复 active run 的 partial Assistant 后，SSE 重连会清空当前 Assistant entry
+identity。首个 replay/live delta 因而创建第二条消息；如果边界落在 Markdown 表格中间，
+历史前缀可以渲染，续接后缀只能显示原始 `|...|` 文本。
+
+### 实施
+
+- [x] 使用权威 `run_id` 从已恢复历史中反向选择对应 Assistant entry。
+- [x] SSE 重连在接收增量前绑定该 entry，不新建平行消息。
+- [x] 无明确 run id 或无匹配历史时仍使用原有新建行为。
+- [x] 集成回归覆盖刷新时表格前缀持久化、后续行由 SSE 续接并保持 Markdown table。
+
+### 自动验收
+
+- [x] `npm run check:chat-web-integration`
+- [x] `npm run check:chat-runtime`
+- [x] `npm run lint`
+- [x] `npm run build`

@@ -56,6 +56,23 @@ export function createAssistantEntry(
   }
 }
 
+export function findAssistantEntryIdForRun(
+  entries: ChatEntry[],
+  runId: string | null | undefined
+) {
+  const normalizedRunId = runId?.trim()
+  if (!normalizedRunId) return null
+
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    if (entry.role === "assistant" && entry.runId === normalizedRunId) {
+      return entry.id
+    }
+  }
+
+  return null
+}
+
 export function getLiveConversationRun(conversation: Conversation | null) {
   if (!conversation?.current_run) {
     return null

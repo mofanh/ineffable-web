@@ -39,6 +39,7 @@ import type {
 } from "@/features/chat/gateway-chat-types"
 import {
   createAssistantEntry,
+  findAssistantEntryIdForRun,
   getLiveConversationRun,
   mapConversationMessagesToEntries,
 } from "@/features/chat/model/chat-history"
@@ -2066,6 +2067,10 @@ export function GatewayChatSidebar({
 
       activeStreamConversationIdRef.current = conversationId
       activeRunIdRef.current = runId ?? null
+      assistantEntryIdRef.current = findAssistantEntryIdForRun(
+        entriesRef.current,
+        runId
+      )
       updateStreamStatus("recovering")
       setError(i18n.t("chat.gateway.pageRestored"))
       persistResumeState({
