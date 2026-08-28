@@ -27,6 +27,7 @@ import {
   GitBranchIcon,
   LoaderCircleIcon,
   SendHorizontalIcon,
+  SquareIcon,
   XIcon,
 } from "lucide-react"
 
@@ -338,7 +339,7 @@ export function ChatComposer({
           </div>
         ) : null}
 
-        <InputGroup className="h-auto overflow-hidden rounded-2xl border border-sidebar-border bg-background shadow-xs">
+        <InputGroup className="h-auto overflow-hidden rounded-[26px] border border-sidebar-border/90 bg-background shadow-[0_10px_32px_-20px_rgba(15,23,42,0.45)] transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-[0_14px_38px_-20px_rgba(15,23,42,0.5)] dark:shadow-[0_12px_34px_-22px_rgba(0,0,0,0.8)]">
           <InputGroupTextarea
             aria-label={t("chat.composer.messageLabel")}
             placeholder={
@@ -346,7 +347,7 @@ export function ChatComposer({
                 ? t("chat.composer.queuedPlaceholder")
                 : t("chat.composer.placeholder")
             }
-            rows={2}
+            rows={3}
             value={composer}
             onChange={(event) => handleComposerValueChange(event.target.value)}
             onFocus={handleComposerFocus}
@@ -354,29 +355,13 @@ export function ChatComposer({
             onKeyDown={handleComposerKeyDown}
             readOnly={isSubmittingInput}
             aria-busy={isSubmittingInput}
-            className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-3 py-2.5 shadow-none focus-visible:ring-0"
+            className="min-h-24 max-h-52 overflow-y-auto border-0 bg-transparent px-5 pb-3 pt-4 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0"
           />
-          <div className="flex items-center justify-between border-t border-sidebar-border px-3 py-1.5">
-            <label className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-              <GitBranchIcon className="size-3.5 shrink-0" />
-              <span className="truncate">{t("chat.composer.nodeIteration")}</span>
-              <span className="rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[10px]">
-                {t(`chat.composer.iterationMode.${agentIterationMode}`)}
-              </span>
-            </label>
-            <Switch
-              checked={agentIterationRequested}
-              disabled={isAgentIterationLoading}
-              aria-label={t("chat.composer.nodeIteration")}
-              title={agentIterationUnavailableReason ?? t("chat.composer.nodeIterationHint")}
-              onCheckedChange={onAgentIterationChange}
-            />
-          </div>
           <InputGroupAddon
             align="block-end"
-            className="justify-between border-t border-sidebar-border bg-sidebar-accent/15 px-2 py-1.5 [.border-t]:pt-1.5"
+            className="cursor-default items-end justify-between gap-2 px-3 pb-3 pt-1"
           >
-            <div className="grid min-w-0 flex-1 grid-cols-2 gap-1">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
               <Select
                 value={selectedModelProfileId || "__default__"}
                 onValueChange={(value) =>
@@ -385,7 +370,7 @@ export function ChatComposer({
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-7 w-full min-w-0 rounded-md bg-background text-xs"
+                  className="h-8 max-w-44 min-w-0 rounded-full border-transparent bg-transparent px-2.5 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
                 >
                   <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
                   <SelectValue placeholder={t("chat.composer.model")} />
@@ -414,7 +399,7 @@ export function ChatComposer({
               >
                 <SelectTrigger
                   size="sm"
-                  className="h-7 w-full min-w-0 rounded-md bg-background text-xs"
+                  className="h-8 max-w-44 min-w-0 rounded-full border-transparent bg-transparent px-2.5 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
                   aria-busy={isRefreshingSandboxOptions}
                   title={
                     isRefreshingSandboxOptions
@@ -438,16 +423,42 @@ export function ChatComposer({
                   ))}
                 </SelectContent>
               </Select>
+
+              <div
+                className={cn(
+                  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+                  agentIterationRequested
+                    ? "bg-primary/8 text-foreground"
+                    : "text-muted-foreground hover:bg-sidebar-accent/70"
+                )}
+                title={agentIterationUnavailableReason ?? t("chat.composer.nodeIterationHint")}
+              >
+                <GitBranchIcon className="size-3.5 shrink-0" />
+                <span className="whitespace-nowrap">{t("chat.composer.nodeIteration")}</span>
+                <span className="max-w-20 truncate text-[10px] text-muted-foreground">
+                  {t(`chat.composer.iterationMode.${agentIterationMode}`)}
+                </span>
+                <Switch
+                  size="sm"
+                  checked={agentIterationRequested}
+                  disabled={isAgentIterationLoading}
+                  aria-label={t("chat.composer.nodeIteration")}
+                  onCheckedChange={onAgentIterationChange}
+                />
+              </div>
             </div>
-            <div className="ml-1 flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1.5">
               {isSending ? (
                 <Button
-                  size="sm"
-                  variant="outline"
+                  size="icon"
+                  variant="ghost"
                   type="button"
+                  className="size-9 rounded-full border border-sidebar-border bg-background text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-foreground"
                   onClick={onStop}
+                  title={t("chat.composer.stop")}
                 >
-                  {t("chat.composer.stop")}
+                  <SquareIcon className="size-3.5 fill-current" />
+                  <span className="sr-only">{t("chat.composer.stop")}</span>
                 </Button>
               ) : null}
 
@@ -455,7 +466,7 @@ export function ChatComposer({
                 type="submit"
                 size="icon-sm"
                 className={cn(
-                  "rounded-full transition-colors",
+                  "size-10 rounded-full bg-foreground text-background transition-[color,background-color,transform] hover:bg-foreground/85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground",
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
                 disabled={!composer.trim() || isSubmittingInput}
