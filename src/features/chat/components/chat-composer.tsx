@@ -347,7 +347,7 @@ export function ChatComposer({
                 ? t("chat.composer.queuedPlaceholder")
                 : t("chat.composer.placeholder")
             }
-            rows={3}
+            rows={2}
             value={composer}
             onChange={(event) => handleComposerValueChange(event.target.value)}
             onFocus={handleComposerFocus}
@@ -355,7 +355,7 @@ export function ChatComposer({
             onKeyDown={handleComposerKeyDown}
             readOnly={isSubmittingInput}
             aria-busy={isSubmittingInput}
-            className="min-h-24 max-h-52 overflow-y-auto border-0 bg-transparent px-5 pb-3 pt-4 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0"
+            className="min-h-14 max-h-32 overflow-y-auto border-0 bg-transparent px-4 py-3 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0"
           />
           <InputGroupAddon
             align="block-end"
