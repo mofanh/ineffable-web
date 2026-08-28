@@ -359,95 +359,98 @@ export function ChatComposer({
           />
           <InputGroupAddon
             align="block-end"
-            className="cursor-default items-end justify-between gap-2 px-3 pb-3 pt-1"
+            className="cursor-default flex-nowrap items-center justify-between gap-1 px-3 pb-3 pt-1"
           >
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-              <Select
-                value={selectedModelProfileId || "__default__"}
-                onValueChange={(value) =>
-                  onModelProfileChange(value === "__default__" ? "" : value)
-                }
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 max-w-44 min-w-0 rounded-full border-transparent bg-transparent px-2.5 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
-                >
-                  <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder={t("chat.composer.model")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__default__">
-                    {t("chat.composer.defaultModel")}
-                  </SelectItem>
-                  {modelOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={selectedSandboxEnvironmentId || "__disabled__"}
-                onOpenChange={(open) => {
-                  if (open) {
-                    onSandboxOptionsRefresh()
-                  }
-                }}
-                onValueChange={(value) =>
-                  onSandboxEnvironmentChange(value === "__disabled__" ? "" : value)
-                }
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 max-w-44 min-w-0 rounded-full border-transparent bg-transparent px-2.5 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
-                  aria-busy={isRefreshingSandboxOptions}
-                  title={
-                    isRefreshingSandboxOptions
-                      ? t("chat.composer.sandboxSyncing")
-                      : t("chat.composer.sandboxTitle")
+            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={selectedModelProfileId || "__default__"}
+                  onValueChange={(value) =>
+                    onModelProfileChange(value === "__default__" ? "" : value)
                   }
                 >
-                  <SelectValue placeholder={t("chat.composer.sandbox")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__disabled__">
-                    {t("chat.composer.noSandbox")}
-                  </SelectItem>
-                  {sandboxOptions.map((option) => (
-                    <SelectItem
-                      key={option.environmentId}
-                      value={option.environmentId}
-                    >
-                      {option.label} / {option.status}
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-full min-w-0 rounded-full border-transparent bg-transparent px-2 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
+                  >
+                    <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    <SelectValue placeholder={t("chat.composer.model")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">
+                      {t("chat.composer.defaultModel")}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {modelOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={selectedSandboxEnvironmentId || "__disabled__"}
+                  onOpenChange={(open) => {
+                    if (open) {
+                      onSandboxOptionsRefresh()
+                    }
+                  }}
+                  onValueChange={(value) =>
+                    onSandboxEnvironmentChange(value === "__disabled__" ? "" : value)
+                  }
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 w-full min-w-0 rounded-full border-transparent bg-transparent px-2 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
+                    aria-busy={isRefreshingSandboxOptions}
+                    title={
+                      isRefreshingSandboxOptions
+                        ? t("chat.composer.sandboxSyncing")
+                        : t("chat.composer.sandboxTitle")
+                    }
+                  >
+                    <SelectValue placeholder={t("chat.composer.sandbox")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__disabled__">
+                      {t("chat.composer.noSandbox")}
+                    </SelectItem>
+                    {sandboxOptions.map((option) => (
+                      <SelectItem
+                        key={option.environmentId}
+                        value={option.environmentId}
+                      >
+                        {option.label} / {option.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div
                 className={cn(
-                  "flex h-8 min-w-0 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
+                  "flex h-8 shrink-0 items-center gap-1 rounded-full px-1.5 text-xs transition-colors",
                   agentIterationRequested
                     ? "bg-primary/8 text-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent/70"
                 )}
-                title={agentIterationUnavailableReason ?? t("chat.composer.nodeIterationHint")}
+                title={
+                  agentIterationUnavailableReason ??
+                  `${t("chat.composer.nodeIteration")} · ${t(`chat.composer.iterationMode.${agentIterationMode}`)} · ${t("chat.composer.nodeIterationHint")}`
+                }
               >
                 <GitBranchIcon className="size-3.5 shrink-0" />
-                <span className="whitespace-nowrap">{t("chat.composer.nodeIteration")}</span>
-                <span className="max-w-20 truncate text-[10px] text-muted-foreground">
-                  {t(`chat.composer.iterationMode.${agentIterationMode}`)}
-                </span>
                 <Switch
                   size="sm"
                   checked={agentIterationRequested}
                   disabled={isAgentIterationLoading}
-                  aria-label={t("chat.composer.nodeIteration")}
+                  aria-label={`${t("chat.composer.nodeIteration")} · ${t(`chat.composer.iterationMode.${agentIterationMode}`)}`}
                   onCheckedChange={onAgentIterationChange}
                 />
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1">
               {isSending ? (
                 <Button
                   size="icon"
