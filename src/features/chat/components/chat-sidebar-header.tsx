@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 
 import { StatusBadge, type StatusBadgeTone } from "@/components/app/status-badge"
 import { Button } from "@/components/ui/button"
+import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -254,7 +255,11 @@ export function ChatSidebarHeader({
                 </Button>
               </div>
 
-              <div className="max-h-[360px] overflow-y-auto">
+              <div
+                data-chat-scroll-region
+                onWheel={containChatWheel}
+                className="max-h-[360px] overflow-y-auto overscroll-contain"
+              >
                 <div className="px-1.5 py-1.5">
                   <button
                     type="button"

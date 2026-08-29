@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
+import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
 
 type ChatMessageListProps = {
@@ -170,6 +171,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     <div className="relative h-full">
       <div
         ref={scrollViewportRef}
+        data-chat-scroll-region
+        onWheel={containChatWheel}
         onScroll={(event) => {
           onViewportScroll()
           if (
@@ -182,7 +185,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           }
         }}
         className={cn(
-          "h-full min-h-0 overflow-y-auto py-4",
+          "h-full min-h-0 overflow-y-auto overscroll-contain py-4",
           isFullScreen ? "px-5 md:px-8" : "px-3"
         )}
       >

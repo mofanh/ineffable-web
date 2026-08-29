@@ -2,6 +2,7 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
+import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
 import {
   InputGroup,
   InputGroupAddon,
@@ -79,29 +80,6 @@ type ChatComposerProps = {
   onStop: () => void
   onPromoteToGuided: (id: string) => void
   onDeleteFromQueue: (id: string) => void
-}
-
-function handleComposerWheel(event: React.WheelEvent<HTMLDivElement>) {
-  const target = event.target
-  const scrollRegion =
-    target instanceof Element
-      ? target.closest<HTMLElement>("[data-composer-scroll-region]")
-      : null
-
-  if (scrollRegion && event.currentTarget.contains(scrollRegion)) {
-    const maxScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight
-    const canScrollInDirection =
-      (event.deltaY < 0 && scrollRegion.scrollTop > 0) ||
-      (event.deltaY > 0 && scrollRegion.scrollTop < maxScrollTop - 1)
-
-    if (canScrollInDirection) {
-      event.stopPropagation()
-      return
-    }
-  }
-
-  event.preventDefault()
-  event.stopPropagation()
 }
 
 export function ChatComposer({
@@ -364,10 +342,10 @@ export function ChatComposer({
 
         <InputGroup
           className="h-auto overflow-hidden rounded-[26px] border border-sidebar-border/90 bg-background shadow-[0_10px_32px_-20px_rgba(15,23,42,0.45)] transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-[0_14px_38px_-20px_rgba(15,23,42,0.5)] dark:shadow-[0_12px_34px_-22px_rgba(0,0,0,0.8)]"
-          onWheel={handleComposerWheel}
+          onWheel={containChatWheel}
         >
           <InputGroupTextarea
-            data-composer-scroll-region
+            data-chat-scroll-region
             aria-label={t("chat.composer.messageLabel")}
             placeholder={
               isSending
