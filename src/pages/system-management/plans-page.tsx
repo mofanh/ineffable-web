@@ -252,6 +252,13 @@ export function SystemPlanManagementPage() {
       max_members_per_workspace: plan.max_members_per_workspace ?? null,
       workspace_object_count_limit: plan.workspace_object_count_limit ?? null,
       max_file_size_bytes: plan.max_file_size_bytes ?? null,
+      max_active_cloud_sandboxes: plan.max_active_cloud_sandboxes ?? null,
+      agent_evolution_policy: {
+        ...plan.agent_evolution_policy,
+        runtime_lab_allowed_component_kinds: [
+          ...plan.agent_evolution_policy.runtime_lab_allowed_component_kinds,
+        ],
+      },
       enabled: plan.enabled,
     });
     setEditingPlanId(plan.id);
@@ -919,6 +926,35 @@ function PlanForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
+  const policy = plan.agent_evolution_policy;
+
+  function updatePolicy(
+    patch: Partial<AdminPlanPayload["agent_evolution_policy"]>,
+  ) {
+    onChange((current) =>
+      current
+        ? {
+            ...current,
+            agent_evolution_policy: {
+              ...current.agent_evolution_policy,
+              ...patch,
+            },
+          }
+        : current,
+    );
+  }
+
+  function toggleRuntimeLabComponentKind(kind: string, checked: boolean) {
+    const kinds = checked
+      ? Array.from(
+          new Set([...policy.runtime_lab_allowed_component_kinds, kind]),
+        )
+      : policy.runtime_lab_allowed_component_kinds.filter(
+          (current) => current !== kind,
+        );
+    updatePolicy({ runtime_lab_allowed_component_kinds: kinds });
+  }
+
   return (
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
       <AppDisclosureSection title={t("system.plans.form.basic")}>
@@ -955,6 +991,194 @@ function PlanForm({
             }
           />
         </AppFieldGrid>
+      </AppDisclosureSection>
+      <AppDisclosureSection
+        title={t("system.plans.form.agentEvolution")}
+        description={t("system.plans.form.agentEvolutionDescription")}
+        defaultOpen={false}
+      >
+        <div className="space-y-4">
+          <div className="grid gap-3">
+            <ToggleField
+              label={t("system.plans.form.definitionRecomposition")}
+              checked={policy.allow_definition_recomposition}
+              onCheckedChange={(checked) =>
+                updatePolicy({
+                  allow_definition_recomposition: checked,
+                  ...(!checked
+                    ? {
+                        allow_artifact_nodes: false,
+                        allow_runtime_lab: false,
+                      }
+                    : {}),
+                })
+              }
+            />
+            <ToggleField
+              label={t("system.plans.form.artifactNodes")}
+              checked={policy.allow_artifact_nodes}
+              disabled={!policy.allow_definition_recomposition}
+              onCheckedChange={(checked) =>
+                updatePolicy({
+                  allow_artifact_nodes: checked,
+                  ...(!checked ? { allow_runtime_lab: false } : {}),
+                })
+              }
+            />
+            <ToggleField
+              label={t("system.plans.form.runtimeLab")}
+              checked={policy.allow_runtime_lab}
+              disabled={!policy.allow_artifact_nodes}
+              onCheckedChange={(checked) =>
+                updatePolicy({ allow_runtime_lab: checked })
+              }
+            />
+          </div>
+
+          {policy.allow_definition_recomposition ? (
+            <AppFieldGrid columns={2}>
+              <PolicyNumberField
+                label={t("system.plans.form.maxDefinitions")}
+                value={policy.max_definitions}
+                onChange={(value) => updatePolicy({ max_definitions: value })}
+              />
+              <PolicyNumberField
+                label={t("system.plans.form.maxGenerationDepth")}
+                value={policy.max_generation_depth}
+                onChange={(value) =>
+                  updatePolicy({ max_generation_depth: value })
+                }
+              />
+              <PolicyNumberField
+                label={t("system.plans.form.maxCandidates")}
+                value={policy.max_candidates_per_evaluation}
+                onChange={(value) =>
+                  updatePolicy({ max_candidates_per_evaluation: value })
+                }
+              />
+              <PolicyNumberField
+                label={t("system.plans.form.maxParallelEvaluations")}
+                value={policy.max_parallel_evaluations}
+                onChange={(value) =>
+                  updatePolicy({ max_parallel_evaluations: value })
+                }
+              />
+              <PolicyNumberField
+                label={t("system.plans.form.maxEvaluationTokens")}
+                value={policy.max_evaluation_tokens}
+                onChange={(value) =>
+                  updatePolicy({ max_evaluation_tokens: value })
+                }
+              />
+              <PolicyNumberField
+                label={t("system.plans.form.maxEvaluationCredits")}
+                value={policy.max_evaluation_cost_credits}
+                step="0.1"
+                onChange={(value) =>
+                  updatePolicy({ max_evaluation_cost_credits: value })
+                }
+              />
+              <PolicyNumberField
+                label={t("system.plans.form.maxEvaluationWallMs")}
+                value={policy.max_evaluation_wall_ms}
+                onChange={(value) =>
+                  updatePolicy({ max_evaluation_wall_ms: value })
+                }
+              />
+            </AppFieldGrid>
+          ) : null}
+
+          {policy.allow_runtime_lab ? (
+            <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
+              <div className="text-sm font-medium">
+                {t("system.plans.form.runtimeLabLimits")}
+              </div>
+              <AppFieldGrid columns={2}>
+                <PolicyNumberField
+                  label={t("system.plans.form.cloudSandboxes")}
+                  value={plan.max_active_cloud_sandboxes ?? 0}
+                  onChange={(value) =>
+                    onChange((current) =>
+                      current
+                        ? { ...current, max_active_cloud_sandboxes: value }
+                        : current,
+                    )
+                  }
+                />
+                <PolicyNumberField
+                  label={t("system.plans.form.runtimeLabTtl")}
+                  value={policy.runtime_lab_ttl_seconds ?? 0}
+                  onChange={(value) =>
+                    updatePolicy({ runtime_lab_ttl_seconds: value })
+                  }
+                />
+                <PolicyNumberField
+                  label={t("system.plans.form.maxRuntimeLabs")}
+                  value={policy.max_runtime_labs ?? 0}
+                  onChange={(value) =>
+                    updatePolicy({ max_runtime_labs: value })
+                  }
+                />
+                <PolicyNumberField
+                  label={t("system.plans.form.maxRuntimeLabComponents")}
+                  value={policy.max_runtime_lab_components}
+                  onChange={(value) =>
+                    updatePolicy({ max_runtime_lab_components: value })
+                  }
+                />
+                <PolicyNumberField
+                  label={t("system.plans.form.revocationGrace")}
+                  value={policy.runtime_lab_revocation_grace_seconds}
+                  onChange={(value) =>
+                    updatePolicy({
+                      runtime_lab_revocation_grace_seconds: value,
+                    })
+                  }
+                />
+              </AppFieldGrid>
+              <div>
+                <div className="mb-2 text-sm font-medium">
+                  {t("system.plans.form.allowedComponentKinds")}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    {
+                      kind: "node",
+                      label: t("system.plans.form.componentKinds.node"),
+                    },
+                    {
+                      kind: "capability_provider",
+                      label: t(
+                        "system.plans.form.componentKinds.capability_provider",
+                      ),
+                    },
+                    {
+                      kind: "environment",
+                      label: t("system.plans.form.componentKinds.environment"),
+                    },
+                    {
+                      kind: "interface_adapter",
+                      label: t(
+                        "system.plans.form.componentKinds.interface_adapter",
+                      ),
+                    },
+                  ].map(({ kind, label }) => (
+                    <ToggleField
+                      key={kind}
+                      label={label}
+                      checked={policy.runtime_lab_allowed_component_kinds.includes(
+                        kind,
+                      )}
+                      onCheckedChange={(checked) =>
+                        toggleRuntimeLabComponentKind(kind, checked)
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </AppDisclosureSection>
       <AppDisclosureSection
         title={t("system.plans.form.credits")}
@@ -1094,6 +1318,30 @@ function PlanForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function PolicyNumberField({
+  label,
+  value,
+  step = 1,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  step?: number | string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <FormField label={label}>
+      <Input
+        type="number"
+        min={0}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </FormField>
   );
 }
 

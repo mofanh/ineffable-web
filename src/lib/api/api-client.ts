@@ -1081,8 +1081,28 @@ export type AdminPlan = {
   max_members_per_workspace?: number | null
   workspace_object_count_limit?: number | null
   max_file_size_bytes?: number | null
+  max_active_cloud_sandboxes?: number | null
+  agent_evolution_policy: AdminAgentEvolutionPolicy
   enabled: boolean
   archived_at?: string | null
+}
+
+export type AdminAgentEvolutionPolicy = {
+  allow_definition_recomposition: boolean
+  allow_artifact_nodes: boolean
+  allow_runtime_lab: boolean
+  max_definitions: number
+  max_candidates_per_evaluation: number
+  max_generation_depth: number
+  max_parallel_evaluations: number
+  max_evaluation_tokens: number
+  max_evaluation_cost_credits: number
+  max_evaluation_wall_ms: number
+  runtime_lab_ttl_seconds?: number | null
+  max_runtime_labs?: number | null
+  max_runtime_lab_components: number
+  runtime_lab_allowed_component_kinds: string[]
+  runtime_lab_revocation_grace_seconds: number
 }
 
 export type AdminPlanModelAccess = {
