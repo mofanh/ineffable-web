@@ -521,6 +521,35 @@ export function applyReasoningDeltaToPane(pane: AgentPaneState, chunk: string) {
   return consumeReasoningText(nextPane, chunk)
 }
 
+/**
+ * Re-arm only a trailing history think block when the same live run reconnects.
+ * History hydration closes every block because it cannot itself prove liveness;
+ * the live event projector calls this at the first continued reasoning/text delta.
+ */
+export function resumeTrailingThinkBlock(pane: AgentPaneState) {
+  if (pane.activeThinkBlockId || pane.activeThinkMode) {
+    return pane
+  }
+
+  const trailingBlock = getLastBlock(pane)
+  if (!trailingBlock || trailingBlock.type !== "think" || trailingBlock.open) {
+    return pane
+  }
+
+  return {
+    ...pane,
+    activeThinkBlockId: trailingBlock.id,
+    activeThinkMode: "tagged" as const,
+    blocks: {
+      ...pane.blocks,
+      [trailingBlock.id]: {
+        ...trailingBlock,
+        open: true,
+      },
+    },
+  }
+}
+
 export function finalizePane(pane: AgentPaneState, fallback?: string) {
   const basePane =
     fallback && !pane.receivedTextDelta ? consumeTaggedText(pane, fallback) : pane

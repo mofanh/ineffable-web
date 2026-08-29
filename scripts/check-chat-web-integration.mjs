@@ -646,6 +646,67 @@ assert.match(refreshedMarkdownJson, /<table>/)
 assert.match(refreshedMarkdownJson, /compact/)
 await act(() => refreshedMarkdownTree.unmount())
 
+const partialReasoningTable = [
+  "| # | Check | Result |",
+  "| --- | --- | --- |",
+  "| 1 | schema | valid |",
+].join("\n")
+const refreshedReasoningEntries = mapConversationMessagesToEntries([
+  {
+    id: "partial-reasoning-snapshot",
+    conversation_id: conversationId,
+    run_id: runId,
+    role: "assistant",
+    message_type: "output",
+    content: "",
+    content_json: { reasoning_content: partialReasoningTable },
+    metadata_json: {},
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  },
+])
+const refreshedReasoning = refreshedReasoningEntries[0]
+assert.ok(refreshedReasoning?.role === "assistant")
+const continuedReasoning = projectConversationOutputEvent(
+  refreshedReasoning,
+  event(
+    33,
+    "model.text.delta",
+    "\n| 2 | resume | valid |</think>\n\nFinal answer."
+  ),
+  runId
+)
+const continuedReasoningBlocks = getPaneBlocks(continuedReasoning.pane)
+const continuedThinkBlock = continuedReasoningBlocks.find(
+  (block) => block.type === "think"
+)
+assert.equal(
+  continuedThinkBlock?.content,
+  `${partialReasoningTable}\n| 2 | resume | valid |`,
+  "refresh resume must append a mid-think SSE suffix to the persisted reasoning block"
+)
+assert.equal(
+  continuedReasoningBlocks.filter((block) => block.type === "think").length,
+  1,
+  "refresh resume must not split one Markdown reasoning document into two think blocks"
+)
+let refreshedReasoningTree
+await act(() => {
+  refreshedReasoningTree = TestRenderer.create(
+    React.createElement(WebNodeList, {
+      pane: continuedReasoning.pane,
+      isStreaming: true,
+    })
+  )
+})
+const reasoningTrigger = refreshedReasoningTree.root.findAllByType("button")[0]
+await act(() => reasoningTrigger.props.onClick({ defaultPrevented: false }))
+const refreshedReasoningJson = JSON.stringify(refreshedReasoningTree.toJSON())
+assert.match(refreshedReasoningJson, /<table>/)
+assert.match(refreshedReasoningJson, /resume/)
+assert.match(refreshedReasoningJson, /Final answer/)
+await act(() => refreshedReasoningTree.unmount())
+
 const subagentToolHistory = mapConversationMessagesToEntries([
   {
     id: "subagent-tool-plugin",

@@ -5,6 +5,7 @@ import {
   appendUpdateToPane,
   buildToolView,
   finalizePane,
+  resumeTrailingThinkBlock,
   upsertToolInPane,
   type AgentPaneState,
 } from "@/features/chat/chat-pane-state"
@@ -29,18 +30,26 @@ import { projectDeclaredWebNode } from "@/features/chat/runtime/plugin-web-node-
 
 function projectPaneEvent(
   pane: AgentPaneState,
-  event: GatewayChatStreamEvent
+  event: GatewayChatStreamEvent,
+  resumeFromHistory = false
 ) {
   const content = event.content ?? ""
+  const shouldResumeTrailingThink =
+    resumeFromHistory &&
+    (isReasoningEvent(event.event) ||
+      (isTextDeltaEvent(event.event) && !content.includes("<think>")))
+  const basePane = shouldResumeTrailingThink
+    ? resumeTrailingThinkBlock(pane)
+    : pane
   let nextPane: AgentPaneState
   if (isTextDeltaEvent(event.event)) {
-    nextPane = applyTextDeltaToPane(pane, content)
+    nextPane = applyTextDeltaToPane(basePane, content)
   } else if (isReasoningEvent(event.event)) {
-    nextPane = applyReasoningDeltaToPane(pane, content)
+    nextPane = applyReasoningDeltaToPane(basePane, content)
   } else if (event.event === "assistant.snapshot") {
-    nextPane = applyMessageToPane(pane, content)
+    nextPane = applyMessageToPane(basePane, content)
   } else {
-    nextPane = appendUpdateToPane(pane, content)
+    nextPane = appendUpdateToPane(basePane, content)
   }
   return projectDeclaredWebNode(nextPane, event)
 }
@@ -71,7 +80,7 @@ export function projectConversationOutputEvent(
       status: current.status === "error" ? "error" : "streaming",
       pane: isToolEvent(event.event)
         ? projectToolEvent(current.pane, event)
-        : projectPaneEvent(current.pane, event),
+        : projectPaneEvent(current.pane, event, current.status === "done"),
     }
   }
 
@@ -85,7 +94,7 @@ export function projectConversationOutputEvent(
     name: subagentName,
     ...(isToolEvent(event.event)
       ? projectToolEvent(existing, event)
-      : projectPaneEvent(existing, event)),
+      : projectPaneEvent(existing, event, existing.status === "done")),
   } as SubagentView
 
   if (event.event === "subagent.completed") {
