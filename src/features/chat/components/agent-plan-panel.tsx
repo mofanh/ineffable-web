@@ -6,6 +6,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import type { ToolCallView } from "@/features/chat/chat-pane-state"
+import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
 import { objectValue, parseJsonObject, stringValue } from "@/features/chat/model/chat-parsing"
 import { i18n } from "@/lib/i18n/i18n"
 import { cn } from "@/lib/utils"
@@ -44,7 +45,13 @@ function parsePlan(tool: ToolCallView) {
   }
 }
 
-export function AgentPlanPanel({ tool }: { tool: ToolCallView | null }) {
+export function AgentPlanPanel({
+  tool,
+  isFullScreen,
+}: {
+  tool: ToolCallView | null
+  isFullScreen: boolean
+}) {
   const parsed = React.useMemo(() => (tool ? parsePlan(tool) : null), [tool])
   const completed = parsed?.plan.filter((item) => item.status === "completed").length ?? 0
   const total = parsed?.plan.length ?? 0
@@ -53,8 +60,15 @@ export function AgentPlanPanel({ tool }: { tool: ToolCallView | null }) {
   if (!tool || !parsed || total === 0) return null
 
   return (
-    <div className="border-t border-sidebar-border/70 bg-sidebar/80 px-3 py-2 backdrop-blur-sm">
-      <Collapsible open={open} onOpenChange={setOpen}>
+    <div className="border-t border-sidebar-border/70 bg-sidebar/80 py-2 backdrop-blur-sm">
+      <Collapsible
+        open={open}
+        onOpenChange={setOpen}
+        className={cn(
+          "w-full px-3",
+          isFullScreen && "mx-auto max-w-[780px] px-5 md:px-2"
+        )}
+      >
         <CollapsibleTrigger asChild>
           <button
             type="button"
@@ -72,7 +86,11 @@ export function AgentPlanPanel({ tool }: { tool: ToolCallView | null }) {
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="animated-collapsible-content">
-          <div className="mt-2 max-h-52 space-y-2 overflow-y-auto rounded-lg border border-sidebar-border/70 bg-background/55 px-3 py-2.5">
+          <div
+            data-chat-scroll-region
+            onWheel={containChatWheel}
+            className="mt-2 max-h-52 space-y-2 overflow-y-auto overscroll-contain rounded-lg border border-sidebar-border/70 bg-background/55 px-3 py-2.5"
+          >
             {parsed.explanation ? (
               <p className="text-[11px] leading-5 text-foreground/55">
                 {parsed.explanation}

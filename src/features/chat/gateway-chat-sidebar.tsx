@@ -3019,7 +3019,7 @@ export function GatewayChatSidebar({
         ) : null}
       </SidebarContent>
 
-      <AgentPlanPanel tool={currentPlanTool} />
+      <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 
       <ChatComposer
         isFullScreen={isFullScreen}
