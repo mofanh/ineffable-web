@@ -967,6 +967,7 @@ export const resources = {
             maxEvaluationWallMs: "单次评估时间（ms）",
             runtimeLabLimits: "Runtime Lab 资源限额",
             cloudSandboxes: "活跃云 Sandbox 上限",
+            cloudSandboxesDescription: "留空表示不限额，0 表示禁止创建云 Sandbox。",
             runtimeLabTtl: "Lab TTL（秒）",
             maxRuntimeLabs: "并行 Lab 数",
             maxRuntimeLabComponents: "每个 Lab 组件数",
@@ -2452,6 +2453,8 @@ export const resources = {
             maxEvaluationWallMs: "Evaluation wall time (ms)",
             runtimeLabLimits: "Runtime Lab resource limits",
             cloudSandboxes: "Active cloud Sandbox limit",
+            cloudSandboxesDescription:
+              "Leave blank for unlimited; set 0 to prevent cloud Sandbox creation.",
             runtimeLabTtl: "Lab TTL (seconds)",
             maxRuntimeLabs: "Concurrent Labs",
             maxRuntimeLabComponents: "Components per Lab",

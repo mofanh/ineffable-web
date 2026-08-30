@@ -1030,7 +1030,24 @@ function PlanForm({
               checked={policy.allow_runtime_lab}
               disabled={!policy.allow_artifact_nodes}
               onCheckedChange={(checked) =>
-                updatePolicy({ allow_runtime_lab: checked })
+                updatePolicy({
+                  allow_runtime_lab: checked,
+                  ...(checked
+                    ? {
+                        runtime_lab_ttl_seconds:
+                          policy.runtime_lab_ttl_seconds ?? 3600,
+                        max_runtime_labs: policy.max_runtime_labs ?? 1,
+                        max_runtime_lab_components: Math.max(
+                          policy.max_runtime_lab_components,
+                          1,
+                        ),
+                        runtime_lab_allowed_component_kinds:
+                          policy.runtime_lab_allowed_component_kinds.length > 0
+                            ? policy.runtime_lab_allowed_component_kinds
+                            : ["node"],
+                      }
+                    : {}),
+                })
               }
             />
           </div>
@@ -1094,9 +1111,12 @@ function PlanForm({
                 {t("system.plans.form.runtimeLabLimits")}
               </div>
               <AppFieldGrid columns={2}>
-                <PolicyNumberField
+                <PolicyOptionalNumberField
                   label={t("system.plans.form.cloudSandboxes")}
-                  value={plan.max_active_cloud_sandboxes ?? 0}
+                  description={t(
+                    "system.plans.form.cloudSandboxesDescription",
+                  )}
+                  value={plan.max_active_cloud_sandboxes}
                   onChange={(value) =>
                     onChange((current) =>
                       current
@@ -1340,6 +1360,30 @@ function PolicyNumberField({
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </FormField>
+  );
+}
+
+function PolicyOptionalNumberField({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  value?: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <FormField label={label} description={description}>
+      <Input
+        type="number"
+        min={0}
+        step={1}
+        value={value ?? ""}
+        onChange={(event) => onChange(numberOrNull(event.target.value))}
       />
     </FormField>
   );
