@@ -44,6 +44,7 @@ import {
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
 } from "@/features/chat/model/chat-history"
+import { canonicalMessageToGatewayEvent } from "@/features/chat/model/canonical-message-event"
 import {
   approvalNeedFromEvent,
   approvalNeedFromRaw,
@@ -1750,25 +1751,24 @@ export function GatewayChatSidebar({
     if (Array.isArray(response.forward_messages)) {
       response.forward_messages.forEach((message, index) => {
         const messageMetadata = objectValue(message.metadata)
-        applyEvent(
+        applyEvent(canonicalMessageToGatewayEvent(
           {
-            run_id: response.run_id ?? undefined,
-            seq: index + 1,
-            ts_ms: Date.now(),
-            stream: "resume",
-            event: "assistant.snapshot",
-            phase: "resume",
-            scope:
-              typeof message.scope === "string" ? message.scope : "main",
-            role: typeof message.role === "string" ? message.role : "assistant",
+            role: message.role,
+            messageType: message.message_type,
             content: message.content,
-            metadata: {
-              ...(messageMetadata ?? {}),
-              conversation_id: conversationId,
-              conversation_run_id: response.run_id,
-            },
+            metadata: messageMetadata,
+            scope: message.scope,
+            runId: response.run_id,
+            conversationId,
+          },
+          {
+            seq: index + 1,
+            stream: "resume",
+            phase: "resume",
+            defaultRunId: response.run_id,
+            conversationId,
           }
-        )
+        ))
       })
     }
 

@@ -36,6 +36,7 @@ import { i18n } from "../src/lib/i18n/i18n.ts"
 import { parseLeadingJsonObject } from "../src/features/chat/model/leading-json-object.ts"
 import { extractWorkspaceArtifact } from "../src/features/chat/runtime/workspace-artifacts.ts"
 import { WebNodeList } from "../src/features/chat/components/agent-pane.tsx"
+import { canonicalMessageToGatewayEvent } from "../src/features/chat/model/canonical-message-event.ts"
 
 globalThis.React = React
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -189,6 +190,67 @@ function event(seq, kind, content = null, metadata = {}, scope = "main") {
     },
   }
 }
+
+const resumedCanonicalMessages = [
+  {
+    role: "assistant",
+    messageType: "output",
+    content: "我会查询三个来源。",
+  },
+  ...[1, 2, 3].flatMap((index) => [
+    {
+      role: "tool_call",
+      messageType: "tool_call",
+      content: "",
+      metadata: {
+        tool_call_id: `search-${index}`,
+        tool_name: "web_search",
+        full_arguments: JSON.stringify({ query: `agents ${index}` }),
+      },
+    },
+    {
+      role: "tool",
+      messageType: "tool_result",
+      content: `provider ${index} returned 502`,
+      metadata: {
+        tool_call_id: `search-${index}`,
+        tool_name: "web_search",
+        settlement_status: "failed",
+        success: false,
+      },
+    },
+  ]),
+  {
+    role: "assistant",
+    messageType: "output",
+    content: "搜索服务暂时不可用。",
+  },
+]
+let resumedEntry
+resumedCanonicalMessages.forEach((message, index) => {
+  const projected = canonicalMessageToGatewayEvent(message, {
+    seq: index + 1,
+    stream: "resume",
+    phase: "resume",
+    defaultRunId: runId,
+    conversationId,
+    tsMs: index + 1,
+  })
+  resumedEntry = projectConversationOutputEvent(resumedEntry, projected, runId)
+})
+const resumedBlocks = getPaneBlocks(resumedEntry.pane)
+assert.equal(resumedBlocks.filter((block) => block.type === "tool").length, 3)
+assert.deepEqual(
+  Object.values(resumedEntry.pane.tools).map((tool) => tool.status),
+  ["failed", "failed", "failed"]
+)
+assert.deepEqual(
+  resumedBlocks
+    .filter((block) => block.type === "text")
+    .map((block) => block.content),
+  ["我会查询三个来源。", "搜索服务暂时不可用。"],
+  "tool failures must remain structural tool output instead of assistant Markdown"
+)
 
 const userInputQuestions = [
   {

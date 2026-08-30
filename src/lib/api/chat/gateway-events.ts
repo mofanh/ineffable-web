@@ -14,6 +14,7 @@ export type GatewayChatStreamEvent = {
 export type GatewayForwardMessage = {
   scope?: string | null
   role?: string | null
+  message_type?: string | null
   content: string
   metadata?: Record<string, unknown> | null
 }

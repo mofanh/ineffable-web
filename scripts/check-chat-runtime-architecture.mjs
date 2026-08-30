@@ -22,6 +22,9 @@ const webNodeRegistry = source(
   "src/features/chat/components/web-node-registry.tsx"
 )
 const history = source("src/features/chat/model/chat-history.ts")
+const canonicalMessageEvent = source(
+  "src/features/chat/model/canonical-message-event.ts"
+)
 const toolPresentation = source(
   "src/features/chat/model/tool-call-presentation.ts"
 )
@@ -60,6 +63,13 @@ assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer
 assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)
 assert.match(agentPane, /registerDefaultWebNodeRenderer\([\s\S]*"subagent"/)
 assert.match(history, /projectDeclaredWebNode/)
+assert.match(history, /canonicalMessageToGatewayEvent/)
+assert.match(sidebar, /canonicalMessageToGatewayEvent/)
+assert.doesNotMatch(
+  sidebar,
+  /forward_messages[\s\S]{0,800}event:\s*["']assistant\.snapshot["']/
+)
+assert.match(canonicalMessageEvent, /messageType === "tool_result"/)
 assert.match(history, /metadata_json\.web_view !== undefined/)
 
 console.log("chat runtime architecture checks passed")

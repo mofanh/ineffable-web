@@ -37,6 +37,7 @@ import type {
 } from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { projectDeclaredWebNode } from "@/features/chat/runtime/plugin-web-node-projection"
+import { canonicalMessageToGatewayEvent } from "@/features/chat/model/canonical-message-event"
 
 // History replay invariants:
 // 1. Replay must rebuild the same structural blocks the live SSE path produced.
@@ -132,10 +133,6 @@ function getMessageReasoningContent(message: ConversationMessageRecord) {
   return matches.length > 0 ? matches.join("\n\n") : ""
 }
 
-function stripInlineThinkBlocks(content: string) {
-  return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
-}
-
 function hasRenderableConversationMessageContent(
   message: ConversationMessageRecord
 ) {
@@ -160,41 +157,24 @@ function buildHistoryEvent(
       ? { ...message.metadata_json }
       : null
 
-  let eventName = "assistant.snapshot"
-  let role = message.role
-
-  if (message.message_type === "tool_call") {
-    eventName = "tool.call.completed"
-    role = "tool_call"
-  } else if (message.message_type === "tool_result") {
-    eventName = "tool.result"
-    role = "tool"
-  } else if (message.message_type === "output") {
-    eventName = "assistant.snapshot"
-    role = "assistant"
-  } else if (message.message_type === "system") {
-    eventName = "assistant.snapshot"
-    role = "system"
-  } else if (message.message_type !== "input") {
-    eventName = "assistant.snapshot"
-  }
-
-  return {
-    run_id: message.run_id ?? message.conversation_id,
-    seq,
-    ts_ms: Date.parse(message.created_at),
-    stream: "history",
-    event: eventName,
-    phase: "history",
-    scope:
-      metadata && typeof metadata.scope === "string" ? metadata.scope : null,
-    role,
-    content:
-      message.role === "assistant" || message.message_type === "output"
-        ? stripInlineThinkBlocks(message.content)
-        : message.content,
-    metadata,
-  }
+  return canonicalMessageToGatewayEvent(
+    {
+      role: message.role,
+      messageType: message.message_type,
+      content: message.content,
+      metadata,
+      runId: message.run_id,
+      conversationId: message.conversation_id,
+      createdAt: message.created_at,
+    },
+    {
+      seq,
+      stream: "history",
+      phase: "history",
+      defaultRunId: message.conversation_id,
+      conversationId: message.conversation_id,
+    }
+  )
 }
 
 function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) {

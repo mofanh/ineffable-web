@@ -102,6 +102,7 @@ function getMetadataBoolean(
 
 function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
   const metadataStatus =
+    getMetadataValue(event.metadata, "settlement_status") ||
     getMetadataValue(event.metadata, "status") ||
     getMetadataValue(event.metadata, "tool_status") ||
     getMetadataValue(event.metadata, "result_status")
@@ -116,6 +117,9 @@ function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
     normalizedStatus === "failed" ||
     normalizedStatus === "error" ||
     normalizedStatus === "denied" ||
+    normalizedStatus === "timed_out" ||
+    normalizedStatus === "not_started" ||
+    normalizedStatus === "outcome_unknown" ||
     normalizedStatus === "unsupported"
   ) {
     return "failed"
