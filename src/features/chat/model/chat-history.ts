@@ -27,7 +27,10 @@ import type {
   ChatEntry,
   SubagentView,
 } from "@/features/chat/gateway-chat-types"
-import { approvalNeedFromMessage } from "@/features/chat/model/chat-parsing"
+import {
+  approvalNeedFromMessage,
+  type UserInputNeed,
+} from "@/features/chat/model/chat-parsing"
 import type {
   Conversation,
   ConversationMessageRecord,
@@ -551,4 +554,46 @@ export function mapConversationMessagesToEntries(
 
   flushAssistantMessages()
   return entries
+}
+
+export function reconcilePendingUserInput(
+  entries: ChatEntry[],
+  need: UserInputNeed
+): ChatEntry[] {
+  let targetIndex = -1
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    if (entry.role === "assistant" && entry.runId === need.runId) {
+      targetIndex = index
+      if (entry.pane.tools[need.needId]) break
+    }
+  }
+
+  const candidate = targetIndex >= 0 ? entries[targetIndex] : null
+  const current =
+    candidate?.role === "assistant"
+      ? candidate
+      : createAssistantEntry("done", need.runId)
+  const existing = current.pane.tools[need.needId]
+  const nextEntry: AssistantEntry = {
+    ...current,
+    runId: current.runId ?? need.runId,
+    pane: upsertToolInPane(current.pane, need.needId, {
+      id: need.needId,
+      name: "request_user_input",
+      input: existing?.input || JSON.stringify({ questions: need.questions }),
+      output: existing?.output || "",
+      status: "waiting",
+      runId: need.runId,
+      sessionKey: need.sessionKey,
+      answer: existing?.answer,
+    }),
+  }
+
+  if (targetIndex < 0) {
+    return [...entries, nextEntry]
+  }
+  const next = [...entries]
+  next[targetIndex] = nextEntry
+  return next
 }

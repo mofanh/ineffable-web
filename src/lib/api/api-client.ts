@@ -173,6 +173,7 @@ export type ConversationRunSummary = {
   completed_at?: string | null
   is_streaming: boolean
   is_live: boolean
+  pending_need?: Record<string, unknown> | null
 }
 
 export type ConversationMessageRecord = {

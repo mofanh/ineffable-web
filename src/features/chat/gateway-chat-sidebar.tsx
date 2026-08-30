@@ -42,6 +42,7 @@ import {
   findAssistantEntryIdForRun,
   getLiveConversationRun,
   mapConversationMessagesToEntries,
+  reconcilePendingUserInput,
 } from "@/features/chat/model/chat-history"
 import {
   approvalNeedFromEvent,
@@ -74,7 +75,10 @@ import {
 import { shouldApplyConversationProjection } from "@/features/chat/model/conversation-projection"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
-import { projectConversationOutputEvent } from "@/features/chat/runtime/conversation-event-projector"
+import {
+  projectConversationOutputEvent,
+  projectConversationUserInputNeed,
+} from "@/features/chat/runtime/conversation-event-projector"
 import { ChatRuntimeStore } from "@/features/chat/runtime/chat-runtime-store"
 import { ConversationRuntimeController } from "@/features/chat/runtime/conversation-runtime-controller"
 import {
@@ -891,6 +895,14 @@ export function GatewayChatSidebar({
     () => getLiveConversationRun(selectedConversation),
     [selectedConversation]
   )
+  const selectedPendingUserInput = React.useMemo(
+    () =>
+      userInputNeedFromRaw(selectedConversation?.current_run?.pending_need, {
+        runId: selectedConversation?.current_run?.id ?? null,
+        sessionKey: null,
+      }),
+    [selectedConversation]
+  )
   const modelOptions = React.useMemo<ModelProfileOption[]>(
     () =>
       modelProfiles.map((profile) => ({
@@ -928,6 +940,24 @@ export function GatewayChatSidebar({
   const handleRefreshConversationList = React.useCallback(() => {
     void refreshConversations()
   }, [refreshConversations])
+
+  React.useEffect(() => {
+    if (
+      !selectedPendingUserInput ||
+      hydratedConversationId !== currentConversationId
+    ) {
+      return
+    }
+
+    setEntries((current) =>
+      reconcilePendingUserInput(current, selectedPendingUserInput)
+    )
+    setAwaitingHumanRunId(selectedPendingUserInput.runId)
+  }, [
+    currentConversationId,
+    hydratedConversationId,
+    selectedPendingUserInput,
+  ])
   const visibleEntries = React.useMemo(
     () =>
       entries.filter((entry) => {
@@ -1874,26 +1904,14 @@ export function GatewayChatSidebar({
     const userInputNeed = userInputNeedFromEvent(event)
     if (userInputNeed) {
       ensureAssistantEntry()
-      updateAssistantEntry((entry) => {
-        const current = entry ?? createAssistantEntry("streaming", userInputNeed.runId)
-        const existing = current.pane.tools[userInputNeed.needId]
-        const tool: ToolCallView = {
-          id: userInputNeed.needId,
-          name: "request_user_input",
-          input:
-            existing?.input || JSON.stringify({ questions: userInputNeed.questions }),
-          output: existing?.output || "",
-          status: "waiting",
-          runId: userInputNeed.runId,
-          sessionKey: userInputNeed.sessionKey,
-        }
-        return {
-          ...current,
-          runId: current.runId ?? userInputNeed.runId,
-          pane: upsertToolInPane(current.pane, userInputNeed.needId, tool),
-        }
-      })
-      markAwaitingHuman(userInputNeed.runId)
+      updateAssistantEntry((entry) =>
+        projectConversationUserInputNeed(entry ?? undefined, event, userInputNeed)
+      )
+      const metadata = objectValue(event.metadata)
+      const runState = stringValue(metadata?.run_state)
+      if (event.event === "run.awaiting_human" || runState === "awaiting_human") {
+        markAwaitingHuman(userInputNeed.runId)
+      }
       return
     }
 

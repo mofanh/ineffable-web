@@ -7,8 +7,13 @@ import {
   createAssistantEntry,
   findAssistantEntryIdForRun,
   mapConversationMessagesToEntries,
+  reconcilePendingUserInput,
 } from "../src/features/chat/model/chat-history.ts"
-import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector.ts"
+import {
+  projectConversationOutputEvent,
+  projectConversationUserInputNeed,
+} from "../src/features/chat/runtime/conversation-event-projector.ts"
+import { userInputNeedFromEvent } from "../src/features/chat/model/chat-parsing.ts"
 import {
   createConversationRunRuntime,
   reduceConversationRunRuntime,
@@ -184,6 +189,111 @@ function event(seq, kind, content = null, metadata = {}, scope = "main") {
     },
   }
 }
+
+const userInputQuestions = [
+  {
+    id: "topic",
+    header: "Topic",
+    question: "Which task?",
+    options: [{ label: "Code", description: "Implement a change." }],
+  },
+]
+const userInputNeed = {
+  kind: "user_input",
+  need_id: "tool-user-input",
+  questions: userInputQuestions,
+}
+const userInputCall = event(90, "tool.call.completed", null, {
+  tool_call_id: "tool-user-input",
+  tool_name: "request_user_input",
+  full_arguments: JSON.stringify({ questions: userInputQuestions }),
+})
+const userInputResult = event(
+  91,
+  "tool.result",
+  JSON.stringify({ status: "waiting", blocking_need: userInputNeed }),
+  {
+    tool_call_id: "tool-user-input",
+    tool_name: "request_user_input",
+  }
+)
+const canonicalUserInputCall = event(92, "tool.call.completed", null, {
+  tool_call_id: "tool-user-input",
+  tool_name: "request_user_input",
+  full_arguments: JSON.stringify({ questions: userInputQuestions }),
+  event_provenance: "canonical_transcript_finalizer",
+})
+const canonicalUserInputResult = event(
+  93,
+  "tool.result",
+  JSON.stringify({ status: "waiting", blocking_need: userInputNeed }),
+  {
+    tool_call_id: "tool-user-input",
+    tool_name: "request_user_input",
+    event_provenance: "canonical_transcript_finalizer",
+  }
+)
+const awaitingUserInput = event(94, "run.awaiting_human", null, {
+  pending_need: userInputNeed,
+  run_state: "awaiting_human",
+})
+
+let userInputEntry = projectConversationOutputEvent(undefined, userInputCall, runId)
+const userInputBlockId = userInputEntry.pane.blockOrder[0]
+for (const userInputEvent of [
+  userInputResult,
+  canonicalUserInputCall,
+  canonicalUserInputResult,
+  awaitingUserInput,
+]) {
+  const need = userInputNeedFromEvent(userInputEvent)
+  userInputEntry = need
+    ? projectConversationUserInputNeed(userInputEntry, userInputEvent, need)
+    : projectConversationOutputEvent(userInputEntry, userInputEvent, runId)
+}
+assert.equal(userInputEntry.pane.blockOrder.length, 1)
+assert.equal(userInputEntry.pane.blockOrder[0], userInputBlockId)
+assert.equal(userInputEntry.pane.tools["tool-user-input"].status, "waiting")
+
+const restoredUserInputEntries = reconcilePendingUserInput(
+  mapConversationMessagesToEntries([
+    {
+      id: "user-input-call-history",
+      conversation_id: conversationId,
+      run_id: runId,
+      role: "assistant",
+      message_type: "tool_call",
+      content: "",
+      metadata_json: userInputCall.metadata,
+      created_at: "2026-08-30T00:00:00Z",
+      updated_at: "2026-08-30T00:00:00Z",
+    },
+    {
+      id: "user-input-result-history",
+      conversation_id: conversationId,
+      run_id: runId,
+      role: "tool",
+      message_type: "tool_result",
+      content: userInputResult.content,
+      metadata_json: userInputResult.metadata,
+      created_at: "2026-08-30T00:00:01Z",
+      updated_at: "2026-08-30T00:00:01Z",
+    },
+  ]),
+  {
+    needId: "tool-user-input",
+    questions: userInputQuestions,
+    runId,
+    sessionKey: null,
+  }
+)
+assert.equal(restoredUserInputEntries.length, 1)
+assert.equal(restoredUserInputEntries[0].role, "assistant")
+assert.equal(
+  restoredUserInputEntries[0].pane.tools["tool-user-input"].status,
+  "waiting",
+  "the authoritative current-run need must restore interactivity after refresh"
+)
 
 const duplicateTerminalPayload = JSON.stringify({
   session_id: "session-history",

@@ -25,6 +25,7 @@ import type {
   AssistantEntry,
   SubagentView,
 } from "@/features/chat/gateway-chat-types"
+import type { UserInputNeed } from "@/features/chat/model/chat-parsing"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { projectDeclaredWebNode } from "@/features/chat/runtime/plugin-web-node-projection"
 
@@ -116,5 +117,31 @@ export function projectConversationOutputEvent(
       ...current.subagents,
       [subagentId]: nextSubagent,
     },
+  }
+}
+
+export function projectConversationUserInputNeed(
+  entry: AssistantEntry | undefined,
+  event: GatewayChatStreamEvent,
+  need: UserInputNeed
+): AssistantEntry {
+  const projected = isToolEvent(event.event)
+    ? projectConversationOutputEvent(entry, event, need.runId)
+    : entry ?? createAssistantEntry("streaming", need.runId)
+  const existing = projected.pane.tools[need.needId]
+
+  return {
+    ...projected,
+    runId: projected.runId ?? need.runId,
+    pane: upsertToolInPane(projected.pane, need.needId, {
+      id: need.needId,
+      name: "request_user_input",
+      input: existing?.input || JSON.stringify({ questions: need.questions }),
+      output: existing?.output || "",
+      status: "waiting",
+      runId: need.runId,
+      sessionKey: need.sessionKey,
+      answer: existing?.answer,
+    }),
   }
 }
