@@ -51,7 +51,6 @@ import {
   objectValue,
   parsePendingInputContent,
   parsePendingInputId,
-  stringValue,
   userInputNeedFromEvent,
   userInputNeedFromRaw,
 } from "@/features/chat/model/chat-parsing"
@@ -198,18 +197,54 @@ function updateToolInPane(
   }
 }
 
-function findToolInEntries(entries: ChatEntry[], toolId: string) {
+function updateToolInPaneForRun(
+  pane: AgentPaneState,
+  toolId: string,
+  runId: string,
+  updater: (tool: ToolCallView) => ToolCallView
+) {
+  const tool = pane.tools[toolId]
+  if (!tool || tool.runId !== runId) return pane
+  return updateToolInPane(pane, toolId, updater)
+}
+
+function findToolInEntries(entries: ChatEntry[], toolId: string, runId: string) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
     if (entry.role !== "assistant") continue
     const mainTool = entry.pane.tools[toolId]
-    if (mainTool) return mainTool
+    if (mainTool?.runId === runId) return mainTool
     for (const subagentId of entry.subagentOrder) {
       const subagentTool = entry.subagents[subagentId]?.tools[toolId]
-      if (subagentTool) return subagentTool
+      if (subagentTool?.runId === runId) return subagentTool
     }
   }
   return null
+}
+
+function updateUserInputToolInEntry(
+  entry: ChatEntry,
+  toolId: string,
+  runId: string,
+  updater: (tool: ToolCallView) => ToolCallView
+): ChatEntry {
+  if (entry.role !== "assistant") return entry
+  const pane = updateToolInPaneForRun(entry.pane, toolId, runId, updater)
+  const subagents = Object.fromEntries(
+    entry.subagentOrder.map((subagentId) => {
+      const subagent = entry.subagents[subagentId]
+      return [
+        subagentId,
+        subagent
+          ? {
+              ...subagent,
+              ...updateToolInPaneForRun(subagent, toolId, runId, updater),
+            }
+          : subagent,
+      ]
+    })
+  ) as Record<string, SubagentView>
+  return { ...entry, pane, subagents }
 }
 
 function entryContentFingerprint(entry: ChatEntry) {
@@ -1893,9 +1928,7 @@ export function GatewayChatSidebar({
     const approvalEntry = approvalNeedFromEvent(event)
     if (approvalEntry) {
       upsertApprovalEntry(approvalEntry)
-      const metadata = objectValue(event.metadata)
-      const runState = stringValue(metadata?.run_state)
-      if (event.event === "run.awaiting_human" || runState === "awaiting_human") {
+      if (event.event === "run.awaiting_human") {
         markAwaitingHuman(approvalEntry.runId)
       }
       return
@@ -1907,9 +1940,7 @@ export function GatewayChatSidebar({
       updateAssistantEntry((entry) =>
         projectConversationUserInputNeed(entry ?? undefined, event, userInputNeed)
       )
-      const metadata = objectValue(event.metadata)
-      const runState = stringValue(metadata?.run_state)
-      if (event.event === "run.awaiting_human" || runState === "awaiting_human") {
+      if (event.event === "run.awaiting_human") {
         markAwaitingHuman(userInputNeed.runId)
       }
       return
@@ -2492,38 +2523,27 @@ export function GatewayChatSidebar({
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
 
-    const pendingTool = findToolInEntries(entries, response.toolId)
+    if (
+      !selectedPendingUserInput ||
+      selectedPendingUserInput.runId !== response.runId ||
+      selectedPendingUserInput.needId !== response.toolId
+    ) {
+      throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
+    }
+
+    const pendingTool = findToolInEntries(entries, response.toolId, response.runId)
     if (!pendingTool || (!pendingTool.runId && !pendingTool.sessionKey)) {
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
 
     setError(null)
     setEntries((current) =>
-      current.map((entry) => {
-        if (entry.role !== "assistant") return entry
-        const pane = updateToolInPane(entry.pane, response.toolId, (tool) => ({
+      current.map((entry) =>
+        updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
           ...tool,
           status: "running",
         }))
-        const subagents = Object.fromEntries(
-          entry.subagentOrder.map((subagentId) => {
-            const subagent = entry.subagents[subagentId]
-            return [
-              subagentId,
-              subagent
-                ? {
-                    ...subagent,
-                    ...updateToolInPane(subagent, response.toolId, (tool) => ({
-                      ...tool,
-                      status: "running",
-                    })),
-                  }
-                : subagent,
-            ]
-          })
-        ) as Record<string, SubagentView>
-        return { ...entry, pane, subagents }
-      })
+      )
     )
 
     const targetConversationId = currentConversationIdRef.current
@@ -2543,47 +2563,22 @@ export function GatewayChatSidebar({
       )
       applyResumeResponse(resumed, targetConversationId)
       setEntries((current) =>
-        current.map((entry) => {
-          if (entry.role !== "assistant") return entry
-          const pane = updateToolInPane(entry.pane, response.toolId, (tool) => ({
+        current.map((entry) =>
+          updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
             ...tool,
             status: "succeeded",
             answer: response.input,
           }))
-          const subagents = Object.fromEntries(
-            entry.subagentOrder.map((subagentId) => {
-              const subagent = entry.subagents[subagentId]
-              return [
-                subagentId,
-                subagent
-                  ? {
-                      ...subagent,
-                      ...updateToolInPane(subagent, response.toolId, (tool) => ({
-                        ...tool,
-                        status: "succeeded",
-                        answer: response.input,
-                      })),
-                    }
-                  : subagent,
-              ]
-            })
-          ) as Record<string, SubagentView>
-          return { ...entry, pane, subagents }
-        })
+        )
       )
     } catch (submitError) {
       setEntries((current) =>
-        current.map((entry) => {
-          if (entry.role !== "assistant") return entry
-          return {
-            ...entry,
-            pane: updateToolInPane(
-              entry.pane,
-              response.toolId,
-              (tool) => ({ ...tool, status: "failed" })
-            ),
-          }
-        })
+        current.map((entry) =>
+          updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
+            ...tool,
+            status: "failed",
+          }))
+        )
       )
       throw submitError
     }

@@ -25,6 +25,7 @@ type UserInputQuestion = {
 
 export type AgentUserInputResponse = {
   toolId: string
+  runId: string
   input: string
 }
 
@@ -157,7 +158,8 @@ function RequestUserInputCard({
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState("")
   const isAnswered = tool.status === "succeeded" && Boolean(tool.answer)
-  const isInteractive = tool.status === "waiting" && canRespond && Boolean(onSubmit)
+  const isInteractive =
+    tool.status === "waiting" && canRespond && Boolean(onSubmit) && Boolean(tool.runId)
   const isComplete = questions.every((question) => {
     const selected = selections[question.id]
     return Boolean(
@@ -310,6 +312,7 @@ function RequestUserInputCard({
               setError("")
               void onSubmit({
                 toolId: tool.id,
+                runId: tool.runId as string,
                 input: buildResolutionInput(questions, selections, customAnswers),
               })
                 .catch((submitError) => {

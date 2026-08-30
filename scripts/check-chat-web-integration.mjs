@@ -295,6 +295,41 @@ assert.equal(
   "the authoritative current-run need must restore interactivity after refresh"
 )
 
+const previousRunEntry = {
+  ...restoredUserInputEntries[0],
+  id: "assistant-previous-run",
+  runId: "run-previous",
+  pane: {
+    ...restoredUserInputEntries[0].pane,
+    tools: {
+      ...restoredUserInputEntries[0].pane.tools,
+      "tool-user-input": {
+        ...restoredUserInputEntries[0].pane.tools["tool-user-input"],
+        runId: "run-previous",
+        status: "succeeded",
+        answer: "previous answer",
+      },
+    },
+  },
+}
+const sameNeedIdAcrossRuns = reconcilePendingUserInput([previousRunEntry], {
+  needId: "tool-user-input",
+  questions: userInputQuestions,
+  runId,
+  sessionKey: null,
+})
+assert.equal(sameNeedIdAcrossRuns.length, 2)
+assert.equal(
+  sameNeedIdAcrossRuns[0].pane.tools["tool-user-input"].status,
+  "succeeded",
+  "a current pending need must not reactivate an older run with the same need id"
+)
+assert.equal(
+  sameNeedIdAcrossRuns[1].pane.tools["tool-user-input"].runId,
+  runId,
+  "pending need identity is the run id and need id pair"
+)
+
 const duplicateTerminalPayload = JSON.stringify({
   session_id: "session-history",
   status: "exited",
