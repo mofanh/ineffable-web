@@ -232,6 +232,9 @@ return (
   后端 stop；用户显式 stop 仍针对指定 conversation。
 - `conversation-event-projector.ts` 是 assistant/tool/subagent 输出的唯一 live projector。
   前端不解析 `tool=... call_id=...` 文本头，也不根据 tool output JSON 子串推断状态。
+- 当前可交互的 blocking need 只从 `current_run.pending_need` 与 `run.awaiting_human` lifecycle
+  对账，稳定身份是 `(run_id, need_id)`；tool result 可以更新同一 Web Node，但不能自行结束
+  assistant entry 或创建第二张问题卡。刷新恢复不得从工具正文猜测 need 是否仍有效。
 - SSE byte parser 只能保留在 `src/lib/api/chat/sse-stream.ts`；feature API 复用该 parser。
 - product chat 只消费 v1 canonical event kind。legacy event 转换属于 gateway，不能重新放回
   React 组件或前端 normalizer。
