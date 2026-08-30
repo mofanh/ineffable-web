@@ -37,7 +37,7 @@ import type {
 } from "@/features/chat/api/chat-api"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { projectDeclaredWebNode } from "@/features/chat/runtime/plugin-web-node-projection"
-import { canonicalMessageToGatewayEvent } from "@/features/chat/model/canonical-message-event"
+import { canonicalMessagesToGatewayEvents } from "@/features/chat/model/canonical-message-event"
 
 // History replay invariants:
 // 1. Replay must rebuild the same structural blocks the live SSE path produced.
@@ -136,6 +136,12 @@ function getMessageReasoningContent(message: ConversationMessageRecord) {
 function hasRenderableConversationMessageContent(
   message: ConversationMessageRecord
 ) {
+  if (
+    message.message_type === "tool_call" ||
+    message.message_type === "tool_result"
+  ) {
+    return true
+  }
   if (message.content.trim()) {
     return true
   }
@@ -145,35 +151,6 @@ function hasRenderableConversationMessageContent(
       (message.metadata_json &&
         typeof message.metadata_json === "object" &&
         message.metadata_json.web_view !== undefined)
-  )
-}
-
-function buildHistoryEvent(
-  message: ConversationMessageRecord,
-  seq: number
-): GatewayChatStreamEvent | null {
-  const metadata =
-    message.metadata_json && typeof message.metadata_json === "object"
-      ? { ...message.metadata_json }
-      : null
-
-  return canonicalMessageToGatewayEvent(
-    {
-      role: message.role,
-      messageType: message.message_type,
-      content: message.content,
-      metadata,
-      runId: message.run_id,
-      conversationId: message.conversation_id,
-      createdAt: message.created_at,
-    },
-    {
-      seq,
-      stream: "history",
-      phase: "history",
-      defaultRunId: message.conversation_id,
-      conversationId: message.conversation_id,
-    }
   )
 }
 
@@ -254,41 +231,33 @@ function buildAssistantEntryFromMessages(
   const subagentOrder: string[] = []
   const snapshotContentByScope = new Map<string, string>()
 
-  compactedMessages.forEach((message, index) => {
-    const reasoningContent = getMessageReasoningContent(message)
-    if (
-      reasoningContent &&
-      (message.role === "assistant" || message.message_type === "output")
-    ) {
-      pane = applyEventToPaneState(
-        pane,
-        {
-          run_id: message.run_id ?? message.conversation_id,
-          seq: index * 2 + 1,
-          ts_ms: Date.parse(message.created_at),
-          stream: "history",
-          event: "model.reasoning.delta",
-          phase: "history",
-          scope:
-            message.metadata_json &&
-            typeof message.metadata_json === "object" &&
-            typeof message.metadata_json.scope === "string"
-              ? message.metadata_json.scope
-              : null,
-          role: "assistant",
-          content: reasoningContent,
-          metadata:
-            message.metadata_json && typeof message.metadata_json === "object"
-              ? { ...message.metadata_json }
-              : null,
-        }
-      )
+  const historyEvents = canonicalMessagesToGatewayEvents(
+    compactedMessages.map((message) => ({
+      role: message.role,
+      messageType: message.message_type,
+      content: message.content,
+      reasoningContent:
+        message.role === "assistant" || message.message_type === "output"
+          ? getMessageReasoningContent(message)
+          : null,
+      metadata:
+        message.metadata_json && typeof message.metadata_json === "object"
+          ? { ...message.metadata_json }
+          : null,
+      runId: message.run_id,
+      conversationId: message.conversation_id,
+      createdAt: message.created_at,
+    })),
+    {
+      stream: "history",
+      phase: "history",
+      defaultRunId: runId,
+      conversationId: first?.conversation_id,
     }
+  )
 
-    let event = buildHistoryEvent(message, index + 1)
-    if (!event) {
-      return
-    }
+  historyEvents.forEach((sourceEvent) => {
+    let event = sourceEvent
 
     if (event.event === "assistant.snapshot") {
       const metadata =
@@ -319,7 +288,7 @@ function buildAssistantEntryFromMessages(
     }
 
     if (isSubScope(event)) {
-      const subagentId = getSubagentId(event) || `subagent-${message.id}`
+      const subagentId = getSubagentId(event) || `subagent-${event.seq}`
       const subagentName = getSubagentName(event)
       const existing =
         subagents[subagentId] ?? createEmptySubagent(subagentId, subagentName)

@@ -63,13 +63,15 @@ assert.match(webNodeRegistry, /registry\.render\(node, context, fallbackRenderer
 assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)
 assert.match(agentPane, /registerDefaultWebNodeRenderer\([\s\S]*"subagent"/)
 assert.match(history, /projectDeclaredWebNode/)
-assert.match(history, /canonicalMessageToGatewayEvent/)
-assert.match(sidebar, /canonicalMessageToGatewayEvent/)
+assert.match(history, /canonicalMessagesToGatewayEvents/)
+assert.match(sidebar, /canonicalMessagesToGatewayEvents/)
 assert.doesNotMatch(
   sidebar,
   /forward_messages[\s\S]{0,800}event:\s*["']assistant\.snapshot["']/
 )
 assert.match(canonicalMessageEvent, /messageType === "tool_result"/)
+assert.match(canonicalMessageEvent, /normalizedCalls\.forEach/)
+assert.match(sidebar, /response\.output\?\.trim\(\) && !hasForwardAssistantOutput/)
 assert.match(history, /metadata_json\.web_view !== undefined/)
 
 console.log("chat runtime architecture checks passed")

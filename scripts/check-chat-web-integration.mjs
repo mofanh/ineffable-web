@@ -36,7 +36,10 @@ import { i18n } from "../src/lib/i18n/i18n.ts"
 import { parseLeadingJsonObject } from "../src/features/chat/model/leading-json-object.ts"
 import { extractWorkspaceArtifact } from "../src/features/chat/runtime/workspace-artifacts.ts"
 import { WebNodeList } from "../src/features/chat/components/agent-pane.tsx"
-import { canonicalMessageToGatewayEvent } from "../src/features/chat/model/canonical-message-event.ts"
+import {
+  canonicalMessagesToGatewayEvents,
+  hasCanonicalAssistantOutput,
+} from "../src/features/chat/model/canonical-message-event.ts"
 
 globalThis.React = React
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -197,18 +200,19 @@ const resumedCanonicalMessages = [
     messageType: "output",
     content: "我会查询三个来源。",
   },
-  ...[1, 2, 3].flatMap((index) => [
-    {
-      role: "tool_call",
-      messageType: "tool_call",
-      content: "",
-      metadata: {
-        tool_call_id: `search-${index}`,
-        tool_name: "web_search",
-        full_arguments: JSON.stringify({ query: `agents ${index}` }),
-      },
+  {
+    role: "tool_call",
+    messageType: "tool_call",
+    content: "",
+    metadata: {
+      tool_calls: [1, 2, 3].map((index) => ({
+        id: `search-${index}`,
+        name: "web_search",
+        input: { query: `agents ${index}` },
+      })),
     },
-    {
+  },
+  ...[1, 2, 3].map((index) => ({
       role: "tool",
       messageType: "tool_result",
       content: `provider ${index} returned 502`,
@@ -218,24 +222,22 @@ const resumedCanonicalMessages = [
         settlement_status: "failed",
         success: false,
       },
-    },
-  ]),
+    })),
   {
     role: "assistant",
     messageType: "output",
     content: "搜索服务暂时不可用。",
   },
 ]
+assert.equal(hasCanonicalAssistantOutput(resumedCanonicalMessages), true)
 let resumedEntry
-resumedCanonicalMessages.forEach((message, index) => {
-  const projected = canonicalMessageToGatewayEvent(message, {
-    seq: index + 1,
+canonicalMessagesToGatewayEvents(resumedCanonicalMessages, {
     stream: "resume",
     phase: "resume",
     defaultRunId: runId,
     conversationId,
-    tsMs: index + 1,
-  })
+    tsMs: 1,
+}).forEach((projected) => {
   resumedEntry = projectConversationOutputEvent(resumedEntry, projected, runId)
 })
 const resumedBlocks = getPaneBlocks(resumedEntry.pane)
@@ -250,6 +252,53 @@ assert.deepEqual(
     .map((block) => block.content),
   ["我会查询三个来源。", "搜索服务暂时不可用。"],
   "tool failures must remain structural tool output instead of assistant Markdown"
+)
+
+const reusedCallMessages = [
+  {
+    role: "tool_call",
+    messageType: "tool_call",
+    content: "",
+    metadata: { tool_call_id: "reused", tool_name: "web_search", full_arguments: "{}" },
+  },
+  {
+    role: "tool",
+    messageType: "tool_result",
+    content: "first",
+    metadata: { tool_call_id: "reused", tool_name: "web_search", settlement_status: "succeeded" },
+  },
+  {
+    role: "tool_call",
+    messageType: "tool_call",
+    content: "",
+    metadata: { tool_call_id: "reused", tool_name: "web_search", full_arguments: "{}" },
+  },
+  {
+    role: "tool",
+    messageType: "tool_result",
+    content: "second",
+    metadata: { tool_call_id: "reused", tool_name: "web_search" },
+  },
+]
+let reusedCallEntry
+canonicalMessagesToGatewayEvents(reusedCallMessages, {
+  stream: "resume",
+  phase: "resume",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+}).forEach((projected) => {
+  reusedCallEntry = projectConversationOutputEvent(reusedCallEntry, projected, runId)
+})
+assert.equal(
+  getPaneBlocks(reusedCallEntry.pane).filter((block) => block.type === "tool").length,
+  2,
+  "cross-batch protocol ID reuse must retain two occurrence-keyed tool cards"
+)
+assert.deepEqual(
+  Object.values(reusedCallEntry.pane.tools).map((tool) => tool.status),
+  ["succeeded", "failed"],
+  "missing typed settlement must fail closed"
 )
 
 const userInputQuestions = [

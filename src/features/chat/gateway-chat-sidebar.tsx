@@ -44,7 +44,10 @@ import {
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
 } from "@/features/chat/model/chat-history"
-import { canonicalMessageToGatewayEvent } from "@/features/chat/model/canonical-message-event"
+import {
+  canonicalMessagesToGatewayEvents,
+  hasCanonicalAssistantOutput,
+} from "@/features/chat/model/canonical-message-event"
 import {
   approvalNeedFromEvent,
   approvalNeedFromRaw,
@@ -1748,28 +1751,39 @@ export function GatewayChatSidebar({
       void refreshConversations().catch(() => {})
       return
     }
-    if (Array.isArray(response.forward_messages)) {
-      response.forward_messages.forEach((message, index) => {
-        const messageMetadata = objectValue(message.metadata)
-        applyEvent(canonicalMessageToGatewayEvent(
-          {
-            role: message.role,
-            messageType: message.message_type,
-            content: message.content,
-            metadata: messageMetadata,
-            scope: message.scope,
-            runId: response.run_id,
-            conversationId,
-          },
-          {
-            seq: index + 1,
-            stream: "resume",
-            phase: "resume",
-            defaultRunId: response.run_id,
-            conversationId,
-          }
-        ))
-      })
+    const forwardMessages = Array.isArray(response.forward_messages)
+      ? response.forward_messages
+      : []
+    const canonicalForwardMessages = forwardMessages.map((message) => {
+      const messageMetadata = objectValue(message.metadata)
+      return {
+        role: message.role,
+        messageType: message.message_type,
+        content: message.content,
+        reasoningContent:
+          typeof messageMetadata?.reasoning_content === "string"
+            ? messageMetadata.reasoning_content
+            : null,
+        metadata: messageMetadata,
+        scope: message.scope,
+        runId: response.run_id,
+        conversationId,
+      }
+    })
+    const hasForwardAssistantOutput = hasCanonicalAssistantOutput(
+      canonicalForwardMessages
+    )
+    if (forwardMessages.length > 0) {
+      const projectedEvents = canonicalMessagesToGatewayEvents(
+        canonicalForwardMessages,
+        {
+          stream: "resume",
+          phase: "resume",
+          defaultRunId: response.run_id,
+          conversationId,
+        }
+      )
+      projectedEvents.forEach(applyEvent)
     }
 
     const pendingApproval = approvalNeedFromRaw(response.pending_need, {
@@ -1849,7 +1863,7 @@ export function GatewayChatSidebar({
       return
     }
 
-    if (response.output?.trim()) {
+    if (response.output?.trim() && !hasForwardAssistantOutput) {
       assistantEntryIdRef.current = null
       ensureAssistantEntry()
       completeAssistantEntry(response.output)

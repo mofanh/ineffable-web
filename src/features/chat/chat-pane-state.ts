@@ -140,7 +140,7 @@ function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
     return "failed"
   }
 
-  return "succeeded"
+  return "failed"
 }
 
 function getLastBlock(pane: AgentPaneState) {
