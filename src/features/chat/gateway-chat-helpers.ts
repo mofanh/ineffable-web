@@ -50,6 +50,11 @@ function firstToolCall(metadata: Record<string, unknown> | null | undefined) {
 }
 
 export function getToolCallId(event: GatewayChatStreamEvent) {
+  const occurrence = getMetadataValue(event.metadata, "transcript_occurrence_id")
+  if (occurrence) {
+    return occurrence
+  }
+
   const direct = getMetadataValue(event.metadata, "tool_call_id")
   if (direct) {
     return direct

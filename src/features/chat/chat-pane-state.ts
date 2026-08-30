@@ -18,6 +18,8 @@ export type ToolCallStatus =
 
 export type ToolCallView = {
   id: string
+  protocolId?: string
+  needId?: string
   name: string
   input: string
   output: string
@@ -582,6 +584,10 @@ export function buildToolView(
 
   const nextTool: ToolCallView = {
     ...existing,
+    protocolId:
+      getMetadataValue(event.metadata, "tool_call_id") ||
+      existing.protocolId ||
+      toolId,
     name: getToolName(event) || existing.name,
     runId: event.run_id ?? existing.runId ?? null,
     sessionKey:

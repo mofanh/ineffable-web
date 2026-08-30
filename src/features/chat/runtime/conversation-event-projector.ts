@@ -128,13 +128,23 @@ export function projectConversationUserInputNeed(
   const projected = isToolEvent(event.event)
     ? projectConversationOutputEvent(entry, event, need.runId)
     : entry ?? createAssistantEntry("streaming", need.runId)
-  const existing = projected.pane.tools[need.needId]
+  const projectedToolId = isToolEvent(event.event)
+    ? getToolCallId(event)
+    : Object.values(projected.pane.tools).find(
+        (tool) =>
+          tool.needId === need.needId ||
+          tool.protocolId === need.needId ||
+          tool.id === need.needId
+      )?.id ?? need.needId
+  const existing = projected.pane.tools[projectedToolId]
 
   return {
     ...projected,
     runId: projected.runId ?? need.runId,
-    pane: upsertToolInPane(projected.pane, need.needId, {
-      id: need.needId,
+    pane: upsertToolInPane(projected.pane, projectedToolId, {
+      id: projectedToolId,
+      protocolId: existing?.protocolId ?? need.needId,
+      needId: need.needId,
       name: "request_user_input",
       input: existing?.input || JSON.stringify({ questions: need.questions }),
       output: existing?.output || "",

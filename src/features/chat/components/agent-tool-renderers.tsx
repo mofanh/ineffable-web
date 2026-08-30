@@ -25,6 +25,7 @@ type UserInputQuestion = {
 
 export type AgentUserInputResponse = {
   toolId: string
+  needId: string
   runId: string
   input: string
 }
@@ -312,6 +313,7 @@ function RequestUserInputCard({
               setError("")
               void onSubmit({
                 toolId: tool.id,
+                needId: tool.needId ?? tool.protocolId ?? tool.id,
                 runId: tool.runId as string,
                 input: buildResolutionInput(questions, selections, customAnswers),
               })

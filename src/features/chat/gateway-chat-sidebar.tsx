@@ -2526,7 +2526,7 @@ export function GatewayChatSidebar({
     if (
       !selectedPendingUserInput ||
       selectedPendingUserInput.runId !== response.runId ||
-      selectedPendingUserInput.needId !== response.toolId
+      selectedPendingUserInput.needId !== response.needId
     ) {
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
@@ -2557,7 +2557,7 @@ export function GatewayChatSidebar({
         {
           run_id: pendingTool.runId,
           session_key: pendingTool.sessionKey,
-          need_id: response.toolId,
+          need_id: response.needId,
           input: response.input,
         }
       )

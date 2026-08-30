@@ -561,11 +561,21 @@ export function reconcilePendingUserInput(
   need: UserInputNeed
 ): ChatEntry[] {
   let targetIndex = -1
+  let targetToolId: string | null = null
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
     if (entry.role === "assistant" && entry.runId === need.runId) {
       targetIndex = index
-      if (entry.pane.tools[need.needId]) break
+      const matchingTool = Object.values(entry.pane.tools).find(
+        (tool) =>
+          tool.needId === need.needId ||
+          tool.protocolId === need.needId ||
+          tool.id === need.needId
+      )
+      if (matchingTool) {
+        targetToolId = matchingTool.id
+        break
+      }
     }
   }
 
@@ -574,12 +584,15 @@ export function reconcilePendingUserInput(
     candidate?.role === "assistant"
       ? candidate
       : createAssistantEntry("done", need.runId)
-  const existing = current.pane.tools[need.needId]
+  const toolId = targetToolId ?? need.needId
+  const existing = current.pane.tools[toolId]
   const nextEntry: AssistantEntry = {
     ...current,
     runId: current.runId ?? need.runId,
-    pane: upsertToolInPane(current.pane, need.needId, {
-      id: need.needId,
+    pane: upsertToolInPane(current.pane, toolId, {
+      id: toolId,
+      protocolId: existing?.protocolId ?? need.needId,
+      needId: need.needId,
       name: "request_user_input",
       input: existing?.input || JSON.stringify({ questions: need.questions }),
       output: existing?.output || "",

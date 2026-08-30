@@ -330,6 +330,47 @@ assert.equal(
   "pending need identity is the run id and need id pair"
 )
 
+let reusedProtocolIdEntry
+for (const repeatedToolEvent of [
+  event(95, "tool.call.completed", null, {
+    tool_call_id: "reused-call-id",
+    transcript_occurrence_id: "reused-call-id#1",
+    tool_name: "exec_command",
+    full_arguments: "first",
+  }),
+  event(96, "tool.result", "first-result", {
+    tool_call_id: "reused-call-id",
+    transcript_occurrence_id: "reused-call-id#1",
+    tool_name: "exec_command",
+    status: "succeeded",
+  }),
+  event(97, "tool.call.completed", null, {
+    tool_call_id: "reused-call-id",
+    transcript_occurrence_id: "reused-call-id#2",
+    tool_name: "exec_command",
+    full_arguments: "second",
+  }),
+  event(98, "tool.result", "second-result", {
+    tool_call_id: "reused-call-id",
+    transcript_occurrence_id: "reused-call-id#2",
+    tool_name: "exec_command",
+    status: "succeeded",
+  }),
+]) {
+  reusedProtocolIdEntry = projectConversationOutputEvent(
+    reusedProtocolIdEntry,
+    repeatedToolEvent,
+    runId
+  )
+}
+assert.deepEqual(reusedProtocolIdEntry.pane.blockOrder.length, 2)
+assert.equal(reusedProtocolIdEntry.pane.tools["reused-call-id#1"].output, "first-result")
+assert.equal(reusedProtocolIdEntry.pane.tools["reused-call-id#2"].output, "second-result")
+assert.equal(
+  reusedProtocolIdEntry.pane.tools["reused-call-id#2"].protocolId,
+  "reused-call-id"
+)
+
 const duplicateTerminalPayload = JSON.stringify({
   session_id: "session-history",
   status: "exited",
