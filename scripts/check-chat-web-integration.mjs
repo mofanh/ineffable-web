@@ -372,6 +372,85 @@ assert.equal(malformedToolCallEvents[0].event, "tool.call.completed")
 assert.equal(malformedToolCallEvents[0].metadata.settlement_status, "outcome_unknown")
 assert.equal(malformedToolCallEvents[0].metadata.success, false)
 
+const productionHistoryReasoning = "The user asked for one question."
+const reconciledProductionHistory = canonicalMessagesToGatewayEvents([
+  {
+    role: "assistant",
+    messageType: "output",
+    content: `<think>${productionHistoryReasoning}</think>`,
+    reasoningContent: productionHistoryReasoning,
+    metadata: { tool_call_id: "ask-1", scope: "run::segment:1" },
+  },
+  {
+    role: "assistant",
+    messageType: "tool_call",
+    content: "",
+    metadata: {
+      tool_call_id: "ask-1",
+      tool_name: "request_user_input",
+      full_arguments: "{\"questions\":[]}",
+      transcript_occurrence_id: "ask-1#1",
+      reasoning_content: productionHistoryReasoning,
+      canonical_message: {
+        content: "",
+        reasoning_content: productionHistoryReasoning,
+        tool_calls: [{ id: "ask-1", name: "request_user_input", input: { questions: [] } }],
+      },
+    },
+  },
+], {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.equal(
+  reconciledProductionHistory.filter((item) => item.event === "model.reasoning.delta").length,
+  1,
+  "process and canonical views of one model batch must share one reasoning block"
+)
+assert.equal(
+  reconciledProductionHistory.filter((item) => item.event === "tool.call.completed").length,
+  1,
+  "an occurrence-expanded history call must not expand its canonical batch again"
+)
+assert.equal(
+  reconciledProductionHistory.some((item) => item.content?.startsWith("tool=")),
+  false,
+  "legacy tool envelopes must never become assistant content"
+)
+
+const expandedParallelHistory = canonicalMessagesToGatewayEvents(["parallel-1", "parallel-2"].map(
+  (callId) => ({
+    role: "assistant",
+    messageType: "tool_call",
+    content: "",
+    metadata: {
+      tool_call_id: callId,
+      tool_name: "web_search",
+      transcript_occurrence_id: `${callId}#1`,
+      tool_calls: [
+        { id: "parallel-1", name: "web_search", input: { query: "one" } },
+        { id: "parallel-2", name: "web_search", input: { query: "two" } },
+      ],
+    },
+  })
+), {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.deepEqual(
+  expandedParallelHistory
+    .filter((item) => item.event === "tool.call.completed")
+    .map((item) => item.metadata.tool_call_id),
+  ["parallel-1", "parallel-2"],
+  "occurrence-expanded parallel history must retain exactly two calls"
+)
+
 const userInputQuestions = [
   {
     id: "topic",

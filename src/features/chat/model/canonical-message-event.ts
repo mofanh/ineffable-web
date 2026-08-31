@@ -119,6 +119,7 @@ export function canonicalMessagesToGatewayEvents(
   const events: GatewayChatStreamEvent[] = []
   const pendingOccurrences = new Map<string, string[]>()
   const occurrenceCounts = new Map<string, number>()
+  let lastBatchReasoning: string | null = null
   let seq = context.startSeq ?? 1
 
   messages.forEach((message, messageIndex) => {
@@ -161,19 +162,23 @@ export function canonicalMessagesToGatewayEvents(
     }
 
     const reasoningContent = canonicalReasoningContent(message, baseMetadata)
-    if (reasoningContent?.trim()) {
+    if (reasoningContent?.trim() && reasoningContent !== lastBatchReasoning) {
       pushEvent("model.reasoning.delta", "assistant", reasoningContent,
         { ...baseMetadata })
     }
+    if (reasoningContent?.trim()) lastBatchReasoning = reasoningContent
 
     if (messageType === "tool_call") {
       const calls = canonicalToolCalls(baseMetadata)
       const directCallId = metadataString(baseMetadata, "tool_call_id")
       const directToolName = metadataString(baseMetadata, "tool_name")
-      const normalizedCalls = calls.length ? calls : directCallId
+      // History projection has already expanded a canonical parallel batch into
+      // one occurrence per message. Prefer that direct identity; resume keeps
+      // the original batch shape and therefore falls back to tool_calls[].
+      const normalizedCalls = directCallId
         ? [{ id: directCallId, name: directToolName ?? "",
             input: baseMetadata.full_arguments ?? {} }]
-        : []
+        : calls
       if (message.content.trim()) {
         pushEvent("assistant.snapshot", "assistant",
           stripInlineThinkBlocks(message.content), { ...baseMetadata })
@@ -228,6 +233,7 @@ export function canonicalMessagesToGatewayEvents(
         ...baseMetadata,
         transcript_occurrence_id: occurrence,
       })
+      lastBatchReasoning = null
       return
     }
 
@@ -237,6 +243,7 @@ export function canonicalMessagesToGatewayEvents(
       messageType === "output" || role === "assistant"
         ? stripInlineThinkBlocks(message.content) : message.content,
       baseMetadata)
+    if (role !== "assistant") lastBatchReasoning = null
   })
   return events
 }
