@@ -207,6 +207,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       >
         <div
           ref={messageContentRef}
+          data-chat-scroll-content
           className={cn(
             "mx-auto flex min-h-full w-full flex-col gap-7",
             isFullScreen && "max-w-[760px]"
@@ -356,6 +357,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   onSubmitUserInput={onSubmitUserInput}
                   subagentOrder={entry.subagentOrder}
                   subagents={entry.subagents}
+                  layoutEpoch={`${entries[0]?.id ?? "empty"}:${entries.length}`}
                 />
 
                 {showStreamingTail ? (

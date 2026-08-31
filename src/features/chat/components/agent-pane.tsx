@@ -295,7 +295,10 @@ const MarkdownFragment = React.memo(function MarkdownFragment({
   return <div dangerouslySetInnerHTML={{ __html: highlightedHtml ?? plainHtml }} />
 })
 
-function MarkdownContent({
+const MAX_INLINE_MARKDOWN_CHARS = 256 * 1024
+const OVERSIZED_MARKDOWN_PREVIEW_CHARS = 16 * 1024
+
+function ProjectedMarkdownContent({
   content,
   streaming = false,
   className,
@@ -336,6 +339,72 @@ function MarkdownContent({
         />
       ))}
     </div>
+  )
+}
+
+const OversizedMarkdownContent = React.memo(function OversizedMarkdownContent({
+  content,
+  streaming,
+  className,
+}: {
+  content: string
+  streaming: boolean
+  className?: string
+}) {
+  const [open, setOpen] = React.useState(false)
+  const preview = React.useMemo(
+    () => content.slice(0, OVERSIZED_MARKDOWN_PREVIEW_CHARS),
+    [content]
+  )
+  return (
+    <details
+      data-oversized-markdown
+      className={cn("rounded-lg border border-border/55 bg-muted/15 px-3 py-2", className)}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="cursor-pointer text-xs text-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {i18n.t("chat.agent.output")} · {formatArtifactSize(content.length * 2)}
+      </summary>
+      {open ? (
+        <ProjectedMarkdownContent
+          content={content}
+          streaming={streaming}
+          className="mt-2"
+        />
+      ) : (
+        <pre className="mt-2 max-h-48 overflow-hidden whitespace-pre-wrap wrap-anywhere text-xs leading-5 text-foreground/55">
+          {preview}
+          {"\n…"}
+        </pre>
+      )}
+    </details>
+  )
+})
+
+function MarkdownContent({
+  content,
+  streaming = false,
+  className,
+}: {
+  content: string
+  streaming?: boolean
+  className?: string
+}) {
+  if (content.length > MAX_INLINE_MARKDOWN_CHARS) {
+    return (
+      <OversizedMarkdownContent
+        content={content}
+        streaming={streaming}
+        className={className}
+      />
+    )
+  }
+  return (
+    <ProjectedMarkdownContent
+      content={content}
+      streaming={streaming}
+      className={className}
+    />
   )
 }
 
@@ -995,6 +1064,7 @@ export const WebNodeList = React.memo(function WebNodeList({
   onSubmitUserInput,
   subagentOrder = [],
   subagents = {},
+  layoutEpoch,
 }: {
   pane: AgentPaneState
   isStreaming?: boolean
@@ -1003,6 +1073,7 @@ export const WebNodeList = React.memo(function WebNodeList({
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
   subagentOrder?: string[]
   subagents?: Record<string, SubagentView>
+  layoutEpoch?: string
 }) {
   useTranslation()
   const [projectionCache] = React.useState(() => new WebNodeProjectionCache())
@@ -1041,8 +1112,12 @@ export const WebNodeList = React.memo(function WebNodeList({
     if (typeof ResizeObserver === "undefined") return
     const observer = new ResizeObserver(measureMargin)
     observer.observe(scroller)
+    const scrollContent = scroller.querySelector<HTMLElement>(
+      "[data-chat-scroll-content]"
+    )
+    if (scrollContent) observer.observe(scrollContent)
     return () => observer.disconnect()
-  }, [virtualizationEnabled])
+  }, [layoutEpoch, virtualizationEnabled])
   // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer owns an external measurement store by design
   const rowVirtualizer = useVirtualizer({
     count: virtualizationEnabled ? nodes.length : 0,

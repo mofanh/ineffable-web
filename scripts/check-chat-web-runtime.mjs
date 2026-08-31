@@ -360,7 +360,6 @@ assert.equal(
 
 const windowSnapshot = (id) => ({
   entries: [{ id, role: "system", content: id }],
-  weight: 1,
   renderedEntryLimit: 40,
   olderMessagesCursor: null,
   hasOlderMessages: false,
@@ -374,7 +373,6 @@ windowCache.set("c", windowSnapshot("c"))
 assert.deepEqual(windowCache.ids(), ["a", "c"], "LRU access must protect the active window")
 windowCache.set("oversized", {
   ...windowSnapshot("oversized"),
-  weight: 4,
   entries: Array.from({ length: 4 }, (_, index) => ({
     id: `oversized-${index}`,
     role: "system",
@@ -382,19 +380,32 @@ windowCache.set("oversized", {
   })),
 })
 assert.equal(windowCache.get("oversized"), null, "an oversized window must not enter the cache")
-const opaqueEntries = new Proxy([], {
-  get() {
-    throw new Error("conversation switching must not scan cached entries")
-  },
-})
-windowCache.set("opaque", {
-  ...windowSnapshot("opaque"),
-  entries: opaqueEntries,
+const byteBoundedCache = new ConversationWindowCache(2, 10, 100)
+byteBoundedCache.set("large-content", {
+  ...windowSnapshot("large-content"),
+  entries: [{ id: "large-content", role: "system", content: "x".repeat(100) }],
 })
 assert.equal(
-  windowCache.get("opaque")?.scrollAnchor.scrollTop,
-  120,
-  "cache admission must consume the precomputed weight in O(1)"
+  byteBoundedCache.get("large-content"),
+  null,
+  "a low-node window that exceeds the byte budget must not enter the cache"
+)
+let visitedLongHistoryEntries = 0
+const boundedScanCache = new ConversationWindowCache(2, 3, 1024)
+boundedScanCache.set("long-history", {
+  ...windowSnapshot("long-history"),
+  entries: Array.from({ length: 10_000 }, (_, index) => ({
+    id: `long-${index}`,
+    get role() {
+      visitedLongHistoryEntries += 1
+      return "system"
+    },
+    content: "x",
+  })),
+})
+assert.ok(
+  visitedLongHistoryEntries <= 4,
+  `cache admission must stop at the fixed node budget, visited ${visitedLongHistoryEntries}`
 )
 
 console.log("chat web runtime checks passed")

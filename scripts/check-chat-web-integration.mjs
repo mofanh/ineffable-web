@@ -1296,6 +1296,38 @@ assert.match(lazyImageJson, /loading=\\"lazy\\"/)
 assert.match(lazyImageJson, /decoding=\\"async\\"/)
 await act(() => lazyImageTree.unmount())
 
+const oversizedTailMarker = "OVERSIZED_MARKDOWN_TAIL_MUST_STAY_DEFERRED"
+const oversizedMarkdownPane = {
+  ...lazyImagePane,
+  blockOrder: ["oversized-markdown"],
+  blocks: {
+    "oversized-markdown": {
+      id: "oversized-markdown",
+      type: "text",
+      content: `${"# bounded preview\n".repeat(20_000)}${oversizedTailMarker}`,
+    },
+  },
+}
+let oversizedMarkdownTree
+await act(() => {
+  oversizedMarkdownTree = TestRenderer.create(
+    React.createElement(WebNodeList, { pane: oversizedMarkdownPane })
+  )
+})
+assert.equal(
+  oversizedMarkdownTree.root.findAll(
+    (node) => node.props["data-oversized-markdown"] !== undefined
+  ).length,
+  1,
+  "a single oversized visible Web Node must use the bounded preview"
+)
+assert.doesNotMatch(
+  JSON.stringify(oversizedMarkdownTree.toJSON()),
+  new RegExp(oversizedTailMarker),
+  "the collapsed oversized node must not parse or materialize its full tail"
+)
+await act(() => oversizedMarkdownTree.unmount())
+
 const partialReasoningTable = [
   "| # | Check | Result |",
   "| --- | --- | --- |",
