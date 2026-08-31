@@ -904,7 +904,10 @@ const canonicalWatermarkEntries = mapConversationMessagesToEntries([
     role: "assistant",
     message_type: "output",
     content: "final body",
-    metadata_json: { canonical_message_seq: 83 },
+    metadata_json: {},
+    timeline_seq: 82,
+    timeline_unit_id: "run:terminal-watermark-run:anchor:82",
+    canonical_seq: 83,
     created_at: "2026-08-22T00:00:02Z",
     updated_at: "2026-08-22T00:00:02Z",
   },
@@ -915,6 +918,12 @@ assert.equal(
   canonicalWatermarkEntries[0].canonicalMessageSeqEnd,
   83,
   "history projection must retain canonical message identity for terminal handoff"
+)
+assert.equal(canonicalWatermarkEntries[0].timelineSeq, 82)
+assert.equal(
+  canonicalWatermarkEntries[0].id,
+  "run:terminal-watermark-run:anchor:82",
+  "history must retain the server-owned timeline unit identity"
 )
 
 let toolWebNodeTree

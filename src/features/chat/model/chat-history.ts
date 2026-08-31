@@ -226,15 +226,19 @@ function buildAssistantEntryFromMessages(
     compactedMessages.find((message) => message.run_id)?.run_id ??
     messages.find((message) => message.run_id)?.run_id ??
     null
+  const timelineUnitId =
+    messages.find((message) => message.timeline_unit_id)?.timeline_unit_id ?? null
+  const timelineSeq = messages.reduce<number | null>(
+    (earliest, message) =>
+      Number.isSafeInteger(message.timeline_seq) &&
+      (earliest == null || message.timeline_seq < earliest)
+        ? message.timeline_seq
+        : earliest,
+    null
+  )
   const canonicalMessageSeqEnd = messages.reduce<number | null>(
     (latest, message) => {
-      const raw = message.metadata_json?.canonical_message_seq
-      const sequence =
-        typeof raw === "number"
-          ? raw
-          : typeof raw === "string" && raw.trim()
-            ? Number(raw)
-            : Number.NaN
+      const sequence = message.canonical_seq ?? Number.NaN
       return Number.isSafeInteger(sequence) && (latest == null || sequence > latest)
         ? sequence
         : latest
@@ -365,10 +369,12 @@ function buildAssistantEntryFromMessages(
   ) as Record<string, SubagentView>
 
   return {
-    id: first?.id ?? createMessageId("assistant"),
+    id: timelineUnitId ?? first?.id ?? createMessageId("assistant"),
     role: "assistant",
     runId,
     canonicalMessageSeqEnd,
+    timelineSeq,
+    timelineUnitId,
     status: "done",
     pane: finalizePane(pane),
     subagentOrder,
@@ -447,6 +453,7 @@ export function mapConversationMessagesToEntries(
   const entries: ChatEntry[] = []
   let pendingAssistantMessages: ConversationMessageRecord[] = []
   let pendingAssistantRunId: string | null = null
+  let pendingAssistantTimelineUnitId: string | null = null
 
   const flushAssistantMessages = () => {
     if (!pendingAssistantMessages.length) {
@@ -456,6 +463,7 @@ export function mapConversationMessagesToEntries(
     entries.push(buildAssistantEntryFromMessages(pendingAssistantMessages))
     pendingAssistantMessages = []
     pendingAssistantRunId = null
+    pendingAssistantTimelineUnitId = null
   }
 
   messages
@@ -465,7 +473,11 @@ export function mapConversationMessagesToEntries(
       if (approvalEntry) {
         flushAssistantMessages()
         if (!entries.some((entry) => entry.id === approvalEntry.id)) {
-          entries.push(approvalEntry)
+          entries.push({
+            ...approvalEntry,
+            timelineSeq: message.timeline_seq,
+            timelineUnitId: message.timeline_unit_id,
+          })
         }
         return
       }
@@ -480,9 +492,11 @@ export function mapConversationMessagesToEntries(
           )
         }
         entries.push({
-          id: message.id,
+          id: message.timeline_unit_id || message.id,
           role: "user",
           content: message.content,
+          timelineSeq: message.timeline_seq,
+          timelineUnitId: message.timeline_unit_id,
         })
         return
       }
@@ -495,25 +509,33 @@ export function mapConversationMessagesToEntries(
         message.message_type === "tool_result"
       ) {
         const messageRunId = message.run_id ?? null
+        const messageTimelineUnitId = message.timeline_unit_id || null
         if (
           pendingAssistantMessages.length > 0 &&
-          pendingAssistantRunId &&
-          messageRunId &&
-          pendingAssistantRunId !== messageRunId
+          ((pendingAssistantTimelineUnitId &&
+            messageTimelineUnitId &&
+            pendingAssistantTimelineUnitId !== messageTimelineUnitId) ||
+            (!pendingAssistantTimelineUnitId &&
+              pendingAssistantRunId &&
+              messageRunId &&
+              pendingAssistantRunId !== messageRunId))
         ) {
           flushAssistantMessages()
         }
 
         pendingAssistantMessages.push(message)
         pendingAssistantRunId = messageRunId
+        pendingAssistantTimelineUnitId = messageTimelineUnitId
         return
       }
 
       flushAssistantMessages()
       entries.push({
-        id: message.id,
+        id: message.timeline_unit_id || message.id,
         role: "system",
         content: message.content,
+        timelineSeq: message.timeline_seq,
+        timelineUnitId: message.timeline_unit_id,
       })
     })
 

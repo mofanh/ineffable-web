@@ -188,6 +188,9 @@ export type ConversationMessageRecord = {
   metadata_json?: Record<string, unknown> | null
   created_at: string
   updated_at: string
+  timeline_seq: number
+  timeline_unit_id: string
+  canonical_seq?: number | null
 }
 
 export type ConversationEventsResponse = {

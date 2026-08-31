@@ -6,12 +6,16 @@ export type UserEntry = {
   id: string
   role: "user"
   content: string
+  timelineSeq?: number | null
+  timelineUnitId?: string | null
 }
 
 export type SystemEntry = {
   id: string
   role: "system"
   content: string
+  timelineSeq?: number | null
+  timelineUnitId?: string | null
 }
 
 export type ApprovalEntryStatus =
@@ -35,6 +39,8 @@ export type ApprovalEntry = {
   sessionKey?: string | null
   status: ApprovalEntryStatus
   error?: string | null
+  timelineSeq?: number | null
+  timelineUnitId?: string | null
 }
 
 export type SubagentView = AgentPaneState & {
@@ -48,6 +54,8 @@ export type AssistantEntry = {
   role: "assistant"
   runId?: string | null
   canonicalMessageSeqEnd?: number | null
+  timelineSeq?: number | null
+  timelineUnitId?: string | null
   status: "streaming" | "done" | "error"
   pane: AgentPaneState
   subagentOrder: string[]
