@@ -554,6 +554,15 @@ export function GatewayChatSidebar({
         const distanceToBottom = viewport
           ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
           : 0
+        const viewportRect = viewport?.getBoundingClientRect()
+        const anchorElement = viewportRect && typeof document !== "undefined"
+          ? document
+              .elementFromPoint(
+                viewportRect.left + viewportRect.width / 2,
+                viewportRect.top + 1
+              )
+              ?.closest<HTMLElement>("[data-chat-row-key]") ?? null
+          : null
         conversationWindowCacheRef.current.set(currentId, {
           entries: entriesRef.current,
           renderedEntryLimit,
@@ -562,6 +571,11 @@ export function GatewayChatSidebar({
           scrollAnchor: {
             atBottom: !viewport || distanceToBottom < 48,
             scrollTop: viewport?.scrollTop ?? 0,
+            rowKey: anchorElement?.dataset.chatRowKey,
+            rowTop:
+              anchorElement && viewportRect
+                ? anchorElement.getBoundingClientRect().top - viewportRect.top
+                : undefined,
           },
         })
       }
@@ -1149,7 +1163,20 @@ export function GatewayChatSidebar({
       pendingScrollRestoreRef.current = null
       autoStickToBottomRef.current = restore.atBottom
       if (restore.atBottom) scrollToBottom("auto")
-      else viewport.scrollTop = restore.scrollTop
+      else {
+        viewport.scrollTop = restore.scrollTop
+        if (restore.rowKey && restore.rowTop !== undefined) {
+          const row = Array.from(
+            viewport.querySelectorAll<HTMLElement>("[data-chat-row-key]")
+          ).find((candidate) => candidate.dataset.chatRowKey === restore.rowKey)
+          if (row) {
+            viewport.scrollTop +=
+              row.getBoundingClientRect().top -
+              viewport.getBoundingClientRect().top -
+              restore.rowTop
+          }
+        }
+      }
       lastViewportScrollTopRef.current = viewport.scrollTop
       setShowScrollToBottom(!restore.atBottom)
       pendingInitialBottomScrollRef.current = false

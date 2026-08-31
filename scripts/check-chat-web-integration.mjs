@@ -1331,6 +1331,35 @@ assert.match(refreshedReasoningJson, /resume/)
 assert.match(refreshedReasoningJson, /Final answer/)
 await act(() => refreshedReasoningTree.unmount())
 
+const thousandNodePane = {
+  blockOrder: Array.from({ length: 1000 }, (_, index) => `perf-${index}`),
+  blocks: Object.fromEntries(
+    Array.from({ length: 1000 }, (_, index) => [
+      `perf-${index}`,
+      { id: `perf-${index}`, type: "text", content: `row ${index}` },
+    ])
+  ),
+  tools: {},
+  activeThinkBlockId: null,
+  activeTextBlockId: null,
+  pendingTagBuffer: "",
+  receivedTextDelta: false,
+}
+let virtualizedThousandNodeTree
+await act(() => {
+  virtualizedThousandNodeTree = TestRenderer.create(
+    React.createElement(WebNodeList, { pane: thousandNodePane })
+  )
+})
+const materializedVirtualRows = virtualizedThousandNodeTree.root.findAll(
+  (node) => node.props["data-chat-row-key"] !== undefined
+)
+assert.ok(
+  materializedVirtualRows.length < 40,
+  `1000 canonical Web Nodes must materialize a bounded window, got ${materializedVirtualRows.length}`
+)
+await act(() => virtualizedThousandNodeTree.unmount())
+
 const subagentToolHistory = mapConversationMessagesToEntries([
   {
     id: "subagent-tool-plugin",

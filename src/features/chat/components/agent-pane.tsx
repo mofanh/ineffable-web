@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import MarkdownIt from "markdown-it"
 import { Link } from "react-router-dom"
 
@@ -938,6 +939,32 @@ DEFAULT_WEB_NODE_REGISTRY.register<WorkspaceArtifactsWebNodePayload>(
   }
 )
 
+const WEB_NODE_VIRTUALIZATION_THRESHOLD = 60
+const WEB_NODE_VIRTUAL_OVERSCAN = 8
+const WEB_NODE_ESTIMATED_HEIGHT = 96
+
+const WebNodeItem = React.memo(function WebNodeItem({
+  node,
+  context,
+}: {
+  node: ReturnType<WebNodeProjectionCache["project"]>[number]
+  context: {
+    prefersReducedMotion: boolean
+    onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
+  }
+}) {
+  return (
+    <div data-chat-row-key={node.nodeId}>
+      <WebNodeSeat
+        node={node}
+        registry={DEFAULT_WEB_NODE_REGISTRY}
+        context={context}
+        fallbackRenderer={FallbackNodeRenderer}
+      />
+    </div>
+  )
+})
+
 export const WebNodeList = React.memo(function WebNodeList({
   pane,
   isStreaming = false,
@@ -970,17 +997,71 @@ export const WebNodeList = React.memo(function WebNodeList({
     () => ({ prefersReducedMotion, onSubmitUserInput }),
     [onSubmitUserInput, prefersReducedMotion]
   )
+  const virtualizationEnabled = nodes.length > WEB_NODE_VIRTUALIZATION_THRESHOLD
+  const rootRef = React.useRef<HTMLDivElement | null>(null)
+  const [scrollElement, setScrollElement] = React.useState<HTMLElement | null>(null)
+  const [scrollMargin, setScrollMargin] = React.useState(0)
+  React.useLayoutEffect(() => {
+    if (!virtualizationEnabled) return
+    const root = rootRef.current
+    const scroller = root?.closest<HTMLElement>("[data-chat-scroll-region]") ?? null
+    setScrollElement(scroller)
+    if (!root || !scroller) return
+
+    const measureMargin = () => {
+      const next =
+        root.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop
+      setScrollMargin((current) => Math.abs(current - next) < 0.5 ? current : next)
+    }
+    measureMargin()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(measureMargin)
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [virtualizationEnabled])
+  // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer owns an external measurement store by design
+  const rowVirtualizer = useVirtualizer({
+    count: virtualizationEnabled ? nodes.length : 0,
+    enabled: virtualizationEnabled,
+    estimateSize: () => WEB_NODE_ESTIMATED_HEIGHT,
+    getItemKey: (index) => nodes[index]?.nodeId ?? index,
+    getScrollElement: () => scrollElement,
+    initialRect: { width: 0, height: 600 },
+    overscan: WEB_NODE_VIRTUAL_OVERSCAN,
+    scrollMargin,
+  })
+
+  if (virtualizationEnabled) {
+    return (
+      <div ref={rootRef} className="relative text-sm" style={{ height: rowVirtualizer.getTotalSize() }}>
+        {rowVirtualizer.getVirtualItems().map((item) => {
+          const node = nodes[item.index]
+          if (!node) return null
+          return (
+            <div
+              key={item.key}
+              ref={rowVirtualizer.measureElement}
+              data-index={item.index}
+              data-chat-row-key={node.nodeId}
+              className="absolute top-0 left-0 w-full pb-3"
+              style={{
+                transform: `translateY(${item.start - scrollMargin}px)`,
+              }}
+            >
+              <WebNodeItem node={node} context={context} />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-3 text-sm">
+    <div ref={rootRef} className="space-y-3 text-sm">
       {nodes.map((node) => (
-        <WebNodeSeat
-          key={node.nodeId}
-          node={node}
-          registry={DEFAULT_WEB_NODE_REGISTRY}
-          context={context}
-          fallbackRenderer={FallbackNodeRenderer}
-        />
+        <WebNodeItem key={node.nodeId} node={node} context={context} />
       ))}
     </div>
   )

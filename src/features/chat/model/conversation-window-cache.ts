@@ -3,6 +3,8 @@ import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 export type ConversationScrollAnchor = {
   atBottom: boolean
   scrollTop: number
+  rowKey?: string
+  rowTop?: number
 }
 
 export type ConversationWindowSnapshot = {
