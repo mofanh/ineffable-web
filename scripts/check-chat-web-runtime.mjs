@@ -20,6 +20,9 @@ import {
   workspaceArtifactHref,
 } from "../src/features/chat/runtime/workspace-artifacts.ts"
 import { mergeAssistantDeltaEvents } from "../src/features/chat/runtime/assistant-event-coalescing.ts"
+import {
+  ConversationWindowCache,
+} from "../src/features/chat/model/conversation-window-cache.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -354,5 +357,28 @@ assert.equal(
   artifactProjectionAfterText.at(-1),
   "settled artifact stack must retain identity when only text changes"
 )
+
+const windowSnapshot = (id) => ({
+  entries: [{ id, role: "system", content: id }],
+  renderedEntryLimit: 40,
+  olderMessagesCursor: null,
+  hasOlderMessages: false,
+  scrollAnchor: { atBottom: false, scrollTop: 120 },
+})
+const windowCache = new ConversationWindowCache(2, 3)
+windowCache.set("a", windowSnapshot("a"))
+windowCache.set("b", windowSnapshot("b"))
+assert.equal(windowCache.get("a")?.scrollAnchor.scrollTop, 120)
+windowCache.set("c", windowSnapshot("c"))
+assert.deepEqual(windowCache.ids(), ["a", "c"], "LRU access must protect the active window")
+windowCache.set("oversized", {
+  ...windowSnapshot("oversized"),
+  entries: Array.from({ length: 4 }, (_, index) => ({
+    id: `oversized-${index}`,
+    role: "system",
+    content: "x",
+  })),
+})
+assert.equal(windowCache.get("oversized"), null, "an oversized window must not enter the cache")
 
 console.log("chat web runtime checks passed")

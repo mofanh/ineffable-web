@@ -23,6 +23,7 @@ type ChatMessageListProps = {
   isLoadingOlderEntries: boolean
   olderEntriesError: string | null
   isAwaitingResponse: boolean
+  isLoadingInitial: boolean
   showScrollToBottom: boolean
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
   onViewportScroll: () => void
@@ -100,6 +101,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   isLoadingOlderEntries,
   olderEntriesError,
   isAwaitingResponse,
+  isLoadingInitial,
   showScrollToBottom,
   scrollViewportRef,
   onViewportScroll,
@@ -150,6 +152,20 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       }
     }
   }, [hasEntries, onStreamingContentProgress, showThinkingPlaceholder])
+
+  if (!hasEntries && isLoadingInitial) {
+    return (
+      <div className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-7 px-5 py-8 md:px-8" role="status">
+        <span className="sr-only">{t("chat.gateway.syncingHistory")}</span>
+        {["w-2/5", "w-full", "w-4/5", "w-full"].map((width, index) => (
+          <div key={index} className="space-y-3" aria-hidden="true">
+            <div className={`h-4 animate-pulse rounded bg-foreground/8 ${width}`} />
+            <div className="h-16 animate-pulse rounded-xl bg-foreground/5" />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (!hasEntries && !showThinkingPlaceholder) {
     return (

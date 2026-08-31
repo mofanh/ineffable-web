@@ -45,6 +45,10 @@ import {
   reconcilePendingUserInput,
 } from "@/features/chat/model/chat-history"
 import {
+  ConversationWindowCache,
+  type ConversationWindowSnapshot,
+} from "@/features/chat/model/conversation-window-cache"
+import {
   canonicalMessagesToGatewayEvents,
   hasCanonicalAssistantOutput,
 } from "@/features/chat/model/canonical-message-event"
@@ -391,6 +395,9 @@ export function GatewayChatSidebar({
   const [olderMessagesCursor, setOlderMessagesCursor] = React.useState<string | null>(null)
   const [hasOlderMessages, setHasOlderMessages] = React.useState(false)
   const [hydratedConversationId, setHydratedConversationId] = React.useState<string | null>(null)
+  const [displayedConversationId, setDisplayedConversationId] = React.useState<
+    string | null
+  >(null)
   const [sandboxOptions, setSandboxOptions] = React.useState<
     { environmentId: string; label: string; status: string }[]
   >([])
@@ -438,6 +445,8 @@ export function GatewayChatSidebar({
     new ConversationRuntimeController(runtimeStoreRef.current)
   )
   const entriesRef = React.useRef<ChatEntry[]>([])
+  const displayedConversationIdRef = React.useRef<string | null>(null)
+  const conversationWindowCacheRef = React.useRef(new ConversationWindowCache())
   const assistantEntryIdRef = React.useRef<string | null>(null)
   const [assistantVisualScheduler] = React.useState(
     () =>
@@ -483,6 +492,9 @@ export function GatewayChatSidebar({
   const autoStickToBottomRef = React.useRef(true)
   const lastViewportScrollTopRef = React.useRef(0)
   const pendingInitialBottomScrollRef = React.useRef(false)
+  const pendingScrollRestoreRef = React.useRef<
+    ConversationWindowSnapshot["scrollAnchor"] | null
+  >(null)
   const pendingOlderLoadMetricsRef = React.useRef<{
     scrollHeight: number
     scrollTop: number
@@ -507,15 +519,69 @@ export function GatewayChatSidebar({
     () => new Set<string>()
   )
 
+  const applyConversationWindow = React.useCallback(
+    (
+      conversationId: string | null,
+      snapshot: ConversationWindowSnapshot | null
+    ) => {
+      const nextEntries = snapshot?.entries ?? []
+      entriesRef.current = nextEntries
+      displayedConversationIdRef.current = conversationId
+      hydratedConversationIdRef.current = snapshot ? conversationId : null
+      setEntries(nextEntries)
+      setDisplayedConversationId(conversationId)
+      setHydratedConversationId(snapshot ? conversationId : null)
+      setRenderedEntryLimit(
+        snapshot?.renderedEntryLimit ?? INITIAL_RENDERED_ENTRY_COUNT
+      )
+      setOlderMessagesCursor(snapshot?.olderMessagesCursor ?? null)
+      setHasOlderMessages(snapshot?.hasOlderMessages ?? false)
+      pendingScrollRestoreRef.current = snapshot?.scrollAnchor ?? null
+      setIsLoadingMessages(Boolean(conversationId && !snapshot))
+    },
+    []
+  )
+
   const selectConversationTarget = React.useCallback(
     (conversationId: string | null) => {
+      const currentId = currentConversationIdRef.current
+      if (
+        currentId &&
+        displayedConversationIdRef.current === currentId &&
+        entriesRef.current.length > 0
+      ) {
+        const viewport = scrollViewportRef.current
+        const distanceToBottom = viewport
+          ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+          : 0
+        conversationWindowCacheRef.current.set(currentId, {
+          entries: entriesRef.current,
+          renderedEntryLimit,
+          olderMessagesCursor,
+          hasOlderMessages,
+          scrollAnchor: {
+            atBottom: !viewport || distanceToBottom < 48,
+            scrollTop: viewport?.scrollTop ?? 0,
+          },
+        })
+      }
+      const cached = conversationId
+        ? conversationWindowCacheRef.current.get(conversationId)
+        : null
+      applyConversationWindow(conversationId, cached)
       commitConversationSelection(
         currentConversationIdRef,
         selectConversation,
         conversationId
       )
     },
-    [selectConversation]
+    [
+      applyConversationWindow,
+      hasOlderMessages,
+      olderMessagesCursor,
+      renderedEntryLimit,
+      selectConversation,
+    ]
   )
 
   React.useEffect(() => {
@@ -647,6 +713,10 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     entriesRef.current = entries
   }, [entries])
+
+  React.useEffect(() => {
+    displayedConversationIdRef.current = displayedConversationId
+  }, [displayedConversationId])
 
   React.useEffect(() => {
     hydratedConversationIdRef.current = hydratedConversationId
@@ -1001,9 +1071,14 @@ export function GatewayChatSidebar({
     hydratedConversationId,
     selectedPendingUserInput,
   ])
+  const conversationEntries = React.useMemo(
+    () =>
+      displayedConversationId === currentConversationId ? entries : [],
+    [currentConversationId, displayedConversationId, entries]
+  )
   const visibleEntries = React.useMemo(
     () =>
-      entries.filter((entry) => {
+      conversationEntries.filter((entry) => {
         if (entry.role === "assistant") {
           return hasAssistantEntryContent(entry)
         }
@@ -1014,13 +1089,16 @@ export function GatewayChatSidebar({
 
         return Boolean(entry.content.trim())
       }),
-    [entries]
+    [conversationEntries]
   )
   const renderedEntries = React.useMemo(
     () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
     [renderedEntryLimit, visibleEntries]
   )
-  const currentPlanTool = React.useMemo(() => latestPlanTool(entries), [entries])
+  const currentPlanTool = React.useMemo(
+    () => latestPlanTool(conversationEntries),
+    [conversationEntries]
+  )
   const renderedEntryCount = renderedEntries.length
   const hasHiddenLoadedEntries = renderedEntries.length < visibleEntries.length
   const hasOlderEntries = hasHiddenLoadedEntries || hasOlderMessages
@@ -1061,9 +1139,23 @@ export function GatewayChatSidebar({
   }, [])
 
   React.useLayoutEffect(() => {
-    if (!scrollViewportRef.current || !autoStickToBottomRef.current) {
+    const viewport = scrollViewportRef.current
+    if (!viewport) {
       return
     }
+
+    const restore = pendingScrollRestoreRef.current
+    if (restore) {
+      pendingScrollRestoreRef.current = null
+      autoStickToBottomRef.current = restore.atBottom
+      if (restore.atBottom) scrollToBottom("auto")
+      else viewport.scrollTop = restore.scrollTop
+      lastViewportScrollTopRef.current = viewport.scrollTop
+      setShowScrollToBottom(!restore.atBottom)
+      pendingInitialBottomScrollRef.current = false
+      return
+    }
+    if (!autoStickToBottomRef.current) return
 
     scrollToBottom("auto")
     if (renderedEntryCount > 0) {
@@ -1339,6 +1431,8 @@ export function GatewayChatSidebar({
             ...latestEntries,
           ]
         })
+        displayedConversationIdRef.current = conversationId
+        setDisplayedConversationId(conversationId)
         if (shouldReplaceTranscript) {
           setOlderMessagesCursor(response.page?.before ?? null)
           setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
@@ -1399,17 +1493,16 @@ export function GatewayChatSidebar({
     autoStickToBottomRef.current = true
     lastViewportScrollTopRef.current = 0
     pendingInitialBottomScrollRef.current = true
-    setHydratedConversationId(null)
-    setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
+    const cachedWindow = currentConversationId
+      ? conversationWindowCacheRef.current.get(currentConversationId)
+      : null
+    applyConversationWindow(currentConversationId, cachedWindow)
     pendingOlderLoadMetricsRef.current = null
     olderMessagesInFlightCursorRef.current = null
-    setOlderMessagesCursor(null)
-    setHasOlderMessages(false)
     setOlderMessagesError(null)
     setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
-      setEntries([])
       setError(null)
       return
     }
@@ -1429,6 +1522,7 @@ export function GatewayChatSidebar({
     })
   }, [
     assistantVisualScheduler,
+    applyConversationWindow,
     clearRecoveryTimer,
     currentConversationId,
     reportChatError,
@@ -2416,6 +2510,9 @@ export function GatewayChatSidebar({
   function clearConversation() {
     messageProjectionRequestRef.current += 1
     setEntries([])
+    entriesRef.current = []
+    setDisplayedConversationId(null)
+    displayedConversationIdRef.current = null
     setHydratedConversationId(null)
     setIsLoadingMessages(false)
     setAwaitingHumanRunId(null)
@@ -3048,6 +3145,9 @@ export function GatewayChatSidebar({
           isLoadingOlderEntries={isLoadingOlderEntries}
           olderEntriesError={olderMessagesError}
           isAwaitingResponse={isAwaitingVisibleResponse}
+          isLoadingInitial={
+            isLoadingMessages && displayedConversationId === currentConversationId
+          }
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
