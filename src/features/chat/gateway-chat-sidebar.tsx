@@ -46,6 +46,7 @@ import {
 } from "@/features/chat/model/chat-history"
 import {
   ConversationWindowCache,
+  conversationWindowWeight,
   type ConversationWindowSnapshot,
 } from "@/features/chat/model/conversation-window-cache"
 import {
@@ -495,6 +496,8 @@ export function GatewayChatSidebar({
   const pendingScrollRestoreRef = React.useRef<
     ConversationWindowSnapshot["scrollAnchor"] | null
   >(null)
+  const conversationWindowWeightRef = React.useRef(0)
+  const conversationWindowWeightEntriesRef = React.useRef<ChatEntry[]>([])
   const pendingOlderLoadMetricsRef = React.useRef<{
     scrollHeight: number
     scrollTop: number
@@ -565,6 +568,10 @@ export function GatewayChatSidebar({
           : null
         conversationWindowCacheRef.current.set(currentId, {
           entries: entriesRef.current,
+          weight:
+            conversationWindowWeightEntriesRef.current === entriesRef.current
+              ? conversationWindowWeightRef.current
+              : Number.POSITIVE_INFINITY,
           renderedEntryLimit,
           olderMessagesCursor,
           hasOlderMessages,
@@ -1067,6 +1074,11 @@ export function GatewayChatSidebar({
   const handleRefreshConversationList = React.useCallback(() => {
     void refreshConversations()
   }, [refreshConversations])
+
+  React.useEffect(() => {
+    conversationWindowWeightRef.current = conversationWindowWeight(entries)
+    conversationWindowWeightEntriesRef.current = entries
+  }, [entries])
 
   React.useEffect(() => {
     if (

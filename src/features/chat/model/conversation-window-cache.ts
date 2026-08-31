@@ -9,6 +9,7 @@ export type ConversationScrollAnchor = {
 
 export type ConversationWindowSnapshot = {
   entries: ChatEntry[]
+  weight: number
   renderedEntryLimit: number
   olderMessagesCursor: string | null
   hasOlderMessages: boolean
@@ -24,8 +25,8 @@ function paneWeight(entry: ChatEntry) {
   )
 }
 
-export function conversationWindowWeight(snapshot: ConversationWindowSnapshot) {
-  return snapshot.entries.reduce((total, entry) => total + paneWeight(entry), 0)
+export function conversationWindowWeight(entries: ChatEntry[]) {
+  return entries.reduce((total, entry) => total + paneWeight(entry), 0)
 }
 
 export class ConversationWindowCache {
@@ -48,10 +49,14 @@ export class ConversationWindowCache {
   }
 
   set(conversationId: string, snapshot: ConversationWindowSnapshot) {
-    const nextWeight = conversationWindowWeight(snapshot)
+    const nextWeight = snapshot.weight
+    if (!Number.isFinite(nextWeight) || nextWeight < 0) {
+      this.delete(conversationId)
+      return
+    }
     const existing = this.values.get(conversationId)
     if (existing) {
-      this.weight -= conversationWindowWeight(existing)
+      this.weight -= existing.weight
       this.values.delete(conversationId)
     }
     if (nextWeight > this.maxWeight) return
@@ -66,14 +71,14 @@ export class ConversationWindowCache {
       if (!oldestId) break
       const oldest = this.values.get(oldestId)
       this.values.delete(oldestId)
-      if (oldest) this.weight -= conversationWindowWeight(oldest)
+      if (oldest) this.weight -= oldest.weight
     }
   }
 
   delete(conversationId: string) {
     const existing = this.values.get(conversationId)
     if (!existing) return
-    this.weight -= conversationWindowWeight(existing)
+    this.weight -= existing.weight
     this.values.delete(conversationId)
   }
 

@@ -1357,16 +1357,82 @@ assert.match(refreshedReasoningJson, /resume/)
 assert.match(refreshedReasoningJson, /Final answer/)
 await act(() => refreshedReasoningTree.unmount())
 
+const thousandNodeBlocks = Array.from({ length: 1000 }, (_, index) => {
+  const id = `perf-${index}`
+  if (index % 4 === 1) {
+    return [id, { id, type: "think", content: `reasoning ${index}`, open: false }]
+  }
+  if (index % 4 === 2) {
+    return [id, { id, type: "tool", toolId: id }]
+  }
+  if (index % 4 === 3) {
+    return [id, { id, type: "update", content: `update ${index}` }]
+  }
+  return [
+    id,
+    {
+      id,
+      type: "text",
+      content:
+        index === 996
+          ? `\`\`\`typescript\n${"const value = 1;\n".repeat(2000)}\`\`\``
+          : `row ${index}`,
+    },
+  ]
+})
+const thousandNodeTools = Object.fromEntries(
+  Array.from({ length: 1000 }, (_, index) => index)
+    .filter((index) => index % 4 === 2)
+    .map((index) => {
+      const id = `perf-${index}`
+      const publishesArtifact = index % 100 === 2
+      return [
+        id,
+        {
+          id,
+          name: publishesArtifact ? "publish_sandbox_file" : "exec_command",
+          input: publishesArtifact ? "" : JSON.stringify({ command: `echo ${index}` }),
+          output: publishesArtifact
+            ? JSON.stringify({
+                workspace_id: "workspace-perf",
+                object_id: `object-${index}`,
+                version_id: `version-${index}`,
+                path: `reports/${index}.md`,
+                mime_type: "text/markdown",
+                size_bytes: index,
+              })
+            : `result ${index}`,
+          status: "succeeded",
+        },
+      ]
+    })
+)
+const perfSubagentOrder = Array.from({ length: 100 }, (_, index) => `perf-sub-${index}`)
+const perfSubagents = Object.fromEntries(
+  perfSubagentOrder.map((id, index) => [
+    id,
+    {
+      id,
+      name: `Subagent ${index}`,
+      status: "completed",
+      blockOrder: [`${id}-text`],
+      blocks: {
+        [`${id}-text`]: { id: `${id}-text`, type: "text", content: `done ${index}` },
+      },
+      tools: {},
+      activeThinkBlockId: null,
+      activeThinkMode: null,
+      pendingTagBuffer: "",
+      receivedTextDelta: false,
+    },
+  ])
+)
 const thousandNodePane = {
   blockOrder: Array.from({ length: 1000 }, (_, index) => `perf-${index}`),
-  blocks: Object.fromEntries(
-    Array.from({ length: 1000 }, (_, index) => [
-      `perf-${index}`,
-      { id: `perf-${index}`, type: "text", content: `row ${index}` },
-    ])
-  ),
-  tools: {},
+  blocks: Object.fromEntries(thousandNodeBlocks),
+  tools: thousandNodeTools,
   activeThinkBlockId: null,
+  activeThinkMode: null,
   activeTextBlockId: null,
   pendingTagBuffer: "",
   receivedTextDelta: false,
@@ -1374,7 +1440,11 @@ const thousandNodePane = {
 let virtualizedThousandNodeTree
 await act(() => {
   virtualizedThousandNodeTree = TestRenderer.create(
-    React.createElement(WebNodeList, { pane: thousandNodePane })
+    React.createElement(WebNodeList, {
+      pane: thousandNodePane,
+      subagentOrder: perfSubagentOrder,
+      subagents: perfSubagents,
+    })
   )
 })
 const materializedVirtualRows = virtualizedThousandNodeTree.root.findAll(

@@ -360,6 +360,7 @@ assert.equal(
 
 const windowSnapshot = (id) => ({
   entries: [{ id, role: "system", content: id }],
+  weight: 1,
   renderedEntryLimit: 40,
   olderMessagesCursor: null,
   hasOlderMessages: false,
@@ -373,6 +374,7 @@ windowCache.set("c", windowSnapshot("c"))
 assert.deepEqual(windowCache.ids(), ["a", "c"], "LRU access must protect the active window")
 windowCache.set("oversized", {
   ...windowSnapshot("oversized"),
+  weight: 4,
   entries: Array.from({ length: 4 }, (_, index) => ({
     id: `oversized-${index}`,
     role: "system",
@@ -380,5 +382,19 @@ windowCache.set("oversized", {
   })),
 })
 assert.equal(windowCache.get("oversized"), null, "an oversized window must not enter the cache")
+const opaqueEntries = new Proxy([], {
+  get() {
+    throw new Error("conversation switching must not scan cached entries")
+  },
+})
+windowCache.set("opaque", {
+  ...windowSnapshot("opaque"),
+  entries: opaqueEntries,
+})
+assert.equal(
+  windowCache.get("opaque")?.scrollAnchor.scrollTop,
+  120,
+  "cache admission must consume the precomputed weight in O(1)"
+)
 
 console.log("chat web runtime checks passed")
