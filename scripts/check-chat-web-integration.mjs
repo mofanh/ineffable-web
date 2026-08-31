@@ -451,6 +451,125 @@ assert.deepEqual(
   "occurrence-expanded parallel history must retain exactly two calls"
 )
 
+const singleResumeCall = canonicalMessagesToGatewayEvents([{
+  role: "assistant",
+  messageType: "tool_call",
+  content: "",
+  metadata: {
+    tool_call_id: "resume-ask-1",
+    tool_name: "request_user_input",
+    tool_calls: [{
+      id: "resume-ask-1",
+      name: "request_user_input",
+      input: { questions: [{ id: "style", question: "How?", options: [] }] },
+    }],
+  },
+}], {
+  stream: "resume",
+  phase: "resume",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.deepEqual(
+  JSON.parse(singleResumeCall[0].metadata.full_arguments),
+  { questions: [{ id: "style", question: "How?", options: [] }] },
+  "a single resume call with a direct ID must retain tool_calls[0].input"
+)
+
+const identityReasoningMessages = [
+  {
+    role: "assistant",
+    messageType: "output",
+    content: "",
+    reasoningContent: "same",
+    metadata: { tool_call_id: "identity-1", subagent_id: "child-1" },
+  },
+  {
+    role: "assistant",
+    messageType: "output",
+    content: "",
+    reasoningContent: "same",
+    metadata: { tool_call_id: "identity-1" },
+  },
+  {
+    role: "assistant",
+    messageType: "tool_call",
+    content: "",
+    reasoningContent: "same\n",
+    metadata: {
+      tool_call_id: "identity-1",
+      tool_name: "web_search",
+      transcript_occurrence_id: "identity-1#1",
+      full_arguments: "{}",
+    },
+  },
+]
+const identityReasoningEvents = canonicalMessagesToGatewayEvents(
+  identityReasoningMessages,
+  {
+    stream: "history",
+    phase: "history",
+    defaultRunId: runId,
+    conversationId,
+    tsMs: 1,
+  }
+).filter((item) => item.event === "model.reasoning.delta")
+assert.equal(
+  identityReasoningEvents.length,
+  2,
+  "main and subagent reasoning identities must remain independent while one batch reconciles"
+)
+assert.deepEqual(
+  identityReasoningEvents.map((item) => item.metadata.subagent_id ?? "main"),
+  ["child-1", "main"]
+)
+
+const repeatedUnidentifiedReasoning = canonicalMessagesToGatewayEvents([1, 2].map(() => ({
+  role: "assistant",
+  messageType: "output",
+  content: "",
+  reasoningContent: "legitimately repeated",
+  metadata: {},
+})), {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.equal(
+  repeatedUnidentifiedReasoning.filter((item) => item.event === "model.reasoning.delta").length,
+  2,
+  "reasoning without a shared canonical identity must never be deduplicated by text"
+)
+
+const reusedReasoningCallId = canonicalMessagesToGatewayEvents([
+  {
+    role: "assistant", messageType: "output", content: "",
+    reasoningContent: "same", metadata: { tool_call_id: "reuse-reasoning" },
+  },
+  {
+    role: "tool", messageType: "tool_result", content: "first",
+    metadata: { tool_call_id: "reuse-reasoning", settlement_status: "succeeded" },
+  },
+  {
+    role: "assistant", messageType: "output", content: "",
+    reasoningContent: "same", metadata: { tool_call_id: "reuse-reasoning" },
+  },
+], {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.equal(
+  reusedReasoningCallId.filter((item) => item.event === "model.reasoning.delta").length,
+  2,
+  "a settled protocol call ID may be reused by a later reasoning batch"
+)
+
 const userInputQuestions = [
   {
     id: "topic",

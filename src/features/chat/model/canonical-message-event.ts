@@ -84,6 +84,46 @@ function canonicalReasoningContent(
     : null
 }
 
+function reasoningOwnerKey(
+  metadata: Record<string, unknown>,
+  runId: string | null,
+  conversationId: string | null
+) {
+  const subagentId = metadataString(metadata, "subagent_id") ?? "main"
+  return `${runId ?? conversationId ?? "conversation"}:${subagentId}`
+}
+
+function reasoningCallIdentity(
+  metadata: Record<string, unknown>,
+  callId: string,
+  runId: string | null,
+  conversationId: string | null
+) {
+  return `${reasoningOwnerKey(metadata, runId, conversationId)}:call:${callId}`
+}
+
+function reasoningIdentityKeys(
+  metadata: Record<string, unknown>,
+  runId: string | null,
+  conversationId: string | null
+) {
+  const owner = reasoningOwnerKey(metadata, runId, conversationId)
+  const keys: string[] = []
+  const canonicalMessageSeq = metadata.canonical_message_seq
+  if (typeof canonicalMessageSeq === "number" ||
+      (typeof canonicalMessageSeq === "string" && canonicalMessageSeq.trim())) {
+    keys.push(`${owner}:canonical:${canonicalMessageSeq}`)
+  }
+  const callIds = new Set<string>()
+  const directCallId = metadataString(metadata, "tool_call_id")
+  if (directCallId) callIds.add(directCallId)
+  canonicalToolCalls(metadata).forEach((call) => callIds.add(call.id))
+  callIds.forEach((callId) => {
+    keys.push(reasoningCallIdentity(metadata, callId, runId, conversationId))
+  })
+  return keys
+}
+
 function canonicalToolCalls(metadata: Record<string, unknown>) {
   const canonicalMessage =
     metadata.canonical_message && typeof metadata.canonical_message === "object"
@@ -119,7 +159,7 @@ export function canonicalMessagesToGatewayEvents(
   const events: GatewayChatStreamEvent[] = []
   const pendingOccurrences = new Map<string, string[]>()
   const occurrenceCounts = new Map<string, number>()
-  let lastBatchReasoning: string | null = null
+  const seenReasoningIdentities = new Set<string>()
   let seq = context.startSeq ?? 1
 
   messages.forEach((message, messageIndex) => {
@@ -162,11 +202,18 @@ export function canonicalMessagesToGatewayEvents(
     }
 
     const reasoningContent = canonicalReasoningContent(message, baseMetadata)
-    if (reasoningContent?.trim() && reasoningContent !== lastBatchReasoning) {
+    const reasoningIdentities = reasoningIdentityKeys(
+      baseMetadata, runId, conversationId
+    )
+    const reasoningAlreadyProjected = reasoningIdentities.length > 0 &&
+      reasoningIdentities.some((identity) => seenReasoningIdentities.has(identity))
+    if (reasoningContent?.trim() && !reasoningAlreadyProjected) {
       pushEvent("model.reasoning.delta", "assistant", reasoningContent,
         { ...baseMetadata })
     }
-    if (reasoningContent?.trim()) lastBatchReasoning = reasoningContent
+    if (reasoningContent?.trim()) {
+      reasoningIdentities.forEach((identity) => seenReasoningIdentities.add(identity))
+    }
 
     if (messageType === "tool_call") {
       const calls = canonicalToolCalls(baseMetadata)
@@ -175,9 +222,15 @@ export function canonicalMessagesToGatewayEvents(
       // History projection has already expanded a canonical parallel batch into
       // one occurrence per message. Prefer that direct identity; resume keeps
       // the original batch shape and therefore falls back to tool_calls[].
-      const normalizedCalls = directCallId
-        ? [{ id: directCallId, name: directToolName ?? "",
-            input: baseMetadata.full_arguments ?? {} }]
+      const occurrenceExpanded = Boolean(
+        metadataString(baseMetadata, "transcript_occurrence_id")
+      )
+      const directCanonicalCall = directCallId
+        ? calls.find((call) => call.id === directCallId)
+        : null
+      const normalizedCalls = directCallId && (occurrenceExpanded || calls.length === 0)
+        ? [{ id: directCallId, name: directToolName ?? directCanonicalCall?.name ?? "",
+            input: baseMetadata.full_arguments ?? directCanonicalCall?.input ?? {} }]
         : calls
       if (message.content.trim()) {
         pushEvent("assistant.snapshot", "assistant",
@@ -233,7 +286,11 @@ export function canonicalMessagesToGatewayEvents(
         ...baseMetadata,
         transcript_occurrence_id: occurrence,
       })
-      lastBatchReasoning = null
+      if (callId) {
+        seenReasoningIdentities.delete(
+          reasoningCallIdentity(baseMetadata, callId, runId, conversationId)
+        )
+      }
       return
     }
 
@@ -243,7 +300,6 @@ export function canonicalMessagesToGatewayEvents(
       messageType === "output" || role === "assistant"
         ? stripInlineThinkBlocks(message.content) : message.content,
       baseMetadata)
-    if (role !== "assistant") lastBatchReasoning = null
   })
   return events
 }
