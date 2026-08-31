@@ -232,9 +232,13 @@ export function canonicalMessagesToGatewayEvents(
         ? [{ id: directCallId, name: directToolName ?? directCanonicalCall?.name ?? "",
             input: baseMetadata.full_arguments ?? directCanonicalCall?.input ?? {} }]
         : calls
-      if (message.content.trim()) {
+      const canonicalBody = canonicalMessage(baseMetadata)?.content
+      const assistantBody = occurrenceExpanded
+        ? (typeof canonicalBody === "string" ? canonicalBody : "")
+        : message.content
+      if (assistantBody.trim()) {
         pushEvent("assistant.snapshot", "assistant",
-          stripInlineThinkBlocks(message.content), { ...baseMetadata })
+          stripInlineThinkBlocks(assistantBody), { ...baseMetadata })
       }
       if (normalizedCalls.length === 0) {
         const occurrence = metadataString(baseMetadata, "transcript_occurrence_id") ??
@@ -256,9 +260,14 @@ export function canonicalMessagesToGatewayEvents(
         const explicitOccurrence = normalizedCalls.length === 1
           ? metadataString(baseMetadata, "transcript_occurrence_id")
           : null
-        const occurrence = explicitOccurrence ?? (occurrenceCount === 0
+        // Live events only know the protocol call id. Keep the first persisted
+        // occurrence on that same identity so history/resume reconciliation
+        // updates the live card instead of creating a second one. A repeated
+        // protocol id needs the persisted occurrence identity to remain distinct.
+        const occurrence = occurrenceCount === 0
           ? call.id
-          : `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:${callIndex}`)
+          : explicitOccurrence ??
+            `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:${callIndex}`
         const queue = pendingOccurrences.get(call.id) ?? []
         queue.push(occurrence)
         pendingOccurrences.set(call.id, queue)
@@ -278,7 +287,7 @@ export function canonicalMessagesToGatewayEvents(
       const callId = metadataString(baseMetadata, "tool_call_id") ?? ""
       const explicitOccurrence = metadataString(baseMetadata, "transcript_occurrence_id")
       const queue = pendingOccurrences.get(callId) ?? []
-      const occurrence = explicitOccurrence ?? queue.shift() ??
+      const occurrence = queue.shift() ?? explicitOccurrence ??
         `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:result`
       if (queue.length) pendingOccurrences.set(callId, queue)
       else pendingOccurrences.delete(callId)

@@ -416,9 +416,67 @@ assert.equal(
   "an occurrence-expanded history call must not expand its canonical batch again"
 )
 assert.equal(
+  reconciledProductionHistory.find((item) => item.event === "tool.call.completed")
+    .metadata.transcript_occurrence_id,
+  "ask-1",
+  "the first persisted occurrence must reuse the live protocol identity"
+)
+assert.equal(
   reconciledProductionHistory.some((item) => item.content?.startsWith("tool=")),
   false,
   "legacy tool envelopes must never become assistant content"
+)
+
+const cachedLegacyEnvelope = canonicalMessagesToGatewayEvents([{
+  role: "assistant",
+  messageType: "tool_call",
+  content: "tool=request_user_input call_id=ask-old\n{\"questions\":[]}",
+  metadata: {
+    tool_call_id: "ask-old",
+    tool_name: "request_user_input",
+    transcript_occurrence_id: "ask-old#1",
+    canonical_message: {
+      content: "",
+      tool_calls: [{ id: "ask-old", name: "request_user_input", input: { questions: [] } }],
+    },
+  },
+}], {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.equal(
+  cachedLegacyEnvelope.some((item) => item.event === "assistant.snapshot"),
+  false,
+  "an occurrence-expanded cache row must only trust canonical assistant content"
+)
+
+const repeatedProtocolId = canonicalMessagesToGatewayEvents([1, 2].map((occurrence) => ({
+  role: "assistant",
+  messageType: "tool_call",
+  content: "",
+  metadata: {
+    tool_call_id: "reused-call",
+    tool_name: "web_search",
+    transcript_occurrence_id: `reused-call#${occurrence}`,
+    canonical_message: {
+      content: "",
+      tool_calls: [{ id: "reused-call", name: "web_search", input: { query: occurrence } }],
+    },
+  },
+})), {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.deepEqual(
+  repeatedProtocolId.map((item) => item.metadata.transcript_occurrence_id),
+  ["reused-call", "reused-call#2"],
+  "only a genuinely repeated protocol id may allocate a second UI identity"
 )
 
 const expandedParallelHistory = canonicalMessagesToGatewayEvents(["parallel-1", "parallel-2"].map(

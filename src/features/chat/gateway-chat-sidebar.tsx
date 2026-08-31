@@ -330,7 +330,11 @@ type AssistantEntryUpdater = (
 ) => AssistantEntry | null
 
 type AssistantVisualUpdate =
-  | { kind: "updater"; updater: AssistantEntryUpdater }
+  | {
+      kind: "updater"
+      updater: AssistantEntryUpdater
+      runId: string | null
+    }
   | {
       kind: "event"
       event: GatewayChatStreamEvent
@@ -452,7 +456,7 @@ export function GatewayChatSidebar({
                         update.event,
                         update.runId
                       )
-              return applyAssistantEntryUpdate(nextEntries, updater)
+              return applyAssistantEntryUpdate(nextEntries, updater, update.runId)
             },
             current
           )
@@ -1459,9 +1463,26 @@ export function GatewayChatSidebar({
 
   function applyAssistantEntryUpdate(
     current: ChatEntry[],
-    updater: AssistantEntryUpdater
+    updater: AssistantEntryUpdater,
+    targetRunId?: string | null
   ) {
-    const assistantId = assistantEntryIdRef.current
+    const normalizedRunId = targetRunId?.trim() || null
+    let assistantId = assistantEntryIdRef.current
+    if (
+      normalizedRunId &&
+      (!assistantId ||
+        !current.some(
+          (entry) =>
+            entry.role === "assistant" &&
+            entry.id === assistantId &&
+            entry.runId === normalizedRunId
+        ))
+    ) {
+      assistantId = findAssistantEntryIdForRun(current, normalizedRunId)
+      if (assistantId) {
+        assistantEntryIdRef.current = assistantId
+      }
+    }
     if (!assistantId) {
       const created = updater(undefined)
       if (!created) return current
@@ -1492,9 +1513,10 @@ export function GatewayChatSidebar({
 
   function updateAssistantEntry(
     updater: AssistantEntryUpdater,
-    priority: VisualUpdatePriority = "immediate"
+    priority: VisualUpdatePriority = "immediate",
+    runId: string | null = activeRunIdRef.current
   ) {
-    assistantVisualScheduler.enqueue({ kind: "updater", updater }, priority)
+    assistantVisualScheduler.enqueue({ kind: "updater", updater, runId }, priority)
   }
 
   function ensureAssistantEntry() {
@@ -1535,14 +1557,14 @@ export function GatewayChatSidebar({
 
   function applyMainEvent(event: GatewayChatStreamEvent) {
     assistantVisualScheduler.enqueue(
-      { kind: "event", event, runId: activeRunIdRef.current },
+      { kind: "event", event, runId: event.run_id ?? activeRunIdRef.current },
       "frame"
     )
   }
 
   function applySubagentEvent(event: GatewayChatStreamEvent) {
     assistantVisualScheduler.enqueue(
-      { kind: "event", event, runId: activeRunIdRef.current },
+      { kind: "event", event, runId: event.run_id ?? activeRunIdRef.current },
       "frame"
     )
   }
@@ -1625,7 +1647,8 @@ export function GatewayChatSidebar({
   function markAwaitingHuman(runId?: string | null) {
     const conversationId =
       activeStreamConversationIdRef.current ?? currentConversationIdRef.current
-    setAwaitingHumanRunId(runId ?? activeRunIdRef.current)
+    const awaitingRunId = runId ?? activeRunIdRef.current
+    setAwaitingHumanRunId(awaitingRunId)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
@@ -1634,20 +1657,20 @@ export function GatewayChatSidebar({
     if (conversationId) {
       clearConversationResumeState(conversationId)
     }
-    completeAssistantEntry()
+    completeAssistantEntry(undefined, awaitingRunId)
     assistantEntryIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
     void refreshConversations().catch(() => {})
   }
 
-  function completeAssistantEntry(fallback?: string) {
+  function completeAssistantEntry(fallback?: string, runId = activeRunIdRef.current) {
     updateAssistantEntry((entry) => {
       if (!entry && !fallback?.trim()) {
         return null
       }
 
-      const current = entry ?? createAssistantEntry("done", activeRunIdRef.current)
+      const current = entry ?? createAssistantEntry("done", runId)
 
       const nextSubagents = Object.fromEntries(
         current.subagentOrder.map((subagentId) => {
@@ -1674,7 +1697,7 @@ export function GatewayChatSidebar({
         pane: finalizePane(current.pane, fallback),
         subagents: nextSubagents,
       }
-    })
+    }, "immediate", runId)
   }
 
   function beginGuidedUserTurn(content: string, id = createMessageId("user")) {
