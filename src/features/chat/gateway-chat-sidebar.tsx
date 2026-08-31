@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/sidebar"
 import {
   finalizePane,
-  getPaneBlocks,
   getLatestToolByName,
   type AgentPaneState,
   type ToolCallView,
@@ -44,6 +43,7 @@ import {
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
 } from "@/features/chat/model/chat-history"
+import { mergeLatestConversationEntries } from "@/features/chat/model/conversation-entry-reconciliation"
 import {
   ConversationWindowCache,
   type ConversationWindowSnapshot,
@@ -155,30 +155,6 @@ const INITIAL_RENDERED_ENTRY_COUNT = 40
 const RENDERED_ENTRY_INCREMENT = 30
 const CONVERSATION_MESSAGES_PAGE_LIMIT = 40
 
-function normalizeEntryContent(content: string) {
-  return content.replace(/\s+/g, " ").trim()
-}
-
-function paneText(entry: AssistantEntry) {
-  const mainText = getPaneBlocks(entry.pane)
-    .map((block) => ("content" in block ? block.content : ""))
-    .filter(Boolean)
-    .join("\n")
-
-  const subagentText = entry.subagentOrder
-    .map((subagentId) => entry.subagents[subagentId])
-    .filter((subagent): subagent is SubagentView => Boolean(subagent))
-    .flatMap((subagent) =>
-      getPaneBlocks(subagent).map((block) =>
-        "content" in block ? block.content : ""
-      )
-    )
-    .filter(Boolean)
-    .join("\n")
-
-  return [mainText, subagentText].filter(Boolean).join("\n")
-}
-
 function latestPlanTool(entries: ChatEntry[]) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
@@ -253,75 +229,6 @@ function updateUserInputToolInEntry(
     })
   ) as Record<string, SubagentView>
   return { ...entry, pane, subagents }
-}
-
-function entryContentFingerprint(entry: ChatEntry) {
-  if (entry.role === "user" || entry.role === "system") {
-    const content = normalizeEntryContent(entry.content)
-    return content ? `${entry.role}:${content}` : null
-  }
-
-  if (entry.role === "assistant") {
-    const content = normalizeEntryContent(paneText(entry))
-    return content ? `assistant:${content}` : null
-  }
-
-  return entry.approvalId || entry.needId
-    ? `approval:${entry.approvalId ?? entry.needId}`
-    : null
-}
-
-function removeEntriesCoveredByLatest(
-  current: ChatEntry[],
-  latestEntries: ChatEntry[]
-) {
-  const latestIds = new Set(latestEntries.map((entry) => entry.id))
-  const latestAssistantRunIds = new Set(
-    latestEntries.flatMap((entry) =>
-      entry.role === "assistant" && entry.runId ? [entry.runId] : []
-    )
-  )
-  const latestContentFingerprintCounts = new Map<string, number>()
-
-  latestEntries.forEach((entry) => {
-    const fingerprint = entryContentFingerprint(entry)
-    if (!fingerprint) {
-      return
-    }
-    latestContentFingerprintCounts.set(
-      fingerprint,
-      (latestContentFingerprintCounts.get(fingerprint) ?? 0) + 1
-    )
-  })
-
-  const kept: ChatEntry[] = []
-  for (let index = current.length - 1; index >= 0; index -= 1) {
-    const entry = current[index]
-    if (latestIds.has(entry.id)) {
-      continue
-    }
-
-    if (
-      entry.role === "assistant" &&
-      entry.runId &&
-      latestAssistantRunIds.has(entry.runId)
-    ) {
-      continue
-    }
-
-    const fingerprint = entryContentFingerprint(entry)
-    const count = fingerprint
-      ? latestContentFingerprintCounts.get(fingerprint) ?? 0
-      : 0
-    if (fingerprint && count > 0) {
-      latestContentFingerprintCounts.set(fingerprint, count - 1)
-      continue
-    }
-
-    kept.push(entry)
-  }
-
-  return kept.reverse()
 }
 
 type GatewayChatSidebarProps = {
@@ -1453,10 +1360,7 @@ export function GatewayChatSidebar({
             return latestEntries
           }
 
-          return [
-            ...removeEntriesCoveredByLatest(current, latestEntries),
-            ...latestEntries,
-          ]
+          return mergeLatestConversationEntries(current, latestEntries)
         })
         displayedConversationIdRef.current = conversationId
         setDisplayedConversationId(conversationId)

@@ -22,7 +22,9 @@ import {
 import { mergeAssistantDeltaEvents } from "../src/features/chat/runtime/assistant-event-coalescing.ts"
 import {
   ConversationWindowCache,
+  measureConversationWindow,
 } from "../src/features/chat/model/conversation-window-cache.ts"
+import { mergeLatestConversationEntries } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -406,6 +408,96 @@ boundedScanCache.set("long-history", {
 assert.ok(
   visitedLongHistoryEntries <= 4,
   `cache admission must stop at the fixed node budget, visited ${visitedLongHistoryEntries}`
+)
+
+const assistantHistoryEntry = (id, runId, content) => ({
+  id,
+  role: "assistant",
+  runId,
+  status: "done",
+  pane: {
+    blockOrder: [`${id}-text`],
+    blocks: {
+      [`${id}-text`]: { id: `${id}-text`, type: "text", content },
+    },
+    tools: {},
+    activeThinkBlockId: null,
+    activeThinkMode: null,
+    pendingTagBuffer: "",
+    receivedTextDelta: true,
+  },
+  subagentOrder: [],
+  subagents: {},
+})
+const olderRunUnit = assistantHistoryEntry("older-unit", "shared-run", "same output")
+const localRunDraft = assistantHistoryEntry(
+  "assistant-123-local",
+  "shared-run",
+  "same output"
+)
+const latestRunUnit = assistantHistoryEntry("latest-unit", "shared-run", "same output")
+assert.deepEqual(
+  mergeLatestConversationEntries(
+    [olderRunUnit, localRunDraft],
+    [latestRunUnit]
+  ).map((entry) => entry.id),
+  ["older-unit", "latest-unit"],
+  "latest reconciliation must replace only the local draft and preserve older same-run units"
+)
+
+let deeplyNestedPayload = "leaf"
+for (let depth = 0; depth < 20_000; depth += 1) {
+  deeplyNestedPayload = { child: deeplyNestedPayload }
+}
+const pluginEntry = {
+  ...assistantHistoryEntry("plugin-entry", "plugin-run", ""),
+  pane: {
+    ...assistantHistoryEntry("plugin-entry", "plugin-run", "").pane,
+    blockOrder: ["deep-plugin"],
+    blocks: {
+      "deep-plugin": {
+        id: "deep-plugin",
+        type: "plugin",
+        node: { payload: deeplyNestedPayload },
+      },
+    },
+  },
+}
+assert.doesNotThrow(
+  () => measureConversationWindow([pluginEntry]),
+  "deep plugin payload measurement must use an explicit stack"
+)
+const throwingPayload = {}
+Object.defineProperty(throwingPayload, "broken", {
+  enumerable: true,
+  get() {
+    throw new Error("unreadable plugin payload")
+  },
+})
+const throwingEntry = {
+  ...pluginEntry,
+  id: "throwing-entry",
+  pane: {
+    ...pluginEntry.pane,
+    blocks: {
+      "deep-plugin": {
+        ...pluginEntry.pane.blocks["deep-plugin"],
+        node: { payload: throwingPayload },
+      },
+    },
+  },
+}
+const defensiveCache = new ConversationWindowCache()
+assert.doesNotThrow(() =>
+  defensiveCache.set("throwing", {
+    ...windowSnapshot("throwing"),
+    entries: [throwingEntry],
+  })
+)
+assert.equal(
+  defensiveCache.get("throwing"),
+  null,
+  "an unmeasurable optional snapshot must be skipped"
 )
 
 console.log("chat web runtime checks passed")

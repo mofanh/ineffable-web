@@ -1327,6 +1327,21 @@ assert.doesNotMatch(
   "the collapsed oversized node must not parse or materialize its full tail"
 )
 await act(() => oversizedMarkdownTree.unmount())
+let oversizedStreamingTree
+await act(() => {
+  oversizedStreamingTree = TestRenderer.create(
+    React.createElement(WebNodeList, {
+      pane: oversizedMarkdownPane,
+      isStreaming: true,
+    })
+  )
+})
+assert.match(
+  JSON.stringify(oversizedStreamingTree.toJSON()),
+  new RegExp(oversizedTailMarker),
+  "an oversized streaming node must retain a bounded live tail"
+)
+await act(() => oversizedStreamingTree.unmount())
 
 const partialReasoningTable = [
   "| # | Check | Result |",

@@ -31,21 +31,42 @@ function stringBytes(value: string | null | undefined) {
   return (value?.length ?? 0) * 2
 }
 
-function boundedValueBytes(value: unknown, remaining: number, seen: WeakSet<object>): number {
-  if (remaining <= 0 || value == null) return 0
-  if (typeof value === "string") return Math.min(remaining, stringBytes(value))
-  if (typeof value === "number" || typeof value === "bigint") return Math.min(remaining, 8)
-  if (typeof value === "boolean") return Math.min(remaining, 4)
-  if (typeof value !== "object" || seen.has(value)) return 0
-  seen.add(value)
+const MAX_VALUE_VISITS = 50_000
+
+function boundedValueBytes(value: unknown, remaining: number): number {
+  if (remaining <= 0) return 0
+  const seen = new WeakSet<object>()
+  const pending: unknown[] = [value]
   let bytes = 0
-  for (const key in value as Record<string, unknown>) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) continue
-    bytes += Math.min(remaining - bytes, stringBytes(key))
-    if (bytes >= remaining) break
-    const child = (value as Record<string, unknown>)[key]
-    bytes += boundedValueBytes(child, remaining - bytes, seen)
-    if (bytes >= remaining) break
+  let visits = 0
+
+  while (pending.length > 0 && bytes < remaining) {
+    if (visits >= MAX_VALUE_VISITS) return remaining
+    visits += 1
+    const current = pending.pop()
+    if (current == null) continue
+    if (typeof current === "string") {
+      bytes += Math.min(remaining - bytes, stringBytes(current))
+      continue
+    }
+    if (typeof current === "number" || typeof current === "bigint") {
+      bytes += Math.min(remaining - bytes, 8)
+      continue
+    }
+    if (typeof current === "boolean") {
+      bytes += Math.min(remaining - bytes, 4)
+      continue
+    }
+    if (typeof current !== "object" || seen.has(current)) continue
+    seen.add(current)
+    for (const key in current as Record<string, unknown>) {
+      if (!Object.prototype.hasOwnProperty.call(current, key)) continue
+      if (visits >= MAX_VALUE_VISITS) return remaining
+      visits += 1
+      bytes += Math.min(remaining - bytes, stringBytes(key))
+      if (bytes >= remaining) break
+      pending.push((current as Record<string, unknown>)[key])
+    }
   }
   return bytes
 }
@@ -64,7 +85,7 @@ function blockBytes(block: PaneBlock, pane: AgentPaneState, remaining: number) {
         )
       : 0
   }
-  return boundedValueBytes(block.node, remaining, new WeakSet())
+  return boundedValueBytes(block.node, remaining)
 }
 
 function paneMeasure(
@@ -161,12 +182,19 @@ export class ConversationWindowCache {
   }
 
   set(conversationId: string, snapshot: ConversationWindowSnapshot) {
-    const measure = measureConversationWindow(
-      snapshot.entries,
-      this.maxNodes,
-      this.maxBytes
-    )
     this.delete(conversationId)
+    let measure: WindowMeasure
+    try {
+      measure = measureConversationWindow(
+        snapshot.entries,
+        this.maxNodes,
+        this.maxBytes
+      )
+    } catch {
+      // The cache is optional. Malformed plugin payloads must never block
+      // conversation selection; skip this snapshot and hydrate from history.
+      return
+    }
     if (measure.exceeded) return
 
     this.values.set(conversationId, {

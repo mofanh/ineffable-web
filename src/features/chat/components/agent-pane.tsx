@@ -353,8 +353,11 @@ const OversizedMarkdownContent = React.memo(function OversizedMarkdownContent({
 }) {
   const [open, setOpen] = React.useState(false)
   const preview = React.useMemo(
-    () => content.slice(0, OVERSIZED_MARKDOWN_PREVIEW_CHARS),
-    [content]
+    () =>
+      streaming
+        ? content.slice(-OVERSIZED_MARKDOWN_PREVIEW_CHARS)
+        : content.slice(0, OVERSIZED_MARKDOWN_PREVIEW_CHARS),
+    [content, streaming]
   )
   return (
     <details
@@ -373,8 +376,9 @@ const OversizedMarkdownContent = React.memo(function OversizedMarkdownContent({
         />
       ) : (
         <pre className="mt-2 max-h-48 overflow-hidden whitespace-pre-wrap wrap-anywhere text-xs leading-5 text-foreground/55">
+          {streaming ? "…\n" : null}
           {preview}
-          {"\n…"}
+          {streaming ? null : "\n…"}
         </pre>
       )}
     </details>
