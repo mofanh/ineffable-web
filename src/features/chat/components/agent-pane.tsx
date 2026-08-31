@@ -150,6 +150,31 @@ const WorkspaceArtifactCard = React.memo(function WorkspaceArtifactCard({
   )
 })
 
+const WorkspaceArtifactOverflow = React.memo(function WorkspaceArtifactOverflow({
+  artifacts,
+}: {
+  artifacts: WorkspaceArtifactReference[]
+}) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <details
+      className="rounded-lg border border-border/50 px-2.5 py-1.5 text-xs text-foreground/55"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {i18n.t("chat.agent.moreArtifacts", { count: artifacts.length })}
+      </summary>
+      {open ? (
+        <div className="mt-2 grid min-w-0 gap-1.5 sm:grid-cols-2">
+          {artifacts.map((artifact) => (
+            <WorkspaceArtifactCard key={artifact.artifactId} artifact={artifact} />
+          ))}
+        </div>
+      ) : null}
+    </details>
+  )
+})
+
 const WorkspaceArtifactsRenderer: WebNodeRenderer<WorkspaceArtifactsWebNodePayload> = ({
   node,
 }) => {
@@ -163,16 +188,7 @@ const WorkspaceArtifactsRenderer: WebNodeRenderer<WorkspaceArtifactsWebNodePaylo
         ))}
       </div>
       {overflow.length ? (
-        <details className="rounded-lg border border-border/50 px-2.5 py-1.5 text-xs text-foreground/55">
-          <summary className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {i18n.t("chat.agent.moreArtifacts", { count: overflow.length })}
-          </summary>
-          <div className="mt-2 grid min-w-0 gap-1.5 sm:grid-cols-2">
-            {overflow.map((artifact) => (
-              <WorkspaceArtifactCard key={artifact.artifactId} artifact={artifact} />
-            ))}
-          </div>
-        </details>
+        <WorkspaceArtifactOverflow artifacts={overflow} />
       ) : null}
     </section>
   )
@@ -193,6 +209,12 @@ markdownIt.renderer.rules.link_open = (tokens, index, options, _env, self) => {
     tokens[index].attrSet("rel", "noopener noreferrer")
   }
 
+  return self.renderToken(tokens, index, options)
+}
+
+markdownIt.renderer.rules.image = (tokens, index, options, _env, self) => {
+  tokens[index].attrSet("loading", "lazy")
+  tokens[index].attrSet("decoding", "async")
   return self.renderToken(tokens, index, options)
 }
 

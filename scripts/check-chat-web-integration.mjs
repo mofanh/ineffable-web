@@ -1270,6 +1270,32 @@ assert.match(refreshedMarkdownJson, /<table>/)
 assert.match(refreshedMarkdownJson, /compact/)
 await act(() => refreshedMarkdownTree.unmount())
 
+const lazyImagePane = {
+  blockOrder: ["lazy-image"],
+  blocks: {
+    "lazy-image": {
+      id: "lazy-image",
+      type: "text",
+      content: "![preview](https://example.com/preview.png)",
+    },
+  },
+  tools: {},
+  activeThinkBlockId: null,
+  activeTextBlockId: null,
+  pendingTagBuffer: "",
+  receivedTextDelta: false,
+}
+let lazyImageTree
+await act(() => {
+  lazyImageTree = TestRenderer.create(
+    React.createElement(WebNodeList, { pane: lazyImagePane })
+  )
+})
+const lazyImageJson = JSON.stringify(lazyImageTree.toJSON())
+assert.match(lazyImageJson, /loading=\\"lazy\\"/)
+assert.match(lazyImageJson, /decoding=\\"async\\"/)
+await act(() => lazyImageTree.unmount())
+
 const partialReasoningTable = [
   "| # | Check | Result |",
   "| --- | --- | --- |",
