@@ -57,6 +57,20 @@ try {
     Math.abs((after?.top ?? 0) - before.top) < 2,
     `prepend must preserve the row offset (${before.top} -> ${after?.top})`
   )
+
+  await page.evaluate(() => window.chatVirtualizationFixture.settleTerminal())
+  const terminalLayout = await page.evaluate(() =>
+    window.chatVirtualizationFixture.terminalLayout()
+  )
+  assert.deepEqual(
+    terminalLayout.map((entry) => entry.role),
+    ["user", "assistant"],
+    "terminal canonical handoff must preserve canonical DOM order"
+  )
+  assert.ok(
+    terminalLayout[0].bottom <= terminalLayout[1].top,
+    `terminal rows must not overlap (${JSON.stringify(terminalLayout)})`
+  )
   console.log("chat virtualization browser checks passed")
 } finally {
   await browser?.close()

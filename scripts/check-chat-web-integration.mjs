@@ -926,6 +926,45 @@ assert.equal(
   "history must retain the server-owned timeline unit identity"
 )
 
+const sameRunMultipleUnits = mapConversationMessagesToEntries([
+  {
+    id: "same-run-output-one",
+    conversation_id: conversationId,
+    run_id: "same-run-multiple-units",
+    role: "assistant",
+    message_type: "output",
+    content: "first unit",
+    metadata_json: {},
+    timeline_seq: 90,
+    timeline_unit_id: "run:same-run-multiple-units:anchor:90",
+    canonical_seq: 91,
+    created_at: "2026-08-22T00:00:03Z",
+    updated_at: "2026-08-22T00:00:03Z",
+  },
+  {
+    id: "same-run-output-two",
+    conversation_id: conversationId,
+    run_id: "same-run-multiple-units",
+    role: "assistant",
+    message_type: "output",
+    content: "second unit",
+    metadata_json: {},
+    timeline_seq: 92,
+    timeline_unit_id: "run:same-run-multiple-units:anchor:92",
+    canonical_seq: 93,
+    created_at: "2026-08-22T00:00:04Z",
+    updated_at: "2026-08-22T00:00:04Z",
+  },
+])
+assert.deepEqual(
+  sameRunMultipleUnits.map((entry) => entry.id),
+  [
+    "run:same-run-multiple-units:anchor:90",
+    "run:same-run-multiple-units:anchor:92",
+  ],
+  "same-run history must preserve distinct server-owned timeline units"
+)
+
 let toolWebNodeTree
 await act(() => {
   toolWebNodeTree = TestRenderer.create(

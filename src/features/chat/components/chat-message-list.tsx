@@ -246,7 +246,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
           if (entry.role === "user") {
             return (
-              <div key={entry.id} data-chat-row-key={entry.id} className="flex justify-end">
+              <div
+                key={entry.id}
+                data-chat-row-key={entry.id}
+                data-chat-entry-role="user"
+                className="flex justify-end"
+              >
                 <div className="max-w-[82%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
                   <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
                 </div>
@@ -256,7 +261,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
           if (entry.role === "system") {
             return (
-              <div key={entry.id} data-chat-row-key={entry.id} className="flex justify-start gap-3">
+              <div
+                key={entry.id}
+                data-chat-row-key={entry.id}
+                data-chat-entry-role="system"
+                className="flex justify-start gap-3"
+              >
                 <Avatar className="mt-1 size-8 border border-sidebar-border">
                   <AvatarFallback className="text-[11px]">!</AvatarFallback>
                 </Avatar>
@@ -274,7 +284,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               entry.status === "approved" || entry.status === "rejected"
 
             return (
-              <div key={entry.id} data-chat-row-key={entry.id} className="flex justify-start gap-3">
+              <div
+                key={entry.id}
+                data-chat-row-key={entry.id}
+                data-chat-entry-role="approval"
+                className="flex justify-start gap-3"
+              >
                 <Avatar className="mt-1 size-8 border border-amber-200 bg-amber-50">
                   <AvatarFallback className="bg-amber-50 text-amber-700">
                     <ShieldAlertIcon className="size-4" />
@@ -345,7 +360,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           }
 
           return (
-            <div key={entry.id} className="flex w-full justify-start">
+            <div
+              key={entry.id}
+              data-chat-row-key={entry.id}
+              data-chat-entry-role="assistant"
+              className="flex w-full justify-start"
+            >
               <div className="w-full min-w-0 space-y-5 pb-1 text-foreground">
                 <WebNodeList
                   pane={entry.pane}
