@@ -26,7 +26,7 @@ import {
 } from "../src/features/chat/model/conversation-window-cache.ts"
 import {
   hasCanonicalAssistantHandoff,
-  mergeLatestConversationEntries,
+  reduceConversationTimeline,
 } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 
 function fakeSchedulerHost() {
@@ -440,9 +440,9 @@ const localRunDraft = assistantHistoryEntry(
 )
 const latestRunUnit = assistantHistoryEntry("latest-unit", "shared-run", "same output")
 assert.deepEqual(
-  mergeLatestConversationEntries(
+  reduceConversationTimeline(
     [olderRunUnit, localRunDraft],
-    [latestRunUnit]
+    { type: "canonical-patch", entries: [latestRunUnit] }
   ).map((entry) => entry.id),
   ["older-unit", "latest-unit"],
   "latest reconciliation must replace only the local draft and preserve older same-run units"
@@ -464,10 +464,13 @@ assert.equal(
   "a stale canonical page must not acknowledge the terminal watermark"
 )
 assert.deepEqual(
-  mergeLatestConversationEntries(
+  reduceConversationTimeline(
     [liveTerminalDraft],
-    [staleTerminalUnit],
-    terminalHandoff
+    {
+      type: "canonical-patch",
+      entries: [staleTerminalUnit],
+      handoff: terminalHandoff,
+    }
   ).map((entry) => entry.id),
   ["assistant-terminal-local"],
   "terminal reconciliation must retain live body until canonical output is visible"
@@ -482,13 +485,39 @@ assert.equal(
   "the canonical terminal watermark must explicitly acknowledge handoff"
 )
 assert.deepEqual(
-  mergeLatestConversationEntries(
+  reduceConversationTimeline(
     [liveTerminalDraft],
-    [committedTerminalUnit],
-    terminalHandoff
+    {
+      type: "canonical-patch",
+      entries: [committedTerminalUnit],
+      handoff: terminalHandoff,
+    }
   ).map((entry) => entry.id),
   ["committed-terminal"],
   "confirmed canonical output must replace the local live entry exactly once"
+)
+
+const orderedTimeline = reduceConversationTimeline([], {
+  type: "hydrate",
+  entries: [
+    {
+      ...committedTerminalUnit,
+      timelineSeq: 2,
+      timelineUnitId: "run:terminal-run:anchor:2",
+    },
+    {
+      id: "message:trigger",
+      role: "user",
+      content: "trigger",
+      timelineSeq: 1,
+      timelineUnitId: "message:trigger",
+    },
+  ],
+})
+assert.deepEqual(
+  orderedTimeline.map((entry) => entry.role),
+  ["user", "assistant"],
+  "canonical timeline order must not depend on response or merge array position"
 )
 
 let deeplyNestedPayload = "leaf"

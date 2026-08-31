@@ -45,7 +45,7 @@ import {
 } from "@/features/chat/model/chat-history"
 import {
   hasCanonicalAssistantHandoff,
-  mergeLatestConversationEntries,
+  reduceConversationTimeline,
   type CanonicalAssistantHandoff,
 } from "@/features/chat/model/conversation-entry-reconciliation"
 import {
@@ -1260,13 +1260,12 @@ export function GatewayChatSidebar({
         }
 
         const olderEntries = mapConversationMessagesToEntries(response.messages)
-        setEntries((current) => {
-          const seen = new Set(current.map((entry) => entry.id))
-          return [
-            ...olderEntries.filter((entry) => !seen.has(entry.id)),
-            ...current,
-          ]
-        })
+        setEntries((current) =>
+          reduceConversationTimeline(current, {
+            type: "prepend-history",
+            entries: olderEntries,
+          })
+        )
         setRenderedEntryLimit((current) => current + olderEntries.length)
         setOlderMessagesCursor(response.page?.before ?? null)
         setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
@@ -1380,10 +1379,17 @@ export function GatewayChatSidebar({
           !(handoff && !handoffConfirmed && entriesRef.current.length > 0)
         setEntries((current) => {
           if (shouldReplaceTranscript) {
-            return latestEntries
+            return reduceConversationTimeline(current, {
+              type: "hydrate",
+              entries: latestEntries,
+            })
           }
 
-          return mergeLatestConversationEntries(current, latestEntries, handoff)
+          return reduceConversationTimeline(current, {
+            type: "canonical-patch",
+            entries: latestEntries,
+            handoff,
+          })
         })
         displayedConversationIdRef.current = conversationId
         setDisplayedConversationId(conversationId)
@@ -1602,6 +1608,29 @@ export function GatewayChatSidebar({
           }
         : (entry ?? null)
     )
+  }
+
+  function bindTriggerUserMessage(event: GatewayChatStreamEvent) {
+    if (event.event !== "run.started") return
+    const triggerMessageId = objectValue(event.metadata)?.trigger_message_id
+    if (typeof triggerMessageId !== "string" || !triggerMessageId.trim()) {
+      return
+    }
+    const timelineUnitId = `message:${triggerMessageId.trim()}`
+    setEntries((current) => {
+      for (let index = current.length - 1; index >= 0; index -= 1) {
+        const entry = current[index]
+        if (entry.role !== "user" || entry.timelineUnitId) continue
+        const next = [...current]
+        next[index] = {
+          ...entry,
+          id: timelineUnitId,
+          timelineUnitId,
+        }
+        return next
+      }
+      return current
+    })
   }
 
   function applyMainEvent(event: GatewayChatStreamEvent) {
@@ -2320,6 +2349,7 @@ export function GatewayChatSidebar({
         void refreshConversations().catch(() => {})
         return
       }
+      bindTriggerUserMessage(envelope.event)
       bindActiveAssistantRun(identity.runId)
     }
 
