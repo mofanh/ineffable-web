@@ -17,7 +17,8 @@ export function hasCanonicalAssistantOutput(
 ) {
   return messages.some((message) => {
     const messageType = inferMessageType(message)
-    return messageType === "output" && Boolean(message.content.trim())
+    return (messageType === "output" || messageType === "tool_call") &&
+      Boolean(message.content.trim())
   })
 }
 
@@ -52,6 +53,35 @@ function inferMessageType(message: CanonicalRenderableMessage) {
 function metadataString(metadata: Record<string, unknown>, key: string) {
   const value = metadata[key]
   return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function canonicalMessage(metadata: Record<string, unknown>) {
+  return objectValue(metadata.canonical_message)
+}
+
+function canonicalProjectionMetadata(metadata: Record<string, unknown>) {
+  const canonical = canonicalMessage(metadata)
+  const extraFields = objectValue(canonical?.extra_fields)
+  // Top-level transport metadata is authoritative. The nested fallback keeps
+  // older persisted canonical messages renderable after this contract change.
+  return { ...(extraFields ?? {}), ...metadata }
+}
+
+function canonicalReasoningContent(
+  message: CanonicalRenderableMessage,
+  metadata: Record<string, unknown>
+) {
+  if (message.reasoningContent?.trim()) return message.reasoningContent
+  const canonicalReasoning = canonicalMessage(metadata)?.reasoning_content
+  return typeof canonicalReasoning === "string" && canonicalReasoning.trim()
+    ? canonicalReasoning
+    : null
 }
 
 function canonicalToolCalls(metadata: Record<string, unknown>) {
@@ -93,7 +123,9 @@ export function canonicalMessagesToGatewayEvents(
 
   messages.forEach((message, messageIndex) => {
     const messageType = inferMessageType(message)
-    const baseMetadata = message.metadata ? { ...message.metadata } : {}
+    const baseMetadata = canonicalProjectionMetadata(
+      message.metadata ? { ...message.metadata } : {}
+    )
     const conversationId = message.conversationId ?? context.conversationId ?? null
     const runId = message.runId ?? context.defaultRunId ?? null
     if (conversationId && baseMetadata.conversation_id === undefined) {
@@ -102,23 +134,35 @@ export function canonicalMessagesToGatewayEvents(
     if (runId && baseMetadata.conversation_run_id === undefined) {
       baseMetadata.conversation_run_id = runId
     }
-    const scope = message.scope ??
-      (typeof baseMetadata.scope === "string" ? baseMetadata.scope : null)
+    const scope = typeof baseMetadata.scope === "string" && baseMetadata.scope.trim()
+      ? baseMetadata.scope.trim()
+      : message.scope ?? null
     const tsMs = messageTimestamp(message, context.tsMs)
+    let projectedWebView = false
     const pushEvent = (
       event: string,
       role: string,
       content: string | null,
       metadata: Record<string, unknown>
     ) => {
+      let eventMetadata = metadata
+      if (metadata.web_view !== undefined) {
+        if (projectedWebView) {
+          eventMetadata = { ...metadata }
+          delete eventMetadata.web_view
+        } else {
+          projectedWebView = true
+        }
+      }
       events.push({ run_id: runId ?? undefined, seq, ts_ms: tsMs,
         stream: context.stream, event, phase: context.phase, scope, role,
-        content, metadata })
+        content, metadata: eventMetadata })
       seq += 1
     }
 
-    if (message.reasoningContent?.trim()) {
-      pushEvent("model.reasoning.delta", "assistant", message.reasoningContent,
+    const reasoningContent = canonicalReasoningContent(message, baseMetadata)
+    if (reasoningContent?.trim()) {
+      pushEvent("model.reasoning.delta", "assistant", reasoningContent,
         { ...baseMetadata })
     }
 
@@ -130,6 +174,24 @@ export function canonicalMessagesToGatewayEvents(
         ? [{ id: directCallId, name: directToolName ?? "",
             input: baseMetadata.full_arguments ?? {} }]
         : []
+      if (message.content.trim()) {
+        pushEvent("assistant.snapshot", "assistant",
+          stripInlineThinkBlocks(message.content), { ...baseMetadata })
+      }
+      if (normalizedCalls.length === 0) {
+        const occurrence = metadataString(baseMetadata, "transcript_occurrence_id") ??
+          `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:invalid`
+        pushEvent("tool.call.completed", "tool_call", message.content, {
+          ...baseMetadata,
+          tool_call_id: occurrence,
+          tool_name: "invalid_tool_call",
+          transcript_occurrence_id: occurrence,
+          settlement_status: "outcome_unknown",
+          success: false,
+          projection_error: "canonical tool_call has no valid call identity",
+        })
+        return
+      }
       normalizedCalls.forEach((call, callIndex) => {
         const occurrenceCount = occurrenceCounts.get(call.id) ?? 0
         occurrenceCounts.set(call.id, occurrenceCount + 1)

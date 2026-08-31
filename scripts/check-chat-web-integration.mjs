@@ -301,6 +301,77 @@ assert.deepEqual(
   "missing typed settlement must fail closed"
 )
 
+const canonicalToolCallWithAssistantParts = canonicalMessagesToGatewayEvents([
+  {
+    role: "tool_call",
+    messageType: "tool_call",
+    content: "I found one source.",
+    metadata: {
+      canonical_message: {
+        role: "Assistant",
+        content: "I found one source.",
+        reasoning_content: "Inspecting the source.",
+        tool_calls: [{ id: "search-with-text", name: "web_search", input: { query: "agents" } }],
+        extra_fields: {
+          scope: "sub",
+          subagent_id: "researcher-1",
+          web_view: { renderer: "fallback", node_id: "search-view" },
+        },
+      },
+    },
+  },
+], {
+  stream: "resume",
+  phase: "resume",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.deepEqual(
+  canonicalToolCallWithAssistantParts.map((item) => item.event),
+  ["model.reasoning.delta", "assistant.snapshot", "tool.call.completed"],
+  "a canonical assistant tool-call message must preserve reasoning, body, and calls"
+)
+assert.equal(canonicalToolCallWithAssistantParts[1].content, "I found one source.")
+assert.equal(canonicalToolCallWithAssistantParts[1].scope, "sub")
+assert.equal(canonicalToolCallWithAssistantParts[1].metadata.subagent_id, "researcher-1")
+assert.equal(
+  canonicalToolCallWithAssistantParts.filter((item) => item.metadata.web_view).length,
+  1,
+  "one canonical message must project its declared Web node exactly once"
+)
+assert.equal(
+  canonicalToolCallWithAssistantParts.find((item) => item.metadata.web_view)
+    .metadata.web_view.node_id,
+  "search-view"
+)
+assert.equal(
+  hasCanonicalAssistantOutput([{
+    role: "tool_call",
+    messageType: "tool_call",
+    content: "I found one source.",
+  }]),
+  true,
+  "tool-call assistant body must suppress the legacy response.output fallback"
+)
+
+const malformedToolCallEvents = canonicalMessagesToGatewayEvents([{
+  role: "tool_call",
+  messageType: "tool_call",
+  content: "",
+  metadata: {},
+}], {
+  stream: "history",
+  phase: "history",
+  defaultRunId: runId,
+  conversationId,
+  tsMs: 1,
+})
+assert.equal(malformedToolCallEvents.length, 1)
+assert.equal(malformedToolCallEvents[0].event, "tool.call.completed")
+assert.equal(malformedToolCallEvents[0].metadata.settlement_status, "outcome_unknown")
+assert.equal(malformedToolCallEvents[0].metadata.success, false)
+
 const userInputQuestions = [
   {
     id: "topic",
