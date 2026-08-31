@@ -1,6 +1,5 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
-import { useVirtualizer } from "@tanstack/react-virtual"
 import MarkdownIt from "markdown-it"
 import { Link } from "react-router-dom"
 
@@ -1034,9 +1033,8 @@ DEFAULT_WEB_NODE_REGISTRY.register<WorkspaceArtifactsWebNodePayload>(
   }
 )
 
-const WEB_NODE_VIRTUALIZATION_THRESHOLD = 60
-const WEB_NODE_VIRTUAL_OVERSCAN = 8
-const WEB_NODE_ESTIMATED_HEIGHT = 96
+const WEB_NODE_INITIAL_WINDOW = 80
+const WEB_NODE_WINDOW_INCREMENT = 80
 
 const WebNodeItem = React.memo(function WebNodeItem({
   node,
@@ -1049,7 +1047,7 @@ const WebNodeItem = React.memo(function WebNodeItem({
   }
 }) {
   return (
-    <div data-chat-row-key={node.nodeId}>
+    <div data-chat-row-key={node.nodeId} data-web-node-row>
       <WebNodeSeat
         node={node}
         registry={DEFAULT_WEB_NODE_REGISTRY}
@@ -1068,7 +1066,6 @@ export const WebNodeList = React.memo(function WebNodeList({
   onSubmitUserInput,
   subagentOrder = [],
   subagents = {},
-  layoutEpoch,
 }: {
   pane: AgentPaneState
   isStreaming?: boolean
@@ -1077,9 +1074,8 @@ export const WebNodeList = React.memo(function WebNodeList({
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
   subagentOrder?: string[]
   subagents?: Record<string, SubagentView>
-  layoutEpoch?: string
 }) {
-  useTranslation()
+  const { t } = useTranslation()
   const [projectionCache] = React.useState(() => new WebNodeProjectionCache())
   const nodes = React.useMemo(
     () =>
@@ -1094,74 +1090,36 @@ export const WebNodeList = React.memo(function WebNodeList({
     () => ({ prefersReducedMotion, onSubmitUserInput }),
     [onSubmitUserInput, prefersReducedMotion]
   )
-  const virtualizationEnabled = nodes.length > WEB_NODE_VIRTUALIZATION_THRESHOLD
   const rootRef = React.useRef<HTMLDivElement | null>(null)
-  const [scrollElement, setScrollElement] = React.useState<HTMLElement | null>(null)
-  const [scrollMargin, setScrollMargin] = React.useState(0)
-  React.useLayoutEffect(() => {
-    if (!virtualizationEnabled) return
+  const [visibleNodeCount, setVisibleNodeCount] = React.useState(
+    WEB_NODE_INITIAL_WINDOW
+  )
+  const visibleNodes = nodes.slice(Math.max(0, nodes.length - visibleNodeCount))
+  const hiddenNodeCount = nodes.length - visibleNodes.length
+
+  const revealEarlierNodes = React.useCallback(() => {
     const root = rootRef.current
     const scroller = root?.closest<HTMLElement>("[data-chat-scroll-region]") ?? null
-    setScrollElement(scroller)
-    if (!root || !scroller) return
-
-    const measureMargin = () => {
-      const next =
-        root.getBoundingClientRect().top -
-        scroller.getBoundingClientRect().top +
-        scroller.scrollTop
-      setScrollMargin((current) => Math.abs(current - next) < 0.5 ? current : next)
-    }
-    measureMargin()
-    if (typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver(measureMargin)
-    observer.observe(scroller)
-    const scrollContent = scroller.querySelector<HTMLElement>(
-      "[data-chat-scroll-content]"
-    )
-    if (scrollContent) observer.observe(scrollContent)
-    return () => observer.disconnect()
-  }, [layoutEpoch, virtualizationEnabled])
-  // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer owns an external measurement store by design
-  const rowVirtualizer = useVirtualizer({
-    count: virtualizationEnabled ? nodes.length : 0,
-    enabled: virtualizationEnabled,
-    estimateSize: () => WEB_NODE_ESTIMATED_HEIGHT,
-    getItemKey: (index) => nodes[index]?.nodeId ?? index,
-    getScrollElement: () => scrollElement,
-    initialRect: { width: 0, height: 600 },
-    overscan: WEB_NODE_VIRTUAL_OVERSCAN,
-    scrollMargin,
-  })
-
-  if (virtualizationEnabled) {
-    return (
-      <div ref={rootRef} className="relative text-sm" style={{ height: rowVirtualizer.getTotalSize() }}>
-        {rowVirtualizer.getVirtualItems().map((item) => {
-          const node = nodes[item.index]
-          if (!node) return null
-          return (
-            <div
-              key={item.key}
-              ref={rowVirtualizer.measureElement}
-              data-index={item.index}
-              data-chat-row-key={node.nodeId}
-              className="absolute top-0 left-0 w-full pb-3"
-              style={{
-                transform: `translateY(${item.start - scrollMargin}px)`,
-              }}
-            >
-              <WebNodeItem node={node} context={context} />
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
+    const previousHeight = scroller?.scrollHeight ?? 0
+    const previousTop = scroller?.scrollTop ?? 0
+    setVisibleNodeCount((current) => current + WEB_NODE_WINDOW_INCREMENT)
+    if (!scroller) return
+    window.requestAnimationFrame(() => {
+      scroller.scrollTop =
+        previousTop + Math.max(0, scroller.scrollHeight - previousHeight)
+    })
+  }, [])
 
   return (
     <div ref={rootRef} className="space-y-3 text-sm">
-      {nodes.map((node) => (
+      {hiddenNodeCount > 0 ? (
+        <div className="flex justify-center">
+          <Button type="button" variant="ghost" size="sm" onClick={revealEarlierNodes}>
+            {t("chat.messages.older")}
+          </Button>
+        </div>
+      ) : null}
+      {visibleNodes.map((node) => (
         <WebNodeItem key={node.nodeId} node={node} context={context} />
       ))}
     </div>

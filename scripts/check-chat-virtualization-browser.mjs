@@ -39,8 +39,13 @@ try {
   assert.ok(
     (await page.evaluate(() =>
       window.chatVirtualizationFixture.materializedRows()
-    )) < 40,
-    "the browser DOM must retain a bounded virtual row window"
+    )) <= 80,
+    "the browser DOM must retain a bounded normal-flow node window"
+  )
+  assert.equal(
+    await page.evaluate(() => window.chatVirtualizationFixture.hasAbsoluteRows()),
+    false,
+    "assistant nodes must not use absolute positioning against the conversation scroller"
   )
 
   await page.evaluate(() => window.chatVirtualizationFixture.prepend())

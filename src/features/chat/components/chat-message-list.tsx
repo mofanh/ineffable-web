@@ -357,7 +357,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   onSubmitUserInput={onSubmitUserInput}
                   subagentOrder={entry.subagentOrder}
                   subagents={entry.subagents}
-                  layoutEpoch={`${entries[0]?.id ?? "empty"}:${entries.length}`}
                 />
 
                 {showStreamingTail ? (

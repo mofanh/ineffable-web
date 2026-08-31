@@ -1524,12 +1524,12 @@ await act(() => {
     })
   )
 })
-const materializedVirtualRows = virtualizedThousandNodeTree.root.findAll(
-  (node) => node.props["data-chat-row-key"] !== undefined
+const materializedNodeRows = virtualizedThousandNodeTree.root.findAll(
+  (node) => node.props["data-web-node-row"] !== undefined
 )
 assert.ok(
-  materializedVirtualRows.length < 40,
-  `1000 canonical Web Nodes must materialize a bounded window, got ${materializedVirtualRows.length}`
+  materializedNodeRows.length <= 80,
+  `1000 canonical Web Nodes must materialize a bounded normal-flow window, got ${materializedNodeRows.length}`
 )
 await act(() => virtualizedThousandNodeTree.unmount())
 

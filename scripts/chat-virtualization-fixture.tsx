@@ -33,6 +33,7 @@ declare global {
       prepend: () => Promise<void>
       visibleAnchor: () => { key: string; top: number } | null
       materializedRows: () => number
+      hasAbsoluteRows: () => boolean
     }
   }
 }
@@ -88,7 +89,7 @@ function Fixture() {
         if (!viewport) return null
         const viewportRect = viewport.getBoundingClientRect()
         const row = Array.from(
-          viewport.querySelectorAll<HTMLElement>("[data-index][data-chat-row-key]")
+          viewport.querySelectorAll<HTMLElement>("[data-web-node-row]")
         )
           .filter((candidate) => {
             const rect = candidate.getBoundingClientRect()
@@ -108,9 +109,14 @@ function Fixture() {
       materializedRows() {
         return (
           viewportRef.current?.querySelectorAll(
-            "[data-index][data-chat-row-key]"
+            "[data-web-node-row]"
           ).length ?? 0
         )
+      },
+      hasAbsoluteRows() {
+        return Array.from(
+          viewportRef.current?.querySelectorAll<HTMLElement>("[data-web-node-row]") ?? []
+        ).some((row) => window.getComputedStyle(row).position === "absolute")
       },
     }
   }, [])
@@ -123,7 +129,7 @@ function Fixture() {
     >
       <div data-chat-scroll-content>
         <div style={{ height: prependEpoch * 700 }} />
-        <WebNodeList pane={pane} layoutEpoch={String(prependEpoch)} />
+        <WebNodeList pane={pane} />
       </div>
     </div>
   )
