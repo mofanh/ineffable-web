@@ -24,7 +24,10 @@ import {
   ConversationWindowCache,
   measureConversationWindow,
 } from "../src/features/chat/model/conversation-window-cache.ts"
-import { mergeLatestConversationEntries } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
+import {
+  hasCanonicalAssistantHandoff,
+  mergeLatestConversationEntries,
+} from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 
 function fakeSchedulerHost() {
   let nextHandle = 1
@@ -443,6 +446,49 @@ assert.deepEqual(
   ).map((entry) => entry.id),
   ["older-unit", "latest-unit"],
   "latest reconciliation must replace only the local draft and preserve older same-run units"
+)
+
+const staleTerminalUnit = {
+  ...assistantHistoryEntry("stale-terminal", "terminal-run", "before final"),
+  canonicalMessageSeqEnd: 82,
+}
+const liveTerminalDraft = assistantHistoryEntry(
+  "assistant-terminal-local",
+  "terminal-run",
+  "final body"
+)
+const terminalHandoff = { runId: "terminal-run", messageSeqEnd: 83 }
+assert.equal(
+  hasCanonicalAssistantHandoff([staleTerminalUnit], terminalHandoff),
+  false,
+  "a stale canonical page must not acknowledge the terminal watermark"
+)
+assert.deepEqual(
+  mergeLatestConversationEntries(
+    [liveTerminalDraft],
+    [staleTerminalUnit],
+    terminalHandoff
+  ).map((entry) => entry.id),
+  ["assistant-terminal-local"],
+  "terminal reconciliation must retain live body until canonical output is visible"
+)
+const committedTerminalUnit = {
+  ...assistantHistoryEntry("committed-terminal", "terminal-run", "final body"),
+  canonicalMessageSeqEnd: 83,
+}
+assert.equal(
+  hasCanonicalAssistantHandoff([committedTerminalUnit], terminalHandoff),
+  true,
+  "the canonical terminal watermark must explicitly acknowledge handoff"
+)
+assert.deepEqual(
+  mergeLatestConversationEntries(
+    [liveTerminalDraft],
+    [committedTerminalUnit],
+    terminalHandoff
+  ).map((entry) => entry.id),
+  ["committed-terminal"],
+  "confirmed canonical output must replace the local live entry exactly once"
 )
 
 let deeplyNestedPayload = "leaf"

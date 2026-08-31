@@ -45,10 +45,31 @@ function isLocalAssistantEntry(entry: ChatEntry): entry is AssistantEntry {
   return entry.role === "assistant" && entry.id.startsWith("assistant-")
 }
 
+export type CanonicalAssistantHandoff = {
+  runId: string
+  messageSeqEnd: number
+}
+
+export function hasCanonicalAssistantHandoff(
+  entries: ChatEntry[],
+  handoff: CanonicalAssistantHandoff
+) {
+  return entries.some(
+    (entry) =>
+      entry.role === "assistant" &&
+      entry.runId === handoff.runId &&
+      (entry.canonicalMessageSeqEnd ?? -1) >= handoff.messageSeqEnd
+  )
+}
+
 export function mergeLatestConversationEntries(
   current: ChatEntry[],
-  latestEntries: ChatEntry[]
+  latestEntries: ChatEntry[],
+  handoff?: CanonicalAssistantHandoff | null
 ) {
+  const handoffConfirmed = handoff
+    ? hasCanonicalAssistantHandoff(latestEntries, handoff)
+    : true
   const latestIds = new Set(latestEntries.map((entry) => entry.id))
   const latestAssistantRunIds = new Set(
     latestEntries.flatMap((entry) =>
@@ -77,7 +98,9 @@ export function mergeLatestConversationEntries(
       entry.runId &&
       latestAssistantRunIds.has(entry.runId)
     ) {
-      continue
+      if (!handoff || entry.runId !== handoff.runId || handoffConfirmed) {
+        continue
+      }
     }
 
     // Canonical assistant entries from older pages are distinct display units,
@@ -96,5 +119,13 @@ export function mergeLatestConversationEntries(
     kept.push(entry)
   }
 
-  return [...kept.reverse(), ...latestEntries]
+  const visibleLatestEntries =
+    handoff && !handoffConfirmed
+      ? latestEntries.filter(
+          (entry) =>
+            entry.role !== "assistant" || entry.runId !== handoff.runId
+        )
+      : latestEntries
+
+  return [...kept.reverse(), ...visibleLatestEntries]
 }

@@ -226,6 +226,21 @@ function buildAssistantEntryFromMessages(
     compactedMessages.find((message) => message.run_id)?.run_id ??
     messages.find((message) => message.run_id)?.run_id ??
     null
+  const canonicalMessageSeqEnd = messages.reduce<number | null>(
+    (latest, message) => {
+      const raw = message.metadata_json?.canonical_message_seq
+      const sequence =
+        typeof raw === "number"
+          ? raw
+          : typeof raw === "string" && raw.trim()
+            ? Number(raw)
+            : Number.NaN
+      return Number.isSafeInteger(sequence) && (latest == null || sequence > latest)
+        ? sequence
+        : latest
+    },
+    null
+  )
   let pane = createEmptyAgentPane()
   const subagents: Record<string, SubagentView> = {}
   const subagentOrder: string[] = []
@@ -353,6 +368,7 @@ function buildAssistantEntryFromMessages(
     id: first?.id ?? createMessageId("assistant"),
     role: "assistant",
     runId,
+    canonicalMessageSeqEnd,
     status: "done",
     pane: finalizePane(pane),
     subagentOrder,

@@ -43,7 +43,11 @@ import {
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
 } from "@/features/chat/model/chat-history"
-import { mergeLatestConversationEntries } from "@/features/chat/model/conversation-entry-reconciliation"
+import {
+  hasCanonicalAssistantHandoff,
+  mergeLatestConversationEntries,
+  type CanonicalAssistantHandoff,
+} from "@/features/chat/model/conversation-entry-reconciliation"
 import {
   ConversationWindowCache,
   type ConversationWindowSnapshot,
@@ -154,6 +158,18 @@ function sandboxOptionLabel(
 const INITIAL_RENDERED_ENTRY_COUNT = 40
 const RENDERED_ENTRY_INCREMENT = 30
 const CONVERSATION_MESSAGES_PAGE_LIMIT = 40
+const TERMINAL_HANDOFF_RETRY_DELAYS_MS = [0, 120, 350, 900] as const
+
+function terminalCanonicalMessageSeqEnd(event: GatewayChatStreamEvent) {
+  const raw = event.metadata?.canonical_message_seq_end
+  const sequence =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw)
+        : Number.NaN
+  return Number.isSafeInteger(sequence) ? sequence : null
+}
 
 function latestPlanTool(entries: ChatEntry[]) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -1315,14 +1331,17 @@ export function GatewayChatSidebar({
   )
 
   const syncLatestConversationMessagesPage = React.useCallback(
-    async (conversationId: string) => {
+    async (
+      conversationId: string,
+      handoff?: CanonicalAssistantHandoff | null
+    ) => {
       if (!accessToken) {
         setEntries([])
         setOlderMessagesCursor(null)
         setHasOlderMessages(false)
         setOlderMessagesError(null)
         setHydratedConversationId(null)
-        return
+        return false
       }
 
       const projectsCurrentConversation =
@@ -1341,6 +1360,9 @@ export function GatewayChatSidebar({
           { limit: CONVERSATION_MESSAGES_PAGE_LIMIT }
         )
         const latestEntries = mapConversationMessagesToEntries(response.messages)
+        const handoffConfirmed = handoff
+          ? hasCanonicalAssistantHandoff(latestEntries, handoff)
+          : true
         setConversationLastSeq(conversationId, response.next_seq ?? 0)
         if (
           !shouldApplyConversationProjection({
@@ -1350,17 +1372,18 @@ export function GatewayChatSidebar({
             latestRequestId: messageProjectionRequestRef.current,
           })
         ) {
-          return
+          return handoffConfirmed
         }
         const shouldReplaceTranscript =
-          hydratedConversationIdRef.current !== conversationId ||
-          entriesRef.current.length === 0
+          (hydratedConversationIdRef.current !== conversationId ||
+            entriesRef.current.length === 0) &&
+          !(handoff && !handoffConfirmed && entriesRef.current.length > 0)
         setEntries((current) => {
           if (shouldReplaceTranscript) {
             return latestEntries
           }
 
-          return mergeLatestConversationEntries(current, latestEntries)
+          return mergeLatestConversationEntries(current, latestEntries, handoff)
         })
         displayedConversationIdRef.current = conversationId
         setDisplayedConversationId(conversationId)
@@ -1371,6 +1394,7 @@ export function GatewayChatSidebar({
         setHydratedConversationId(conversationId)
         setOlderMessagesError(null)
         setError(null)
+        return handoffConfirmed
       } catch (error) {
         if (
           shouldApplyConversationProjection({
@@ -1732,23 +1756,54 @@ export function GatewayChatSidebar({
     return id
   }
 
-  function finalizeConversationTurn(conversationId: string) {
+  async function syncTerminalConversationMessages(
+    conversationId: string,
+    handoff: CanonicalAssistantHandoff | null
+  ) {
+    if (!handoff) {
+      await syncLatestConversationMessagesPage(conversationId)
+      return
+    }
+
+    for (const delayMs of TERMINAL_HANDOFF_RETRY_DELAYS_MS) {
+      if (currentConversationIdRef.current !== conversationId) {
+        return
+      }
+      if (delayMs > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, delayMs))
+      }
+      const confirmed = await syncLatestConversationMessagesPage(
+        conversationId,
+        handoff
+      )
+      if (confirmed) {
+        return
+      }
+    }
+  }
+
+  function finalizeConversationTurn(
+    conversationId: string,
+    runId: string | null,
+    canonicalMessageSeqEnd: number | null
+  ) {
     setAwaitingHumanRunId(null)
     terminalEventSeenRef.current = true
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
+    completeAssistantEntry(undefined, runId)
     activeRunIdRef.current = null
     clearConversationResumeState(conversationId)
-    completeAssistantEntry()
     assistantEntryIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
-    void Promise.all([
-      refreshConversations(),
-      syncLatestConversationMessagesPage(conversationId),
-      refreshPendingInputsForConversation(conversationId),
-    ])
+    const handoff = !runId || canonicalMessageSeqEnd == null
+      ? null
+      : { runId, messageSeqEnd: canonicalMessageSeqEnd }
+    void refreshConversations().catch(() => {})
+    void refreshPendingInputsForConversation(conversationId).catch(() => {})
+    void syncTerminalConversationMessages(conversationId, handoff).catch(() => {})
   }
 
   function settleConversationRecovery(conversation: Conversation) {
@@ -1787,7 +1842,7 @@ export function GatewayChatSidebar({
       return true
     }
 
-    finalizeConversationTurn(conversation.id)
+    finalizeConversationTurn(conversation.id, runId, null)
     return true
   }
 
@@ -2048,7 +2103,11 @@ export function GatewayChatSidebar({
     ) {
       const conversationId = identity.conversationId
       if (conversationId) {
-        finalizeConversationTurn(conversationId)
+        finalizeConversationTurn(
+          conversationId,
+          identity.runId,
+          terminalCanonicalMessageSeqEnd(event)
+        )
       } else {
         terminalEventSeenRef.current = true
         recoveryInFlightRef.current = false

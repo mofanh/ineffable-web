@@ -896,6 +896,27 @@ assert.equal(
   "history replay and live projection must derive the same terminal summary"
 )
 
+const canonicalWatermarkEntries = mapConversationMessagesToEntries([
+  {
+    id: "canonical-final-output",
+    conversation_id: conversationId,
+    run_id: "terminal-watermark-run",
+    role: "assistant",
+    message_type: "output",
+    content: "final body",
+    metadata_json: { canonical_message_seq: 83 },
+    created_at: "2026-08-22T00:00:02Z",
+    updated_at: "2026-08-22T00:00:02Z",
+  },
+])
+assert.equal(canonicalWatermarkEntries.length, 1)
+assert.equal(canonicalWatermarkEntries[0].role, "assistant")
+assert.equal(
+  canonicalWatermarkEntries[0].canonicalMessageSeqEnd,
+  83,
+  "history projection must retain canonical message identity for terminal handoff"
+)
+
 let toolWebNodeTree
 await act(() => {
   toolWebNodeTree = TestRenderer.create(
