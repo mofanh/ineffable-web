@@ -1919,6 +1919,16 @@ export type AgentEvolutionProjection = {
     estimated_cost_credits: number
     risk_event_count: number
   }>
+  runtime_lab_components: Array<{
+    id: string
+    runtime_lab_id: string
+    logical_name: string
+    artifact_digest: string
+    component_kind: string
+    schema_version: string
+    config_json: Record<string, unknown>
+    state: string
+  }>
   runtime_lab_quote: {
     available: boolean
     unavailable_reason?: string | null
@@ -2062,6 +2072,22 @@ export function runRuntimeLabCommand(
       accessToken,
       body: command,
     }
+  )
+}
+
+export function runAgentDefinitionCanary(
+  accessToken: string,
+  payload: {
+    conversation_id: string
+    workspace_id?: string
+    candidate_fingerprint: string
+    content: string
+    model_profile_id?: string
+  }
+) {
+  return requestApiJson<Record<string, unknown>>(
+    "/gateway/v1/plugins/agent-evolution/canary",
+    { method: "POST", accessToken, body: payload }
   )
 }
 

@@ -16,6 +16,7 @@ export {
   promotePendingInput,
   rejectSandboxApproval,
   runRuntimeLabCommand,
+  runAgentDefinitionCanary,
   updateAgentDefinitionDefault,
   resumeRunWithApproval,
   resumeRunWithUserInput,

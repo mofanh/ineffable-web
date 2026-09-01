@@ -15,6 +15,7 @@ import {
   admitAgentDefinition,
   evaluateAgentDefinition,
   runRuntimeLabCommand,
+  runAgentDefinitionCanary,
   updateAgentDefinitionDefault,
   type AgentEvolutionProjection,
 } from "@/features/chat/api/chat-api"
@@ -58,6 +59,9 @@ export function AgentEvolutionPanel({
   const [fixture, setFixture] = React.useState("")
   const [expected, setExpected] = React.useState("")
   const [result, setResult] = React.useState<string | null>(null)
+  const [componentName, setComponentName] = React.useState("")
+  const [componentDigest, setComponentDigest] = React.useState("")
+  const [componentConfig, setComponentConfig] = React.useState("{}")
 
   const run = React.useCallback(
     async (key: string, operation: () => Promise<unknown>) => {
@@ -244,6 +248,20 @@ export function AgentEvolutionPanel({
               >
                 运行 baseline / candidate / evaluator
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!accessToken || !fixture.trim() || !actionFor(projection, "run_candidate_canary", definition.fingerprint)?.enabled || busyKey !== null}
+                onClick={() => accessToken && projection && void run(`canary:${definition.fingerprint}`, () => runAgentDefinitionCanary(accessToken, {
+                  conversation_id: projection.conversation_id,
+                  workspace_id: projection.workspace_id ?? undefined,
+                  candidate_fingerprint: definition.fingerprint,
+                  content: fixture.trim(),
+                }))}
+              >
+                仅运行候选 Canary
+              </Button>
             </section>
           ) : null}
 
@@ -334,6 +352,64 @@ export function AgentEvolutionPanel({
                   <span className="font-mono text-xs">{shortFingerprint(lab.id)}</span>
                   <Badge variant={lab.status === "ready" ? "default" : "outline"}>{lab.status}</Badge>
                 </div>
+                <div className="mt-3 grid gap-2">
+                  <Input value={componentName} onChange={(event) => setComponentName(event.target.value)} placeholder="组件逻辑名称" />
+                  <Input value={componentDigest} onChange={(event) => setComponentDigest(event.target.value)} placeholder="sha256:... artifact digest" />
+                  <Textarea value={componentConfig} onChange={(event) => setComponentConfig(event.target.value)} placeholder="组件 JSON 配置" className="min-h-20 font-mono text-xs" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!accessToken || !actionFor(projection, "define_runtime_lab_component", lab.id)?.enabled || !componentName.trim() || !componentDigest.trim() || busyKey !== null}
+                    onClick={() => {
+                      if (!accessToken || !projection) return
+                      let config: Record<string, unknown>
+                      try {
+                        config = JSON.parse(componentConfig) as Record<string, unknown>
+                      } catch {
+                        notify.error({ title: "组件配置无效", description: "请输入有效的 JSON 对象。" })
+                        return
+                      }
+                      void run(`lab:define:${lab.id}`, () => runRuntimeLabCommand(accessToken, {
+                        action: "define",
+                        workspace_id: projection.workspace_id ?? undefined,
+                        runtime_lab_id: lab.id,
+                        logical_name: componentName.trim(),
+                        artifact_digest: componentDigest.trim(),
+                        component_kind: projection.runtime_lab_quote.allowed_component_kinds[0] ?? "node",
+                        schema_version: "ineffable.runtime-lab/v1",
+                        config,
+                      }))
+                    }}
+                  >
+                    定义组件
+                  </Button>
+                </div>
+                {projection.runtime_lab_components.filter((component) => component.runtime_lab_id === lab.id).map((component) => {
+                  const activate = actionFor(projection, "activate_runtime_lab_component", component.id)
+                  return (
+                    <div key={component.id} className="mt-2 flex items-center justify-between rounded-lg border px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium">{component.logical_name}</p>
+                        <p className="text-[11px] text-muted-foreground">{component.component_kind} · {component.state}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!accessToken || !activate?.enabled || busyKey !== null}
+                        onClick={() => accessToken && void run(`lab:activate:${component.id}`, () => runRuntimeLabCommand(accessToken, {
+                          action: "activate",
+                          workspace_id: projection.workspace_id ?? undefined,
+                          runtime_lab_id: lab.id,
+                          component_id: component.id,
+                        }))}
+                      >
+                        {component.state === "active" ? "已激活" : "激活"}
+                      </Button>
+                    </div>
+                  )
+                })}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(["inspect_runtime_lab", "export_runtime_lab", "dispose_runtime_lab"] as const).map((name) => {
                     const action = actionFor(projection, name, lab.id)
