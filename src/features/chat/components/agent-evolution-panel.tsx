@@ -14,10 +14,12 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   admitAgentDefinition,
   evaluateAgentDefinition,
+  getAgentEvolutionReviewQueue,
   runRuntimeLabCommand,
   runAgentDefinitionCanary,
   updateAgentDefinitionDefault,
   type AgentEvolutionProjection,
+  type AgentEvolutionReviewQueueProjection,
 } from "@/features/chat/api/chat-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -62,6 +64,21 @@ export function AgentEvolutionPanel({
   const [componentName, setComponentName] = React.useState("")
   const [componentDigest, setComponentDigest] = React.useState("")
   const [componentConfig, setComponentConfig] = React.useState("{}")
+  const [reviewQueue, setReviewQueue] =
+    React.useState<AgentEvolutionReviewQueueProjection | null>(null)
+
+  const refreshReviewQueue = React.useCallback(async () => {
+    if (!accessToken) {
+      setReviewQueue(null)
+      return
+    }
+    setReviewQueue(await getAgentEvolutionReviewQueue(accessToken))
+  }, [accessToken])
+
+  React.useEffect(() => {
+    if (!open) return
+    void refreshReviewQueue().catch(() => setReviewQueue(null))
+  }, [open, refreshReviewQueue])
 
   const run = React.useCallback(
     async (key: string, operation: () => Promise<unknown>) => {
@@ -69,7 +86,7 @@ export function AgentEvolutionPanel({
       try {
         const value = await operation()
         setResult(JSON.stringify(value, null, 2))
-        await onRefresh()
+        await Promise.all([onRefresh(), refreshReviewQueue()])
       } catch (caught) {
         const error = normalizeAppError(caught, { fallbackMessage: "Agent 迭代操作失败" })
         notify.error({ title: "Agent 迭代操作失败", description: error.message })
@@ -77,7 +94,7 @@ export function AgentEvolutionPanel({
         setBusyKey(null)
       }
     },
-    [onRefresh]
+    [onRefresh, refreshReviewQueue]
   )
 
   const runConfirmed = React.useCallback(
@@ -176,6 +193,7 @@ export function AgentEvolutionPanel({
                           "确认将这个已准入 Definition 用于后续新运行？",
                           () => updateAgentDefinitionDefault(accessToken, {
                             action: "set",
+                            conversation_id: projection.conversation_id,
                             workspace_id: projection.workspace_id ?? undefined,
                             fingerprint: item.fingerprint,
                             expected_version: projection.default_binding?.version ?? 0,
@@ -201,6 +219,7 @@ export function AgentEvolutionPanel({
                   "确认把后续新运行回滚到上一个默认 Definition？",
                   () => updateAgentDefinitionDefault(accessToken, {
                     action: "rollback",
+                    conversation_id: projection.conversation_id,
                     workspace_id: projection.workspace_id ?? undefined,
                     expected_version: projection.default_binding!.version,
                   }),
@@ -229,7 +248,7 @@ export function AgentEvolutionPanel({
               <Button
                 type="button"
                 size="sm"
-                disabled={!accessToken || !fixture.trim() || !expected.trim() || busyKey !== null}
+                disabled={!accessToken || !fixture.trim() || !expected.trim() || !actionFor(projection, "evaluate_definition", definition.fingerprint)?.enabled || busyKey !== null}
                 onClick={() => {
                   if (!accessToken || !projection) return
                   void run(`evaluate:${definition.fingerprint}`, () =>
@@ -288,7 +307,7 @@ export function AgentEvolutionPanel({
                       void runConfirmed(
                         `admit:${evaluation.id}`,
                         "确认以独立审核者身份准入这个 Definition？",
-                        () => admitAgentDefinition(accessToken, evaluation.id)
+                        () => admitAgentDefinition(accessToken, evaluation.id, projection?.conversation_id ?? "")
                       )
                     }}
                   >
@@ -297,6 +316,40 @@ export function AgentEvolutionPanel({
                 </div>
               )
             }) : <p className="text-xs text-muted-foreground">暂无评估记录。</p>}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">独立审核收件箱</h3>
+            {reviewQueue?.evaluations.length ? reviewQueue.evaluations.map((evaluation) => {
+              return (
+                <div key={`review:${evaluation.id}`} className="rounded-xl border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium">候选 {shortFingerprint(evaluation.candidate_fingerprint)}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">会话 {shortFingerprint(evaluation.conversation_id)}</p>
+                    </div>
+                    <Badge>待独立审核</Badge>
+                  </div>
+                  <pre className="mt-2 max-h-36 overflow-auto rounded-lg bg-muted p-2 text-[11px] leading-5">
+                    {JSON.stringify(evaluation.evidence_json, null, 2)}
+                  </pre>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-3"
+                    disabled={!accessToken || busyKey !== null}
+                    onClick={() => accessToken && void runConfirmed(
+                      `review:${evaluation.id}`,
+                      "确认以独立审核者身份准入这个 Definition？",
+                      () => admitAgentDefinition(accessToken, evaluation.id, evaluation.conversation_id)
+                    )}
+                  >
+                    审核并准入
+                  </Button>
+                </div>
+              )
+            }) : <p className="text-xs text-muted-foreground">当前范围暂无待审核候选。</p>}
           </section>
 
           <section className="space-y-2">

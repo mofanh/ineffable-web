@@ -1954,6 +1954,33 @@ export type AgentEvolutionProjection = {
   }>
 }
 
+export type AgentEvolutionReviewQueueProjection = {
+  evaluations: Array<{
+    id: string
+    owner_user_id: string
+    workspace_id?: string | null
+    conversation_id: string
+    baseline_fingerprint: string
+    candidate_fingerprint: string
+    verdict: string
+    evidence_json: Record<string, unknown>
+    created_at: string
+  }>
+}
+
+export function getAgentEvolutionReviewQueue(
+  accessToken: string,
+  workspaceId?: string
+) {
+  const query = new URLSearchParams()
+  if (workspaceId) query.set("workspace_id", workspaceId)
+  const suffix = query.size ? `?${query.toString()}` : ""
+  return requestApiJson<AgentEvolutionReviewQueueProjection>(
+    `/gateway/v1/plugins/agent-evolution/review-queue${suffix}`,
+    { accessToken }
+  )
+}
+
 export function getAgentEvolutionProjection(
   accessToken: string,
   conversationId: string,
@@ -2022,14 +2049,15 @@ export async function evaluateAgentDefinition(
 
 export function admitAgentDefinition(
   accessToken: string,
-  evaluationId: string
+  evaluationId: string,
+  conversationId: string
 ) {
   return requestApiJson<{ admitted: boolean }>(
     "/gateway/v1/plugins/agent-evolution/admit",
     {
       method: "POST",
       accessToken,
-      body: { evaluation_id: evaluationId },
+      body: { evaluation_id: evaluationId, conversation_id: conversationId },
     }
   )
 }
@@ -2039,12 +2067,14 @@ export function updateAgentDefinitionDefault(
   payload:
     | {
         action: "set"
+        conversation_id: string
         workspace_id?: string
         fingerprint?: string | null
         expected_version: number
       }
     | {
         action: "rollback"
+        conversation_id: string
         workspace_id?: string
         expected_version: number
       }
