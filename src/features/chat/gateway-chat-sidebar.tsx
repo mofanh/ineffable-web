@@ -13,6 +13,7 @@ import {
   upsertToolInPane,
 } from "@/features/chat/chat-pane-state"
 import { AgentPlanPanel } from "@/features/chat/components/agent-plan-panel"
+import { AgentEvolutionPanel } from "@/features/chat/components/agent-evolution-panel"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import {
   ChatComposer,
@@ -330,6 +331,7 @@ export function GatewayChatSidebar({
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
+  const [isAgentEvolutionPanelOpen, setIsAgentEvolutionPanelOpen] = React.useState(false)
   const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
   const [agentIterationConversationId, setAgentIterationConversationId] =
     React.useState<string | null>(null)
@@ -562,6 +564,21 @@ export function GatewayChatSidebar({
       cancelled = true
     }
   }, [accessToken, currentConversationId, currentWorkspace?.id, reportChatError])
+
+  const refreshAgentEvolution = React.useCallback(async () => {
+    const conversationId = currentConversationIdRef.current
+    if (!accessToken || !conversationId) return
+    const projection = await getAgentEvolutionProjection(
+      accessToken,
+      conversationId,
+      currentWorkspace?.id
+    )
+    if (currentConversationIdRef.current !== projection.conversation_id) return
+    setAgentEvolution(projection)
+    setAgentIterationRequestedState(projection.requested)
+    setAgentIterationConversationId(projection.conversation_id)
+    setIsAgentIterationResolved(true)
+  }, [accessToken, currentWorkspace?.id])
 
   async function handleAgentIterationChange(requested: boolean) {
     const conversationId = currentConversationIdRef.current
@@ -3153,6 +3170,8 @@ export function GatewayChatSidebar({
         onSelectConversation={selectConversationTarget}
         onRefreshConversations={handleRefreshConversationList}
         onStartNewChat={startNewChat}
+        onOpenAgentEvolution={() => setIsAgentEvolutionPanelOpen(true)}
+        agentEvolutionActive={Boolean(agentEvolution?.requested)}
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}
         onCollapseSidebar={toggleSidebar}
@@ -3190,6 +3209,14 @@ export function GatewayChatSidebar({
       </SidebarContent>
 
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
+
+      <AgentEvolutionPanel
+        open={isAgentEvolutionPanelOpen}
+        onOpenChange={setIsAgentEvolutionPanelOpen}
+        accessToken={accessToken ?? null}
+        projection={agentEvolution}
+        onRefresh={refreshAgentEvolution}
+      />
 
       <ChatComposer
         isFullScreen={isFullScreen}

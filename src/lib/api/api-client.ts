@@ -1881,8 +1881,21 @@ export type AgentEvolutionProjection = {
     admitted_for_future_selection: boolean
     created_at: string
   }>
-  evaluations: Array<Record<string, unknown>>
-  runtime_labs: Array<Record<string, unknown>>
+  evaluations: Array<{
+    id: string
+    baseline_fingerprint: string
+    candidate_fingerprint: string
+    fixture_version: string
+    verdict: string
+    created_at: string
+  }>
+  runtime_labs: Array<{
+    id: string
+    status: string
+    expires_at: string
+    estimated_cost_credits: number
+    risk_event_count: number
+  }>
   runtime_lab_quote: {
     available: boolean
     unavailable_reason?: string | null
@@ -1899,6 +1912,13 @@ export type AgentEvolutionProjection = {
     active_cloud_sandboxes: number
     max_active_cloud_sandboxes?: number | null
   }
+  actions: Array<{
+    action: string
+    target_id?: string | null
+    enabled: boolean
+    requires_confirmation: boolean
+    unavailable_reason?: string | null
+  }>
 }
 
 export function getAgentEvolutionProjection(
