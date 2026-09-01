@@ -231,6 +231,23 @@ export function AgentEvolutionPanel({
           </section>
 
           <section className="space-y-2">
+            <h3 className="text-sm font-medium">Gateway 迭代建议</h3>
+            {projection?.suggestions.length ? projection.suggestions.map((suggestion) => (
+              <div key={suggestion.id} className="rounded-xl border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">{suggestion.trigger_kind}</span>
+                  <Badge variant={suggestion.status === "open" ? "default" : "outline"}>
+                    {suggestion.status}
+                  </Badge>
+                </div>
+                <pre className="mt-2 overflow-x-auto text-[11px] leading-5 text-muted-foreground">
+                  {JSON.stringify(suggestion.evidence_json, null, 2)}
+                </pre>
+              </div>
+            )) : <p className="text-xs text-muted-foreground">暂无由 Gateway 权威事实生成的建议。</p>}
+          </section>
+
+          <section className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium">开放 Runtime Lab</h3>

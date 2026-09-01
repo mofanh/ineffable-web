@@ -1889,6 +1889,16 @@ export type AgentEvolutionProjection = {
     verdict: string
     created_at: string
   }>
+  suggestions: Array<{
+    id: string
+    conversation_id: string
+    run_id?: string | null
+    trigger_kind: string
+    evidence_json: Record<string, unknown>
+    status: string
+    created_at: string
+    updated_at: string
+  }>
   runtime_labs: Array<{
     id: string
     status: string
