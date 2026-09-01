@@ -1899,6 +1899,19 @@ export type AgentEvolutionProjection = {
     created_at: string
     updated_at: string
   }>
+  default_binding?: {
+    id: string
+    fingerprint?: string | null
+    version: number
+    updated_at: string
+  } | null
+  default_history: Array<{
+    id: string
+    version: number
+    fingerprint?: string | null
+    change_kind: string
+    created_at: string
+  }>
   runtime_labs: Array<{
     id: string
     status: string
@@ -2009,6 +2022,33 @@ export function admitAgentDefinition(
       body: { evaluation_id: evaluationId },
     }
   )
+}
+
+export function updateAgentDefinitionDefault(
+  accessToken: string,
+  payload:
+    | {
+        action: "set"
+        workspace_id?: string
+        fingerprint?: string | null
+        expected_version: number
+      }
+    | {
+        action: "rollback"
+        workspace_id?: string
+        expected_version: number
+      }
+) {
+  return requestApiJson<{
+    id: string
+    fingerprint?: string | null
+    version: number
+    updated_at: string
+  }>("/gateway/v1/plugins/agent-evolution/default", {
+    method: "POST",
+    accessToken,
+    body: payload,
+  })
 }
 
 export function runRuntimeLabCommand(

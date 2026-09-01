@@ -15,6 +15,7 @@ import {
   admitAgentDefinition,
   evaluateAgentDefinition,
   runRuntimeLabCommand,
+  updateAgentDefinitionDefault,
   type AgentEvolutionProjection,
 } from "@/features/chat/api/chat-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
@@ -124,8 +125,16 @@ export function AgentEvolutionPanel({
 
           <section className="space-y-2">
             <h3 className="text-sm font-medium">Definition 候选</h3>
+            <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">
+              当前默认：{projection?.default_binding?.fingerprint
+                ? shortFingerprint(projection.default_binding.fingerprint)
+                : "系统 Definition"}
+              {projection?.default_binding ? ` · v${projection.default_binding.version}` : ""}
+            </div>
             {projection?.definitions.length ? projection.definitions.map((item) => {
               const action = actionFor(projection, "evaluate_definition", item.fingerprint)
+              const defaultAction = actionFor(projection, "set_default_definition", item.fingerprint)
+              const isDefault = projection.default_binding?.fingerprint === item.fingerprint
               return (
                 <div key={item.fingerprint} className="rounded-xl border p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -151,10 +160,52 @@ export function AgentEvolutionPanel({
                     >
                       配置评估
                     </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!accessToken || !defaultAction?.enabled || isDefault || busyKey !== null}
+                      onClick={() => {
+                        if (!accessToken || !projection) return
+                        void runConfirmed(
+                          `default:${item.fingerprint}`,
+                          "确认将这个已准入 Definition 用于后续新运行？",
+                          () => updateAgentDefinitionDefault(accessToken, {
+                            action: "set",
+                            workspace_id: projection.workspace_id ?? undefined,
+                            fingerprint: item.fingerprint,
+                            expected_version: projection.default_binding?.version ?? 0,
+                          })
+                        )
+                      }}
+                    >
+                      {isDefault ? "当前默认" : "设为默认"}
+                    </Button>
                   </div>
                 </div>
               )
             }) : <p className="text-xs text-muted-foreground">还没有候选 Definition。</p>}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!accessToken || !projection?.default_binding || !actionFor(projection, "rollback_default_definition")?.enabled || busyKey !== null}
+              onClick={() => {
+                if (!accessToken || !projection?.default_binding) return
+                void runConfirmed(
+                  "default:rollback",
+                  "确认把后续新运行回滚到上一个默认 Definition？",
+                  () => updateAgentDefinitionDefault(accessToken, {
+                    action: "rollback",
+                    workspace_id: projection.workspace_id ?? undefined,
+                    expected_version: projection.default_binding!.version,
+                  }),
+                  "destructive"
+                )
+              }}
+            >
+              回滚默认版本
+            </Button>
           </section>
 
           {definition?.parent_fingerprint ? (
