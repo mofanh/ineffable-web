@@ -1,4 +1,5 @@
 import {
+  applyCanonicalMessageToPane,
   applyMessageToPane,
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
@@ -99,7 +100,9 @@ export function applyEventToPaneState(
     : isReasoningEvent(eventName)
       ? applyReasoningDeltaToPane(pane, content)
       : eventName === "assistant.snapshot"
-        ? applyMessageToPane(pane, content)
+        ? event.stream === "history"
+          ? applyCanonicalMessageToPane(pane, content)
+          : applyMessageToPane(pane, content)
         : appendUpdateToPane(pane, content)
   return projectDeclaredWebNode(nextPane, event)
 }

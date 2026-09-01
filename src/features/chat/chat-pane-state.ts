@@ -521,6 +521,24 @@ export function applyMessageToPane(pane: AgentPaneState, content: string) {
   return consumeTaggedText(basePane, content)
 }
 
+/**
+ * Apply a canonical history snapshot after the history projector has already
+ * reduced cumulative snapshots to deltas within each scope. Unlike a live
+ * fallback snapshot, a new canonical segment must not be suppressed merely
+ * because an earlier segment in the same assistant pane emitted text deltas.
+ */
+export function applyCanonicalMessageToPane(
+  pane: AgentPaneState,
+  content: string
+) {
+  const basePane =
+    pane.activeThinkBlockId && pane.activeThinkMode === "reasoning"
+      ? closeActiveThinkBlock(pane)
+      : pane
+
+  return consumeTaggedText(basePane, content)
+}
+
 export function applyReasoningDeltaToPane(pane: AgentPaneState, chunk: string) {
   const nextPane = ensureOpenThinkBlock(pane, "reasoning")
 

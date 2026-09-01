@@ -965,6 +965,107 @@ assert.deepEqual(
   "same-run history must preserve distinct server-owned timeline units"
 )
 
+const terminalBodyAfterCumulativeSnapshots = mapConversationMessagesToEntries([
+  {
+    id: "cumulative-tool-call-one",
+    conversation_id: conversationId,
+    run_id: "terminal-body-after-cumulative-snapshots",
+    role: "assistant",
+    message_type: "tool_call",
+    content: "",
+    metadata_json: {
+      scope: "main",
+      tool_call_id: "cumulative-call-one",
+      tool_name: "read_file",
+      full_arguments: "{}",
+      canonical_message_seq: 100,
+      canonical_message: {
+        content: "先检查文件。",
+        tool_calls: [
+          { id: "cumulative-call-one", name: "read_file", input: {} },
+        ],
+      },
+    },
+    timeline_seq: 100,
+    timeline_unit_id: "run:terminal-body-after-cumulative-snapshots:anchor:100",
+    canonical_seq: 100,
+    created_at: "2026-08-22T00:00:05Z",
+    updated_at: "2026-08-22T00:00:05Z",
+  },
+  {
+    id: "cumulative-tool-result-one",
+    conversation_id: conversationId,
+    run_id: "terminal-body-after-cumulative-snapshots",
+    role: "tool",
+    message_type: "tool_result",
+    content: "ok",
+    metadata_json: {
+      scope: "main",
+      tool_call_id: "cumulative-call-one",
+      tool_name: "read_file",
+      status: "succeeded",
+    },
+    timeline_seq: 100,
+    timeline_unit_id: "run:terminal-body-after-cumulative-snapshots:anchor:100",
+    canonical_seq: 101,
+    created_at: "2026-08-22T00:00:06Z",
+    updated_at: "2026-08-22T00:00:06Z",
+  },
+  {
+    id: "cumulative-tool-call-two",
+    conversation_id: conversationId,
+    run_id: "terminal-body-after-cumulative-snapshots",
+    role: "assistant",
+    message_type: "tool_call",
+    content: "",
+    metadata_json: {
+      scope: "main",
+      tool_call_id: "cumulative-call-two",
+      tool_name: "read_file",
+      full_arguments: "{}",
+      canonical_message_seq: 102,
+      canonical_message: {
+        content: "先检查文件。\n继续检查。",
+        tool_calls: [
+          { id: "cumulative-call-two", name: "read_file", input: {} },
+        ],
+      },
+    },
+    timeline_seq: 100,
+    timeline_unit_id: "run:terminal-body-after-cumulative-snapshots:anchor:100",
+    canonical_seq: 102,
+    created_at: "2026-08-22T00:00:07Z",
+    updated_at: "2026-08-22T00:00:07Z",
+  },
+  {
+    id: "canonical-terminal-output",
+    conversation_id: conversationId,
+    run_id: "terminal-body-after-cumulative-snapshots",
+    role: "assistant",
+    message_type: "output",
+    content: "这是必须在 agent loop 结束后继续显示的最终正文。",
+    metadata_json: {
+      scope: "main::segment:1",
+      canonical_message_seq: 103,
+      reasoning_content: "准备最终回答。",
+    },
+    timeline_seq: 100,
+    timeline_unit_id: "run:terminal-body-after-cumulative-snapshots:anchor:100",
+    canonical_seq: 103,
+    created_at: "2026-08-22T00:00:08Z",
+    updated_at: "2026-08-22T00:00:08Z",
+  },
+])
+assert.equal(terminalBodyAfterCumulativeSnapshots.length, 1)
+assert.equal(terminalBodyAfterCumulativeSnapshots[0].role, "assistant")
+assert.ok(
+  terminalBodyAfterCumulativeSnapshots[0].pane.blockOrder.some((blockId) => {
+    const block = terminalBodyAfterCumulativeSnapshots[0].pane.blocks[blockId]
+    return block?.type === "text" && block.content.includes("最终正文")
+  }),
+  "canonical terminal output must survive earlier cumulative snapshot deltas"
+)
+
 let toolWebNodeTree
 await act(() => {
   toolWebNodeTree = TestRenderer.create(
