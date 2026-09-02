@@ -3406,11 +3406,6 @@ export function GatewayChatSidebar({
               : null
           }
         />
-        {isLoadingMessages ? (
-          <div className="px-4 pb-3 text-xs text-muted-foreground">
-            {i18n.t("chat.gateway.syncingHistory")}
-          </div>
-        ) : null}
       </SidebarContent>
 
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />

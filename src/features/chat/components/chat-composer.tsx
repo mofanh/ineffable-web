@@ -347,11 +347,7 @@ export function ChatComposer({
           <InputGroupTextarea
             data-chat-scroll-region
             aria-label={t("chat.composer.messageLabel")}
-            placeholder={
-              isSending
-                ? t("chat.composer.queuedPlaceholder")
-                : t("chat.composer.placeholder")
-            }
+            placeholder={t("chat.composer.placeholder")}
             rows={2}
             value={composer}
             onChange={(event) => handleComposerValueChange(event.target.value)}
