@@ -5,6 +5,7 @@ import TestRenderer, { act } from "react-test-renderer"
 import { finalizePane, getPaneBlocks } from "../src/features/chat/chat-pane-state.ts"
 import {
   createAssistantEntry,
+  findLatestConversationRuntimeSelection,
   findAssistantEntryIdForRun,
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
@@ -56,6 +57,62 @@ globalThis.matchMedia = () => ({
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
+
+assert.deepEqual(
+  findLatestConversationRuntimeSelection([
+    {
+      role: "user",
+      metadata_json: {
+        model_profile_id: "model-old",
+        sandbox: { environment_id: "sandbox-old" },
+      },
+    },
+    {
+      role: "assistant",
+      metadata_json: { model_profile_id: "must-be-ignored" },
+    },
+    {
+      role: "user",
+      metadata_json: { model_profile_id: "model-latest" },
+    },
+  ]),
+  { modelProfileId: "model-latest", sandboxEnvironmentId: "" },
+  "the newest canonical user selection must restore its model and explicit no-sandbox state"
+)
+assert.deepEqual(
+  findLatestConversationRuntimeSelection([
+    { role: "user", metadata_json: {} },
+    {
+      role: "user",
+      metadata_json: {
+        model_profile_id: "model-sandbox",
+        sandbox: { environment_id: "sandbox-latest" },
+      },
+    },
+  ]),
+  { modelProfileId: "model-sandbox", sandboxEnvironmentId: "sandbox-latest" }
+)
+assert.deepEqual(
+  findLatestConversationRuntimeSelection([
+    {
+      role: "assistant",
+      model_profile_id: "model-from-run-projection",
+      metadata_json: {},
+    },
+  ]),
+  {
+    modelProfileId: "model-from-run-projection",
+    sandboxEnvironmentId: null,
+  },
+  "a bounded page that omits the trigger input must still restore the authoritative run model without changing the sandbox draft"
+)
+assert.equal(
+  findLatestConversationRuntimeSelection([
+    { role: "user", metadata_json: {} },
+  ]),
+  null,
+  "legacy messages without runtime metadata must not overwrite a local draft"
+)
 
 const runningCommand = {
   id: "tool-command",

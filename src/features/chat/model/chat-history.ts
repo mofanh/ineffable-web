@@ -46,6 +46,49 @@ import { canonicalMessagesToGatewayEvents } from "@/features/chat/model/canonica
 // 3. Structural records such as tool_call/tool_result must be preserved verbatim so
 //    tool blocks and their ordering survive the post-stream resync path.
 
+export type ConversationRuntimeSelection = {
+  modelProfileId: string
+  sandboxEnvironmentId: string | null
+}
+
+export function findLatestConversationRuntimeSelection(
+  messages: ConversationMessageRecord[]
+): ConversationRuntimeSelection | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role === "user") {
+      const metadata = message.metadata_json
+      const modelProfileId =
+        typeof metadata?.model_profile_id === "string"
+          ? metadata.model_profile_id.trim()
+          : ""
+      if (!modelProfileId) continue
+
+      const sandbox = metadata?.sandbox
+      const sandboxEnvironmentId =
+        sandbox &&
+        typeof sandbox === "object" &&
+        !Array.isArray(sandbox) &&
+        "environment_id" in sandbox &&
+        typeof sandbox.environment_id === "string"
+          ? sandbox.environment_id.trim()
+          : ""
+
+      return { modelProfileId, sandboxEnvironmentId }
+    }
+
+    const projectedModelProfileId = message.model_profile_id?.trim()
+    if (projectedModelProfileId) {
+      return {
+        modelProfileId: projectedModelProfileId,
+        sandboxEnvironmentId: null,
+      }
+    }
+  }
+
+  return null
+}
+
 export function createAssistantEntry(
   status: AssistantEntry["status"],
   runId?: string | null

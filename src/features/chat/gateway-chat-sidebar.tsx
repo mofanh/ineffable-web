@@ -39,6 +39,7 @@ import type {
 } from "@/features/chat/gateway-chat-types"
 import {
   createAssistantEntry,
+  findLatestConversationRuntimeSelection,
   findAssistantEntryIdForRun,
   getLiveConversationRun,
   mapConversationMessagesToEntries,
@@ -150,6 +151,28 @@ function formatSendErrorMessage(message: string) {
 
 function sandboxStorageKey(conversationId: string | null | undefined) {
   return `ineffable.chat.sandbox.${conversationId ?? "new"}`
+}
+
+function modelStorageKey(conversationId: string | null | undefined) {
+  return `ineffable.chat.model.${conversationId ?? "new"}`
+}
+
+function persistComposerRuntimeSelection(
+  conversationId: string | null | undefined,
+  modelProfileId: string,
+  sandboxEnvironmentId: string,
+  persistAsRecent = false
+) {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(modelStorageKey(conversationId), modelProfileId)
+  window.localStorage.setItem(
+    sandboxStorageKey(conversationId),
+    sandboxEnvironmentId
+  )
+  if (persistAsRecent) {
+    window.localStorage.setItem(modelStorageKey(null), modelProfileId)
+    window.localStorage.setItem(sandboxStorageKey(null), sandboxEnvironmentId)
+  }
 }
 
 function sandboxOptionLabel(
@@ -433,6 +456,12 @@ export function GatewayChatSidebar({
   const olderMessagesInFlightCursorRef = React.useRef<string | null>(null)
   const olderLoadResetTimerRef = React.useRef<number | null>(null)
   const sandboxOptionsRequestRef = React.useRef(0)
+  const modelProfilesRef = React.useRef<ModelProfile[]>([])
+  const modelProfilesLoadedRef = React.useRef(false)
+  const sandboxOptionsRef = React.useRef<
+    { environmentId: string; label: string; status: string }[]
+  >([])
+  const sandboxOptionsLoadedRef = React.useRef(false)
   const sandboxOptionsInFlightRef = React.useRef<{
     key: string
     requestId: number
@@ -686,6 +715,9 @@ export function GatewayChatSidebar({
     if (typeof window === "undefined") {
       return
     }
+    setSelectedModelProfileId(
+      window.localStorage.getItem(modelStorageKey(currentConversationId)) ?? ""
+    )
     setSelectedSandboxEnvironmentId(
       window.localStorage.getItem(sandboxStorageKey(currentConversationId)) ?? ""
     )
@@ -693,6 +725,8 @@ export function GatewayChatSidebar({
 
   React.useEffect(() => {
     if (!accessToken) {
+      modelProfilesRef.current = []
+      modelProfilesLoadedRef.current = false
       setModelProfiles([])
       setSelectedModelProfileId("")
       return
@@ -704,6 +738,8 @@ export function GatewayChatSidebar({
         if (cancelled) {
           return
         }
+        modelProfilesRef.current = response.profiles
+        modelProfilesLoadedRef.current = true
         setModelProfiles(response.profiles)
         setSelectedModelProfileId((current) =>
           current && response.profiles.some((profile) => profile.id === current)
@@ -713,6 +749,8 @@ export function GatewayChatSidebar({
       })
       .catch(() => {
         if (!cancelled) {
+          modelProfilesRef.current = []
+          modelProfilesLoadedRef.current = false
           setModelProfiles([])
           setSelectedModelProfileId("")
         }
@@ -727,6 +765,8 @@ export function GatewayChatSidebar({
     if (!accessToken || !currentWorkspace) {
       sandboxOptionsRequestRef.current += 1
       sandboxOptionsInFlightRef.current = null
+      sandboxOptionsRef.current = []
+      sandboxOptionsLoadedRef.current = true
       setSandboxOptions([])
       setIsRefreshingSandboxOptions(false)
       return Promise.resolve()
@@ -772,6 +812,8 @@ export function GatewayChatSidebar({
             status: environment.status,
           }))
 
+        sandboxOptionsRef.current = nextOptions
+        sandboxOptionsLoadedRef.current = true
         setSandboxOptions(nextOptions)
         setSelectedSandboxEnvironmentId((current) => {
           if (
@@ -1392,6 +1434,8 @@ export function GatewayChatSidebar({
           { limit: CONVERSATION_MESSAGES_PAGE_LIMIT }
         )
         const latestEntries = mapConversationMessagesToEntries(response.messages)
+        const latestRuntimeSelection =
+          findLatestConversationRuntimeSelection(response.messages)
         const handoffConfirmed = handoff
           ? hasCanonicalAssistantHandoff(latestEntries, handoff)
           : true
@@ -1405,6 +1449,44 @@ export function GatewayChatSidebar({
           })
         ) {
           return handoffConfirmed
+        }
+        if (latestRuntimeSelection) {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(
+              modelStorageKey(conversationId),
+              latestRuntimeSelection.modelProfileId
+            )
+            if (latestRuntimeSelection.sandboxEnvironmentId != null) {
+              window.localStorage.setItem(
+                sandboxStorageKey(conversationId),
+                latestRuntimeSelection.sandboxEnvironmentId
+              )
+            }
+          }
+          const modelIsAvailable =
+            !modelProfilesLoadedRef.current ||
+            modelProfilesRef.current.some(
+              (profile) => profile.id === latestRuntimeSelection.modelProfileId
+            )
+          const sandboxIsAvailable =
+            latestRuntimeSelection.sandboxEnvironmentId == null ||
+            !latestRuntimeSelection.sandboxEnvironmentId ||
+            !sandboxOptionsLoadedRef.current ||
+            sandboxOptionsRef.current.some(
+              (option) =>
+                option.environmentId ===
+                latestRuntimeSelection.sandboxEnvironmentId
+            )
+          setSelectedModelProfileId(
+            modelIsAvailable ? latestRuntimeSelection.modelProfileId : ""
+          )
+          if (latestRuntimeSelection.sandboxEnvironmentId != null) {
+            setSelectedSandboxEnvironmentId(
+              sandboxIsAvailable
+                ? latestRuntimeSelection.sandboxEnvironmentId
+                : ""
+            )
+          }
         }
         const shouldReplaceTranscript =
           (hydratedConversationIdRef.current !== conversationId ||
@@ -2797,6 +2879,13 @@ export function GatewayChatSidebar({
         return
       }
 
+      persistComposerRuntimeSelection(
+        targetConversationId,
+        selectedModelProfileId,
+        selectedSandboxEnvironmentId,
+        true
+      )
+
       setError(null)
       const optimisticId = createMessageId("guided")
       beginGuidedUserTurn(content, optimisticId)
@@ -2846,12 +2935,12 @@ export function GatewayChatSidebar({
         clearConversation()
         setIsSubmittingInput(true)
         selectConversationTarget(targetConversationId)
-        if (typeof window !== "undefined" && selectedSandboxEnvironmentId) {
-          window.localStorage.setItem(
-            sandboxStorageKey(targetConversationId),
-            selectedSandboxEnvironmentId
-          )
-        }
+        persistComposerRuntimeSelection(
+          targetConversationId,
+          selectedModelProfileId,
+          selectedSandboxEnvironmentId,
+          true
+        )
       } catch (createError) {
         setIsSubmittingInput(false)
         const message = reportChatError(
@@ -2876,6 +2965,13 @@ export function GatewayChatSidebar({
       setError(message)
       return false
     }
+
+    persistComposerRuntimeSelection(
+      targetConversationId,
+      selectedModelProfileId,
+      selectedSandboxEnvironmentId,
+      true
+    )
 
     let acceptedAsRun = false
     let accepted = false
@@ -3056,9 +3152,22 @@ export function GatewayChatSidebar({
 
   function handleSandboxEnvironmentChange(value: string) {
     setSelectedSandboxEnvironmentId(value)
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(sandboxStorageKey(currentConversationId), value)
-    }
+    persistComposerRuntimeSelection(
+      currentConversationId,
+      selectedModelProfileId,
+      value,
+      true
+    )
+  }
+
+  function handleModelProfileChange(value: string) {
+    setSelectedModelProfileId(value)
+    persistComposerRuntimeSelection(
+      currentConversationId,
+      value,
+      selectedSandboxEnvironmentId,
+      true
+    )
   }
 
   function handlePromoteToGuided(id: string) {
@@ -3314,7 +3423,7 @@ export function GatewayChatSidebar({
         agentIterationUnavailableReason={agentEvolution?.unavailable_reason}
         onComposerChange={setComposer}
         onComposerKeyDown={handleComposerKeyDown}
-        onModelProfileChange={setSelectedModelProfileId}
+        onModelProfileChange={handleModelProfileChange}
         onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
         onSandboxOptionsRefresh={() => {
           void refreshSandboxOptions()
