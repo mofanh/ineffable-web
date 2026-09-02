@@ -41,11 +41,18 @@ import {
   canonicalMessagesToGatewayEvents,
   hasCanonicalAssistantOutput,
 } from "../src/features/chat/model/canonical-message-event.ts"
+import { ChatMessageList } from "../src/features/chat/components/chat-message-list.tsx"
 
 globalThis.React = React
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
+globalThis.window = globalThis
 globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0)
 globalThis.cancelAnimationFrame = (handle) => clearTimeout(handle)
+globalThis.matchMedia = () => ({
+  matches: false,
+  addEventListener() {},
+  removeEventListener() {},
+})
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
@@ -945,6 +952,110 @@ assert.equal(
   "run:terminal-watermark-run:anchor:82",
   "history must retain the server-owned timeline unit identity"
 )
+
+const legacyAnswer = {
+  ...createAssistantEntry("done", "legacy-answer-run"),
+  id: "legacy-answer",
+  pane: {
+    ...createAssistantEntry("done").pane,
+    blockOrder: ["legacy-answer-text"],
+    blocks: {
+      "legacy-answer-text": {
+        id: "legacy-answer-text",
+        type: "text",
+        content: "legacy body",
+      },
+    },
+  },
+}
+const answerListProps = {
+  entries: [legacyAnswer, canonicalWatermarkEntries[0]],
+  modelDisplayNames: { "glm-5.3": "GLM 5.3" },
+  hasOlderEntries: false,
+  isLoadingOlderEntries: false,
+  olderEntriesError: null,
+  isAwaitingResponse: false,
+  isLoadingInitial: false,
+  showScrollToBottom: false,
+  scrollViewportRef: { current: null },
+  onViewportScroll() {},
+  onLoadOlderConversationMessagesPage() {},
+  onScrollToBottomClick() {},
+  onStreamingContentProgress() {},
+  onApproveApproval() {},
+  onRejectApproval() {},
+  activeHumanRunId: null,
+  async onSubmitUserInput() {},
+  isFullScreen: false,
+  trialVerdict: {
+    entryId: canonicalWatermarkEntries[0].id,
+    busyAction: null,
+    canAccept: true,
+    canRollback: true,
+    onAccept() {},
+    onRollback() {},
+  },
+}
+let answerFooterTree
+await act(async () => {
+  answerFooterTree = TestRenderer.create(
+    React.createElement(ChatMessageList, answerListProps)
+  )
+})
+assert.equal(
+  answerFooterTree.root.findAll(
+    (node) => node.props["data-assistant-answer-footer"] !== undefined
+  ).length,
+  2,
+  "each completed text answer must render exactly one footer"
+)
+assert.equal(
+  answerFooterTree.root.findAll(
+    (node) => node.props["data-answer-run-metadata"] !== undefined
+  ).length,
+  1,
+  "legacy answers must hide unavailable provenance without losing copy"
+)
+assert.equal(
+  answerFooterTree.root.findAll(
+    (node) =>
+      node.type === "button" && node.props["aria-label"] === "复制这条回答"
+  ).length,
+  2
+)
+assert.equal(
+  answerFooterTree.root.findAll(
+    (node) =>
+      node.type === "button" &&
+      node.props["aria-label"] === "保留生成这条回答的 Agent 版本"
+  ).length,
+  1,
+  "only the eligible trial answer gets an accept action"
+)
+assert.equal(
+  answerFooterTree.root.findAll(
+    (node) =>
+      node.type === "button" &&
+      node.props["aria-label"] === "恢复到生成这条回答之前的 Agent 版本"
+  ).length,
+  1,
+  "only the eligible trial answer gets a rollback action"
+)
+assert.match(JSON.stringify(answerFooterTree.toJSON()), /GLM 5\.3/)
+await act(async () => {
+  answerFooterTree.update(
+    React.createElement(ChatMessageList, {
+      ...answerListProps,
+      modelDisplayNames: {},
+    })
+  )
+})
+assert.match(
+  JSON.stringify(answerFooterTree.toJSON()),
+  /glm-5\.3/,
+  "unknown or archived profiles must fall back to the persisted model id"
+)
+await act(async () => answerFooterTree.unmount())
 
 const trialProjection = {
   trial_binding: {
