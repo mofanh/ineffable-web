@@ -51,6 +51,10 @@ import {
   writeCanonicalComposerRuntimeSelection,
   writeComposerRuntimeSelectionDraft,
 } from "../src/features/chat/model/composer-runtime-selection.ts"
+import {
+  resolveAgentEvolutionWorkspaceId,
+  resolveAgentNodeTargetConversationId,
+} from "../src/features/chat/model/agent-node-management.ts"
 
 globalThis.React = React
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -65,6 +69,32 @@ globalThis.matchMedia = () => ({
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
+
+assert.equal(
+  resolveAgentEvolutionWorkspaceId({
+    id: "personal-workspace",
+    workspace_type: "personal",
+  }),
+  undefined,
+  "personal Agent Node history must use the user-level evolution scope"
+)
+assert.equal(
+  resolveAgentEvolutionWorkspaceId({
+    id: "team-workspace",
+    workspace_type: "team",
+  }),
+  "team-workspace",
+  "team Agent Node history must remain workspace scoped"
+)
+assert.equal(
+  resolveAgentNodeTargetConversationId(
+    "removed-conversation",
+    "current-conversation",
+    ["current-conversation", "older-conversation"]
+  ),
+  "current-conversation",
+  "a removed management target must fall back to the current accessible conversation"
+)
 
 function memorySelectionStorage() {
   const values = new Map()

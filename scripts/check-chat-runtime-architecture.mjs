@@ -15,6 +15,13 @@ const projector = source(
 )
 const messageList = source("src/features/chat/components/chat-message-list.tsx")
 const chatComposer = source("src/features/chat/components/chat-composer.tsx")
+const chatHeader = source("src/features/chat/components/chat-sidebar-header.tsx")
+const agentNodePage = source("src/pages/agent-node-management-page.tsx")
+const agentNodeView = source(
+  "src/features/chat/components/agent-evolution-panel.tsx"
+)
+const appSidebar = source("src/features/workspace/app-sidebar.tsx")
+const router = source("src/routes/router.tsx")
 const agentPane = source("src/features/chat/components/agent-pane.tsx")
 const toolCallShell = source(
   "src/features/chat/components/tool-call-shell.tsx"
@@ -79,6 +86,16 @@ assert.match(sidebar, /modelDisplayNames=\{modelDisplayNames\}/)
 assert.match(sidebar, /findLatestConversationRuntimeSelection\(response\.messages\)/)
 assert.match(sidebar, /reconcileCanonicalComposerRuntimeSelection/)
 assert.match(sidebar, /commitAcceptedComposerRuntimeSelection/)
+assert.match(router, /["']\/agent-nodes["']/)
+assert.match(appSidebar, /sidebar\.navigation\.agentNodes/)
+assert.match(agentNodePage, /getAgentEvolutionProjection/)
+assert.match(agentNodePage, /resolveAgentEvolutionWorkspaceId\(currentWorkspace\)/)
+assert.match(sidebar, /resolveAgentEvolutionWorkspaceId\(currentWorkspace\)/)
+assert.match(agentNodePage, /<AgentNodeManagementView/)
+assert.match(agentNodeView, /updateAgentDefinitionTrial/)
+assert.match(agentNodeView, /updateAgentDefinitionDefault/)
+assert.match(agentNodeView, /runRuntimeLabCommand/)
+assert.doesNotMatch(chatHeader, /Runtime Lab|onOpenAgentEvolution/)
 assert.match(
   sidebar,
   /if \(!accessToken \|\| !currentWorkspace\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,

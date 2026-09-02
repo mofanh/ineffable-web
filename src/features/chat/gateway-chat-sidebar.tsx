@@ -88,6 +88,7 @@ import { shouldApplyConversationProjection } from "@/features/chat/model/convers
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
+import { resolveAgentEvolutionWorkspaceId } from "@/features/chat/model/agent-node-management"
 import {
   clearUnavailableComposerRuntimeSelectionField,
   commitAcceptedComposerRuntimeSelection,
@@ -550,7 +551,11 @@ export function GatewayChatSidebar({
     }
     let cancelled = false
     setIsAgentIterationLoading(true)
-    void getAgentEvolutionProjection(accessToken, conversationId, currentWorkspace?.id)
+    void getAgentEvolutionProjection(
+      accessToken,
+      conversationId,
+      resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    )
       .then((projection) => {
         if (
           cancelled ||
@@ -578,7 +583,7 @@ export function GatewayChatSidebar({
     return () => {
       cancelled = true
     }
-  }, [accessToken, currentConversationId, currentWorkspace?.id, reportChatError])
+  }, [accessToken, currentConversationId, currentWorkspace, reportChatError])
 
   const refreshAgentEvolution = React.useCallback(async () => {
     const conversationId = currentConversationIdRef.current
@@ -586,14 +591,14 @@ export function GatewayChatSidebar({
     const projection = await getAgentEvolutionProjection(
       accessToken,
       conversationId,
-      currentWorkspace?.id
+      resolveAgentEvolutionWorkspaceId(currentWorkspace)
     )
     if (currentConversationIdRef.current !== projection.conversation_id) return
     setAgentEvolution(projection)
     setAgentIterationRequestedState(projection.requested)
     setAgentIterationConversationId(projection.conversation_id)
     setIsAgentIterationResolved(true)
-  }, [accessToken, currentWorkspace?.id])
+  }, [accessToken, currentWorkspace])
 
   async function handleAgentIterationChange(requested: boolean) {
     const conversationId = currentConversationIdRef.current
@@ -605,7 +610,7 @@ export function GatewayChatSidebar({
     try {
       const projection = await setAgentIterationRequested(accessToken, {
         conversation_id: conversationId,
-        workspace_id: currentWorkspace?.id,
+        workspace_id: resolveAgentEvolutionWorkspaceId(currentWorkspace),
         requested,
       })
       if (currentConversationIdRef.current !== projection.conversation_id) return

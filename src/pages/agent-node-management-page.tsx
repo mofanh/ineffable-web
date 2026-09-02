@@ -22,19 +22,18 @@ import {
 } from "@/features/chat/api/chat-api"
 import { AgentNodeManagementView } from "@/features/chat/components/agent-evolution-panel"
 import { normalizeAppError } from "@/lib/app/api-errors"
+import {
+  resolveAgentEvolutionWorkspaceId,
+  resolveAgentNodeTargetConversationId,
+} from "@/features/chat/model/agent-node-management"
 
-function resolveTargetConversationId(
-  selectedConversationId: string,
-  currentConversationId: string | null,
-  conversationIds: string[]
-) {
-  if (selectedConversationId && conversationIds.includes(selectedConversationId)) {
-    return selectedConversationId
-  }
-  if (currentConversationId && conversationIds.includes(currentConversationId)) {
-    return currentConversationId
-  }
-  return conversationIds[0] ?? ""
+function iterationModeLabel(mode: AgentEvolutionProjection["effective_mode"]) {
+  return {
+    disabled: "不可用",
+    declarative_only: "声明式",
+    artifact_allowed: "Artifact Node",
+    runtime_lab_allowed: "开放运行时",
+  }[mode]
 }
 
 export function AgentNodeManagementPage() {
@@ -48,7 +47,7 @@ export function AgentNodeManagementPage() {
   const [error, setError] = React.useState<string | null>(null)
   const requestIdRef = React.useRef(0)
 
-  const targetConversationId = resolveTargetConversationId(
+  const targetConversationId = resolveAgentNodeTargetConversationId(
     selectedConversationId,
     currentConversationId,
     conversations.map((conversation) => conversation.id)
@@ -75,7 +74,7 @@ export function AgentNodeManagementPage() {
       const nextProjection = await getAgentEvolutionProjection(
         accessToken,
         targetConversationId,
-        currentWorkspace?.id
+        resolveAgentEvolutionWorkspaceId(currentWorkspace)
       )
       if (requestId === requestIdRef.current) {
         setProjection(nextProjection)
@@ -94,7 +93,7 @@ export function AgentNodeManagementPage() {
         setIsLoading(false)
       }
     }
-  }, [accessToken, currentWorkspace?.id, targetConversationId])
+  }, [accessToken, currentWorkspace, targetConversationId])
 
   React.useEffect(() => {
     void refresh()
@@ -106,7 +105,7 @@ export function AgentNodeManagementPage() {
   return (
     <AppPage
       title="Agent Node 管理"
-      description="查看 AgentDefinition 版本链，复用经过评估的 Node 组合，并管理试用、准入和回滚。"
+      description="查看完整 Agent Node 组合的版本链，复用经过评估的能力，并管理试用、准入和回滚。"
       actions={
         <div className="flex items-center gap-2">
           <Select
@@ -170,7 +169,11 @@ export function AgentNodeManagementPage() {
               <p className="text-xs text-muted-foreground">当前模式</p>
               <div className="mt-3">
                 <Badge variant={projection?.requested ? "default" : "secondary"}>
-                  {projection?.effective_mode ?? (isLoading ? "加载中" : "disabled")}
+                  {projection
+                    ? iterationModeLabel(projection.effective_mode)
+                    : isLoading
+                      ? "加载中"
+                      : "不可用"}
                 </Badge>
               </div>
             </div>

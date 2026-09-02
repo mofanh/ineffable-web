@@ -60,8 +60,13 @@ export function AgentNodeManagementView({
       setReviewQueue(null)
       return
     }
-    setReviewQueue(await getAgentEvolutionReviewQueue(accessToken))
-  }, [accessToken])
+    setReviewQueue(
+      await getAgentEvolutionReviewQueue(
+        accessToken,
+        projection.workspace_id ?? undefined
+      )
+    )
+  }, [accessToken, projection.workspace_id])
 
   React.useEffect(() => {
     void refreshReviewQueue().catch(() => setReviewQueue(null))
@@ -111,7 +116,7 @@ export function AgentNodeManagementView({
     <div className="space-y-5">
           <div className="rounded-xl border bg-muted/20 p-3">
             <div className="text-xs text-muted-foreground">
-              已使用 {projection?.definition_usage ?? 0} 个 Definition
+              已使用 {projection.definition_usage} 个 Agent Node 版本
             </div>
           </div>
 
@@ -124,7 +129,7 @@ export function AgentNodeManagementView({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {projection?.effective_selection.fingerprint
                     ? shortFingerprint(projection.effective_selection.fingerprint)
-                    : "系统 Definition"}
+                    : "系统 Agent"}
                   {projection?.trial_binding
                     ? ` · v${projection.trial_binding.version}`
                     : projection?.effective_selection.source === "default"
@@ -257,7 +262,7 @@ export function AgentNodeManagementView({
                   </div>
                 </div>
               )
-            }) : <p className="text-xs text-muted-foreground">还没有候选 Definition。</p>}
+            }) : <p className="text-xs text-muted-foreground">还没有候选 Agent Node 版本。</p>}
             <Button
               type="button"
               size="sm"
@@ -343,7 +348,7 @@ export function AgentNodeManagementView({
                       if (!accessToken) return
                       void runConfirmed(
                         `admit:${evaluation.id}`,
-                        "确认以独立审核者身份准入这个 Definition？",
+                        "确认以独立审核者身份准入这个 Agent Node 版本？",
                         () => admitAgentDefinition(accessToken, evaluation.id, projection?.conversation_id ?? "")
                       )
                     }}
@@ -378,7 +383,7 @@ export function AgentNodeManagementView({
                     disabled={!accessToken || busyKey !== null}
                     onClick={() => accessToken && void runConfirmed(
                       `review:${evaluation.id}`,
-                      "确认以独立审核者身份准入这个 Definition？",
+                      "确认以独立审核者身份准入这个 Agent Node 版本？",
                       () => admitAgentDefinition(accessToken, evaluation.id, evaluation.conversation_id)
                     )}
                   >
