@@ -24,7 +24,6 @@ import {
   PanelRightIcon,
   PlusIcon,
   RefreshCcwIcon,
-  GitBranchIcon,
   SearchIcon,
 } from "lucide-react"
 
@@ -36,8 +35,6 @@ type ChatSidebarHeaderProps = {
   onSelectConversation: (conversationId: string | null) => void
   onRefreshConversations: () => void
   onStartNewChat: () => void
-  onOpenAgentEvolution: () => void
-  agentEvolutionActive: boolean
   isFullScreen: boolean
   onFullScreenChange: (isFullScreen: boolean) => void
   onCollapseSidebar: () => void
@@ -159,8 +156,6 @@ export function ChatSidebarHeader({
   onSelectConversation,
   onRefreshConversations,
   onStartNewChat,
-  onOpenAgentEvolution,
-  agentEvolutionActive,
   isFullScreen,
   onFullScreenChange,
   onCollapseSidebar,
@@ -338,11 +333,6 @@ export function ChatSidebarHeader({
         </DropdownMenu>
 
         <div className="flex shrink-0 items-center gap-1">
-          <HeaderActionButton title="Runtime Lab" onClick={onOpenAgentEvolution}>
-            <GitBranchIcon
-              className={cn("size-4", agentEvolutionActive && "text-primary")}
-            />
-          </HeaderActionButton>
           <HeaderActionButton
             title={t("chat.header.newChat")}
             onClick={handleStartNewChat}

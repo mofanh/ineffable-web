@@ -20,6 +20,7 @@ import {
   getAgentEvolutionProjection,
   type AgentEvolutionProjection,
 } from "@/features/chat/api/chat-api"
+import { AgentNodeManagementView } from "@/features/chat/components/agent-evolution-panel"
 import { normalizeAppError } from "@/lib/app/api-errors"
 
 function resolveTargetConversationId(
@@ -149,29 +150,38 @@ export function AgentNodeManagementPage() {
           {error}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border p-5">
-            <p className="text-xs text-muted-foreground">Agent Node 版本</p>
-            <p className="mt-2 text-2xl font-semibold">
-              {projection?.definitions.length ?? 0}
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5">
-            <p className="text-xs text-muted-foreground">已验证可复用</p>
-            <p className="mt-2 text-2xl font-semibold">
-              {projection?.definitions.filter(
-                (definition) => definition.admitted_for_future_selection
-              ).length ?? 0}
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5">
-            <p className="text-xs text-muted-foreground">当前模式</p>
-            <div className="mt-3">
-              <Badge variant={projection?.requested ? "default" : "secondary"}>
-                {projection?.effective_mode ?? (isLoading ? "加载中" : "disabled")}
-              </Badge>
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border p-5">
+              <p className="text-xs text-muted-foreground">Agent Node 版本</p>
+              <p className="mt-2 text-2xl font-semibold">
+                {projection?.definitions.length ?? 0}
+              </p>
+            </div>
+            <div className="rounded-2xl border p-5">
+              <p className="text-xs text-muted-foreground">已验证可复用</p>
+              <p className="mt-2 text-2xl font-semibold">
+                {projection?.definitions.filter(
+                  (definition) => definition.admitted_for_future_selection
+                ).length ?? 0}
+              </p>
+            </div>
+            <div className="rounded-2xl border p-5">
+              <p className="text-xs text-muted-foreground">当前模式</p>
+              <div className="mt-3">
+                <Badge variant={projection?.requested ? "default" : "secondary"}>
+                  {projection?.effective_mode ?? (isLoading ? "加载中" : "disabled")}
+                </Badge>
+              </div>
             </div>
           </div>
+          {projection ? (
+            <AgentNodeManagementView
+              accessToken={accessToken}
+              projection={projection}
+              onRefresh={refresh}
+            />
+          ) : null}
         </div>
       )}
     </AppPage>

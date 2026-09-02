@@ -32,8 +32,10 @@ projection/actions 展示版本链、评估、准入、默认版本、开放运�
 - [x] Phase A：建立 `/agent-nodes` 路由、主导航、页面数据装配与会话目标选择；复用唯一
   Agent Evolution projection。已完成带过期请求 fencing 的会话目标加载、空态/错误态/概览，
   受影响 ESLint、i18n 门禁与生产构建通过。
-- [ ] Phase B：把原 Sheet 内容重构为页面内的 Agent Node 版本链和高级管理区；移除对话侧栏
-  入口，并统一用户可见命名。
+- [x] Phase B：把原 Sheet 内容重构为页面内的 Agent Node 版本链和高级管理区；移除对话侧栏
+  入口，并统一用户可见命名。版本链现在投影父版本、评估次数、准入状态及应用/默认/回滚动作；
+  对话保留回答下方裁决，开放运行时继续复用原 Gateway commands。受影响 ESLint、i18n 与生产
+  构建通过。
 - [ ] Phase C：补齐架构/i18n/浏览器回归，验证刷新、目标切换、空状态和既有对话内裁决不回归；
   更新计划并完成确定性前端门禁。
 - [ ] Final audit：全部阶段提交后进行一次基线到 HEAD 的独立只读审计；若有 P0/P1，集中修复后

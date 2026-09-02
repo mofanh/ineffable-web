@@ -3,13 +3,6 @@ import * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import {
   admitAgentDefinition,
@@ -25,15 +18,11 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
-import { FlaskConicalIcon, RefreshCcwIcon } from "lucide-react"
 
-type AgentEvolutionPanelProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+type AgentNodeManagementViewProps = {
   accessToken: string | null
-  projection: AgentEvolutionProjection | null
+  projection: AgentEvolutionProjection
   onRefresh: () => Promise<void>
-  hasInlineTrialVerdict: boolean
 }
 
 function shortFingerprint(value: string) {
@@ -50,14 +39,11 @@ function actionFor(
   )
 }
 
-export function AgentEvolutionPanel({
-  open,
-  onOpenChange,
+export function AgentNodeManagementView({
   accessToken,
   projection,
   onRefresh,
-  hasInlineTrialVerdict,
-}: AgentEvolutionPanelProps) {
+}: AgentNodeManagementViewProps) {
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [candidate, setCandidate] = React.useState<string | null>(null)
   const [fixture, setFixture] = React.useState("")
@@ -78,9 +64,8 @@ export function AgentEvolutionPanel({
   }, [accessToken])
 
   React.useEffect(() => {
-    if (!open) return
     void refreshReviewQueue().catch(() => setReviewQueue(null))
-  }, [open, refreshReviewQueue])
+  }, [refreshReviewQueue])
 
   const run = React.useCallback(
     async (key: string, operation: () => Promise<unknown>) => {
@@ -113,44 +98,28 @@ export function AgentEvolutionPanel({
   )
 
   const definition = projection?.definitions.find((item) => item.fingerprint === candidate)
+  const definitions = React.useMemo(
+    () =>
+      [...(projection?.definitions ?? [])].sort(
+        (left, right) =>
+          new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+      ),
+    [projection?.definitions]
+  )
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[min(92vw,560px)] sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <div className="flex items-center gap-2 pr-8">
-            <FlaskConicalIcon className="size-4" />
-            <SheetTitle>Runtime Lab</SheetTitle>
-            <Badge variant={projection?.requested ? "default" : "secondary"}>
-              {projection?.effective_mode ?? "disabled"}
-            </Badge>
-          </div>
-          <SheetDescription>
-            Definition 候选、隔离评估、人工准入与临时开放运行时。
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6">
-          <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-3">
+    <div className="space-y-5">
+          <div className="rounded-xl border bg-muted/20 p-3">
             <div className="text-xs text-muted-foreground">
               已使用 {projection?.definition_usage ?? 0} 个 Definition
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={busyKey !== null}
-              onClick={() => void run("refresh", onRefresh)}
-            >
-              <RefreshCcwIcon /> 刷新
-            </Button>
           </div>
 
           <section className="space-y-2 rounded-xl border p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium">
-                  {projection?.trial_binding?.mode === "trial" ? "正在试用新 Definition" : "当前会话 Definition"}
+                  {projection?.trial_binding?.mode === "trial" ? "正在试用新 Agent Node" : "当前 Agent Node"}
                 </h3>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {projection?.effective_selection.fingerprint
@@ -172,31 +141,27 @@ export function AgentEvolutionPanel({
                 <p className="text-xs text-muted-foreground">
                   回退目标：{projection.trial_binding.fallback_fingerprint
                     ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
-                    : "系统 Definition"}。{hasInlineTrialVerdict
-                    ? "请在候选版本实际生成的最新回答下方保留或恢复。"
-                    : "候选尚未产出可裁决回答，你仍可先恢复旧版本。"}当前正在运行的任务不会被热切换。
+                    : "系统 Agent"}。候选产出回答后可直接在回答下方保留或恢复；当前正在运行的任务不会被热切换。
                 </p>
-                {!hasInlineTrialVerdict ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
-                    onClick={() => accessToken && void runConfirmed(
-                      "trial:rollback-fallback",
-                      "确认恢复试用前的 Definition？外部工具产生的副作用不会回滚。",
-                      () => updateAgentDefinitionTrial(accessToken, {
-                        action: "rollback",
-                        conversation_id: projection.conversation_id,
-                        workspace_id: projection.workspace_id ?? undefined,
-                        expected_version: projection.trial_binding!.version,
-                      }),
-                      "destructive"
-                    )}
-                  >
-                    恢复试用前版本
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
+                  onClick={() => accessToken && void runConfirmed(
+                    "trial:rollback-fallback",
+                    "确认恢复试用前的 Agent Node？外部工具产生的副作用不会回滚。",
+                    () => updateAgentDefinitionTrial(accessToken, {
+                      action: "rollback",
+                      conversation_id: projection.conversation_id,
+                      workspace_id: projection.workspace_id ?? undefined,
+                      expected_version: projection.trial_binding!.version,
+                    }),
+                    "destructive"
+                  )}
+                >
+                  恢复试用前版本
+                </Button>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -206,27 +171,33 @@ export function AgentEvolutionPanel({
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">Definition 候选</h3>
+            <h3 className="text-sm font-medium">Agent Node 版本链</h3>
             <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">
               当前默认：{projection?.default_binding?.fingerprint
                 ? shortFingerprint(projection.default_binding.fingerprint)
-                : "系统 Definition"}
+                : "系统 Agent"}
               {projection?.default_binding ? ` · v${projection.default_binding.version}` : ""}
             </div>
-            {projection?.definitions.length ? projection.definitions.map((item) => {
+            {definitions.length ? definitions.map((item, index) => {
               const action = actionFor(projection, "evaluate_definition", item.fingerprint)
               const defaultAction = actionFor(projection, "set_default_definition", item.fingerprint)
               const trialAction = actionFor(projection, "start_definition_trial", item.fingerprint)
               const isDefault = projection.default_binding?.fingerprint === item.fingerprint
               return (
-                <div key={item.fingerprint} className="rounded-xl border p-3">
+                <div key={item.fingerprint} className="relative ml-3 rounded-xl border p-3 before:absolute before:-left-4 before:top-5 before:size-2 before:rounded-full before:bg-primary after:absolute after:-left-[13px] after:top-7 after:h-[calc(100%+0.75rem)] after:w-px after:bg-border last:after:hidden">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">
                         {item.display_name || shortFingerprint(item.fingerprint)}
                       </p>
                       <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                        {shortFingerprint(item.fingerprint)}
+                        v{index + 1} · {shortFingerprint(item.fingerprint)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {item.parent_fingerprint
+                          ? `继承 ${shortFingerprint(item.parent_fingerprint)}`
+                          : "演化链起点"}
+                        {` · ${item.evaluation_count} 次评估`}
                       </p>
                     </div>
                     <Badge variant={item.admitted_for_future_selection ? "default" : "outline"}>
@@ -240,7 +211,7 @@ export function AgentEvolutionPanel({
                       disabled={!accessToken || !trialAction?.enabled || busyKey !== null}
                       onClick={() => accessToken && void runConfirmed(
                         `trial:${item.fingerprint}`,
-                        "确认从下一条普通消息开始试用这个 Definition？",
+                        "确认从下一条普通消息开始应用这个 Agent Node 版本？",
                         () => updateAgentDefinitionTrial(accessToken, {
                           action: "start",
                           conversation_id: projection.conversation_id,
@@ -250,7 +221,7 @@ export function AgentEvolutionPanel({
                         })
                       )}
                     >
-                      下个 turn 试用
+                      应用到当前会话
                     </Button>
                     <Button
                       type="button"
@@ -270,7 +241,7 @@ export function AgentEvolutionPanel({
                         if (!accessToken || !projection) return
                         void runConfirmed(
                           `default:${item.fingerprint}`,
-                          "确认将这个已准入 Definition 用于后续新运行？",
+                          "确认将这个已准入 Agent Node 版本用于后续新运行？",
                           () => updateAgentDefinitionDefault(accessToken, {
                             action: "set",
                             conversation_id: projection.conversation_id,
@@ -281,7 +252,7 @@ export function AgentEvolutionPanel({
                         )
                       }}
                     >
-                      {isDefault ? "当前默认" : "设为默认"}
+                      {isDefault ? "当前默认" : "设为默认 Agent"}
                     </Button>
                   </div>
                 </div>
@@ -296,7 +267,7 @@ export function AgentEvolutionPanel({
                 if (!accessToken || !projection?.default_binding) return
                 void runConfirmed(
                   "default:rollback",
-                  "确认把后续新运行回滚到上一个默认 Definition？",
+                  "确认把后续新运行回滚到上一个默认 Agent Node 版本？",
                   () => updateAgentDefinitionDefault(accessToken, {
                     action: "rollback",
                     conversation_id: projection.conversation_id,
@@ -438,7 +409,7 @@ export function AgentEvolutionPanel({
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-medium">开放 Runtime Lab</h3>
+                <h3 className="text-sm font-medium">开放运行时（高级）</h3>
                 <p className="text-xs text-muted-foreground">
                   TTL {projection?.runtime_lab_quote.ttl_seconds ?? "—"} 秒 · 预计最多 {projection?.runtime_lab_quote.max_estimated_credits?.toFixed(3) ?? "—"} credits
                 </p>
@@ -451,7 +422,7 @@ export function AgentEvolutionPanel({
                   if (!accessToken || !projection) return
                   void runConfirmed(
                     "lab:create",
-                    "确认创建会产生实际资源成本的 Runtime Lab？",
+                    "确认创建会产生实际资源成本的开放运行环境？",
                     () => runRuntimeLabCommand(accessToken, {
                       action: "create",
                       workspace_id: projection.workspace_id ?? undefined,
@@ -462,7 +433,7 @@ export function AgentEvolutionPanel({
                   )
                 }}
               >
-                创建 Lab
+                创建运行环境
               </Button>
             </div>
             {projection?.runtime_labs.map((lab) => (
@@ -575,8 +546,6 @@ export function AgentEvolutionPanel({
               {result}
             </pre>
           ) : null}
-        </div>
-      </SheetContent>
-    </Sheet>
+    </div>
   )
 }

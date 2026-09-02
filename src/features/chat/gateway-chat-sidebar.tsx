@@ -13,7 +13,6 @@ import {
   upsertToolInPane,
 } from "@/features/chat/chat-pane-state"
 import { AgentPlanPanel } from "@/features/chat/components/agent-plan-panel"
-import { AgentEvolutionPanel } from "@/features/chat/components/agent-evolution-panel"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import {
   ChatComposer,
@@ -339,7 +338,6 @@ export function GatewayChatSidebar({
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
-  const [isAgentEvolutionPanelOpen, setIsAgentEvolutionPanelOpen] = React.useState(false)
   const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
   const [agentIterationConversationId, setAgentIterationConversationId] =
     React.useState<string | null>(null)
@@ -3371,8 +3369,6 @@ export function GatewayChatSidebar({
         onSelectConversation={selectConversationTarget}
         onRefreshConversations={handleRefreshConversationList}
         onStartNewChat={startNewChat}
-        onOpenAgentEvolution={() => setIsAgentEvolutionPanelOpen(true)}
-        agentEvolutionActive={Boolean(agentEvolution?.requested)}
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}
         onCollapseSidebar={toggleSidebar}
@@ -3418,15 +3414,6 @@ export function GatewayChatSidebar({
       </SidebarContent>
 
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
-
-      <AgentEvolutionPanel
-        open={isAgentEvolutionPanelOpen}
-        onOpenChange={setIsAgentEvolutionPanelOpen}
-        accessToken={accessToken ?? null}
-        projection={agentEvolution}
-        onRefresh={refreshAgentEvolution}
-        hasInlineTrialVerdict={Boolean(trialAnswer)}
-      />
 
       <ChatComposer
         isFullScreen={isFullScreen}
