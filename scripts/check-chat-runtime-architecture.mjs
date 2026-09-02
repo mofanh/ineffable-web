@@ -105,6 +105,8 @@ assert.match(agentNodeView, /runRuntimeLabCommand/)
 assert.match(agentNodeView, /publishAgentEvolutionChanged/)
 assert.match(sidebar, /subscribeAgentEvolutionChanged/)
 assert.match(sidebar, /publishAgentEvolutionChanged/)
+assert.match(sidebar, /agentEvolutionRequestRef/)
+assert.match(sidebar, /requestId !== agentEvolutionRequestRef\.current/)
 assert.match(agentEvolutionInvalidation, /CustomEvent<AgentEvolutionChangedDetail>/)
 assert.doesNotMatch(chatHeader, /Runtime Lab|onOpenAgentEvolution/)
 assert.match(

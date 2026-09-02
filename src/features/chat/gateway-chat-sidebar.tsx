@@ -434,6 +434,7 @@ export function GatewayChatSidebar({
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const messageProjectionRequestRef = React.useRef(0)
+  const agentEvolutionRequestRef = React.useRef(0)
   const seenEventRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
@@ -553,6 +554,12 @@ export function GatewayChatSidebar({
 
   React.useEffect(() => {
     const conversationId = currentConversationId
+    const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const requestTargetKey = agentNodeManagementTargetKey(
+      conversationId ?? "",
+      workspaceId
+    )
+    const requestId = ++agentEvolutionRequestRef.current
     setAgentEvolution(null)
     setAgentIterationRequestedState(false)
     setAgentIterationConversationId(conversationId)
@@ -566,11 +573,17 @@ export function GatewayChatSidebar({
     void getAgentEvolutionProjection(
       accessToken,
       conversationId,
-      resolveAgentEvolutionWorkspaceId(currentWorkspace)
+      workspaceId
     )
       .then((projection) => {
+        const currentTargetKey = agentNodeManagementTargetKey(
+          currentConversationIdRef.current ?? "",
+          agentEvolutionWorkspaceIdRef.current
+        )
         if (
           cancelled ||
+          requestId !== agentEvolutionRequestRef.current ||
+          requestTargetKey !== currentTargetKey ||
           currentConversationIdRef.current !== projection.conversation_id
         ) return
         setAgentEvolution(projection)
@@ -579,7 +592,7 @@ export function GatewayChatSidebar({
         setIsAgentIterationResolved(true)
       })
       .catch((caught) => {
-        if (cancelled) return
+        if (cancelled || requestId !== agentEvolutionRequestRef.current) return
         setAgentEvolution(null)
         setAgentIterationRequestedState(false)
         setIsAgentIterationResolved(false)
@@ -590,7 +603,9 @@ export function GatewayChatSidebar({
         )
       })
       .finally(() => {
-        if (!cancelled) setIsAgentIterationLoading(false)
+        if (!cancelled && requestId === agentEvolutionRequestRef.current) {
+          setIsAgentIterationLoading(false)
+        }
       })
     return () => {
       cancelled = true
@@ -605,23 +620,38 @@ export function GatewayChatSidebar({
       conversationId,
       workspaceId
     )
-    const projection = await getAgentEvolutionProjection(
-      accessToken,
-      conversationId,
-      workspaceId
-    )
-    const currentTargetKey = agentNodeManagementTargetKey(
-      currentConversationIdRef.current ?? "",
-      agentEvolutionWorkspaceIdRef.current
-    )
-    if (
-      requestTargetKey !== currentTargetKey ||
-      currentConversationIdRef.current !== projection.conversation_id
-    ) return
-    setAgentEvolution(projection)
-    setAgentIterationRequestedState(projection.requested)
-    setAgentIterationConversationId(projection.conversation_id)
-    setIsAgentIterationResolved(true)
+    const requestId = ++agentEvolutionRequestRef.current
+    setIsAgentIterationLoading(true)
+    try {
+      const projection = await getAgentEvolutionProjection(
+        accessToken,
+        conversationId,
+        workspaceId
+      )
+      const currentTargetKey = agentNodeManagementTargetKey(
+        currentConversationIdRef.current ?? "",
+        agentEvolutionWorkspaceIdRef.current
+      )
+      if (
+        requestId !== agentEvolutionRequestRef.current ||
+        requestTargetKey !== currentTargetKey ||
+        currentConversationIdRef.current !== projection.conversation_id
+      ) return
+      setAgentEvolution(projection)
+      setAgentIterationRequestedState(projection.requested)
+      setAgentIterationConversationId(projection.conversation_id)
+      setIsAgentIterationResolved(true)
+    } finally {
+      if (
+        requestId === agentEvolutionRequestRef.current &&
+        requestTargetKey === agentNodeManagementTargetKey(
+          currentConversationIdRef.current ?? "",
+          agentEvolutionWorkspaceIdRef.current
+        )
+      ) {
+        setIsAgentIterationLoading(false)
+      }
+    }
   }, [accessToken, currentWorkspace])
 
   React.useEffect(
@@ -646,6 +676,12 @@ export function GatewayChatSidebar({
 
   async function handleAgentIterationChange(requested: boolean) {
     const conversationId = currentConversationIdRef.current
+    const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const requestTargetKey = agentNodeManagementTargetKey(
+      conversationId ?? "",
+      workspaceId
+    )
+    const requestId = ++agentEvolutionRequestRef.current
     setAgentIterationConversationId(conversationId)
     setAgentIterationRequestedState(requested)
     setIsAgentIterationResolved(true)
@@ -654,17 +690,37 @@ export function GatewayChatSidebar({
     try {
       const projection = await setAgentIterationRequested(accessToken, {
         conversation_id: conversationId,
-        workspace_id: resolveAgentEvolutionWorkspaceId(currentWorkspace),
+        workspace_id: workspaceId,
         requested,
       })
-      if (currentConversationIdRef.current !== projection.conversation_id) return
+      const currentTargetKey = agentNodeManagementTargetKey(
+        currentConversationIdRef.current ?? "",
+        agentEvolutionWorkspaceIdRef.current
+      )
+      if (
+        requestId !== agentEvolutionRequestRef.current ||
+        requestTargetKey !== currentTargetKey ||
+        currentConversationIdRef.current !== projection.conversation_id
+      ) return
       setAgentEvolution(projection)
       setAgentIterationRequestedState(projection.requested)
       setAgentIterationConversationId(projection.conversation_id)
       setIsAgentIterationResolved(true)
+      publishAgentEvolutionChanged({
+        conversationId: projection.conversation_id,
+        workspaceId: projection.workspace_id ?? null,
+      })
     } catch (caught) {
-      if (currentConversationIdRef.current === conversationId) {
-        const hasLoadedProjection = agentEvolution?.conversation_id === conversationId
+      if (
+        requestId === agentEvolutionRequestRef.current &&
+        requestTargetKey === agentNodeManagementTargetKey(
+          currentConversationIdRef.current ?? "",
+          agentEvolutionWorkspaceIdRef.current
+        )
+      ) {
+        const hasLoadedProjection =
+          agentEvolution?.conversation_id === conversationId &&
+          (agentEvolution.workspace_id ?? null) === (workspaceId ?? null)
         setAgentIterationRequestedState(
           hasLoadedProjection
             ? agentEvolution.requested
@@ -678,7 +734,13 @@ export function GatewayChatSidebar({
         i18n.t("chat.composer.iterationUpdateFailedTitle")
       )
     } finally {
-      if (currentConversationIdRef.current === conversationId) {
+      if (
+        requestId === agentEvolutionRequestRef.current &&
+        requestTargetKey === agentNodeManagementTargetKey(
+          currentConversationIdRef.current ?? "",
+          agentEvolutionWorkspaceIdRef.current
+        )
+      ) {
         setIsAgentIterationLoading(false)
       }
     }

@@ -374,6 +374,7 @@ export function AgentNodeManagementView({
           <section className="space-y-2">
             <h3 className="text-sm font-medium">独立审核收件箱</h3>
             {reviewQueue?.evaluations.length ? reviewQueue.evaluations.map((evaluation) => {
+              const action = actionFor(projection, "admit_definition", evaluation.id)
               return (
                 <div key={`review:${evaluation.id}`} className="rounded-xl border p-3">
                   <div className="flex items-center justify-between gap-2">
@@ -391,7 +392,7 @@ export function AgentNodeManagementView({
                     size="sm"
                     variant="outline"
                     className="mt-3"
-                    disabled={!accessToken || busyKey !== null}
+                    disabled={!accessToken || !action?.enabled || busyKey !== null}
                     onClick={() => accessToken && void runConfirmed(
                       `review:${evaluation.id}`,
                       "确认以独立审核者身份准入这个 Agent Node 版本？",
