@@ -197,6 +197,34 @@ assert.deepEqual(
   "a directly accepted run must commit and clear its manual draft"
 )
 writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
+  modelProfileId: "model-a-submitted",
+  sandboxEnvironmentId: "sandbox-a-submitted",
+})
+writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
+  modelProfileId: "model-b-selected-after-submit",
+  sandboxEnvironmentId: "sandbox-b-selected-after-submit",
+})
+commitAcceptedComposerRuntimeSelection(selectionStorage, conversationId, {
+  modelProfileId: "model-a-submitted",
+  sandboxEnvironmentId: "sandbox-a-submitted",
+})
+assert.deepEqual(
+  readCachedComposerRuntimeSelection(selectionStorage, conversationId),
+  {
+    modelProfileId: "model-b-selected-after-submit",
+    sandboxEnvironmentId: "sandbox-b-selected-after-submit",
+  },
+  "an older request acknowledgement must not delete a newer manual draft"
+)
+assert.equal(
+  reconcileCanonicalComposerRuntimeSelection(selectionStorage, conversationId, {
+    modelProfileId: "model-a-submitted",
+    sandboxEnvironmentId: "sandbox-a-submitted",
+  }),
+  false,
+  "the newer draft must continue fencing terminal canonical resync for the older request"
+)
+writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
   modelProfileId: "removed-model",
   sandboxEnvironmentId: "removed-sandbox",
 })

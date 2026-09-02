@@ -101,9 +101,16 @@ export function commitAcceptedComposerRuntimeSelection(
   conversationId: string,
   selection: ComposerRuntimeSelection
 ) {
+  const draft = readComposerRuntimeSelectionDraft(storage, conversationId)
   writeCanonicalComposerRuntimeSelection(storage, conversationId, selection)
   writeRecentComposerRuntimeSelection(storage, selection)
-  storage.removeItem(draftStorageKey(conversationId))
+  if (
+    !draft ||
+    (draft.modelProfileId === selection.modelProfileId &&
+      draft.sandboxEnvironmentId === selection.sandboxEnvironmentId)
+  ) {
+    storage.removeItem(draftStorageKey(conversationId))
+  }
 }
 
 export function reconcileCanonicalComposerRuntimeSelection(
