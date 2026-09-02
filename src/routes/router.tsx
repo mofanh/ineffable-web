@@ -24,6 +24,10 @@ const AccountPage = lazy(async () => ({
 const AutomationPage = lazy(async () => ({
   default: (await import("@/pages/agent-products/automation-page")).AutomationPage,
 }))
+const AgentNodeManagementPage = lazy(async () => ({
+  default: (await import("@/pages/agent-node-management-page"))
+    .AgentNodeManagementPage,
+}))
 const LoginPage = lazy(async () => ({
   default: (await import("@/pages/auth-pages")).LoginPage,
 }))
@@ -111,6 +115,7 @@ const routeElements: Record<string, React.ReactElement> = {
     </RequireAdmin>
   ),
   "/automation": <AutomationPage />,
+  "/agent-nodes": <AgentNodeManagementPage />,
   "/models": <ModelCenterPage />,
   "/models/genesis": <Navigate to="/models" replace />,
   "/models/explorer": <Navigate to="/models" replace />,

@@ -91,6 +91,7 @@ import {
   FileTextIcon,
   FolderInputIcon,
   FolderPlusIcon,
+  GitBranchIcon,
   KeyRoundIcon,
   LinkIcon,
   LogOutIcon,
@@ -123,6 +124,12 @@ const primaryNavItems: Array<{
     titleKey: "sidebar.navigation.automation",
     icon: ZapIcon,
     path: "/automation",
+  },
+  {
+    id: "agent-nodes",
+    titleKey: "sidebar.navigation.agentNodes",
+    icon: GitBranchIcon,
+    path: "/agent-nodes",
   },
   {
     id: "models",

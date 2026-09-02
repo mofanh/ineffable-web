@@ -90,6 +90,7 @@ export const resources = {
           secretManagement: "密钥管理",
           userManagement: "用户管理",
           automation: "自动任务",
+          agentNodes: "Agent Node 管理",
           workspace: "工作区",
           files: "文件",
           workspaceFiles: "工作区文件",
@@ -112,6 +113,7 @@ export const resources = {
         },
         navigation: {
           automation: "自动任务",
+          agentNodes: "Agent Node 管理",
           models: "模型中心",
           systemManagement: "系统管理",
           modelManagement: "模型管理",
@@ -1523,6 +1525,7 @@ export const resources = {
           secretManagement: "Secret management",
           userManagement: "User management",
           automation: "Automation",
+          agentNodes: "Agent Node Management",
           workspace: "Workspace",
           files: "Files",
           workspaceFiles: "Workspace files",
@@ -1545,6 +1548,7 @@ export const resources = {
         },
         navigation: {
           automation: "Automation",
+          agentNodes: "Agent Node Management",
           models: "Model center",
           systemManagement: "System management",
           modelManagement: "Model management",

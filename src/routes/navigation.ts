@@ -136,6 +136,11 @@ const routeMetaDefinitions: RouteMetaDefinition[] = [
     titleKey: "shell.routes.automation",
     breadcrumbs: [{ labelKey: "shell.routes.automation" }],
   },
+  {
+    path: "/agent-nodes",
+    titleKey: "shell.routes.agentNodes",
+    breadcrumbs: [{ labelKey: "shell.routes.agentNodes" }],
+  },
 ]
 
 const routeMetaMap = new Map(
