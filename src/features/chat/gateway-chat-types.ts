@@ -54,6 +54,7 @@ export type AssistantEntry = {
   role: "assistant"
   runId?: string | null
   definitionFingerprint?: string | null
+  createdAt?: string | null
   canonicalMessageSeqEnd?: number | null
   timelineSeq?: number | null
   timelineUnitId?: string | null

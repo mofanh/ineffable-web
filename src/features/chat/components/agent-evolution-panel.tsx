@@ -33,6 +33,7 @@ type AgentEvolutionPanelProps = {
   accessToken: string | null
   projection: AgentEvolutionProjection | null
   onRefresh: () => Promise<void>
+  hasInlineTrialVerdict: boolean
 }
 
 function shortFingerprint(value: string) {
@@ -55,6 +56,7 @@ export function AgentEvolutionPanel({
   accessToken,
   projection,
   onRefresh,
+  hasInlineTrialVerdict,
 }: AgentEvolutionPanelProps) {
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [candidate, setCandidate] = React.useState<string | null>(null)
@@ -166,11 +168,36 @@ export function AgentEvolutionPanel({
               </Badge>
             </div>
             {projection?.trial_binding?.mode === "trial" ? (
-              <p className="text-xs text-muted-foreground">
-                回退目标：{projection.trial_binding.fallback_fingerprint
-                  ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
-                  : "系统 Definition"}。请在候选版本实际生成的最新回答下方保留或恢复；当前正在运行的任务不会被热切换。
-              </p>
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  回退目标：{projection.trial_binding.fallback_fingerprint
+                    ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
+                    : "系统 Definition"}。{hasInlineTrialVerdict
+                    ? "请在候选版本实际生成的最新回答下方保留或恢复。"
+                    : "候选尚未产出可裁决回答，你仍可先恢复旧版本。"}当前正在运行的任务不会被热切换。
+                </p>
+                {!hasInlineTrialVerdict ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
+                    onClick={() => accessToken && void runConfirmed(
+                      "trial:rollback-fallback",
+                      "确认恢复试用前的 Definition？外部工具产生的副作用不会回滚。",
+                      () => updateAgentDefinitionTrial(accessToken, {
+                        action: "rollback",
+                        conversation_id: projection.conversation_id,
+                        workspace_id: projection.workspace_id ?? undefined,
+                        expected_version: projection.trial_binding!.version,
+                      }),
+                      "destructive"
+                    )}
+                  >
+                    恢复试用前版本
+                  </Button>
+                ) : null}
+              </div>
             ) : (
               <p className="text-xs text-muted-foreground">
                 从下方选择候选开始单活试用；不会并行运行旧版，也不会替换当前任务。

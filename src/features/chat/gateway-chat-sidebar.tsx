@@ -87,6 +87,7 @@ import {
 import { shouldApplyConversationProjection } from "@/features/chat/model/conversation-projection"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
+import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
 import {
   projectConversationOutputEvent,
   projectConversationUserInputNeed,
@@ -3166,22 +3167,7 @@ export function GatewayChatSidebar({
   }
 
   const trialBinding = agentEvolution?.trial_binding
-  const trialFingerprint =
-    trialBinding?.mode === "trial" ? trialBinding.active_fingerprint?.trim() : null
-  const trialAnswer = trialFingerprint
-    ? [...renderedEntries]
-        .reverse()
-        .find(
-          (entry) =>
-            entry.role === "assistant" &&
-            entry.status === "done" &&
-            entry.definitionFingerprint === trialFingerprint &&
-            entry.pane.blockOrder.some((blockId) => {
-              const block = entry.pane.blocks[blockId]
-              return block?.type === "text" && Boolean(block.content.trim())
-            })
-        )
-    : null
+  const trialAnswer = findEligibleTrialAnswer(renderedEntries, agentEvolution)
   const canAcceptTrial = Boolean(
     agentEvolution?.actions.some(
       (action) => action.action === "accept_definition_trial" && action.enabled
@@ -3294,6 +3280,7 @@ export function GatewayChatSidebar({
         accessToken={accessToken ?? null}
         projection={agentEvolution}
         onRefresh={refreshAgentEvolution}
+        hasInlineTrialVerdict={Boolean(trialAnswer)}
       />
 
       <ChatComposer

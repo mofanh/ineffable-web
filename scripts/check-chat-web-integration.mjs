@@ -9,6 +9,7 @@ import {
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
 } from "../src/features/chat/model/chat-history.ts"
+import { findEligibleTrialAnswer } from "../src/features/chat/model/agent-trial-verdict.ts"
 import {
   projectConversationOutputEvent,
   projectConversationUserInputNeed,
@@ -930,6 +931,45 @@ assert.equal(
   canonicalWatermarkEntries[0].id,
   "run:terminal-watermark-run:anchor:82",
   "history must retain the server-owned timeline unit identity"
+)
+
+const trialProjection = {
+  trial_binding: {
+    mode: "trial",
+    active_fingerprint: "sha256:candidate-v1",
+    updated_at: "2026-08-22T00:00:05Z",
+  },
+}
+const oldCandidateAnswer = {
+  ...createAssistantEntry("done", "old-candidate-run"),
+  id: "old-candidate-answer",
+  definitionFingerprint: "sha256:candidate-v1",
+  createdAt: "2026-08-22T00:00:04Z",
+  pane: {
+    ...createAssistantEntry("done").pane,
+    blockOrder: ["old-answer"],
+    blocks: {
+      "old-answer": { id: "old-answer", type: "text", content: "old answer" },
+    },
+  },
+}
+assert.equal(
+  findEligibleTrialAnswer([oldCandidateAnswer], trialProjection),
+  null,
+  "restarting the same candidate trial must not make an earlier generation eligible"
+)
+const currentCandidateAnswer = {
+  ...oldCandidateAnswer,
+  id: "current-candidate-answer",
+  createdAt: "2026-08-22T00:00:06Z",
+}
+assert.equal(
+  findEligibleTrialAnswer(
+    [oldCandidateAnswer, currentCandidateAnswer],
+    trialProjection
+  )?.id,
+  "current-candidate-answer",
+  "only an answer produced after the current trial boundary is eligible"
 )
 
 const sameRunMultipleUnits = mapConversationMessagesToEntries([

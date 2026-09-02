@@ -55,6 +55,7 @@ export function createAssistantEntry(
     role: "assistant",
     runId: runId ?? null,
     definitionFingerprint: null,
+    createdAt: null,
     status,
     pane: createEmptyAgentPane(),
     subagentOrder: [],
@@ -236,6 +237,11 @@ function buildAssistantEntryFromMessages(
     messages.find((message) => message.definition_fingerprint)
       ?.definition_fingerprint ??
     null
+  const createdAt = messages.reduce<string | null>((latest, message) => {
+    const timestamp = Date.parse(message.created_at)
+    if (!Number.isFinite(timestamp)) return latest
+    return latest == null || timestamp > Date.parse(latest) ? message.created_at : latest
+  }, null)
   const timelineUnitId =
     messages.find((message) => message.timeline_unit_id)?.timeline_unit_id ?? null
   const timelineSeq = messages.reduce<number | null>(
@@ -383,6 +389,7 @@ function buildAssistantEntryFromMessages(
     role: "assistant",
     runId,
     definitionFingerprint,
+    createdAt,
     canonicalMessageSeqEnd,
     timelineSeq,
     timelineUnitId,
