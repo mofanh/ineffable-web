@@ -22,6 +22,9 @@ const webNodeRegistry = source(
   "src/features/chat/components/web-node-registry.tsx"
 )
 const history = source("src/features/chat/model/chat-history.ts")
+const composerRuntimeSelection = source(
+  "src/features/chat/model/composer-runtime-selection.ts"
+)
 const canonicalMessageEvent = source(
   "src/features/chat/model/canonical-message-event.ts"
 )
@@ -73,7 +76,10 @@ assert.match(messageList, /data-assistant-answer-footer/)
 assert.match(messageList, /data-answer-run-metadata/)
 assert.match(sidebar, /modelDisplayNames=\{modelDisplayNames\}/)
 assert.match(sidebar, /findLatestConversationRuntimeSelection\(response\.messages\)/)
-assert.match(sidebar, /persistComposerRuntimeSelection/)
+assert.match(sidebar, /reconcileCanonicalComposerRuntimeSelection/)
+assert.match(sidebar, /commitAcceptedComposerRuntimeSelection/)
+assert.match(composerRuntimeSelection, /runtime-selection-draft/)
+assert.match(composerRuntimeSelection, /writeCanonicalComposerRuntimeSelection/)
 assert.match(sidebar, /canonicalMessagesToGatewayEvents/)
 assert.doesNotMatch(
   sidebar,

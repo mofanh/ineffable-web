@@ -90,6 +90,14 @@ import { commitConversationSelection } from "@/features/chat/model/conversation-
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
 import {
+  clearUnavailableComposerRuntimeSelectionField,
+  commitAcceptedComposerRuntimeSelection,
+  readCachedComposerRuntimeSelection,
+  reconcileCanonicalComposerRuntimeSelection,
+  writeComposerRuntimeSelectionDraft,
+  writeRecentComposerRuntimeSelection,
+} from "@/features/chat/model/composer-runtime-selection"
+import {
   projectConversationOutputEvent,
   projectConversationUserInputNeed,
 } from "@/features/chat/runtime/conversation-event-projector"
@@ -147,32 +155,6 @@ function formatSendErrorMessage(message: string) {
   return message.trim() === "no_available_model"
     ? i18n.t("chat.gateway.noModel")
     : message
-}
-
-function sandboxStorageKey(conversationId: string | null | undefined) {
-  return `ineffable.chat.sandbox.${conversationId ?? "new"}`
-}
-
-function modelStorageKey(conversationId: string | null | undefined) {
-  return `ineffable.chat.model.${conversationId ?? "new"}`
-}
-
-function persistComposerRuntimeSelection(
-  conversationId: string | null | undefined,
-  modelProfileId: string,
-  sandboxEnvironmentId: string,
-  persistAsRecent = false
-) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(modelStorageKey(conversationId), modelProfileId)
-  window.localStorage.setItem(
-    sandboxStorageKey(conversationId),
-    sandboxEnvironmentId
-  )
-  if (persistAsRecent) {
-    window.localStorage.setItem(modelStorageKey(null), modelProfileId)
-    window.localStorage.setItem(sandboxStorageKey(null), sandboxEnvironmentId)
-  }
 }
 
 function sandboxOptionLabel(
@@ -715,12 +697,12 @@ export function GatewayChatSidebar({
     if (typeof window === "undefined") {
       return
     }
-    setSelectedModelProfileId(
-      window.localStorage.getItem(modelStorageKey(currentConversationId)) ?? ""
+    const cachedSelection = readCachedComposerRuntimeSelection(
+      window.localStorage,
+      currentConversationId
     )
-    setSelectedSandboxEnvironmentId(
-      window.localStorage.getItem(sandboxStorageKey(currentConversationId)) ?? ""
-    )
+    setSelectedModelProfileId(cachedSelection.modelProfileId)
+    setSelectedSandboxEnvironmentId(cachedSelection.sandboxEnvironmentId)
   }, [currentConversationId])
 
   React.useEffect(() => {
@@ -741,19 +723,25 @@ export function GatewayChatSidebar({
         modelProfilesRef.current = response.profiles
         modelProfilesLoadedRef.current = true
         setModelProfiles(response.profiles)
-        setSelectedModelProfileId((current) =>
-          current && response.profiles.some((profile) => profile.id === current)
-            ? current
-            : ""
-        )
+        setSelectedModelProfileId((current) => {
+          if (
+            !current ||
+            response.profiles.some((profile) => profile.id === current)
+          ) {
+            return current
+          }
+          if (typeof window !== "undefined") {
+            clearUnavailableComposerRuntimeSelectionField(
+              window.localStorage,
+              currentConversationIdRef.current,
+              "model"
+            )
+          }
+          return ""
+        })
       })
       .catch(() => {
-        if (!cancelled) {
-          modelProfilesRef.current = []
-          modelProfilesLoadedRef.current = false
-          setModelProfiles([])
-          setSelectedModelProfileId("")
-        }
+        // Preserve the last successful catalog and selection on transient failure.
       })
 
     return () => {
@@ -822,8 +810,10 @@ export function GatewayChatSidebar({
           ) {
             return current
           }
-          window.localStorage.removeItem(
-            sandboxStorageKey(currentConversationIdRef.current)
+          clearUnavailableComposerRuntimeSelectionField(
+            window.localStorage,
+            currentConversationIdRef.current,
+            "sandbox"
           )
           return ""
         })
@@ -1451,41 +1441,39 @@ export function GatewayChatSidebar({
           return handoffConfirmed
         }
         if (latestRuntimeSelection) {
-          if (typeof window !== "undefined") {
-            window.localStorage.setItem(
-              modelStorageKey(conversationId),
-              latestRuntimeSelection.modelProfileId
+          const storage = typeof window !== "undefined" ? window.localStorage : null
+          if (
+            !storage ||
+            reconcileCanonicalComposerRuntimeSelection(
+              storage,
+              conversationId,
+              latestRuntimeSelection
+            )
+          ) {
+            const modelIsAvailable =
+              !modelProfilesLoadedRef.current ||
+              modelProfilesRef.current.some(
+                (profile) => profile.id === latestRuntimeSelection.modelProfileId
+              )
+            const sandboxIsAvailable =
+              latestRuntimeSelection.sandboxEnvironmentId == null ||
+              !latestRuntimeSelection.sandboxEnvironmentId ||
+              !sandboxOptionsLoadedRef.current ||
+              sandboxOptionsRef.current.some(
+                (option) =>
+                  option.environmentId ===
+                  latestRuntimeSelection.sandboxEnvironmentId
+              )
+            setSelectedModelProfileId(
+              modelIsAvailable ? latestRuntimeSelection.modelProfileId : ""
             )
             if (latestRuntimeSelection.sandboxEnvironmentId != null) {
-              window.localStorage.setItem(
-                sandboxStorageKey(conversationId),
-                latestRuntimeSelection.sandboxEnvironmentId
+              setSelectedSandboxEnvironmentId(
+                sandboxIsAvailable
+                  ? latestRuntimeSelection.sandboxEnvironmentId
+                  : ""
               )
             }
-          }
-          const modelIsAvailable =
-            !modelProfilesLoadedRef.current ||
-            modelProfilesRef.current.some(
-              (profile) => profile.id === latestRuntimeSelection.modelProfileId
-            )
-          const sandboxIsAvailable =
-            latestRuntimeSelection.sandboxEnvironmentId == null ||
-            !latestRuntimeSelection.sandboxEnvironmentId ||
-            !sandboxOptionsLoadedRef.current ||
-            sandboxOptionsRef.current.some(
-              (option) =>
-                option.environmentId ===
-                latestRuntimeSelection.sandboxEnvironmentId
-            )
-          setSelectedModelProfileId(
-            modelIsAvailable ? latestRuntimeSelection.modelProfileId : ""
-          )
-          if (latestRuntimeSelection.sandboxEnvironmentId != null) {
-            setSelectedSandboxEnvironmentId(
-              sandboxIsAvailable
-                ? latestRuntimeSelection.sandboxEnvironmentId
-                : ""
-            )
           }
         }
         const shouldReplaceTranscript =
@@ -2879,13 +2867,6 @@ export function GatewayChatSidebar({
         return
       }
 
-      persistComposerRuntimeSelection(
-        targetConversationId,
-        selectedModelProfileId,
-        selectedSandboxEnvironmentId,
-        true
-      )
-
       setError(null)
       const optimisticId = createMessageId("guided")
       beginGuidedUserTurn(content, optimisticId)
@@ -2908,6 +2889,16 @@ export function GatewayChatSidebar({
             },
           }
         )
+        if (typeof window !== "undefined") {
+          commitAcceptedComposerRuntimeSelection(
+            window.localStorage,
+            targetConversationId,
+            {
+              modelProfileId: selectedModelProfileId,
+              sandboxEnvironmentId: selectedSandboxEnvironmentId,
+            }
+          )
+        }
         return true
       } catch (enqueueError) {
         setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
@@ -2935,12 +2926,16 @@ export function GatewayChatSidebar({
         clearConversation()
         setIsSubmittingInput(true)
         selectConversationTarget(targetConversationId)
-        persistComposerRuntimeSelection(
-          targetConversationId,
-          selectedModelProfileId,
-          selectedSandboxEnvironmentId,
-          true
-        )
+        if (typeof window !== "undefined") {
+          writeComposerRuntimeSelectionDraft(
+            window.localStorage,
+            targetConversationId,
+            {
+              modelProfileId: selectedModelProfileId,
+              sandboxEnvironmentId: selectedSandboxEnvironmentId,
+            }
+          )
+        }
       } catch (createError) {
         setIsSubmittingInput(false)
         const message = reportChatError(
@@ -2966,22 +2961,30 @@ export function GatewayChatSidebar({
       return false
     }
 
-    persistComposerRuntimeSelection(
-      targetConversationId,
-      selectedModelProfileId,
-      selectedSandboxEnvironmentId,
-      true
-    )
-
     let acceptedAsRun = false
     let accepted = false
     let queued = false
     let userMessageCommitted = false
-    const acceptSubmission = () => {
+    const acceptSubmission = (commitSelection = true) => {
       if (accepted) {
         return
       }
       accepted = true
+      if (typeof window !== "undefined") {
+        const selection = {
+          modelProfileId: selectedModelProfileId,
+          sandboxEnvironmentId: selectedSandboxEnvironmentId,
+        }
+        if (commitSelection) {
+          commitAcceptedComposerRuntimeSelection(
+            window.localStorage,
+            targetConversationId,
+            selection
+          )
+        } else {
+          writeRecentComposerRuntimeSelection(window.localStorage, selection)
+        }
+      }
       setIsSubmittingInput(false)
       onAccepted?.()
     }
@@ -3003,7 +3006,7 @@ export function GatewayChatSidebar({
           signal: controller.signal,
           onEnvelope: (envelope) => {
             if (envelope.type === "queued") {
-              acceptSubmission()
+              acceptSubmission(false)
               queued = true
               if (currentConversationIdRef.current === targetConversationId) {
                 setPreInputQueue((prev) => {
@@ -3152,22 +3155,40 @@ export function GatewayChatSidebar({
 
   function handleSandboxEnvironmentChange(value: string) {
     setSelectedSandboxEnvironmentId(value)
-    persistComposerRuntimeSelection(
-      currentConversationId,
-      selectedModelProfileId,
-      value,
-      true
-    )
+    if (typeof window !== "undefined") {
+      const selection = {
+        modelProfileId: selectedModelProfileId,
+        sandboxEnvironmentId: value,
+      }
+      if (currentConversationId) {
+        writeComposerRuntimeSelectionDraft(
+          window.localStorage,
+          currentConversationId,
+          selection
+        )
+      } else {
+        writeRecentComposerRuntimeSelection(window.localStorage, selection)
+      }
+    }
   }
 
   function handleModelProfileChange(value: string) {
     setSelectedModelProfileId(value)
-    persistComposerRuntimeSelection(
-      currentConversationId,
-      value,
-      selectedSandboxEnvironmentId,
-      true
-    )
+    if (typeof window !== "undefined") {
+      const selection = {
+        modelProfileId: value,
+        sandboxEnvironmentId: selectedSandboxEnvironmentId,
+      }
+      if (currentConversationId) {
+        writeComposerRuntimeSelectionDraft(
+          window.localStorage,
+          currentConversationId,
+          selection
+        )
+      } else {
+        writeRecentComposerRuntimeSelection(window.localStorage, selection)
+      }
+    }
   }
 
   function handlePromoteToGuided(id: string) {

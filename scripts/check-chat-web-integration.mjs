@@ -43,6 +43,14 @@ import {
   hasCanonicalAssistantOutput,
 } from "../src/features/chat/model/canonical-message-event.ts"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list.tsx"
+import {
+  clearUnavailableComposerRuntimeSelectionField,
+  commitAcceptedComposerRuntimeSelection,
+  readCachedComposerRuntimeSelection,
+  reconcileCanonicalComposerRuntimeSelection,
+  writeCanonicalComposerRuntimeSelection,
+  writeComposerRuntimeSelectionDraft,
+} from "../src/features/chat/model/composer-runtime-selection.ts"
 
 globalThis.React = React
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -58,26 +66,34 @@ globalThis.matchMedia = () => ({
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
 
+function memorySelectionStorage() {
+  const values = new Map()
+  return {
+    getItem(key) {
+      return values.get(key) ?? null
+    },
+    setItem(key, value) {
+      values.set(key, String(value))
+    },
+    removeItem(key) {
+      values.delete(key)
+    },
+  }
+}
+
 assert.deepEqual(
   findLatestConversationRuntimeSelection([
     {
       role: "user",
       metadata_json: {
-        model_profile_id: "model-old",
-        sandbox: { environment_id: "sandbox-old" },
+        model_profile_id: "model-latest",
+        sandbox: { environment_id: "sandbox-latest" },
       },
     },
-    {
-      role: "assistant",
-      metadata_json: { model_profile_id: "must-be-ignored" },
-    },
-    {
-      role: "user",
-      metadata_json: { model_profile_id: "model-latest" },
-    },
+    { role: "assistant", model_profile_id: "model-latest", metadata_json: {} },
   ]),
-  { modelProfileId: "model-latest", sandboxEnvironmentId: "" },
-  "the newest canonical user selection must restore its model and explicit no-sandbox state"
+  { modelProfileId: "model-latest", sandboxEnvironmentId: "sandbox-latest" },
+  "normal user-to-assistant transcript order must retain the canonical sandbox selection"
 )
 assert.deepEqual(
   findLatestConversationRuntimeSelection([
@@ -91,6 +107,14 @@ assert.deepEqual(
     },
   ]),
   { modelProfileId: "model-sandbox", sandboxEnvironmentId: "sandbox-latest" }
+)
+assert.deepEqual(
+  findLatestConversationRuntimeSelection([
+    { role: "user", metadata_json: { model_profile_id: "model-no-sandbox" } },
+    { role: "assistant", model_profile_id: "model-no-sandbox" },
+  ]),
+  { modelProfileId: "model-no-sandbox", sandboxEnvironmentId: "" },
+  "an explicit canonical no-sandbox request must survive refresh"
 )
 assert.deepEqual(
   findLatestConversationRuntimeSelection([
@@ -112,6 +136,84 @@ assert.equal(
   ]),
   null,
   "legacy messages without runtime metadata must not overwrite a local draft"
+)
+
+const selectionStorage = memorySelectionStorage()
+reconcileCanonicalComposerRuntimeSelection(selectionStorage, conversationId, {
+  modelProfileId: "model-a",
+  sandboxEnvironmentId: "sandbox-a",
+})
+writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
+  modelProfileId: "model-b",
+  sandboxEnvironmentId: "",
+})
+const staleCanonicalMayReplaceDraft = reconcileCanonicalComposerRuntimeSelection(
+  selectionStorage,
+  conversationId,
+  {
+    modelProfileId: "model-a-after-terminal-resync",
+    sandboxEnvironmentId: "sandbox-a",
+  }
+)
+assert.equal(
+  staleCanonicalMayReplaceDraft,
+  false,
+  "terminal canonical resync must not replace a newer unsent draft"
+)
+assert.deepEqual(
+  readCachedComposerRuntimeSelection(selectionStorage, conversationId),
+  { modelProfileId: "model-b", sandboxEnvironmentId: "" },
+  "refresh must restore the unsent per-conversation draft before canonical cache"
+)
+assert.equal(
+  reconcileCanonicalComposerRuntimeSelection(selectionStorage, conversationId, {
+    modelProfileId: "model-b",
+    sandboxEnvironmentId: "",
+  }),
+  true,
+  "matching canonical input must clear an accepted queued draft fence"
+)
+assert.deepEqual(
+  readCachedComposerRuntimeSelection(selectionStorage, conversationId),
+  { modelProfileId: "model-b", sandboxEnvironmentId: "" },
+  "accepted explicit no-sandbox selection becomes the canonical cache"
+)
+assert.deepEqual(
+  readCachedComposerRuntimeSelection(selectionStorage, null),
+  { modelProfileId: "model-b", sandboxEnvironmentId: "" },
+  "a new conversation must inherit the most recently accepted selection"
+)
+writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
+  modelProfileId: "model-c",
+  sandboxEnvironmentId: "sandbox-c",
+})
+commitAcceptedComposerRuntimeSelection(selectionStorage, conversationId, {
+  modelProfileId: "model-c",
+  sandboxEnvironmentId: "sandbox-c",
+})
+assert.deepEqual(
+  readCachedComposerRuntimeSelection(selectionStorage, conversationId),
+  { modelProfileId: "model-c", sandboxEnvironmentId: "sandbox-c" },
+  "a directly accepted run must commit and clear its manual draft"
+)
+writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
+  modelProfileId: "removed-model",
+  sandboxEnvironmentId: "removed-sandbox",
+})
+clearUnavailableComposerRuntimeSelectionField(
+  selectionStorage,
+  conversationId,
+  "model"
+)
+clearUnavailableComposerRuntimeSelectionField(
+  selectionStorage,
+  conversationId,
+  "sandbox"
+)
+assert.deepEqual(
+  readCachedComposerRuntimeSelection(selectionStorage, conversationId),
+  { modelProfileId: "", sandboxEnvironmentId: "" },
+  "removed options must be cleared inside the draft instead of reappearing after refresh"
 )
 
 const runningCommand = {

@@ -56,27 +56,30 @@ export function findLatestConversationRuntimeSelection(
 ): ConversationRuntimeSelection | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (message.role === "user") {
-      const metadata = message.metadata_json
-      const modelProfileId =
-        typeof metadata?.model_profile_id === "string"
-          ? metadata.model_profile_id.trim()
-          : ""
-      if (!modelProfileId) continue
+    if (message.role !== "user") continue
 
-      const sandbox = metadata?.sandbox
-      const sandboxEnvironmentId =
-        sandbox &&
-        typeof sandbox === "object" &&
-        !Array.isArray(sandbox) &&
-        "environment_id" in sandbox &&
-        typeof sandbox.environment_id === "string"
-          ? sandbox.environment_id.trim()
-          : ""
+    const metadata = message.metadata_json
+    const modelProfileId =
+      typeof metadata?.model_profile_id === "string"
+        ? metadata.model_profile_id.trim()
+        : ""
+    if (!modelProfileId) continue
 
-      return { modelProfileId, sandboxEnvironmentId }
-    }
+    const sandbox = metadata?.sandbox
+    const sandboxEnvironmentId =
+      sandbox &&
+      typeof sandbox === "object" &&
+      !Array.isArray(sandbox) &&
+      "environment_id" in sandbox &&
+      typeof sandbox.environment_id === "string"
+        ? sandbox.environment_id.trim()
+        : ""
 
+    return { modelProfileId, sandboxEnvironmentId }
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
     const projectedModelProfileId = message.model_profile_id?.trim()
     if (projectedModelProfileId) {
       return {
