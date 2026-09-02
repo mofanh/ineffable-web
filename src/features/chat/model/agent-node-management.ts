@@ -22,3 +22,25 @@ export function resolveAgentNodeTargetConversationId(
   }
   return conversationIds[0] ?? ""
 }
+
+export function agentNodeManagementTargetKey(
+  conversationId: string,
+  workspaceId: string | undefined
+) {
+  return conversationId ? `${conversationId}:${workspaceId ?? "user"}` : ""
+}
+
+export function matchesAgentNodeProjectionTarget(
+  projection: {
+    conversation_id: string
+    workspace_id?: string | null
+  } | null,
+  conversationId: string,
+  workspaceId: string | undefined
+) {
+  return Boolean(
+    projection &&
+      projection.conversation_id === conversationId &&
+      (projection.workspace_id ?? null) === (workspaceId ?? null)
+  )
+}

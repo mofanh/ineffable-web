@@ -88,7 +88,14 @@ import { shouldApplyConversationProjection } from "@/features/chat/model/convers
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
 import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
 import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
-import { resolveAgentEvolutionWorkspaceId } from "@/features/chat/model/agent-node-management"
+import {
+  agentNodeManagementTargetKey,
+  resolveAgentEvolutionWorkspaceId,
+} from "@/features/chat/model/agent-node-management"
+import {
+  publishAgentEvolutionChanged,
+  subscribeAgentEvolutionChanged,
+} from "@/features/chat/model/agent-evolution-invalidation"
 import {
   clearUnavailableComposerRuntimeSelectionField,
   commitAcceptedComposerRuntimeSelection,
@@ -418,6 +425,11 @@ export function GatewayChatSidebar({
   const catchupInFlightRef = React.useRef(false)
   const conversationSeqRef = React.useRef(new Map<string, number>())
   const currentConversationIdRef = React.useRef<string | null>(currentConversationId)
+  const agentEvolutionWorkspaceIdRef = React.useRef(
+    resolveAgentEvolutionWorkspaceId(currentWorkspace)
+  )
+  agentEvolutionWorkspaceIdRef.current =
+    resolveAgentEvolutionWorkspaceId(currentWorkspace)
   const hydratedConversationIdRef = React.useRef<string | null>(hydratedConversationId)
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
@@ -588,17 +600,49 @@ export function GatewayChatSidebar({
   const refreshAgentEvolution = React.useCallback(async () => {
     const conversationId = currentConversationIdRef.current
     if (!accessToken || !conversationId) return
+    const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const requestTargetKey = agentNodeManagementTargetKey(
+      conversationId,
+      workspaceId
+    )
     const projection = await getAgentEvolutionProjection(
       accessToken,
       conversationId,
-      resolveAgentEvolutionWorkspaceId(currentWorkspace)
+      workspaceId
     )
-    if (currentConversationIdRef.current !== projection.conversation_id) return
+    const currentTargetKey = agentNodeManagementTargetKey(
+      currentConversationIdRef.current ?? "",
+      agentEvolutionWorkspaceIdRef.current
+    )
+    if (
+      requestTargetKey !== currentTargetKey ||
+      currentConversationIdRef.current !== projection.conversation_id
+    ) return
     setAgentEvolution(projection)
     setAgentIterationRequestedState(projection.requested)
     setAgentIterationConversationId(projection.conversation_id)
     setIsAgentIterationResolved(true)
   }, [accessToken, currentWorkspace])
+
+  React.useEffect(
+    () =>
+      subscribeAgentEvolutionChanged((detail) => {
+        const conversationId = currentConversationIdRef.current
+        const workspaceId = agentEvolutionWorkspaceIdRef.current ?? null
+        if (
+          detail.conversationId !== conversationId ||
+          detail.workspaceId !== workspaceId
+        ) return
+        void refreshAgentEvolution().catch((caught) => {
+          reportChatError(
+            caught,
+            i18n.t("chat.composer.iterationLoadFailed"),
+            i18n.t("chat.composer.iterationLoadFailedTitle")
+          )
+        })
+      }),
+    [refreshAgentEvolution, reportChatError]
+  )
 
   async function handleAgentIterationChange(requested: boolean) {
     const conversationId = currentConversationIdRef.current
@@ -3353,6 +3397,10 @@ export function GatewayChatSidebar({
         expected_version: trialBinding.version,
       })
       await refreshAgentEvolution()
+      publishAgentEvolutionChanged({
+        conversationId: agentEvolution.conversation_id,
+        workspaceId: agentEvolution.workspace_id ?? null,
+      })
       notify.success({
         title: action === "accept" ? "已保留此 Agent 版本" : "已恢复之前的 Agent 版本",
       })

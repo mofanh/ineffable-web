@@ -52,6 +52,8 @@ import {
   writeComposerRuntimeSelectionDraft,
 } from "../src/features/chat/model/composer-runtime-selection.ts"
 import {
+  agentNodeManagementTargetKey,
+  matchesAgentNodeProjectionTarget,
   resolveAgentEvolutionWorkspaceId,
   resolveAgentNodeTargetConversationId,
 } from "../src/features/chat/model/agent-node-management.ts"
@@ -94,6 +96,42 @@ assert.equal(
   ),
   "current-conversation",
   "a removed management target must fall back to the current accessible conversation"
+)
+assert.equal(
+  agentNodeManagementTargetKey("conversation-a", undefined),
+  "conversation-a:user",
+  "personal Agent Node requests must have a stable user-scope identity"
+)
+assert.equal(
+  agentNodeManagementTargetKey("conversation-a", "team-workspace"),
+  "conversation-a:team-workspace",
+  "team Agent Node requests must include their workspace scope identity"
+)
+assert.equal(
+  matchesAgentNodeProjectionTarget(
+    { conversation_id: "conversation-a", workspace_id: null },
+    "conversation-a",
+    undefined
+  ),
+  true
+)
+assert.equal(
+  matchesAgentNodeProjectionTarget(
+    { conversation_id: "conversation-a", workspace_id: null },
+    "conversation-b",
+    undefined
+  ),
+  false,
+  "a stale projection must never expose actions for the newly selected target"
+)
+assert.equal(
+  matchesAgentNodeProjectionTarget(
+    { conversation_id: "conversation-a", workspace_id: "team-a" },
+    "conversation-a",
+    "team-b"
+  ),
+  false,
+  "a projection from another workspace scope must never expose actions"
 )
 
 function memorySelectionStorage() {

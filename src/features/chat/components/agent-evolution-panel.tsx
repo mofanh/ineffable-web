@@ -18,11 +18,14 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
+import { publishAgentEvolutionChanged } from "@/features/chat/model/agent-evolution-invalidation"
 
 type AgentNodeManagementViewProps = {
   accessToken: string | null
   projection: AgentEvolutionProjection
   onRefresh: () => Promise<void>
+  onMutationBusyChange: (busy: boolean) => void
+  targetLabel: string
 }
 
 function shortFingerprint(value: string) {
@@ -43,6 +46,8 @@ export function AgentNodeManagementView({
   accessToken,
   projection,
   onRefresh,
+  onMutationBusyChange,
+  targetLabel,
 }: AgentNodeManagementViewProps) {
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [candidate, setCandidate] = React.useState<string | null>(null)
@@ -75,18 +80,24 @@ export function AgentNodeManagementView({
   const run = React.useCallback(
     async (key: string, operation: () => Promise<unknown>) => {
       setBusyKey(key)
+      onMutationBusyChange(true)
       try {
         const value = await operation()
         setResult(JSON.stringify(value, null, 2))
+        publishAgentEvolutionChanged({
+          conversationId: projection.conversation_id,
+          workspaceId: projection.workspace_id ?? null,
+        })
         await Promise.all([onRefresh(), refreshReviewQueue()])
       } catch (caught) {
         const error = normalizeAppError(caught, { fallbackMessage: "Agent 迭代操作失败" })
         notify.error({ title: "Agent 迭代操作失败", description: error.message })
       } finally {
         setBusyKey(null)
+        onMutationBusyChange(false)
       }
     },
-    [onRefresh, refreshReviewQueue]
+    [onMutationBusyChange, onRefresh, projection, refreshReviewQueue]
   )
 
   const runConfirmed = React.useCallback(
@@ -155,7 +166,7 @@ export function AgentNodeManagementView({
                   disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
                   onClick={() => accessToken && void runConfirmed(
                     "trial:rollback-fallback",
-                    "确认恢复试用前的 Agent Node？外部工具产生的副作用不会回滚。",
+                    `确认在「${targetLabel}」恢复试用前的 Agent Node？外部工具产生的副作用不会回滚。`,
                     () => updateAgentDefinitionTrial(accessToken, {
                       action: "rollback",
                       conversation_id: projection.conversation_id,
@@ -183,7 +194,7 @@ export function AgentNodeManagementView({
                 : "系统 Agent"}
               {projection?.default_binding ? ` · v${projection.default_binding.version}` : ""}
             </div>
-            {definitions.length ? definitions.map((item, index) => {
+            {definitions.length ? definitions.map((item) => {
               const action = actionFor(projection, "evaluate_definition", item.fingerprint)
               const defaultAction = actionFor(projection, "set_default_definition", item.fingerprint)
               const trialAction = actionFor(projection, "start_definition_trial", item.fingerprint)
@@ -196,7 +207,7 @@ export function AgentNodeManagementView({
                         {item.display_name || shortFingerprint(item.fingerprint)}
                       </p>
                       <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                        v{index + 1} · {shortFingerprint(item.fingerprint)}
+                        {shortFingerprint(item.fingerprint)}
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {item.parent_fingerprint
@@ -216,7 +227,7 @@ export function AgentNodeManagementView({
                       disabled={!accessToken || !trialAction?.enabled || busyKey !== null}
                       onClick={() => accessToken && void runConfirmed(
                         `trial:${item.fingerprint}`,
-                        "确认从下一条普通消息开始应用这个 Agent Node 版本？",
+                        `确认从「${targetLabel}」的下一条普通消息开始应用这个 Agent Node 版本？`,
                         () => updateAgentDefinitionTrial(accessToken, {
                           action: "start",
                           conversation_id: projection.conversation_id,

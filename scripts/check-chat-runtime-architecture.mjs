@@ -20,6 +20,9 @@ const agentNodePage = source("src/pages/agent-node-management-page.tsx")
 const agentNodeView = source(
   "src/features/chat/components/agent-evolution-panel.tsx"
 )
+const agentEvolutionInvalidation = source(
+  "src/features/chat/model/agent-evolution-invalidation.ts"
+)
 const appSidebar = source("src/features/workspace/app-sidebar.tsx")
 const router = source("src/routes/router.tsx")
 const agentPane = source("src/features/chat/components/agent-pane.tsx")
@@ -92,9 +95,17 @@ assert.match(agentNodePage, /getAgentEvolutionProjection/)
 assert.match(agentNodePage, /resolveAgentEvolutionWorkspaceId\(currentWorkspace\)/)
 assert.match(sidebar, /resolveAgentEvolutionWorkspaceId\(currentWorkspace\)/)
 assert.match(agentNodePage, /<AgentNodeManagementView/)
+assert.match(agentNodePage, /matchesAgentNodeProjectionTarget/)
+assert.match(agentNodePage, /projectionTargetKey === targetKey/)
+assert.match(agentNodePage, /disabled=\{conversations\.length === 0 \|\| isMutationBusy\}/)
+assert.match(agentNodePage, /subscribeAgentEvolutionChanged/)
 assert.match(agentNodeView, /updateAgentDefinitionTrial/)
 assert.match(agentNodeView, /updateAgentDefinitionDefault/)
 assert.match(agentNodeView, /runRuntimeLabCommand/)
+assert.match(agentNodeView, /publishAgentEvolutionChanged/)
+assert.match(sidebar, /subscribeAgentEvolutionChanged/)
+assert.match(sidebar, /publishAgentEvolutionChanged/)
+assert.match(agentEvolutionInvalidation, /CustomEvent<AgentEvolutionChangedDetail>/)
 assert.doesNotMatch(chatHeader, /Runtime Lab|onOpenAgentEvolution/)
 assert.match(
   sidebar,

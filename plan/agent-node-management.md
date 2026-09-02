@@ -40,6 +40,9 @@ projection/actions 展示版本链、评估、准入、默认版本、开放运�
   更新计划并完成确定性前端门禁。新增个人空间=user scope、团队空间=workspace scope 的唯一解析，
   修复个人空间历史资产被过滤的问题；真实账号浏览器 smoke 已看到 13 个既有版本和 13 个可用的
   “应用到当前会话”动作。架构、integration、i18n、受影响 ESLint 与生产构建均通过。
+- [x] Audit remediation：统一以 `conversation_id + workspace scope` 约束页面投影与 mutation，
+  切换目标时立即隐藏旧版本操作并在 mutation 期间锁定目标；成功变更通过单一失效事件刷新常驻
+  对话投影，避免管理页与回答底部裁决状态分叉；移除非权威的前端推算版本号。
 - [ ] Final audit：全部阶段提交后进行一次基线到 HEAD 的独立只读审计；若有 P0/P1，集中修复后
   最多再做一次最终复审。
 
