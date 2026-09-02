@@ -64,6 +64,11 @@ assert.doesNotMatch(messageList, /SubagentNodeGroup|subagentOrder\.map/)
 assert.match(agentPane, /registerDefaultWebNodeRenderer\([\s\S]*"subagent"/)
 assert.match(history, /projectDeclaredWebNode/)
 assert.match(history, /canonicalMessagesToGatewayEvents/)
+assert.match(history, /modelProfileId/)
+assert.match(history, /runDurationMs/)
+assert.match(messageList, /data-assistant-answer-footer/)
+assert.match(messageList, /data-answer-run-metadata/)
+assert.match(sidebar, /modelDisplayNames=\{modelDisplayNames\}/)
 assert.match(sidebar, /canonicalMessagesToGatewayEvents/)
 assert.doesNotMatch(
   sidebar,

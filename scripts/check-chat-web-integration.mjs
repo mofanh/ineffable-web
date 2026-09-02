@@ -903,6 +903,11 @@ const canonicalWatermarkEntries = mapConversationMessagesToEntries([
     conversation_id: conversationId,
     run_id: "terminal-watermark-run",
     definition_fingerprint: "sha256:candidate-v1",
+    agent_id: "default",
+    model_profile_id: "glm-5.3",
+    run_started_at: "2026-08-22T00:00:00Z",
+    run_completed_at: "2026-08-22T00:00:02.250Z",
+    run_duration_ms: 2250,
     role: "assistant",
     message_type: "output",
     content: "final body",
@@ -927,6 +932,14 @@ assert.equal(
   "sha256:candidate-v1",
   "history projection must retain the exact Definition that produced the answer"
 )
+assert.equal(canonicalWatermarkEntries[0].agentId, "default")
+assert.equal(canonicalWatermarkEntries[0].modelProfileId, "glm-5.3")
+assert.equal(canonicalWatermarkEntries[0].runStartedAt, "2026-08-22T00:00:00Z")
+assert.equal(
+  canonicalWatermarkEntries[0].runCompletedAt,
+  "2026-08-22T00:00:02.250Z"
+)
+assert.equal(canonicalWatermarkEntries[0].runDurationMs, 2250)
 assert.equal(
   canonicalWatermarkEntries[0].id,
   "run:terminal-watermark-run:anchor:82",

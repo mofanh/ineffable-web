@@ -54,6 +54,11 @@ export type AssistantEntry = {
   role: "assistant"
   runId?: string | null
   definitionFingerprint?: string | null
+  agentId?: string | null
+  modelProfileId?: string | null
+  runStartedAt?: string | null
+  runCompletedAt?: string | null
+  runDurationMs?: number | null
   createdAt?: string | null
   canonicalMessageSeqEnd?: number | null
   timelineSeq?: number | null

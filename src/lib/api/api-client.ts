@@ -181,6 +181,11 @@ export type ConversationMessageRecord = {
   conversation_id: string
   run_id?: string | null
   definition_fingerprint?: string | null
+  agent_id?: string | null
+  model_profile_id?: string | null
+  run_started_at?: string | null
+  run_completed_at?: string | null
+  run_duration_ms?: number | null
   created_by?: string | null
   role: string
   message_type: string

@@ -6,13 +6,17 @@ import { Button } from "@/components/ui/button"
 import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ArrowDownIcon,
+  BotIcon,
   CheckIcon,
+  Clock3Icon,
   CopyIcon,
+  CpuIcon,
   Loader2Icon,
   ShieldAlertIcon,
   SparklesIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
+  TimerIcon,
   XIcon,
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
@@ -22,6 +26,7 @@ import { cn } from "@/lib/utils"
 
 type ChatMessageListProps = {
   entries: ChatEntry[]
+  modelDisplayNames?: Record<string, string>
   hasOlderEntries: boolean
   isLoadingOlderEntries: boolean
   olderEntriesError: string | null
@@ -55,6 +60,37 @@ function assistantAnswerText(entry: Extract<ChatEntry, { role: "assistant" }>) {
     .map((block) => block.content)
     .join("\n\n")
     .trim()
+}
+
+function formatRunDuration(durationMs: number | null | undefined) {
+  if (!Number.isFinite(durationMs) || durationMs == null || durationMs < 0) {
+    return null
+  }
+  if (durationMs < 1_000) return `${durationMs} ms`
+  if (durationMs < 60_000) {
+    const seconds = durationMs / 1_000
+    return `${seconds >= 10 ? seconds.toFixed(0) : seconds.toFixed(1)} s`
+  }
+  const minutes = Math.floor(durationMs / 60_000)
+  const seconds = Math.floor((durationMs % 60_000) / 1_000)
+  return `${minutes}m ${seconds}s`
+}
+
+function formatCompletionTime(value: string | null | undefined) {
+  if (!value) return null
+  const completedAt = new Date(value)
+  if (!Number.isFinite(completedAt.getTime())) return null
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(completedAt)
+}
+
+function shortDefinitionFingerprint(value: string | null | undefined) {
+  const normalized = value?.replace(/^sha256:/, "").trim()
+  return normalized ? normalized.slice(0, 7) : null
 }
 
 function RunActivity() {
@@ -117,6 +153,7 @@ function usePrefersReducedMotion() {
 
 export const ChatMessageList = React.memo(function ChatMessageList({
   entries,
+  modelDisplayNames = {},
   hasOlderEntries,
   isLoadingOlderEntries,
   olderEntriesError,
@@ -268,6 +305,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             entry.role === "assistant" &&
             entry.status === "done" &&
             trialVerdict?.entryId === entry.id
+          const answerText =
+            entry.role === "assistant" ? assistantAnswerText(entry) : ""
+          const showAnswerFooter =
+            entry.role === "assistant" &&
+            entry.status === "done" &&
+            Boolean(answerText)
 
           if (entry.role === "user") {
             return (
@@ -410,59 +453,113 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   </div>
                 ) : null}
 
-                {showTrialVerdict ? (
+                {showAnswerFooter ? (
                   <div
-                    className="flex items-center gap-1 pt-1 text-muted-foreground"
-                    data-agent-trial-verdict
+                    className="flex min-w-0 items-center gap-2 overflow-x-auto pt-1 text-muted-foreground"
+                    data-assistant-answer-footer
+                    data-agent-trial-verdict={showTrialVerdict || undefined}
                   >
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      className="rounded-full"
-                      aria-label="复制这条候选回答"
-                      title="复制回答"
-                      onClick={() => {
-                        const content = assistantAnswerText(entry)
-                        if (content && navigator.clipboard) {
-                          void navigator.clipboard.writeText(content)
-                        }
-                      }}
-                    >
-                      <CopyIcon className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      className="rounded-full hover:text-emerald-600"
-                      disabled={!trialVerdict.canAccept || trialVerdict.busyAction !== null}
-                      aria-label="保留生成这条回答的 Agent 版本"
-                      title="效果满意，保留此 Agent 版本"
-                      onClick={trialVerdict.onAccept}
-                    >
-                      {trialVerdict.busyAction === "accept" ? (
-                        <Loader2Icon className="size-4 animate-spin" />
-                      ) : (
-                        <ThumbsUpIcon className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      className="rounded-full hover:text-destructive"
-                      disabled={!trialVerdict.canRollback || trialVerdict.busyAction !== null}
-                      aria-label="恢复到生成这条回答之前的 Agent 版本"
-                      title="效果不行，恢复之前的 Agent 版本"
-                      onClick={trialVerdict.onRollback}
-                    >
-                      {trialVerdict.busyAction === "rollback" ? (
-                        <Loader2Icon className="size-4 animate-spin" />
-                      ) : (
-                        <ThumbsDownIcon className="size-4" />
-                      )}
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        className="rounded-full"
+                        aria-label="复制这条回答"
+                        title="复制回答"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            void navigator.clipboard.writeText(answerText)
+                          }
+                        }}
+                      >
+                        <CopyIcon className="size-4" />
+                      </Button>
+                      {showTrialVerdict ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            className="rounded-full hover:text-emerald-600"
+                            disabled={!trialVerdict.canAccept || trialVerdict.busyAction !== null}
+                            aria-label="保留生成这条回答的 Agent 版本"
+                            title="效果满意，保留此 Agent 版本"
+                            onClick={trialVerdict.onAccept}
+                          >
+                            {trialVerdict.busyAction === "accept" ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : (
+                              <ThumbsUpIcon className="size-4" />
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            className="rounded-full hover:text-destructive"
+                            disabled={!trialVerdict.canRollback || trialVerdict.busyAction !== null}
+                            aria-label="恢复到生成这条回答之前的 Agent 版本"
+                            title="效果不行，恢复之前的 Agent 版本"
+                            onClick={trialVerdict.onRollback}
+                          >
+                            {trialVerdict.busyAction === "rollback" ? (
+                              <Loader2Icon className="size-4 animate-spin" />
+                            ) : (
+                              <ThumbsDownIcon className="size-4" />
+                            )}
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+
+                    {entry.modelProfileId ||
+                    entry.agentId ||
+                    entry.definitionFingerprint ||
+                    entry.runDurationMs != null ||
+                    entry.runCompletedAt ? (
+                      <div
+                        className="flex min-w-0 items-center gap-3 whitespace-nowrap text-[11px] text-foreground/45"
+                        data-answer-run-metadata
+                      >
+                        {entry.modelProfileId ? (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={`模型：${entry.modelProfileId}`}
+                          >
+                            <CpuIcon className="size-3" />
+                            {modelDisplayNames[entry.modelProfileId] ?? entry.modelProfileId}
+                          </span>
+                        ) : null}
+                        {entry.agentId || entry.definitionFingerprint ? (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={`Agent：${entry.agentId ?? "unknown"}${entry.definitionFingerprint ? ` (${entry.definitionFingerprint})` : ""}`}
+                          >
+                            <BotIcon className="size-3" />
+                            {entry.agentId ?? "Agent"}
+                            {shortDefinitionFingerprint(entry.definitionFingerprint)
+                              ? ` · ${shortDefinitionFingerprint(entry.definitionFingerprint)}`
+                              : ""}
+                          </span>
+                        ) : null}
+                        {formatRunDuration(entry.runDurationMs) ? (
+                          <span className="inline-flex items-center gap-1" title="完成耗时">
+                            <TimerIcon className="size-3" />
+                            {formatRunDuration(entry.runDurationMs)}
+                          </span>
+                        ) : null}
+                        {formatCompletionTime(entry.runCompletedAt) ? (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={`完成时间：${entry.runCompletedAt}`}
+                          >
+                            <Clock3Icon className="size-3" />
+                            {formatCompletionTime(entry.runCompletedAt)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

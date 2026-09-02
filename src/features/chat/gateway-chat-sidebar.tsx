@@ -986,6 +986,16 @@ export function GatewayChatSidebar({
       })),
     [modelProfiles]
   )
+  const modelDisplayNames = React.useMemo(
+    () =>
+      Object.fromEntries(
+        modelProfiles.map((profile) => [
+          profile.id,
+          profile.display_name || profile.id,
+        ])
+      ),
+    [modelProfiles]
+  )
 
   const bindStatus = currentConversationId
     ? i18n.t("chat.gateway.bound")
@@ -3232,6 +3242,7 @@ export function GatewayChatSidebar({
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
           entries={renderedEntries}
+          modelDisplayNames={modelDisplayNames}
           hasOlderEntries={hasOlderEntries}
           isLoadingOlderEntries={isLoadingOlderEntries}
           olderEntriesError={olderMessagesError}
