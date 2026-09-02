@@ -1912,11 +1912,19 @@ export type AgentEvolutionProjection = {
     change_kind: string
     created_at: string
   }>
+  effective_selection: {
+    fingerprint?: string | null
+    owner_user_id: string
+    workspace_id?: string | null
+    source: "conversation_trial" | "conversation_stable" | "default" | "system"
+  }
   trial_binding?: {
     id: string
     conversation_id: string
     active_fingerprint?: string | null
     fallback_fingerprint?: string | null
+    workspace_id?: string | null
+    fallback_workspace_id?: string | null
     mode: "stable" | "trial"
     version: number
     updated_at: string
@@ -1926,6 +1934,8 @@ export type AgentEvolutionProjection = {
     version: number
     active_fingerprint?: string | null
     fallback_fingerprint?: string | null
+    active_workspace_id?: string | null
+    fallback_workspace_id?: string | null
     mode: "stable" | "trial"
     change_kind: "start_trial" | "accept_trial" | "rollback_trial"
     created_at: string

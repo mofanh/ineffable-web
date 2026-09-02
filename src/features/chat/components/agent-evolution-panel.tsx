@@ -151,10 +151,14 @@ export function AgentEvolutionPanel({
                   {projection?.trial_binding?.mode === "trial" ? "正在试用新 Definition" : "当前会话 Definition"}
                 </h3>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {projection?.trial_binding?.active_fingerprint
-                    ? shortFingerprint(projection.trial_binding.active_fingerprint)
+                  {projection?.effective_selection.fingerprint
+                    ? shortFingerprint(projection.effective_selection.fingerprint)
                     : "系统 Definition"}
-                  {projection?.trial_binding ? ` · v${projection.trial_binding.version}` : " · 跟随默认"}
+                  {projection?.trial_binding
+                    ? ` · v${projection.trial_binding.version}`
+                    : projection?.effective_selection.source === "default"
+                      ? " · 跟随默认"
+                      : " · 系统基线"}
                 </p>
               </div>
               <Badge variant={projection?.trial_binding?.mode === "trial" ? "default" : "secondary"}>
