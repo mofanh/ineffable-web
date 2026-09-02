@@ -1912,6 +1912,24 @@ export type AgentEvolutionProjection = {
     change_kind: string
     created_at: string
   }>
+  trial_binding?: {
+    id: string
+    conversation_id: string
+    active_fingerprint?: string | null
+    fallback_fingerprint?: string | null
+    mode: "stable" | "trial"
+    version: number
+    updated_at: string
+  } | null
+  trial_history: Array<{
+    id: string
+    version: number
+    active_fingerprint?: string | null
+    fallback_fingerprint?: string | null
+    mode: "stable" | "trial"
+    change_kind: "start_trial" | "accept_trial" | "rollback_trial"
+    created_at: string
+  }>
   runtime_labs: Array<{
     id: string
     status: string
@@ -2091,6 +2109,29 @@ export function updateAgentDefinitionDefault(
   })
 }
 
+export function updateAgentDefinitionTrial(
+  accessToken: string,
+  payload:
+    | {
+        action: "start"
+        conversation_id: string
+        workspace_id?: string
+        definition_fingerprint: string
+        expected_version?: number
+      }
+    | {
+        action: "accept" | "rollback"
+        conversation_id: string
+        workspace_id?: string
+        expected_version: number
+      }
+) {
+  return requestApiJson<NonNullable<AgentEvolutionProjection["trial_binding"]>>(
+    "/gateway/v1/plugins/agent-evolution/trial",
+    { method: "POST", accessToken, body: payload }
+  )
+}
+
 export function runRuntimeLabCommand(
   accessToken: string,
   command: Record<string, unknown> & { action: string }
@@ -2102,22 +2143,6 @@ export function runRuntimeLabCommand(
       accessToken,
       body: command,
     }
-  )
-}
-
-export function runAgentDefinitionCanary(
-  accessToken: string,
-  payload: {
-    conversation_id: string
-    workspace_id?: string
-    candidate_fingerprint: string
-    content: string
-    model_profile_id?: string
-  }
-) {
-  return requestApiJson<Record<string, unknown>>(
-    "/gateway/v1/plugins/agent-evolution/canary",
-    { method: "POST", accessToken, body: payload }
   )
 }
 

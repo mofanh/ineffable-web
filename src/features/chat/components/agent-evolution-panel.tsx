@@ -16,8 +16,8 @@ import {
   evaluateAgentDefinition,
   getAgentEvolutionReviewQueue,
   runRuntimeLabCommand,
-  runAgentDefinitionCanary,
   updateAgentDefinitionDefault,
+  updateAgentDefinitionTrial,
   type AgentEvolutionProjection,
   type AgentEvolutionReviewQueueProjection,
 } from "@/features/chat/api/chat-api"
@@ -144,6 +144,76 @@ export function AgentEvolutionPanel({
             </Button>
           </div>
 
+          <section className="space-y-2 rounded-xl border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-medium">
+                  {projection?.trial_binding?.mode === "trial" ? "正在试用新 Definition" : "当前会话 Definition"}
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {projection?.trial_binding?.active_fingerprint
+                    ? shortFingerprint(projection.trial_binding.active_fingerprint)
+                    : "系统 Definition"}
+                  {projection?.trial_binding ? ` · v${projection.trial_binding.version}` : " · 跟随默认"}
+                </p>
+              </div>
+              <Badge variant={projection?.trial_binding?.mode === "trial" ? "default" : "secondary"}>
+                {projection?.trial_binding?.mode === "trial" ? "下个新 run 生效" : "稳定"}
+              </Badge>
+            </div>
+            {projection?.trial_binding?.mode === "trial" ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  回退目标：{projection.trial_binding.fallback_fingerprint
+                    ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
+                    : "系统 Definition"}。当前正在运行的任务不会被热切换。
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!accessToken || !actionFor(projection, "accept_definition_trial")?.enabled || busyKey !== null}
+                    onClick={() => accessToken && void runConfirmed(
+                      "trial:accept",
+                      "确认保留当前试用 Definition 作为本会话稳定版本？",
+                      () => updateAgentDefinitionTrial(accessToken, {
+                        action: "accept",
+                        conversation_id: projection.conversation_id,
+                        workspace_id: projection.workspace_id ?? undefined,
+                        expected_version: projection.trial_binding!.version,
+                      })
+                    )}
+                  >
+                    效果满意，保留
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
+                    onClick={() => accessToken && void runConfirmed(
+                      "trial:rollback",
+                      "确认恢复试用前的 Definition？外部工具产生的副作用不会回滚。",
+                      () => updateAgentDefinitionTrial(accessToken, {
+                        action: "rollback",
+                        conversation_id: projection.conversation_id,
+                        workspace_id: projection.workspace_id ?? undefined,
+                        expected_version: projection.trial_binding!.version,
+                      }),
+                      "destructive"
+                    )}
+                  >
+                    效果不行，恢复
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                从下方选择候选开始单活试用；不会并行运行旧版，也不会替换当前任务。
+              </p>
+            )}
+          </section>
+
           <section className="space-y-2">
             <h3 className="text-sm font-medium">Definition 候选</h3>
             <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">
@@ -155,6 +225,7 @@ export function AgentEvolutionPanel({
             {projection?.definitions.length ? projection.definitions.map((item) => {
               const action = actionFor(projection, "evaluate_definition", item.fingerprint)
               const defaultAction = actionFor(projection, "set_default_definition", item.fingerprint)
+              const trialAction = actionFor(projection, "start_definition_trial", item.fingerprint)
               const isDefault = projection.default_binding?.fingerprint === item.fingerprint
               return (
                 <div key={item.fingerprint} className="rounded-xl border p-3">
@@ -172,6 +243,24 @@ export function AgentEvolutionPanel({
                     </Badge>
                   </div>
                   <div className="mt-3 flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!accessToken || !trialAction?.enabled || busyKey !== null}
+                      onClick={() => accessToken && void runConfirmed(
+                        `trial:${item.fingerprint}`,
+                        "确认从下一条普通消息开始试用这个 Definition？",
+                        () => updateAgentDefinitionTrial(accessToken, {
+                          action: "start",
+                          conversation_id: projection.conversation_id,
+                          workspace_id: projection.workspace_id ?? undefined,
+                          definition_fingerprint: item.fingerprint,
+                          expected_version: projection.trial_binding?.version ?? 0,
+                        })
+                      )}
+                    >
+                      下个 turn 试用
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
@@ -265,21 +354,7 @@ export function AgentEvolutionPanel({
                   )
                 }}
               >
-                运行 baseline / candidate / evaluator
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!accessToken || !fixture.trim() || !actionFor(projection, "run_candidate_canary", definition.fingerprint)?.enabled || busyKey !== null}
-                onClick={() => accessToken && projection && void run(`canary:${definition.fingerprint}`, () => runAgentDefinitionCanary(accessToken, {
-                  conversation_id: projection.conversation_id,
-                  workspace_id: projection.workspace_id ?? undefined,
-                  candidate_fingerprint: definition.fingerprint,
-                  content: fixture.trim(),
-                }))}
-              >
-                仅运行候选 Canary
+                运行隔离回归评估
               </Button>
             </section>
           ) : null}
