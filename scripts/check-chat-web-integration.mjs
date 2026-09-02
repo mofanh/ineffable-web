@@ -139,6 +139,19 @@ assert.equal(
 )
 
 const selectionStorage = memorySelectionStorage()
+selectionStorage.setItem(
+  `ineffable.chat.runtime-selection-draft.${conversationId}`,
+  JSON.stringify({
+    modelProfileId: "model-from-legacy-draft",
+    sandboxEnvironmentId: "",
+  })
+)
+assert.equal(
+  readCachedComposerRuntimeSelection(selectionStorage, conversationId)
+    .modelProfileId,
+  "",
+  "unversioned drafts written by the programmatic sandbox fallback bug must not fence canonical recovery"
+)
 reconcileCanonicalComposerRuntimeSelection(selectionStorage, conversationId, {
   modelProfileId: "model-a",
   sandboxEnvironmentId: "sandbox-a",

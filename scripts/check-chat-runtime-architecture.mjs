@@ -14,6 +14,7 @@ const projector = source(
   "src/features/chat/runtime/conversation-event-projector.ts"
 )
 const messageList = source("src/features/chat/components/chat-message-list.tsx")
+const chatComposer = source("src/features/chat/components/chat-composer.tsx")
 const agentPane = source("src/features/chat/components/agent-pane.tsx")
 const toolCallShell = source(
   "src/features/chat/components/tool-call-shell.tsx"
@@ -78,7 +79,23 @@ assert.match(sidebar, /modelDisplayNames=\{modelDisplayNames\}/)
 assert.match(sidebar, /findLatestConversationRuntimeSelection\(response\.messages\)/)
 assert.match(sidebar, /reconcileCanonicalComposerRuntimeSelection/)
 assert.match(sidebar, /commitAcceptedComposerRuntimeSelection/)
+assert.match(
+  sidebar,
+  /if \(!accessToken \|\| !currentWorkspace\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,
+  "workspace hydration must keep sandbox availability pending instead of publishing an authoritative empty catalog"
+)
+assert.match(
+  sidebar,
+  /sandboxOptionsRequestRef\.current = requestId[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false[\s\S]{0,500}setIsRefreshingSandboxOptions\(true\)/,
+  "a workspace-scoped sandbox refresh must fence history reconciliation until its catalog arrives"
+)
 assert.match(composerRuntimeSelection, /runtime-selection-draft/)
+assert.match(composerRuntimeSelection, /RUNTIME_SELECTION_DRAFT_VERSION/)
+assert.match(
+  chatComposer,
+  /!nextValue &&[\s\S]{0,300}!sandboxOptions\.some/,
+  "sandbox catalog hydration must not be persisted as an explicit no-sandbox user choice"
+)
 assert.match(composerRuntimeSelection, /writeCanonicalComposerRuntimeSelection/)
 assert.match(sidebar, /canonicalMessagesToGatewayEvents/)
 assert.doesNotMatch(

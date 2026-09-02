@@ -10,6 +10,8 @@ export type CanonicalComposerRuntimeSelection = {
 
 type SelectionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
 
+const RUNTIME_SELECTION_DRAFT_VERSION = 1
+
 function selectionScope(conversationId: string | null | undefined) {
   return conversationId ?? "new"
 }
@@ -36,6 +38,7 @@ export function readComposerRuntimeSelectionDraft(
   try {
     const value = JSON.parse(raw) as Record<string, unknown>
     if (
+      value.version !== RUNTIME_SELECTION_DRAFT_VERSION ||
       typeof value.modelProfileId !== "string" ||
       typeof value.sandboxEnvironmentId !== "string"
     ) {
@@ -70,7 +73,10 @@ export function writeComposerRuntimeSelectionDraft(
   conversationId: string,
   selection: ComposerRuntimeSelection
 ) {
-  storage.setItem(draftStorageKey(conversationId), JSON.stringify(selection))
+  storage.setItem(
+    draftStorageKey(conversationId),
+    JSON.stringify({ version: RUNTIME_SELECTION_DRAFT_VERSION, ...selection })
+  )
   writeRecentComposerRuntimeSelection(storage, selection)
 }
 

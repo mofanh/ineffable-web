@@ -754,7 +754,12 @@ export function GatewayChatSidebar({
       sandboxOptionsRequestRef.current += 1
       sandboxOptionsInFlightRef.current = null
       sandboxOptionsRef.current = []
-      sandboxOptionsLoadedRef.current = true
+      // During session bootstrap the conversation can already be selected while
+      // the workspace catalog is still hydrating. An absent workspace is not an
+      // authoritative empty sandbox catalog: treating it as one makes history
+      // restoration discard the persisted environment before the real catalog
+      // arrives.
+      sandboxOptionsLoadedRef.current = false
       setSandboxOptions([])
       setIsRefreshingSandboxOptions(false)
       return Promise.resolve()
@@ -768,6 +773,10 @@ export function GatewayChatSidebar({
 
     const requestId = sandboxOptionsRequestRef.current + 1
     sandboxOptionsRequestRef.current = requestId
+    // Fence conversation-history reconciliation while a workspace-scoped
+    // catalog is changing. The previous workspace's options cannot establish
+    // that a selection is unavailable in the next workspace.
+    sandboxOptionsLoadedRef.current = false
     setIsRefreshingSandboxOptions(true)
 
     const request = (async () => {
