@@ -901,6 +901,7 @@ const canonicalWatermarkEntries = mapConversationMessagesToEntries([
     id: "canonical-final-output",
     conversation_id: conversationId,
     run_id: "terminal-watermark-run",
+    definition_fingerprint: "sha256:candidate-v1",
     role: "assistant",
     message_type: "output",
     content: "final body",
@@ -920,6 +921,11 @@ assert.equal(
   "history projection must retain canonical message identity for terminal handoff"
 )
 assert.equal(canonicalWatermarkEntries[0].timelineSeq, 82)
+assert.equal(
+  canonicalWatermarkEntries[0].definitionFingerprint,
+  "sha256:candidate-v1",
+  "history projection must retain the exact Definition that produced the answer"
+)
 assert.equal(
   canonicalWatermarkEntries[0].id,
   "run:terminal-watermark-run:anchor:82",

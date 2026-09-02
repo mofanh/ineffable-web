@@ -54,6 +54,7 @@ export function createAssistantEntry(
     id: createMessageId("assistant"),
     role: "assistant",
     runId: runId ?? null,
+    definitionFingerprint: null,
     status,
     pane: createEmptyAgentPane(),
     subagentOrder: [],
@@ -229,6 +230,12 @@ function buildAssistantEntryFromMessages(
     compactedMessages.find((message) => message.run_id)?.run_id ??
     messages.find((message) => message.run_id)?.run_id ??
     null
+  const definitionFingerprint =
+    compactedMessages.find((message) => message.definition_fingerprint)
+      ?.definition_fingerprint ??
+    messages.find((message) => message.definition_fingerprint)
+      ?.definition_fingerprint ??
+    null
   const timelineUnitId =
     messages.find((message) => message.timeline_unit_id)?.timeline_unit_id ?? null
   const timelineSeq = messages.reduce<number | null>(
@@ -375,6 +382,7 @@ function buildAssistantEntryFromMessages(
     id: timelineUnitId ?? first?.id ?? createMessageId("assistant"),
     role: "assistant",
     runId,
+    definitionFingerprint,
     canonicalMessageSeqEnd,
     timelineSeq,
     timelineUnitId,

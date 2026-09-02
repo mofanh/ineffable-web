@@ -118,6 +118,7 @@ import {
   subscribeConversationEvents,
   streamConversationSend,
   setAgentIterationRequested,
+  updateAgentDefinitionTrial,
   type AgentEvolutionProjection,
   type Conversation,
   type ModelProfile,
@@ -127,6 +128,7 @@ import {
 } from "@/features/chat/api/chat-api"
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
+import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import {
   BACKGROUND_CONVERSATION_REFRESH_INTERVAL_MS,
@@ -337,6 +339,9 @@ export function GatewayChatSidebar({
     React.useState<string | null>(null)
   const [isAgentIterationResolved, setIsAgentIterationResolved] = React.useState(false)
   const [isAgentIterationLoading, setIsAgentIterationLoading] = React.useState(false)
+  const [trialVerdictBusy, setTrialVerdictBusy] = React.useState<
+    "accept" | "rollback" | null
+  >(null)
   const [awaitingHumanRunId, setAwaitingHumanRunId] = React.useState<string | null>(null)
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
     AgentDescriptorOption[]
@@ -3160,6 +3165,67 @@ export function GatewayChatSidebar({
     void handleSend()
   }
 
+  const trialBinding = agentEvolution?.trial_binding
+  const trialFingerprint =
+    trialBinding?.mode === "trial" ? trialBinding.active_fingerprint?.trim() : null
+  const trialAnswer = trialFingerprint
+    ? [...renderedEntries]
+        .reverse()
+        .find(
+          (entry) =>
+            entry.role === "assistant" &&
+            entry.status === "done" &&
+            entry.definitionFingerprint === trialFingerprint &&
+            entry.pane.blockOrder.some((blockId) => {
+              const block = entry.pane.blocks[blockId]
+              return block?.type === "text" && Boolean(block.content.trim())
+            })
+        )
+    : null
+  const canAcceptTrial = Boolean(
+    agentEvolution?.actions.some(
+      (action) => action.action === "accept_definition_trial" && action.enabled
+    )
+  )
+  const canRollbackTrial = Boolean(
+    agentEvolution?.actions.some(
+      (action) => action.action === "rollback_definition_trial" && action.enabled
+    )
+  )
+
+  async function resolveInlineTrial(action: "accept" | "rollback") {
+    if (!accessToken || !agentEvolution || !trialBinding || trialBinding.mode !== "trial") {
+      return
+    }
+    const accepted = await confirm({
+      title:
+        action === "accept"
+          ? "确认保留生成这条回答的 Agent 版本？"
+          : "确认恢复试用前的 Agent 版本？外部工具已经产生的副作用不会回滚。",
+      variant: action === "rollback" ? "destructive" : "default",
+    })
+    if (!accepted) return
+
+    setTrialVerdictBusy(action)
+    try {
+      await updateAgentDefinitionTrial(accessToken, {
+        action,
+        conversation_id: agentEvolution.conversation_id,
+        workspace_id: agentEvolution.workspace_id ?? undefined,
+        expected_version: trialBinding.version,
+      })
+      await refreshAgentEvolution()
+      notify.success({
+        title: action === "accept" ? "已保留此 Agent 版本" : "已恢复之前的 Agent 版本",
+      })
+    } catch (caught) {
+      reportChatError(caught, "Agent 版本裁决失败，请刷新后重试。", "Agent 版本裁决失败")
+      await refreshAgentEvolution().catch(() => {})
+    } finally {
+      setTrialVerdictBusy(null)
+    }
+  }
+
   return (
     <>
       <ChatSidebarHeader
@@ -3200,6 +3266,18 @@ export function GatewayChatSidebar({
           }
           onSubmitUserInput={handleSubmitUserInput}
           isFullScreen={isFullScreen}
+          trialVerdict={
+            trialAnswer
+              ? {
+                  entryId: trialAnswer.id,
+                  busyAction: trialVerdictBusy,
+                  canAccept: canAcceptTrial,
+                  canRollback: canRollbackTrial,
+                  onAccept: () => void resolveInlineTrial("accept"),
+                  onRollback: () => void resolveInlineTrial("rollback"),
+                }
+              : null
+          }
         />
         {isLoadingMessages ? (
           <div className="px-4 pb-3 text-xs text-muted-foreground">

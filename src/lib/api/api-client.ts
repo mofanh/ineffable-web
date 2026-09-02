@@ -180,6 +180,7 @@ export type ConversationMessageRecord = {
   id: string
   conversation_id: string
   run_id?: string | null
+  definition_fingerprint?: string | null
   created_by?: string | null
   role: string
   message_type: string

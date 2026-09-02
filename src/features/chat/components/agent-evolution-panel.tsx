@@ -162,55 +162,15 @@ export function AgentEvolutionPanel({
                 </p>
               </div>
               <Badge variant={projection?.trial_binding?.mode === "trial" ? "default" : "secondary"}>
-                {projection?.trial_binding?.mode === "trial" ? "下个新 run 生效" : "稳定"}
+                {projection?.trial_binding?.mode === "trial" ? "正在试用" : "稳定"}
               </Badge>
             </div>
             {projection?.trial_binding?.mode === "trial" ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  回退目标：{projection.trial_binding.fallback_fingerprint
-                    ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
-                    : "系统 Definition"}。当前正在运行的任务不会被热切换。
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!accessToken || !actionFor(projection, "accept_definition_trial")?.enabled || busyKey !== null}
-                    onClick={() => accessToken && void runConfirmed(
-                      "trial:accept",
-                      "确认保留当前试用 Definition 作为本会话稳定版本？",
-                      () => updateAgentDefinitionTrial(accessToken, {
-                        action: "accept",
-                        conversation_id: projection.conversation_id,
-                        workspace_id: projection.workspace_id ?? undefined,
-                        expected_version: projection.trial_binding!.version,
-                      })
-                    )}
-                  >
-                    效果满意，保留
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
-                    onClick={() => accessToken && void runConfirmed(
-                      "trial:rollback",
-                      "确认恢复试用前的 Definition？外部工具产生的副作用不会回滚。",
-                      () => updateAgentDefinitionTrial(accessToken, {
-                        action: "rollback",
-                        conversation_id: projection.conversation_id,
-                        workspace_id: projection.workspace_id ?? undefined,
-                        expected_version: projection.trial_binding!.version,
-                      }),
-                      "destructive"
-                    )}
-                  >
-                    效果不行，恢复
-                  </Button>
-                </div>
-              </>
+              <p className="text-xs text-muted-foreground">
+                回退目标：{projection.trial_binding.fallback_fingerprint
+                  ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
+                  : "系统 Definition"}。请在候选版本实际生成的最新回答下方保留或恢复；当前正在运行的任务不会被热切换。
+              </p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 从下方选择候选开始单活试用；不会并行运行旧版，也不会替换当前任务。

@@ -7,9 +7,12 @@ import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ArrowDownIcon,
   CheckIcon,
+  CopyIcon,
   Loader2Icon,
   ShieldAlertIcon,
   SparklesIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
   XIcon,
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
@@ -35,6 +38,23 @@ type ChatMessageListProps = {
   activeHumanRunId: string | null
   onSubmitUserInput: (response: AgentUserInputResponse) => Promise<void>
   isFullScreen: boolean
+  trialVerdict?: {
+    entryId: string
+    busyAction: "accept" | "rollback" | null
+    canAccept: boolean
+    canRollback: boolean
+    onAccept: () => void
+    onRollback: () => void
+  } | null
+}
+
+function assistantAnswerText(entry: Extract<ChatEntry, { role: "assistant" }>) {
+  return entry.pane.blockOrder
+    .map((blockId) => entry.pane.blocks[blockId])
+    .filter((block) => block?.type === "text")
+    .map((block) => block.content)
+    .join("\n\n")
+    .trim()
 }
 
 function RunActivity() {
@@ -113,6 +133,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   activeHumanRunId,
   onSubmitUserInput,
   isFullScreen,
+  trialVerdict,
 }: ChatMessageListProps) {
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -243,6 +264,10 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             entry.role === "assistant" &&
             entry.status === "streaming" &&
             index === entries.length - 1
+          const showTrialVerdict =
+            entry.role === "assistant" &&
+            entry.status === "done" &&
+            trialVerdict?.entryId === entry.id
 
           if (entry.role === "user") {
             return (
@@ -382,6 +407,62 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 {showStreamingTail ? (
                   <div className="flex items-center pt-1 text-foreground/70">
                     <RunActivity />
+                  </div>
+                ) : null}
+
+                {showTrialVerdict ? (
+                  <div
+                    className="flex items-center gap-1 pt-1 text-muted-foreground"
+                    data-agent-trial-verdict
+                  >
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="rounded-full"
+                      aria-label="复制这条候选回答"
+                      title="复制回答"
+                      onClick={() => {
+                        const content = assistantAnswerText(entry)
+                        if (content && navigator.clipboard) {
+                          void navigator.clipboard.writeText(content)
+                        }
+                      }}
+                    >
+                      <CopyIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="rounded-full hover:text-emerald-600"
+                      disabled={!trialVerdict.canAccept || trialVerdict.busyAction !== null}
+                      aria-label="保留生成这条回答的 Agent 版本"
+                      title="效果满意，保留此 Agent 版本"
+                      onClick={trialVerdict.onAccept}
+                    >
+                      {trialVerdict.busyAction === "accept" ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <ThumbsUpIcon className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="rounded-full hover:text-destructive"
+                      disabled={!trialVerdict.canRollback || trialVerdict.busyAction !== null}
+                      aria-label="恢复到生成这条回答之前的 Agent 版本"
+                      title="效果不行，恢复之前的 Agent 版本"
+                      onClick={trialVerdict.onRollback}
+                    >
+                      {trialVerdict.busyAction === "rollback" ? (
+                        <Loader2Icon className="size-4 animate-spin" />
+                      ) : (
+                        <ThumbsDownIcon className="size-4" />
+                      )}
+                    </Button>
                   </div>
                 ) : null}
               </div>
