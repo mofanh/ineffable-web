@@ -19,6 +19,21 @@ export function resolveAvailableComposerModelProfileId(
   return availableModelProfileIds.includes(modelProfileId) ? modelProfileId : ""
 }
 
+export function resolveConfirmedComposerModelProfileId(
+  modelProfileId: string,
+  catalogLoaded: boolean,
+  availableModelProfileIds: readonly string[]
+) {
+  if (!catalogLoaded) {
+    return ""
+  }
+  return resolveAvailableComposerModelProfileId(
+    modelProfileId,
+    true,
+    availableModelProfileIds
+  )
+}
+
 type SelectionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
 
 const RUNTIME_SELECTION_DRAFT_VERSION = 1
@@ -147,6 +162,36 @@ export function reconcileCanonicalComposerRuntimeSelection(
     return true
   }
   return false
+}
+
+export function reconcileAvailableCanonicalComposerRuntimeSelection(
+  storage: SelectionStorage,
+  conversationId: string,
+  selection: CanonicalComposerRuntimeSelection,
+  catalogLoaded: boolean,
+  availableModelProfileIds: readonly string[]
+) {
+  const modelProfileId = resolveAvailableComposerModelProfileId(
+    selection.modelProfileId,
+    catalogLoaded,
+    availableModelProfileIds
+  )
+  if (modelProfileId !== selection.modelProfileId) {
+    clearUnavailableComposerRuntimeSelectionField(
+      storage,
+      conversationId,
+      "model"
+    )
+  }
+  const availableSelection = { ...selection, modelProfileId }
+  return {
+    selection: availableSelection,
+    shouldApply: reconcileCanonicalComposerRuntimeSelection(
+      storage,
+      conversationId,
+      availableSelection
+    ),
+  }
 }
 
 export function clearUnavailableComposerRuntimeSelectionField(

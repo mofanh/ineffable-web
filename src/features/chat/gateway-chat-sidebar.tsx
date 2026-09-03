@@ -100,8 +100,9 @@ import {
   clearUnavailableComposerRuntimeSelectionField,
   commitAcceptedComposerRuntimeSelection,
   readCachedComposerRuntimeSelection,
-  reconcileCanonicalComposerRuntimeSelection,
+  reconcileAvailableCanonicalComposerRuntimeSelection,
   resolveAvailableComposerModelProfileId,
+  resolveConfirmedComposerModelProfileId,
   writeComposerRuntimeSelectionDraft,
   writeRecentComposerRuntimeSelection,
 } from "@/features/chat/model/composer-runtime-selection"
@@ -1586,19 +1587,32 @@ export function GatewayChatSidebar({
         }
         if (latestRuntimeSelection) {
           const storage = typeof window !== "undefined" ? window.localStorage : null
-          if (
-            !storage ||
-            reconcileCanonicalComposerRuntimeSelection(
+          const reconciliation = storage
+            ? reconcileAvailableCanonicalComposerRuntimeSelection(
               storage,
               conversationId,
-              latestRuntimeSelection
+              latestRuntimeSelection,
+              modelProfilesLoadedRef.current,
+              modelProfilesRef.current.map((profile) => profile.id)
             )
+            : {
+                selection: {
+                  ...latestRuntimeSelection,
+                  modelProfileId: resolveAvailableComposerModelProfileId(
+                    latestRuntimeSelection.modelProfileId,
+                    modelProfilesLoadedRef.current,
+                    modelProfilesRef.current.map((profile) => profile.id)
+                  ),
+                },
+                shouldApply: true,
+              }
+          if (
+            reconciliation.selection.modelProfileId !==
+            latestRuntimeSelection.modelProfileId
           ) {
-            const modelIsAvailable =
-              !modelProfilesLoadedRef.current ||
-              modelProfilesRef.current.some(
-                (profile) => profile.id === latestRuntimeSelection.modelProfileId
-              )
+            setSelectedModelProfileId("")
+          }
+          if (reconciliation.shouldApply) {
             const sandboxIsAvailable =
               latestRuntimeSelection.sandboxEnvironmentId == null ||
               !latestRuntimeSelection.sandboxEnvironmentId ||
@@ -1608,9 +1622,7 @@ export function GatewayChatSidebar({
                   option.environmentId ===
                   latestRuntimeSelection.sandboxEnvironmentId
               )
-            setSelectedModelProfileId(
-              modelIsAvailable ? latestRuntimeSelection.modelProfileId : ""
-            )
+            setSelectedModelProfileId(reconciliation.selection.modelProfileId)
             if (latestRuntimeSelection.sandboxEnvironmentId != null) {
               setSelectedSandboxEnvironmentId(
                 sandboxIsAvailable
@@ -3008,6 +3020,15 @@ export function GatewayChatSidebar({
     if (!accessToken || !content.trim()) {
       return
     }
+    const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
+      selectedModelProfileId,
+      modelProfilesLoadedRef.current,
+      modelProfilesRef.current.map((profile) => profile.id)
+    )
+    const submissionRuntimeSelection = {
+      modelProfileId: submissionModelProfileId,
+      sandboxEnvironmentId: selectedSandboxEnvironmentId,
+    }
     const sandboxPayload = selectedSandboxEnvironmentId
       ? { environment_id: selectedSandboxEnvironmentId }
       : undefined
@@ -3037,7 +3058,7 @@ export function GatewayChatSidebar({
             stream: false,
             channel: "web",
             input_mode: mode,
-            model_profile_id: selectedModelProfileId || undefined,
+            model_profile_id: submissionModelProfileId || undefined,
             sandbox: sandboxPayload,
             agent_iteration_requested: iterationRequestedForSubmission,
           },
@@ -3051,10 +3072,7 @@ export function GatewayChatSidebar({
           commitAcceptedComposerRuntimeSelection(
             window.localStorage,
             targetConversationId,
-            {
-              modelProfileId: selectedModelProfileId,
-              sandboxEnvironmentId: selectedSandboxEnvironmentId,
-            }
+            submissionRuntimeSelection
           )
         }
         return true
@@ -3088,10 +3106,7 @@ export function GatewayChatSidebar({
           writeComposerRuntimeSelectionDraft(
             window.localStorage,
             targetConversationId,
-            {
-              modelProfileId: selectedModelProfileId,
-              sandboxEnvironmentId: selectedSandboxEnvironmentId,
-            }
+            submissionRuntimeSelection
           )
         }
       } catch (createError) {
@@ -3129,18 +3144,17 @@ export function GatewayChatSidebar({
       }
       accepted = true
       if (typeof window !== "undefined") {
-        const selection = {
-          modelProfileId: selectedModelProfileId,
-          sandboxEnvironmentId: selectedSandboxEnvironmentId,
-        }
         if (commitSelection) {
           commitAcceptedComposerRuntimeSelection(
             window.localStorage,
             targetConversationId,
-            selection
+            submissionRuntimeSelection
           )
         } else {
-          writeRecentComposerRuntimeSelection(window.localStorage, selection)
+          writeRecentComposerRuntimeSelection(
+            window.localStorage,
+            submissionRuntimeSelection
+          )
         }
       }
       setIsSubmittingInput(false)
@@ -3156,7 +3170,7 @@ export function GatewayChatSidebar({
           stream: true,
           channel: "web",
           input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
-          model_profile_id: selectedModelProfileId || undefined,
+          model_profile_id: submissionModelProfileId || undefined,
           sandbox: sandboxPayload,
           agent_iteration_requested: iterationRequestedForSubmission,
         },
@@ -3205,7 +3219,7 @@ export function GatewayChatSidebar({
               if (currentConversationIdRef.current === targetConversationId) {
                 appendUserMessage(content)
                 ensureAssistantEntry({
-                  modelProfileId: selectedModelProfileId,
+                  modelProfileId: submissionModelProfileId,
                   sandboxEnvironmentId: selectedSandboxEnvironmentId,
                 })
               }
