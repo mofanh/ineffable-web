@@ -219,6 +219,14 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 
 运行时验证：使用真实管理员账号打开现有文本文件，预览阶段未请求编辑器模块；点击“编辑文件”后才加载 Workspace 编辑器且 `.cm-editor` 正常挂载，无控制台异常。
 
+### Phase 12：Compact / Desktop 响应式边界
+
+- [x] 以共享 `1024px` 边界划分 compact 与 desktop 两种交互模式，不再定义独立平板模式。
+- [x] `<1024px` 的左右 Sidebar 使用 Drawer / 全屏 Sheet，`>=1024px` 才常驻并支持右栏拖拽。
+- [x] Sidebar Hook、右栏默认状态与 CSS 可见性消费同一边界，不保留分散的 `768px` 判断。
+- [x] 页面内部 `sm/md/lg/xl` 继续只承担内容排版，不改变业务交互模式。
+- [x] 响应式契约检查、i18n、lint 与生产构建通过。
+
 ## 全局完成标准
 
 - lint 0 errors、0 warnings；build 通过。

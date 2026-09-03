@@ -220,7 +220,7 @@ function AppShellContent() {
         onDoubleClick={() => setRightSidebarWidth(RIGHT_SIDEBAR_DEFAULT_WIDTH)}
         style={{ right: `${rightSidebarWidth}px` }}
         className={cn(
-          "fixed inset-y-0 z-20 hidden w-2 translate-x-1/2 touch-none cursor-col-resize bg-transparent focus-visible:outline-2 focus-visible:outline-ring md:block",
+          "fixed inset-y-0 z-20 hidden w-2 translate-x-1/2 touch-none cursor-col-resize bg-transparent focus-visible:outline-2 focus-visible:outline-ring lg:block",
           isRightSidebarOpen && !isRightSidebarFullScreen
             ? "opacity-100"
             : "pointer-events-none opacity-0"
@@ -258,7 +258,7 @@ function RightSidebarLoading() {
   const { t } = useTranslation()
 
   return (
-    <Sidebar side="right" variant="inset" mobileMode="full" className="p-0">
+    <Sidebar side="right" variant="inset" compactMode="full" className="p-0">
       <div
         role="status"
         aria-label={t("shell.assistant.loading")}

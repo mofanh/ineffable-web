@@ -11,7 +11,7 @@ export function RightSidebar({
   onFullScreenChange,
 }: RightSidebarProps) {
   return (
-    <Sidebar side="right" variant="inset" mobileMode="full" className="p-0">
+    <Sidebar side="right" variant="inset" compactMode="full" className="p-0">
       <GatewayChatSidebar
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}

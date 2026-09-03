@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { isCompactLayoutWidth } from "@/hooks/use-compact-layout"
+
 export const RIGHT_SIDEBAR_DEFAULT_WIDTH = 384
 export const RIGHT_SIDEBAR_MIN_WIDTH = 300
 export const RIGHT_SIDEBAR_MAX_WIDTH = 640
@@ -58,7 +60,7 @@ export function useRightSidebarResize(leftBoundaryX = 0) {
       return true
     }
 
-    if (window.innerWidth < 768) {
+    if (isCompactLayoutWidth(window.innerWidth)) {
       return false
     }
 

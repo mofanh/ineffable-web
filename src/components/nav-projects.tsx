@@ -30,7 +30,7 @@ export function NavProjects({
   }[]
 }) {
   const { t } = useTranslation()
-  const { isMobile } = useSidebar()
+  const { isCompact } = useSidebar()
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
@@ -57,8 +57,8 @@ export function NavProjects({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 className="w-48"
-                side={isMobile ? "bottom" : "right"}
-                align={isMobile ? "end" : "start"}
+                side={isCompact ? "bottom" : "right"}
+                align={isCompact ? "end" : "start"}
               >
                 <DropdownMenuItem>
                   <FolderIcon className="text-muted-foreground" />

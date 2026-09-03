@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { normalizeLanguage } from "@/lib/i18n/i18n"
 
-export function LanguageMenu({ mobile = false }: { mobile?: boolean }) {
+export function LanguageMenu({ compact = false }: { compact?: boolean }) {
   const { t, i18n } = useTranslation()
   const [expanded, setExpanded] = React.useState(false)
   const language = normalizeLanguage(i18n.resolvedLanguage || i18n.language)
@@ -21,7 +21,7 @@ export function LanguageMenu({ mobile = false }: { mobile?: boolean }) {
       ? t("language.shortChinese")
       : t("language.shortEnglish")
 
-  if (mobile) {
+  if (compact) {
     return (
       <>
         <DropdownMenuItem

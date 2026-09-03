@@ -398,7 +398,7 @@ function PrimaryNav({
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
-  const { isMobile, setOpenMobile, state: sidebarState } = useSidebar()
+  const { isCompact, setOpenCompact, state: sidebarState } = useSidebar()
   const [openGroupIds, setOpenGroupIds] = React.useState<Set<string>>(
     () =>
       new Set(
@@ -432,9 +432,9 @@ function PrimaryNav({
     })
   }, [items, location.pathname])
 
-  const closeMobileSidebar = () => {
-    if (isMobile) {
-      setOpenMobile(false)
+  const closeCompactSidebar = () => {
+    if (isCompact) {
+      setOpenCompact(false)
     }
   }
 
@@ -476,7 +476,7 @@ function PrimaryNav({
                   onClick={() => {
                     onSelectEntry(item.id)
                     if (isGroup) {
-                      if (sidebarState === "collapsed" && !isMobile) {
+                      if (sidebarState === "collapsed" && !isCompact) {
                         const activeChild = children.find(
                           (child) =>
                             location.pathname === child.path.split("?")[0]
@@ -496,7 +496,7 @@ function PrimaryNav({
                       return
                     }
                     navigate(item.path)
-                    closeMobileSidebar()
+                    closeCompactSidebar()
                   }}
                 >
                   <Icon className="text-sidebar-foreground/70" />
@@ -546,7 +546,7 @@ function PrimaryNav({
                               }}
                               onClick={() => {
                                 onSelectEntry(child.id)
-                                closeMobileSidebar()
+                                closeCompactSidebar()
                               }}
                             >
                               <ChildIcon className="text-sidebar-foreground/60" />
@@ -685,7 +685,7 @@ function WorkspaceAccountSwitcher({
   onLogout?: () => void
 }) {
   const { t } = useTranslation()
-  const { isMobile } = useSidebar()
+  const { isCompact } = useSidebar()
   const fallback = user.name
     .split(" ")
     .map((part) => part[0])
@@ -712,7 +712,7 @@ function WorkspaceAccountSwitcher({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="w-64 min-w-64"
-        side={isMobile ? "bottom" : "right"}
+        side={isCompact ? "bottom" : "right"}
         align="end"
         sideOffset={4}
       >
@@ -750,8 +750,8 @@ function WorkspaceAccountSwitcher({
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <ThemeToggle mobile={isMobile} />
-        <LanguageMenu mobile={isMobile} />
+        <ThemeToggle compact={isCompact} />
+        <LanguageMenu compact={isCompact} />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link

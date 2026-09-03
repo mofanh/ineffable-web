@@ -14,14 +14,14 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
+export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const { resolvedTheme, setTheme, theme } = useTheme()
   const [expanded, setExpanded] = React.useState(false)
   const selectedTheme = theme ?? "system"
   const SelectedThemeIcon = resolvedTheme === "dark" ? Moon : Sun
 
-  if (mobile) {
+  if (compact) {
     return (
       <>
         <DropdownMenuItem

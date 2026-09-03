@@ -2,7 +2,7 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsCompactLayout } from "@/hooks/use-compact-layout"
 import { useVisualViewport } from "@/hooks/use-visual-viewport"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,7 +26,7 @@ import { PanelLeftIcon } from "lucide-react"
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH_COMPACT = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
@@ -34,9 +34,9 @@ type SidebarContextProps = {
   state: "expanded" | "collapsed"
   open: boolean
   setOpen: (open: boolean) => void
-  openMobile: boolean
-  setOpenMobile: (open: boolean) => void
-  isMobile: boolean
+  openCompact: boolean
+  setOpenCompact: (open: boolean) => void
+  isCompact: boolean
   toggleSidebar: () => void
 }
 
@@ -66,8 +66,8 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
   persistCookie?: boolean
 }) {
-  const isMobile = useIsMobile()
-  const [openMobile, setOpenMobileState] = React.useState(false)
+  const isCompact = useIsCompactLayout()
+  const [openCompact, setOpenCompactState] = React.useState(false)
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -89,27 +89,27 @@ function SidebarProvider({
     [setOpenProp, open, persistCookie]
   )
 
-  const setOpenMobile = React.useCallback(
+  const setOpenCompact = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(openMobile) : value
-      setOpenMobileState(openState)
+      const openState = typeof value === "function" ? value(openCompact) : value
+      setOpenCompactState(openState)
       setOpen(openState)
     },
-    [openMobile, setOpen]
+    [openCompact, setOpen]
   )
 
   React.useEffect(() => {
-    if (!isMobile || openProp === undefined) {
+    if (!isCompact || openProp === undefined) {
       return
     }
 
-    setOpenMobileState(open)
-  }, [isMobile, open, openProp])
+    setOpenCompactState(open)
+  }, [isCompact, open, openProp])
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
-  }, [isMobile, setOpen, setOpenMobile])
+    return isCompact ? setOpenCompact((open) => !open) : setOpen((open) => !open)
+  }, [isCompact, setOpen, setOpenCompact])
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -136,12 +136,12 @@ function SidebarProvider({
       state,
       open,
       setOpen,
-      isMobile,
-      openMobile,
-      setOpenMobile,
+      isCompact,
+      openCompact,
+      setOpenCompact,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isCompact, openCompact, setOpenCompact, toggleSidebar]
   )
 
   return (
@@ -171,7 +171,7 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
-  mobileMode = "drawer",
+  compactMode = "drawer",
   className,
   children,
   dir,
@@ -180,10 +180,10 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
-  mobileMode?: "drawer" | "full"
+  compactMode?: "drawer" | "full"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
-  const visualViewport = useVisualViewport(isMobile && mobileMode === "full")
+  const { isCompact, state, openCompact, setOpenCompact } = useSidebar()
+  const visualViewport = useVisualViewport(isCompact && compactMode === "full")
 
   if (collapsible === "none") {
     return (
@@ -200,13 +200,13 @@ function Sidebar({
     )
   }
 
-  if (isMobile) {
-    const mobileDrawerClass =
+  if (isCompact) {
+    const compactDrawerClass =
       "data-[side=left]:w-[min(var(--sidebar-width),calc(100vw-1.5rem))] data-[side=right]:w-[min(var(--sidebar-width),calc(100vw-1.5rem))] data-[side=left]:max-w-[calc(100vw-1.5rem)] data-[side=right]:max-w-[calc(100vw-1.5rem)] data-[side=left]:rounded-r-2xl data-[side=right]:rounded-l-2xl"
-    const mobileFullClass =
+    const compactFullClass =
       "data-[side=left]:w-screen data-[side=right]:w-screen data-[side=left]:max-w-none data-[side=right]:max-w-none gap-0 overflow-hidden overscroll-none rounded-none border-0"
-    const mobileFullStyle =
-      mobileMode === "full"
+    const compactFullStyle =
+      compactMode === "full"
         ? {
             top: `${visualViewport?.offsetTop ?? 0}px`,
             bottom: "auto",
@@ -220,20 +220,20 @@ function Sidebar({
         : undefined
 
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet open={openCompact} onOpenChange={setOpenCompact} {...props}>
         <SheetContent
           dir={dir}
           data-sidebar="sidebar"
           data-slot="sidebar"
-          data-mobile="true"
+          data-compact="true"
           className={cn(
             "bg-sidebar text-sidebar-foreground p-0 [&>button]:hidden",
-            mobileMode === "full" ? mobileFullClass : mobileDrawerClass
+            compactMode === "full" ? compactFullClass : compactDrawerClass
           )}
           style={
             {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-              ...mobileFullStyle,
+              "--sidebar-width": SIDEBAR_WIDTH_COMPACT,
+              ...compactFullStyle,
             } as React.CSSProperties
           }
           side={side}
@@ -252,7 +252,7 @@ function Sidebar({
 
   return (
     <div
-      className="group peer text-sidebar-foreground hidden md:block"
+      className="group peer text-sidebar-foreground hidden lg:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
@@ -275,7 +275,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -334,7 +334,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:inset-s-1/2 after:w-0.5 sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
+        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:inset-s-1/2 after:w-0.5 lg:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
@@ -352,7 +352,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
     <main
       data-slot="sidebar-inset"
       className={cn(
-        "bg-background relative flex min-w-0 w-full flex-1 flex-col md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+        "bg-background relative flex min-w-0 w-full flex-1 flex-col lg:peer-data-[variant=inset]:m-2 lg:peer-data-[variant=inset]:ml-0 lg:peer-data-[variant=inset]:rounded-xl lg:peer-data-[variant=inset]:shadow-sm lg:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
         className
       )}
       {...props}
@@ -467,7 +467,7 @@ function SidebarGroupAction({
       data-slot="sidebar-group-action"
       data-sidebar="group-action"
       className={cn(
-        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform group-data-[collapsible=icon]:hidden after:absolute after:-inset-2 focus-visible:ring-2 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform group-data-[collapsible=icon]:hidden after:absolute after:-inset-2 focus-visible:ring-2 lg:after:hidden [&>svg]:size-4 [&>svg]:shrink-0",
         className
       )}
       {...props}
@@ -547,7 +547,7 @@ function SidebarMenuButton({
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
-  const { isMobile, state } = useSidebar()
+  const { isCompact, state } = useSidebar()
 
   const button = (
     <Comp
@@ -576,7 +576,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== "collapsed" || isMobile}
+        hidden={state !== "collapsed" || isCompact}
         {...tooltip}
       />
     </Tooltip>
@@ -599,9 +599,9 @@ function SidebarMenuAction({
       data-slot="sidebar-menu-action"
       data-sidebar="menu-action"
       className={cn(
-        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform group-data-[collapsible=icon]:hidden peer-data-[size=default]/menu-button:top-1.5 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1 after:absolute after:-inset-2 focus-visible:ring-2 md:after:hidden [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform group-data-[collapsible=icon]:hidden peer-data-[size=default]/menu-button:top-1.5 peer-data-[size=lg]/menu-button:top-2.5 peer-data-[size=sm]/menu-button:top-1 after:absolute after:-inset-2 focus-visible:ring-2 lg:after:hidden [&>svg]:size-4 [&>svg]:shrink-0",
         showOnHover &&
-          "peer-data-active/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 aria-expanded:opacity-100 md:opacity-0",
+          "peer-data-active/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 aria-expanded:opacity-100 lg:opacity-0",
         className
       )}
       {...props}

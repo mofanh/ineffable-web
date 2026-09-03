@@ -45,7 +45,7 @@ export function NavUser({
   onLogout?: () => void
 }) {
   const { t } = useTranslation()
-  const { isMobile } = useSidebar()
+  const { isCompact } = useSidebar()
   const fallback = user.name
     .split(" ")
     .map((part) => part[0])
@@ -75,7 +75,7 @@ export function NavUser({
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
+            side={isCompact ? "bottom" : "right"}
             align="end"
             sideOffset={4}
           >
@@ -121,8 +121,8 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <ThemeToggle mobile={isMobile} />
-            <LanguageMenu mobile={isMobile} />
+            <ThemeToggle compact={isCompact} />
+            <LanguageMenu compact={isCompact} />
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link
