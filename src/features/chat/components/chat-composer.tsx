@@ -364,30 +364,37 @@ export function ChatComposer({
           >
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
               <div className="flex w-fit min-w-0 max-w-40 shrink">
-                <Select
-                  value={selectedModelProfileId || "__default__"}
-                  onValueChange={(value) =>
-                    onModelProfileChange(value === "__default__" ? "" : value)
-                  }
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="h-8 w-full min-w-0 rounded-full border-transparent bg-transparent px-2 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
+                {modelOptions.length > 0 ? (
+                  <Select
+                    value={selectedModelProfileId}
+                    onValueChange={onModelProfileChange}
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      className="h-8 w-full min-w-0 rounded-full border-transparent bg-transparent px-2 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
+                    >
+                      <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      <SelectValue
+                        placeholder={t("chat.composer.noModelSelected")}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modelOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div
+                    className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground"
+                    title={t("chat.composer.noModel")}
                   >
                     <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    <SelectValue placeholder={t("chat.composer.model")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__default__">
-                      {t("chat.composer.defaultModel")}
-                    </SelectItem>
-                    {modelOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.displayName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <span className="truncate">{t("chat.composer.noModel")}</span>
+                  </div>
+                )}
               </div>
               <div className="flex w-fit min-w-0 max-w-40 shrink">
                 <Select

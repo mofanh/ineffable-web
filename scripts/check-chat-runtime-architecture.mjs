@@ -129,6 +129,21 @@ assert.match(
   /!nextValue &&[\s\S]{0,300}!sandboxOptions\.some/,
   "sandbox catalog hydration must not be persisted as an explicit no-sandbox user choice"
 )
+assert.doesNotMatch(
+  chatComposer,
+  /__auto__|__default__|chat\.composer\.defaultModel/,
+  "an empty model selection must not be represented as a synthetic Auto option"
+)
+assert.match(
+  chatComposer,
+  /value=\{selectedModelProfileId\}/,
+  "an empty model selection must remain an actual empty controlled value"
+)
+assert.match(
+  chatComposer,
+  /chat\.composer\.noModelSelected/,
+  "an available catalog with no selection must render an explicit unselected placeholder"
+)
 assert.match(composerRuntimeSelection, /writeCanonicalComposerRuntimeSelection/)
 assert.match(sidebar, /canonicalMessagesToGatewayEvents/)
 assert.doesNotMatch(

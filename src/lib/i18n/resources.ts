@@ -495,7 +495,8 @@ export const resources = {
           queuedPlaceholder: "继续输入，消息将在当前任务完成后发送…",
           placeholder: "描述任务，或输入 @ 引用 Agent 文件…",
           model: "模型",
-          defaultModel: "默认模型",
+          noModelSelected: "未选择模型",
+          noModel: "无可使用的模型",
           nodeIteration: "Node 迭代模式",
           nodeIterationHint: "允许本会话在高信号场景中检查、定义并试跑新的 Node 版本",
           iterationMode: {
@@ -1951,7 +1952,8 @@ export const resources = {
             "Keep typing. The message will be sent after the current task finishes…",
           placeholder: "Describe a task, or type @ to reference an Agent file…",
           model: "Model",
-          defaultModel: "Default model",
+          noModelSelected: "No model selected",
+          noModel: "No model available",
           nodeIteration: "Node iteration",
           nodeIterationHint:
             "Allow this conversation to inspect, define, and canary new Node versions when strong signals appear",
