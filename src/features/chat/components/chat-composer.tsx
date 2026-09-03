@@ -62,6 +62,7 @@ type ChatComposerProps = {
   preInputQueue: PreInputQueueItem[]
   agentDescriptorOptions: AgentDescriptorOption[]
   modelOptions: ModelProfileOption[]
+  isModelCatalogLoaded: boolean
   selectedModelProfileId: string
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   isRefreshingSandboxOptions: boolean
@@ -92,6 +93,7 @@ export function ChatComposer({
   preInputQueue,
   agentDescriptorOptions,
   modelOptions,
+  isModelCatalogLoaded,
   selectedModelProfileId,
   sandboxOptions,
   isRefreshingSandboxOptions,
@@ -389,10 +391,20 @@ export function ChatComposer({
                 ) : (
                   <div
                     className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground"
-                    title={t("chat.composer.noModel")}
+                    title={t(
+                      isModelCatalogLoaded
+                        ? "chat.composer.noModel"
+                        : "chat.composer.model"
+                    )}
                   >
                     <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{t("chat.composer.noModel")}</span>
+                    <span className="truncate">
+                      {t(
+                        isModelCatalogLoaded
+                          ? "chat.composer.noModel"
+                          : "chat.composer.model"
+                      )}
+                    </span>
                   </div>
                 )}
               </div>

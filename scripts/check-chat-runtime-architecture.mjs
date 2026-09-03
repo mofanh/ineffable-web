@@ -144,6 +144,10 @@ assert.match(
   /chat\.composer\.noModelSelected/,
   "an available catalog with no selection must render an explicit unselected placeholder"
 )
+assert.match(chatComposer, /isModelCatalogLoaded/)
+assert.match(sidebar, /resolveAvailableComposerModelProfileId/)
+assert.match(sidebar, /clearUnavailableComposerRuntimeSelectionField/)
+assert.match(sidebar, /isModelCatalogLoaded=\{isModelCatalogLoaded\}/)
 assert.match(composerRuntimeSelection, /writeCanonicalComposerRuntimeSelection/)
 assert.match(sidebar, /canonicalMessagesToGatewayEvents/)
 assert.doesNotMatch(

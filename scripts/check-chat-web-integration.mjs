@@ -48,6 +48,7 @@ import {
   commitAcceptedComposerRuntimeSelection,
   readCachedComposerRuntimeSelection,
   reconcileCanonicalComposerRuntimeSelection,
+  resolveAvailableComposerModelProfileId,
   writeCanonicalComposerRuntimeSelection,
   writeComposerRuntimeSelectionDraft,
 } from "../src/features/chat/model/composer-runtime-selection.ts"
@@ -323,6 +324,24 @@ assert.deepEqual(
   readCachedComposerRuntimeSelection(selectionStorage, conversationId),
   { modelProfileId: "", sandboxEnvironmentId: "" },
   "removed options must be cleared inside the draft instead of reappearing after refresh"
+)
+assert.equal(
+  resolveAvailableComposerModelProfileId(
+    "removed-model",
+    true,
+    ["available-model"]
+  ),
+  "",
+  "a loaded model catalog must reject a cached model that is no longer available"
+)
+assert.equal(
+  resolveAvailableComposerModelProfileId(
+    "cached-model",
+    false,
+    []
+  ),
+  "cached-model",
+  "an unresolved model catalog must not erase a cached selection prematurely"
 )
 
 const runningCommand = {

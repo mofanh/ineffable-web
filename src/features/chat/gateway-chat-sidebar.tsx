@@ -101,6 +101,7 @@ import {
   commitAcceptedComposerRuntimeSelection,
   readCachedComposerRuntimeSelection,
   reconcileCanonicalComposerRuntimeSelection,
+  resolveAvailableComposerModelProfileId,
   writeComposerRuntimeSelectionDraft,
   writeRecentComposerRuntimeSelection,
 } from "@/features/chat/model/composer-runtime-selection"
@@ -343,6 +344,7 @@ export function GatewayChatSidebar({
   const [isRefreshingSandboxOptions, setIsRefreshingSandboxOptions] =
     React.useState(false)
   const [modelProfiles, setModelProfiles] = React.useState<ModelProfile[]>([])
+  const [isModelCatalogLoaded, setIsModelCatalogLoaded] = React.useState(false)
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
@@ -810,7 +812,19 @@ export function GatewayChatSidebar({
       window.localStorage,
       currentConversationId
     )
-    setSelectedModelProfileId(cachedSelection.modelProfileId)
+    const availableModelProfileId = resolveAvailableComposerModelProfileId(
+      cachedSelection.modelProfileId,
+      modelProfilesLoadedRef.current,
+      modelProfilesRef.current.map((profile) => profile.id)
+    )
+    if (availableModelProfileId !== cachedSelection.modelProfileId) {
+      clearUnavailableComposerRuntimeSelectionField(
+        window.localStorage,
+        currentConversationId,
+        "model"
+      )
+    }
+    setSelectedModelProfileId(availableModelProfileId)
     setSelectedSandboxEnvironmentId(cachedSelection.sandboxEnvironmentId)
   }, [currentConversationId])
 
@@ -819,6 +833,7 @@ export function GatewayChatSidebar({
       modelProfilesRef.current = []
       modelProfilesLoadedRef.current = false
       setModelProfiles([])
+      setIsModelCatalogLoaded(false)
       setSelectedModelProfileId("")
       return
     }
@@ -832,6 +847,7 @@ export function GatewayChatSidebar({
         modelProfilesRef.current = response.profiles
         modelProfilesLoadedRef.current = true
         setModelProfiles(response.profiles)
+        setIsModelCatalogLoaded(true)
         setSelectedModelProfileId((current) => {
           if (
             !current ||
@@ -3568,6 +3584,7 @@ export function GatewayChatSidebar({
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
         modelOptions={modelOptions}
+        isModelCatalogLoaded={isModelCatalogLoaded}
         selectedModelProfileId={selectedModelProfileId}
         sandboxOptions={sandboxOptions}
         isRefreshingSandboxOptions={isRefreshingSandboxOptions}

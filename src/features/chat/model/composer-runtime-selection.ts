@@ -8,6 +8,17 @@ export type CanonicalComposerRuntimeSelection = {
   sandboxEnvironmentId: string | null
 }
 
+export function resolveAvailableComposerModelProfileId(
+  modelProfileId: string,
+  catalogLoaded: boolean,
+  availableModelProfileIds: readonly string[]
+) {
+  if (!modelProfileId || !catalogLoaded) {
+    return modelProfileId
+  }
+  return availableModelProfileIds.includes(modelProfileId) ? modelProfileId : ""
+}
+
 type SelectionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
 
 const RUNTIME_SELECTION_DRAFT_VERSION = 1
