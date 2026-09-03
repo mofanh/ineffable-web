@@ -36,6 +36,10 @@ assert.doesNotMatch(
 )
 assert.match(appShell, /cursor-col-resize[^"\n]*lg:block/)
 assert.doesNotMatch(appShell, /cursor-col-resize[^"\n]*md:block/)
+assert.match(appShell, /useIsCompactLayout/)
+assert.match(appShell, /\[isCompactLayout\]/)
+assert.match(appShell, /keyboardShortcut=\{false\}/)
+assert.match(sidebar, /if \(!keyboardShortcut\)/)
 assert.match(rightSidebarResize, /isCompactLayoutWidth\(window\.innerWidth\)/)
 assert.doesNotMatch(rightSidebarResize, /window\.innerWidth\s*<\s*(768|1024)/)
 

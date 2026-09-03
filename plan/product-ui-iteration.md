@@ -224,6 +224,7 @@ Shell 第一轮自动验证：`npm run lint`、`npm run build` 已通过；统�
 - [x] 以共享 `1024px` 边界划分 compact 与 desktop 两种交互模式，不再定义独立平板模式。
 - [x] `<1024px` 的左右 Sidebar 使用 Drawer / 全屏 Sheet，`>=1024px` 才常驻并支持右栏拖拽。
 - [x] Sidebar Hook、右栏默认状态与 CSS 可见性消费同一边界，不保留分散的 `768px` 判断。
+- [x] 跨模式后重新绑定左栏 gap 测量，右栏禁用重复的全局 Sidebar 快捷键。
 - [x] 页面内部 `sm/md/lg/xl` 继续只承担内容排版，不改变业务交互模式。
 - [x] 响应式契约检查、i18n、lint 与生产构建通过。
 

@@ -24,6 +24,7 @@ import {
 } from "@/app/shell/use-right-sidebar-resize"
 import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
 import { useWorkspaceSession } from "@/features/auth/app-session"
+import { useIsCompactLayout } from "@/hooks/use-compact-layout"
 import type { Workspace } from "@/features/workspace/api/workspace-api"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
@@ -51,6 +52,7 @@ function AppShellContent() {
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const { currentWorkspace, workspaces } = useWorkspaceSession()
+  const isCompactLayout = useIsCompactLayout()
   const [leftSidebarRight, setLeftSidebarRight] = useState(0)
   const [isRightSidebarFullScreen, setIsRightSidebarFullScreen] = useState(false)
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
@@ -110,7 +112,7 @@ function AppShellContent() {
       leftSidebarGap?.removeEventListener("transitionend", updateLeftSidebarRight)
       window.removeEventListener("resize", updateLeftSidebarRight)
     }
-  }, [])
+  }, [isCompactLayout])
 
   useEffect(() => {
     function handleOpenRightSidebar() {
@@ -232,6 +234,7 @@ function AppShellContent() {
         open={isRightSidebarOpen}
         onOpenChange={setRightSidebarOpen}
         persistCookie={false}
+        keyboardShortcut={false}
         className="w-auto"
         style={
           {
