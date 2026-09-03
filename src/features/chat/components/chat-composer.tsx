@@ -83,7 +83,7 @@ type ChatComposerProps = {
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   isRefreshingSandboxOptions: boolean
   selectedSandboxEnvironmentId: string
-  capabilityExposureSelection: CapabilityExposureSelection
+  capabilityExposureSelection: CapabilityExposureSelection | null
   capabilityExposurePolicy: CapabilityExposurePolicy | null
   agentIterationRequested: boolean
   agentIterationMode: "disabled" | "declarative_only" | "artifact_allowed" | "runtime_lab_allowed"
@@ -137,33 +137,18 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation()
   const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
-  const allowedCapabilityModes = capabilityExposurePolicy?.allowed_modes ?? [
-    "smart",
-    "clean",
-  ]
+  const allowedCapabilityModes = capabilityExposurePolicy?.allowed_modes ?? []
   const selectableCapabilityFamilies =
     capabilityExposurePolicy?.allowed_families.length
       ? capabilityExposurePolicy.allowed_families
-      : [
-          "workspace.files",
-          "sandbox.files",
-          "sandbox.command",
-          "web.research",
-          "agent.delegation",
-          "agent.evolution",
-          "automation",
-          "interaction",
-          "planning",
-          "mcp",
-          "skills",
-        ]
+      : []
 
   function selectCapabilityMode(mode: CapabilityExposureMode) {
     onCapabilityExposureChange({
       mode,
       custom:
         mode === "custom"
-          ? capabilityExposureSelection.custom ?? {
+          ? capabilityExposureSelection?.custom ?? {
               families: [],
               capabilities: [],
               discovery_scope: { kind: "all_authorized" },
@@ -173,7 +158,7 @@ export function ChatComposer({
   }
 
   function toggleCapabilityFamily(family: string, checked: boolean) {
-    const current = capabilityExposureSelection.custom ?? {
+    const current = capabilityExposureSelection?.custom ?? {
       families: [],
       capabilities: [],
       discovery_scope: { kind: "all_authorized" } as const,
@@ -548,12 +533,15 @@ export function ChatComposer({
                     size="sm"
                     className="h-8 min-w-0 max-w-28 shrink gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground"
                     title={t("chat.composer.capabilityModeHint")}
+                    disabled={!capabilityExposureSelection || !capabilityExposurePolicy}
                   >
                     <SparklesIcon className="size-3.5 shrink-0" />
                     <span className="truncate">
-                      {t(
-                        `chat.composer.capabilityMode.${capabilityExposureSelection.mode}`
-                      )}
+                      {capabilityExposureSelection
+                        ? t(
+                            `chat.composer.capabilityMode.${capabilityExposureSelection.mode}`
+                          )
+                        : "—"}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -562,7 +550,7 @@ export function ChatComposer({
                     {t("chat.composer.capabilityModeLabel")}
                   </DropdownMenuLabel>
                   <DropdownMenuRadioGroup
-                    value={capabilityExposureSelection.mode}
+                    value={capabilityExposureSelection?.mode ?? ""}
                     onValueChange={(value) =>
                       selectCapabilityMode(value as CapabilityExposureMode)
                     }
@@ -575,7 +563,7 @@ export function ChatComposer({
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
-                  {capabilityExposureSelection.mode === "custom" ? (
+                  {capabilityExposureSelection?.mode === "custom" ? (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel>

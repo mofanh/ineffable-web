@@ -169,10 +169,6 @@ function formatSendErrorMessage(message: string) {
     : message
 }
 
-const DEFAULT_CAPABILITY_EXPOSURE_SELECTION: CapabilityExposureSelection = {
-  mode: "smart",
-}
-
 function sandboxOptionLabel(
   environment: SandboxEnvironmentView,
   provider?: SandboxProviderStatusView
@@ -356,9 +352,7 @@ export function GatewayChatSidebar({
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [capabilityExposureSelection, setCapabilityExposureSelection] =
-    React.useState<CapabilityExposureSelection>(
-      DEFAULT_CAPABILITY_EXPOSURE_SELECTION
-    )
+    React.useState<CapabilityExposureSelection | null>(null)
   const [capabilityExposurePolicy, setCapabilityExposurePolicy] =
     React.useState<CapabilityExposurePolicy | null>(null)
   const capabilityExposureSelectionRef = React.useRef(
@@ -1609,11 +1603,10 @@ export function GatewayChatSidebar({
         ) {
           return handoffConfirmed
         }
-        if (conversationDetail?.capability_exposure_selection) {
-          setCapabilityExposureSelection(
-            conversationDetail.capability_exposure_selection
-          )
-        }
+        const hydratedCapabilityExposure =
+          conversationDetail?.capability_exposure_selection ?? null
+        capabilityExposureSelectionRef.current = hydratedCapabilityExposure
+        setCapabilityExposureSelection(hydratedCapabilityExposure)
         setCapabilityExposurePolicy(
           conversationDetail?.capability_exposure_policy?.policy ?? null
         )
@@ -1688,6 +1681,7 @@ export function GatewayChatSidebar({
           setOlderMessagesCursor(response.page?.before ?? null)
           setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
         }
+        hydratedConversationIdRef.current = conversationId
         setHydratedConversationId(conversationId)
         setOlderMessagesError(null)
         setError(null)
@@ -1701,6 +1695,7 @@ export function GatewayChatSidebar({
             latestRequestId: messageProjectionRequestRef.current,
           })
         ) {
+          hydratedConversationIdRef.current = null
           setHydratedConversationId(null)
         }
         throw error
@@ -1749,14 +1744,16 @@ export function GatewayChatSidebar({
       ? conversationWindowCacheRef.current.get(currentConversationId)
       : null
     applyConversationWindow(currentConversationId, cachedWindow)
+    hydratedConversationIdRef.current = null
+    capabilityExposureSelectionRef.current = null
+    setCapabilityExposureSelection(null)
+    setCapabilityExposurePolicy(null)
     pendingOlderLoadMetricsRef.current = null
     olderMessagesInFlightCursorRef.current = null
     setOlderMessagesError(null)
     setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
-      setCapabilityExposureSelection(DEFAULT_CAPABILITY_EXPOSURE_SELECTION)
-      setCapabilityExposurePolicy(null)
       setError(null)
       return
     }
@@ -2840,6 +2837,7 @@ export function GatewayChatSidebar({
     entriesRef.current = []
     setDisplayedConversationId(null)
     displayedConversationIdRef.current = null
+    hydratedConversationIdRef.current = null
     setHydratedConversationId(null)
     setIsLoadingMessages(false)
     setAwaitingHumanRunId(null)
@@ -3095,7 +3093,10 @@ export function GatewayChatSidebar({
             model_profile_id: submissionModelProfileId || undefined,
             sandbox: sandboxPayload,
             agent_iteration_requested: iterationRequestedForSubmission,
-            capability_exposure: capabilityExposureSelection,
+            capability_exposure:
+              hydratedConversationIdRef.current === targetConversationId
+                ? capabilityExposureSelectionRef.current ?? undefined
+                : undefined,
           },
           {
             onEnvelope: (envelope) => {
@@ -3208,7 +3209,10 @@ export function GatewayChatSidebar({
           model_profile_id: submissionModelProfileId || undefined,
           sandbox: sandboxPayload,
           agent_iteration_requested: iterationRequestedForSubmission,
-          capability_exposure: capabilityExposureSelection,
+          capability_exposure:
+            hydratedConversationIdRef.current === targetConversationId
+              ? capabilityExposureSelectionRef.current ?? undefined
+              : undefined,
         },
         {
           signal: controller.signal,
