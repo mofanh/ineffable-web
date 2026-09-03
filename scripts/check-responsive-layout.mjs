@@ -25,6 +25,11 @@ assert.match(sidebar, /useIsCompactLayout/)
 assert.match(sidebar, /hidden lg:block/)
 assert.match(sidebar, /hidden[^"\n]*lg:flex/)
 assert.match(sidebar, /data-compact="true"/)
+assert.match(
+  sidebar,
+  /compactMode === "full"[\s\S]*?width: "100vw",[\s\S]*?maxWidth: "none"/,
+  "Compact full sidebars must override Sheet's responsive drawer width cap"
+)
 assert.doesNotMatch(
   sidebar,
   /useIsMobile|isMobile|openMobile|setOpenMobile|mobileMode|data-mobile/

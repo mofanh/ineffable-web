@@ -213,6 +213,8 @@ function Sidebar({
     const compactFullStyle =
       compactMode === "full"
         ? {
+            width: "100vw",
+            maxWidth: "none",
             top: `${visualViewport?.offsetTop ?? 0}px`,
             bottom: "auto",
             height: visualViewport
