@@ -450,6 +450,9 @@ export const resources = {
       chat: {
         answerMetadata: {
           sandboxTitle: "Sandbox：{{id}}",
+          capability: "{{mode}} · {{count}} 个能力",
+          capabilityTitle:
+            "能力暴露：授权 {{authorized}}，初始 {{initial}}，预取 {{prefetched}}，激活 {{activated}}，最终 {{final}}，延迟 {{deferred}}；稳定 {{stable}}，动态 {{dynamic}}；Schema {{bytes}} B；计划 {{hash}}",
         },
         header: {
           older: "更早",
@@ -497,6 +500,18 @@ export const resources = {
           model: "模型",
           noModelSelected: "未选择模型",
           noModel: "无可使用的模型",
+          capabilityModeLabel: "能力暴露模式",
+          capabilityModeHint: "控制本轮模型可见的已授权工具；不会扩大权限",
+          capabilityMode: {
+            smart: "智能能力",
+            clean: "纯净能力",
+            full: "全量能力",
+            custom: "自定义能力",
+          },
+          capabilityFamilies: "自定义工具族",
+          capabilityBudget: "本轮最多暴露 {{count}} 个工具",
+          capabilityUpdateFailed: "无法更新本会话的能力模式。",
+          capabilityUpdateFailedTitle: "能力模式更新失败",
           nodeIteration: "Node 迭代模式",
           nodeIterationHint: "允许本会话在高信号场景中检查、定义并试跑新的 Node 版本",
           iterationMode: {
@@ -959,6 +974,18 @@ export const resources = {
             objects: "每个 Workspace 对象数",
             fileMb: "单文件大小（MB）",
             agentEvolution: "Agent 迭代",
+            capabilityExposure: "Agent 能力暴露",
+            capabilityExposureDescription:
+              "配置套餐允许的能力模式、工具族范围和模型可见工具预算。实际权限仍由 Gateway 实时裁决。",
+            defaultCapabilityMode: "默认能力模式",
+            allowedCapabilityFamilies: "允许的工具族",
+            allowedCapabilityFamiliesDescription:
+              "逗号分隔；留空表示不施加工具族限制。",
+            maxExposedTools: "单轮最大工具数",
+            maxSchemaBytes: "单轮 Schema Bytes",
+            maxPrefetchedTools: "智能预取上限",
+            maxDynamicTools: "运行时激活上限",
+            maxDiscoveryResults: "单次发现结果上限",
             agentEvolutionDescription:
               "这里是 Node 迭代模式的套餐权威。能力逐级开放，运行时仍由 Gateway 裁决。",
             definitionRecomposition: "允许声明式 Node 重组",
@@ -1904,6 +1931,9 @@ export const resources = {
       chat: {
         answerMetadata: {
           sandboxTitle: "Sandbox: {{id}}",
+          capability: "{{mode}} · {{count}} capabilities",
+          capabilityTitle:
+            "Capability exposure: {{authorized}} authorized, {{initial}} initial, {{prefetched}} prefetched, {{activated}} activated, {{final}} final, {{deferred}} deferred; {{stable}} stable, {{dynamic}} dynamic; schema {{bytes}} B; plan {{hash}}",
         },
         header: {
           older: "Earlier",
@@ -1954,6 +1984,20 @@ export const resources = {
           model: "Model",
           noModelSelected: "No model selected",
           noModel: "No model available",
+          capabilityModeLabel: "Capability exposure",
+          capabilityModeHint:
+            "Controls which authorized tools the model sees this turn without expanding access",
+          capabilityMode: {
+            smart: "Smart tools",
+            clean: "Clean tools",
+            full: "All tools",
+            custom: "Custom tools",
+          },
+          capabilityFamilies: "Custom tool families",
+          capabilityBudget: "Up to {{count}} tools this turn",
+          capabilityUpdateFailed:
+            "Unable to update this conversation's capability mode.",
+          capabilityUpdateFailedTitle: "Capability mode update failed",
           nodeIteration: "Node iteration",
           nodeIterationHint:
             "Allow this conversation to inspect, define, and canary new Node versions when strong signals appear",
@@ -2451,6 +2495,18 @@ export const resources = {
             objects: "Objects per workspace",
             fileMb: "Per-file size (MB)",
             agentEvolution: "Agent evolution",
+            capabilityExposure: "Agent capability exposure",
+            capabilityExposureDescription:
+              "Configure allowed modes, tool-family scope, and model-visible tool budgets. Gateway still authorizes every request at runtime.",
+            defaultCapabilityMode: "Default capability mode",
+            allowedCapabilityFamilies: "Allowed tool families",
+            allowedCapabilityFamiliesDescription:
+              "Comma-separated; leave blank for no family restriction.",
+            maxExposedTools: "Maximum tools per turn",
+            maxSchemaBytes: "Schema bytes per turn",
+            maxPrefetchedTools: "Smart prefetch limit",
+            maxDynamicTools: "Runtime activation limit",
+            maxDiscoveryResults: "Discovery result limit",
             agentEvolutionDescription:
               "This is the plan authority for Node iteration. Capabilities unlock progressively while Gateway remains the runtime decision point.",
             definitionRecomposition: "Allow declarative Node recomposition",

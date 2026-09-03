@@ -137,8 +137,11 @@ import {
   subscribeConversationEvents,
   streamConversationSend,
   setAgentIterationRequested,
+  setConversationCapabilityExposure,
   updateAgentDefinitionTrial,
   type AgentEvolutionProjection,
+  type CapabilityExposurePolicy,
+  type CapabilityExposureSelection,
   type Conversation,
   type ModelProfile,
   type ResumeRunResponse,
@@ -164,6 +167,10 @@ function formatSendErrorMessage(message: string) {
   return message.trim() === "no_available_model"
     ? i18n.t("chat.gateway.noModel")
     : message
+}
+
+const DEFAULT_CAPABILITY_EXPOSURE_SELECTION: CapabilityExposureSelection = {
+  mode: "smart",
 }
 
 function sandboxOptionLabel(
@@ -348,6 +355,18 @@ export function GatewayChatSidebar({
   const [isModelCatalogLoaded, setIsModelCatalogLoaded] = React.useState(false)
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
+  const [capabilityExposureSelection, setCapabilityExposureSelection] =
+    React.useState<CapabilityExposureSelection>(
+      DEFAULT_CAPABILITY_EXPOSURE_SELECTION
+    )
+  const [capabilityExposurePolicy, setCapabilityExposurePolicy] =
+    React.useState<CapabilityExposurePolicy | null>(null)
+  const capabilityExposureSelectionRef = React.useRef(
+    capabilityExposureSelection
+  )
+  const capabilityExposureSaveChainRef = React.useRef<Promise<void>>(
+    Promise.resolve()
+  )
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
   const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
   const [agentIterationConversationId, setAgentIterationConversationId] =
@@ -792,6 +811,10 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
   }, [currentConversationId])
+
+  React.useEffect(() => {
+    capabilityExposureSelectionRef.current = capabilityExposureSelection
+  }, [capabilityExposureSelection])
 
   React.useEffect(() => {
     entriesRef.current = entries
@@ -1563,11 +1586,12 @@ export function GatewayChatSidebar({
       }
 
       try {
-        const response = await getConversationMessages(
-          accessToken,
-          conversationId,
-          { limit: CONVERSATION_MESSAGES_PAGE_LIMIT }
-        )
+        const [response, conversationDetail] = await Promise.all([
+          getConversationMessages(accessToken, conversationId, {
+            limit: CONVERSATION_MESSAGES_PAGE_LIMIT,
+          }),
+          getConversation(accessToken, conversationId).catch(() => null),
+        ])
         const latestEntries = mapConversationMessagesToEntries(response.messages)
         const latestRuntimeSelection =
           findLatestConversationRuntimeSelection(response.messages)
@@ -1585,6 +1609,14 @@ export function GatewayChatSidebar({
         ) {
           return handoffConfirmed
         }
+        if (conversationDetail?.capability_exposure_selection) {
+          setCapabilityExposureSelection(
+            conversationDetail.capability_exposure_selection
+          )
+        }
+        setCapabilityExposurePolicy(
+          conversationDetail?.capability_exposure_policy?.policy ?? null
+        )
         if (latestRuntimeSelection) {
           const storage = typeof window !== "undefined" ? window.localStorage : null
           const reconciliation = storage
@@ -1723,6 +1755,8 @@ export function GatewayChatSidebar({
     setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
+      setCapabilityExposureSelection(DEFAULT_CAPABILITY_EXPOSURE_SELECTION)
+      setCapabilityExposurePolicy(null)
       setError(null)
       return
     }
@@ -3061,6 +3095,7 @@ export function GatewayChatSidebar({
             model_profile_id: submissionModelProfileId || undefined,
             sandbox: sandboxPayload,
             agent_iteration_requested: iterationRequestedForSubmission,
+            capability_exposure: capabilityExposureSelection,
           },
           {
             onEnvelope: (envelope) => {
@@ -3173,6 +3208,7 @@ export function GatewayChatSidebar({
           model_profile_id: submissionModelProfileId || undefined,
           sandbox: sandboxPayload,
           agent_iteration_requested: iterationRequestedForSubmission,
+          capability_exposure: capabilityExposureSelection,
         },
         {
           signal: controller.signal,
@@ -3364,6 +3400,41 @@ export function GatewayChatSidebar({
         writeRecentComposerRuntimeSelection(window.localStorage, selection)
       }
     }
+  }
+
+  function handleCapabilityExposureChange(
+    selection: CapabilityExposureSelection
+  ) {
+    const previous = capabilityExposureSelectionRef.current
+    capabilityExposureSelectionRef.current = selection
+    setCapabilityExposureSelection(selection)
+    const conversationId = currentConversationIdRef.current
+    if (!accessToken || !conversationId) return
+
+    capabilityExposureSaveChainRef.current = capabilityExposureSaveChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          await setConversationCapabilityExposure(
+            accessToken,
+            conversationId,
+            selection
+          )
+        } catch (caught) {
+          if (
+            currentConversationIdRef.current === conversationId &&
+            capabilityExposureSelectionRef.current === selection
+          ) {
+            capabilityExposureSelectionRef.current = previous
+            setCapabilityExposureSelection(previous)
+          }
+          reportChatError(
+            caught,
+            i18n.t("chat.composer.capabilityUpdateFailed"),
+            i18n.t("chat.composer.capabilityUpdateFailedTitle")
+          )
+        }
+      })
   }
 
   function handlePromoteToGuided(id: string) {
@@ -3603,6 +3674,8 @@ export function GatewayChatSidebar({
         sandboxOptions={sandboxOptions}
         isRefreshingSandboxOptions={isRefreshingSandboxOptions}
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
+        capabilityExposureSelection={capabilityExposureSelection}
+        capabilityExposurePolicy={capabilityExposurePolicy}
         agentIterationRequested={agentIterationRequested}
         agentIterationMode={agentEvolution?.effective_mode ?? "disabled"}
         isAgentIterationLoading={isAgentIterationLoading}
@@ -3614,6 +3687,7 @@ export function GatewayChatSidebar({
         onSandboxOptionsRefresh={() => {
           void refreshSandboxOptions()
         }}
+        onCapabilityExposureChange={handleCapabilityExposureChange}
         onAgentIterationChange={(requested) => {
           void handleAgentIterationChange(requested)
         }}

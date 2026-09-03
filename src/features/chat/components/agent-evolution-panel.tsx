@@ -32,6 +32,20 @@ function shortFingerprint(value: string) {
   return value.length > 20 ? `${value.slice(0, 12)}…${value.slice(-6)}` : value
 }
 
+function capabilityProfileSummary(
+  definition: AgentEvolutionProjection["definitions"][number]
+) {
+  const profile = definition.composition_json.capability_profile
+  if (!profile) return "默认能力 Profile"
+  const discovery =
+    profile.discovery_scope.kind === "families"
+      ? profile.discovery_scope.families.join(", ") || "关闭发现"
+      : profile.discovery_scope.kind === "all_authorized"
+        ? "授权范围内发现"
+        : "关闭发现"
+  return `必需 ${profile.required_capabilities.length} · 偏好 ${profile.preferred_capabilities.length} · ${discovery}`
+}
+
 function actionFor(
   projection: AgentEvolutionProjection | null,
   action: string,
@@ -214,6 +228,12 @@ export function AgentNodeManagementView({
                           ? `继承 ${shortFingerprint(item.parent_fingerprint)}`
                           : "演化链起点"}
                         {` · ${item.evaluation_count} 次评估`}
+                      </p>
+                      <p
+                        className="mt-1 max-w-xl truncate text-[11px] text-muted-foreground"
+                        title={capabilityProfileSummary(item)}
+                      >
+                        {item.agent_profile_id} · {capabilityProfileSummary(item)}
                       </p>
                     </div>
                     <Badge variant={item.admitted_for_future_selection ? "default" : "outline"}>

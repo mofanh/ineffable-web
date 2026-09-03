@@ -78,6 +78,16 @@ export const emptyPlan: AdminPlanPayload = {
     runtime_lab_allowed_component_kinds: ["node"],
     runtime_lab_revocation_grace_seconds: 900,
   },
+  capability_exposure_policy: {
+    allowed_modes: ["clean", "smart"],
+    default_mode: "smart",
+    allowed_families: [],
+    max_exposed_tools: 12,
+    max_schema_bytes: 32768,
+    max_prefetched_tools: 4,
+    max_dynamic_tools: 8,
+    max_discovery_results: 5,
+  },
   enabled: true,
 };
 

@@ -25,6 +25,7 @@ import {
 import type { ToolCallView } from "@/features/chat/chat-pane-state"
 import type {
   AssistantEntry,
+  CapabilityExposureSummary,
   ChatEntry,
   SubagentView,
 } from "@/features/chat/gateway-chat-types"
@@ -107,11 +108,71 @@ export function createAssistantEntry(
     runStartedAt: null,
     runCompletedAt: null,
     runDurationMs: null,
+    capabilityExposure: null,
     createdAt: null,
     status,
     pane: createEmptyAgentPane(),
     subagentOrder: [],
     subagents: {},
+  }
+}
+
+function parseCapabilityExposureSummary(
+  metadata: ConversationMessageRecord["metadata_json"]
+): CapabilityExposureSummary | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null
+  const value = metadata.capability_exposure
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const summary = value as Record<string, unknown>
+
+  const mode = summary.mode
+  if (mode !== "smart" && mode !== "clean" && mode !== "full" && mode !== "custom") {
+    return null
+  }
+  const count = (key: string) => {
+    const candidate = summary[key]
+    return typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0
+      ? candidate
+      : null
+  }
+  const authorizedCount = count("authorized_count")
+  const initialExposedCount = count("initial_exposed_count")
+  const prefetchedCount = count("prefetched_count")
+  const activatedCount = count("activated_count")
+  const finalExposedCount = count("final_exposed_count")
+  const deferredCount = count("deferred_count")
+  const stableCount = count("stable_count")
+  const dynamicCount = count("dynamic_count")
+  const schemaBytes = count("schema_bytes")
+  const planHash =
+    typeof summary.plan_hash === "string" ? summary.plan_hash.trim() : ""
+  if (
+    authorizedCount == null ||
+    initialExposedCount == null ||
+    prefetchedCount == null ||
+    activatedCount == null ||
+    finalExposedCount == null ||
+    deferredCount == null ||
+    stableCount == null ||
+    dynamicCount == null ||
+    schemaBytes == null ||
+    !planHash
+  ) {
+    return null
+  }
+
+  return {
+    mode,
+    authorizedCount,
+    initialExposedCount,
+    prefetchedCount,
+    activatedCount,
+    finalExposedCount,
+    deferredCount,
+    stableCount,
+    dynamicCount,
+    schemaBytes,
+    planHash,
   }
 }
 
@@ -302,6 +363,11 @@ function buildAssistantEntryFromMessages(
   const runDurationMs =
     messages.find((message) => Number.isFinite(message.run_duration_ms))
       ?.run_duration_ms ?? null
+  const capabilityExposure = messages.reduce<CapabilityExposureSummary | null>(
+    (latest, message) =>
+      parseCapabilityExposureSummary(message.metadata_json) ?? latest,
+    null
+  )
   const createdAt = messages.reduce<string | null>((latest, message) => {
     const timestamp = Date.parse(message.created_at)
     if (!Number.isFinite(timestamp)) return latest
@@ -460,6 +526,7 @@ function buildAssistantEntryFromMessages(
     runStartedAt,
     runCompletedAt,
     runDurationMs,
+    capabilityExposure,
     createdAt,
     canonicalMessageSeqEnd,
     timelineSeq,

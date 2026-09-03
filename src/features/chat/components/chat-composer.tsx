@@ -18,6 +18,21 @@ import {
 } from "@/components/ui/select"
 import { SidebarFooter } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import type {
+  CapabilityExposureMode,
+  CapabilityExposurePolicy,
+  CapabilityExposureSelection,
+} from "@/lib/api/api-client"
 import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
@@ -29,6 +44,7 @@ import {
   LoaderCircleIcon,
   SendHorizontalIcon,
   SquareIcon,
+  SparklesIcon,
   XIcon,
 } from "lucide-react"
 
@@ -67,6 +83,8 @@ type ChatComposerProps = {
   sandboxOptions: { environmentId: string; label: string; status: string }[]
   isRefreshingSandboxOptions: boolean
   selectedSandboxEnvironmentId: string
+  capabilityExposureSelection: CapabilityExposureSelection
+  capabilityExposurePolicy: CapabilityExposurePolicy | null
   agentIterationRequested: boolean
   agentIterationMode: "disabled" | "declarative_only" | "artifact_allowed" | "runtime_lab_allowed"
   isAgentIterationLoading: boolean
@@ -76,6 +94,7 @@ type ChatComposerProps = {
   onModelProfileChange: (value: string) => void
   onSandboxEnvironmentChange: (value: string) => void
   onSandboxOptionsRefresh: () => void
+  onCapabilityExposureChange: (selection: CapabilityExposureSelection) => void
   onAgentIterationChange: (requested: boolean) => void
   onSend: () => void
   onStop: () => void
@@ -98,6 +117,8 @@ export function ChatComposer({
   sandboxOptions,
   isRefreshingSandboxOptions,
   selectedSandboxEnvironmentId,
+  capabilityExposureSelection,
+  capabilityExposurePolicy,
   agentIterationRequested,
   agentIterationMode,
   isAgentIterationLoading,
@@ -107,6 +128,7 @@ export function ChatComposer({
   onModelProfileChange,
   onSandboxEnvironmentChange,
   onSandboxOptionsRefresh,
+  onCapabilityExposureChange,
   onAgentIterationChange,
   onSend,
   onStop,
@@ -115,6 +137,61 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation()
   const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
+  const allowedCapabilityModes = capabilityExposurePolicy?.allowed_modes ?? [
+    "smart",
+    "clean",
+  ]
+  const selectableCapabilityFamilies =
+    capabilityExposurePolicy?.allowed_families.length
+      ? capabilityExposurePolicy.allowed_families
+      : [
+          "workspace.files",
+          "sandbox.files",
+          "sandbox.command",
+          "web.research",
+          "agent.delegation",
+          "agent.evolution",
+          "automation",
+          "interaction",
+          "planning",
+          "mcp",
+          "skills",
+        ]
+
+  function selectCapabilityMode(mode: CapabilityExposureMode) {
+    onCapabilityExposureChange({
+      mode,
+      custom:
+        mode === "custom"
+          ? capabilityExposureSelection.custom ?? {
+              families: [],
+              capabilities: [],
+              discovery_scope: { kind: "all_authorized" },
+            }
+          : undefined,
+    })
+  }
+
+  function toggleCapabilityFamily(family: string, checked: boolean) {
+    const current = capabilityExposureSelection.custom ?? {
+      families: [],
+      capabilities: [],
+      discovery_scope: { kind: "all_authorized" } as const,
+    }
+    const families = checked
+      ? Array.from(new Set([...current.families, family])).sort()
+      : current.families.filter((item) => item !== family)
+    onCapabilityExposureChange({
+      mode: "custom",
+      custom: {
+        ...current,
+        families,
+        discovery_scope: families.length
+          ? { kind: "families", families }
+          : { kind: "all_authorized" },
+      },
+    })
+  }
 
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
     status === "promoting" || status === "deleting"
@@ -462,6 +539,79 @@ export function ChatComposer({
                   </SelectContent>
                 </Select>
               </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 min-w-0 max-w-28 shrink gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground"
+                    title={t("chat.composer.capabilityModeHint")}
+                  >
+                    <SparklesIcon className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      {t(
+                        `chat.composer.capabilityMode.${capabilityExposureSelection.mode}`
+                      )}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-64">
+                  <DropdownMenuLabel>
+                    {t("chat.composer.capabilityModeLabel")}
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={capabilityExposureSelection.mode}
+                    onValueChange={(value) =>
+                      selectCapabilityMode(value as CapabilityExposureMode)
+                    }
+                  >
+                    {allowedCapabilityModes.map((mode) => (
+                      <DropdownMenuRadioItem key={mode} value={mode}>
+                        <span>
+                          {t(`chat.composer.capabilityMode.${mode}`)}
+                        </span>
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                  {capabilityExposureSelection.mode === "custom" ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>
+                        {t("chat.composer.capabilityFamilies")}
+                      </DropdownMenuLabel>
+                      {selectableCapabilityFamilies.map((family) => (
+                        <DropdownMenuCheckboxItem
+                          key={family}
+                          checked={
+                            capabilityExposureSelection.custom?.families.includes(
+                              family
+                            ) ?? false
+                          }
+                          onCheckedChange={(checked) =>
+                            toggleCapabilityFamily(family, checked === true)
+                          }
+                          onSelect={(event) => event.preventDefault()}
+                        >
+                          <span className="truncate">{family}</span>
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </>
+                  ) : null}
+                  {capabilityExposurePolicy ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="font-normal">
+                        {t("chat.composer.capabilityBudget", {
+                          count:
+                            capabilityExposurePolicy.exposure_budget.max_count,
+                        })}
+                      </DropdownMenuLabel>
+                    </>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <div
                 className={cn(

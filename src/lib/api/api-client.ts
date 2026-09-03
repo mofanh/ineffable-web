@@ -139,8 +139,65 @@ export type Conversation = {
   last_message_at?: string | null
   current_run_id?: string | null
   current_run?: ConversationRunSummary | null
+  capability_exposure_selection?: CapabilityExposureSelection
+  capability_exposure_policy?: ResolvedCapabilityExposurePolicy
   created_at: string
   updated_at: string
+}
+
+export type CapabilityExposureMode = "smart" | "clean" | "full" | "custom"
+
+export type CapabilityExposureKey = {
+  provider_id: string
+  capability_id: string
+}
+
+export type CapabilityDiscoveryScope =
+  | { kind: "disabled" }
+  | { kind: "all_authorized" }
+  | { kind: "families"; families: string[] }
+
+export type CapabilityExposureSelection = {
+  mode: CapabilityExposureMode
+  custom?: {
+    families: string[]
+    capabilities: CapabilityExposureKey[]
+    discovery_scope: CapabilityDiscoveryScope
+  } | null
+}
+
+export type AgentCapabilityProfile = {
+  required_capabilities: CapabilityExposureKey[]
+  preferred_capabilities: CapabilityExposureKey[]
+  discovery_scope: CapabilityDiscoveryScope
+}
+
+export type CapabilityExposurePolicy = {
+  allowed_modes: CapabilityExposureMode[]
+  allowed_families: string[]
+  exposure_budget: {
+    max_count: number
+    max_schema_bytes: number
+  }
+  max_prefetched_tools: number
+  max_dynamic_tools: number
+  max_discovery_results: number
+}
+
+export type EffectiveCapabilityExposure = {
+  mode: CapabilityExposureMode
+  custom?: CapabilityExposureSelection["custom"]
+  allowed_families: string[]
+  exposure_budget: CapabilityExposurePolicy["exposure_budget"]
+  max_prefetched_tools: number
+  max_dynamic_tools: number
+  max_discovery_results: number
+}
+
+export type ResolvedCapabilityExposurePolicy = {
+  plan_id: string
+  default_mode: CapabilityExposureMode
+  policy: CapabilityExposurePolicy
 }
 
 export type Automation = {
@@ -1022,6 +1079,21 @@ export function getConversation(
   )
 }
 
+export function setConversationCapabilityExposure(
+  accessToken: string,
+  conversationId: string,
+  selection: CapabilityExposureSelection
+) {
+  return requestApiJson<{
+    selection: CapabilityExposureSelection
+    effective: EffectiveCapabilityExposure
+  }>("/gateway/v1/conversations/capability-exposure", {
+    method: "POST",
+    accessToken,
+    body: { conversation_id: conversationId, selection },
+  })
+}
+
 export function getConversationMessages(
   accessToken: string,
   conversationId: string,
@@ -1094,8 +1166,20 @@ export type AdminPlan = {
   max_file_size_bytes?: number | null
   max_active_cloud_sandboxes?: number | null
   agent_evolution_policy: AdminAgentEvolutionPolicy
+  capability_exposure_policy: AdminCapabilityExposurePolicy
   enabled: boolean
   archived_at?: string | null
+}
+
+export type AdminCapabilityExposurePolicy = {
+  allowed_modes: CapabilityExposureMode[]
+  default_mode: CapabilityExposureMode
+  allowed_families: string[]
+  max_exposed_tools: number
+  max_schema_bytes: number
+  max_prefetched_tools: number
+  max_dynamic_tools: number
+  max_discovery_results: number
 }
 
 export type AdminAgentEvolutionPolicy = {
@@ -1820,6 +1904,7 @@ export async function streamConversationSend(
       environment_id?: string
     }
     agent_iteration_requested?: boolean
+    capability_exposure?: CapabilityExposureSelection
   },
   options: {
     signal?: AbortSignal
@@ -1883,6 +1968,11 @@ export type AgentEvolutionProjection = {
     fingerprint: string
     parent_fingerprint?: string | null
     display_name?: string | null
+    agent_profile_id: string
+    composition_json: {
+      capability_profile?: AgentCapabilityProfile
+      [key: string]: unknown
+    }
     evaluation_count: number
     latest_verdict?: string | null
     admitted_for_future_selection: boolean

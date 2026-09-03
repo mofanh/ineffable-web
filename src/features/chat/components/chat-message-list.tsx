@@ -520,6 +520,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     entry.sandboxEnvironmentId ||
                     entry.agentId ||
                     entry.definitionFingerprint ||
+                    entry.capabilityExposure ||
                     entry.runDurationMs != null ||
                     entry.runCompletedAt ? (
                       <div
@@ -557,6 +558,29 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                             {shortDefinitionFingerprint(entry.definitionFingerprint)
                               ? ` · ${shortDefinitionFingerprint(entry.definitionFingerprint)}`
                               : ""}
+                          </span>
+                        ) : null}
+                        {entry.capabilityExposure ? (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={t("chat.answerMetadata.capabilityTitle", {
+                              authorized: entry.capabilityExposure.authorizedCount,
+                              initial: entry.capabilityExposure.initialExposedCount,
+                              prefetched: entry.capabilityExposure.prefetchedCount,
+                              activated: entry.capabilityExposure.activatedCount,
+                              final: entry.capabilityExposure.finalExposedCount,
+                              deferred: entry.capabilityExposure.deferredCount,
+                              stable: entry.capabilityExposure.stableCount,
+                              dynamic: entry.capabilityExposure.dynamicCount,
+                              bytes: entry.capabilityExposure.schemaBytes,
+                              hash: entry.capabilityExposure.planHash,
+                            })}
+                          >
+                            <SparklesIcon className="size-3" />
+                            {t("chat.answerMetadata.capability", {
+                              mode: entry.capabilityExposure.mode,
+                              count: entry.capabilityExposure.finalExposedCount,
+                            })}
                           </span>
                         ) : null}
                         {formatRunDuration(entry.runDurationMs) ? (

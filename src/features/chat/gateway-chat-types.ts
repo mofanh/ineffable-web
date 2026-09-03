@@ -49,6 +49,20 @@ export type SubagentView = AgentPaneState & {
   status: "streaming" | "done"
 }
 
+export type CapabilityExposureSummary = {
+  mode: "smart" | "clean" | "full" | "custom"
+  authorizedCount: number
+  initialExposedCount: number
+  prefetchedCount: number
+  activatedCount: number
+  finalExposedCount: number
+  deferredCount: number
+  stableCount: number
+  dynamicCount: number
+  schemaBytes: number
+  planHash: string
+}
+
 export type AssistantEntry = {
   id: string
   role: "assistant"
@@ -60,6 +74,7 @@ export type AssistantEntry = {
   runStartedAt?: string | null
   runCompletedAt?: string | null
   runDurationMs?: number | null
+  capabilityExposure?: CapabilityExposureSummary | null
   createdAt?: string | null
   canonicalMessageSeqEnd?: number | null
   timelineSeq?: number | null

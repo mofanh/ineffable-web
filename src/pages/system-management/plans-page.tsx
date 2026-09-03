@@ -14,6 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AppBarChart,
   type AppBarChartDatum,
   type AppBarChartSeries,
@@ -258,6 +265,11 @@ export function SystemPlanManagementPage() {
         runtime_lab_allowed_component_kinds: [
           ...plan.agent_evolution_policy.runtime_lab_allowed_component_kinds,
         ],
+      },
+      capability_exposure_policy: {
+        ...plan.capability_exposure_policy,
+        allowed_modes: [...plan.capability_exposure_policy.allowed_modes],
+        allowed_families: [...plan.capability_exposure_policy.allowed_families],
       },
       enabled: plan.enabled,
     });
@@ -927,6 +939,7 @@ function PlanForm({
 }) {
   const { t } = useTranslation();
   const policy = plan.agent_evolution_policy;
+  const capabilityPolicy = plan.capability_exposure_policy;
 
   function updatePolicy(
     patch: Partial<AdminPlanPayload["agent_evolution_policy"]>,
@@ -953,6 +966,40 @@ function PlanForm({
           (current) => current !== kind,
         );
     updatePolicy({ runtime_lab_allowed_component_kinds: kinds });
+  }
+
+  function updateCapabilityPolicy(
+    patch: Partial<AdminPlanPayload["capability_exposure_policy"]>,
+  ) {
+    onChange((current) =>
+      current
+        ? {
+            ...current,
+            capability_exposure_policy: {
+              ...current.capability_exposure_policy,
+              ...patch,
+            },
+          }
+        : current,
+    );
+  }
+
+  function toggleCapabilityMode(
+    mode: AdminPlanPayload["capability_exposure_policy"]["allowed_modes"][number],
+    checked: boolean,
+  ) {
+    const allowedModes = checked
+      ? Array.from(new Set([...capabilityPolicy.allowed_modes, mode]))
+      : capabilityPolicy.allowed_modes.filter((item) => item !== mode);
+    if (allowedModes.length === 0) return;
+    const fallbackDefault = allowedModes.find((item) => item !== "custom");
+    if (!fallbackDefault) return;
+    updateCapabilityPolicy({
+      allowed_modes: allowedModes,
+      default_mode: allowedModes.includes(capabilityPolicy.default_mode)
+        ? capabilityPolicy.default_mode
+        : fallbackDefault,
+    });
   }
 
   return (
@@ -991,6 +1038,109 @@ function PlanForm({
             }
           />
         </AppFieldGrid>
+      </AppDisclosureSection>
+      <AppDisclosureSection
+        title={t("system.plans.form.capabilityExposure")}
+        description={t("system.plans.form.capabilityExposureDescription")}
+        defaultOpen={false}
+      >
+        <div className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(["smart", "clean", "full", "custom"] as const).map((mode) => (
+              <ToggleField
+                key={mode}
+                label={t(`chat.composer.capabilityMode.${mode}`)}
+                checked={capabilityPolicy.allowed_modes.includes(mode)}
+                onCheckedChange={(checked) =>
+                  toggleCapabilityMode(mode, checked)
+                }
+              />
+            ))}
+          </div>
+          <FormField label={t("system.plans.form.defaultCapabilityMode")}>
+            <Select
+              value={capabilityPolicy.default_mode}
+              onValueChange={(value) =>
+                updateCapabilityPolicy({
+                  default_mode: value as typeof capabilityPolicy.default_mode,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {capabilityPolicy.allowed_modes
+                  .filter((mode) => mode !== "custom")
+                  .map((mode) => (
+                    <SelectItem key={mode} value={mode}>
+                      {t(`chat.composer.capabilityMode.${mode}`)}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField
+            label={t("system.plans.form.allowedCapabilityFamilies")}
+            description={t(
+              "system.plans.form.allowedCapabilityFamiliesDescription",
+            )}
+          >
+            <Input
+              value={capabilityPolicy.allowed_families.join(", ")}
+              placeholder="workspace, sandbox, web.research"
+              onChange={(event) =>
+                updateCapabilityPolicy({
+                  allowed_families: Array.from(
+                    new Set(
+                      event.target.value
+                        .split(",")
+                        .map((value) => value.trim().toLowerCase())
+                        .filter(Boolean),
+                    ),
+                  ),
+                })
+              }
+            />
+          </FormField>
+          <AppFieldGrid columns={2}>
+            <PolicyNumberField
+              label={t("system.plans.form.maxExposedTools")}
+              value={capabilityPolicy.max_exposed_tools}
+              onChange={(value) =>
+                updateCapabilityPolicy({ max_exposed_tools: value })
+              }
+            />
+            <PolicyNumberField
+              label={t("system.plans.form.maxSchemaBytes")}
+              value={capabilityPolicy.max_schema_bytes}
+              onChange={(value) =>
+                updateCapabilityPolicy({ max_schema_bytes: value })
+              }
+            />
+            <PolicyNumberField
+              label={t("system.plans.form.maxPrefetchedTools")}
+              value={capabilityPolicy.max_prefetched_tools}
+              onChange={(value) =>
+                updateCapabilityPolicy({ max_prefetched_tools: value })
+              }
+            />
+            <PolicyNumberField
+              label={t("system.plans.form.maxDynamicTools")}
+              value={capabilityPolicy.max_dynamic_tools}
+              onChange={(value) =>
+                updateCapabilityPolicy({ max_dynamic_tools: value })
+              }
+            />
+            <PolicyNumberField
+              label={t("system.plans.form.maxDiscoveryResults")}
+              value={capabilityPolicy.max_discovery_results}
+              onChange={(value) =>
+                updateCapabilityPolicy({ max_discovery_results: value })
+              }
+            />
+          </AppFieldGrid>
+        </div>
       </AppDisclosureSection>
       <AppDisclosureSection
         title={t("system.plans.form.agentEvolution")}
