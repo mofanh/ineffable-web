@@ -7,6 +7,7 @@ import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ArrowDownIcon,
   BotIcon,
+  BoxIcon,
   CheckIcon,
   Clock3Icon,
   CopyIcon,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils"
 type ChatMessageListProps = {
   entries: ChatEntry[]
   modelDisplayNames?: Record<string, string>
+  sandboxDisplayNames?: Record<string, string>
   hasOlderEntries: boolean
   isLoadingOlderEntries: boolean
   olderEntriesError: string | null
@@ -154,6 +156,7 @@ function usePrefersReducedMotion() {
 export const ChatMessageList = React.memo(function ChatMessageList({
   entries,
   modelDisplayNames = {},
+  sandboxDisplayNames = {},
   hasOlderEntries,
   isLoadingOlderEntries,
   olderEntriesError,
@@ -514,6 +517,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     </div>
 
                     {entry.modelProfileId ||
+                    entry.sandboxEnvironmentId ||
                     entry.agentId ||
                     entry.definitionFingerprint ||
                     entry.runDurationMs != null ||
@@ -529,6 +533,18 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                           >
                             <CpuIcon className="size-3" />
                             {modelDisplayNames[entry.modelProfileId] ?? entry.modelProfileId}
+                          </span>
+                        ) : null}
+                        {entry.sandboxEnvironmentId ? (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={t("chat.answerMetadata.sandboxTitle", {
+                              id: entry.sandboxEnvironmentId,
+                            })}
+                          >
+                            <BoxIcon className="size-3" />
+                            {sandboxDisplayNames[entry.sandboxEnvironmentId] ??
+                              entry.sandboxEnvironmentId}
                           </span>
                         ) : null}
                         {entry.agentId || entry.definitionFingerprint ? (

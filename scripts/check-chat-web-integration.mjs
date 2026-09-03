@@ -1180,6 +1180,7 @@ const canonicalWatermarkEntries = mapConversationMessagesToEntries([
     definition_fingerprint: "sha256:candidate-v1",
     agent_id: "default",
     model_profile_id: "glm-5.3",
+    sandbox_environment_id: "sandbox-alpha",
     run_started_at: "2026-08-22T00:00:00Z",
     run_completed_at: "2026-08-22T00:00:02.250Z",
     run_duration_ms: 2250,
@@ -1209,6 +1210,10 @@ assert.equal(
 )
 assert.equal(canonicalWatermarkEntries[0].agentId, "default")
 assert.equal(canonicalWatermarkEntries[0].modelProfileId, "glm-5.3")
+assert.equal(
+  canonicalWatermarkEntries[0].sandboxEnvironmentId,
+  "sandbox-alpha"
+)
 assert.equal(canonicalWatermarkEntries[0].runStartedAt, "2026-08-22T00:00:00Z")
 assert.equal(
   canonicalWatermarkEntries[0].runCompletedAt,
@@ -1239,6 +1244,7 @@ const legacyAnswer = {
 const answerListProps = {
   entries: [legacyAnswer, canonicalWatermarkEntries[0]],
   modelDisplayNames: { "glm-5.3": "GLM 5.3" },
+  sandboxDisplayNames: { "sandbox-alpha": "开发 Sandbox" },
   hasOlderEntries: false,
   isLoadingOlderEntries: false,
   olderEntriesError: null,
@@ -1310,11 +1316,13 @@ assert.equal(
   "only the eligible trial answer gets a rollback action"
 )
 assert.match(JSON.stringify(answerFooterTree.toJSON()), /GLM 5\.3/)
+assert.match(JSON.stringify(answerFooterTree.toJSON()), /开发 Sandbox/)
 await act(async () => {
   answerFooterTree.update(
     React.createElement(ChatMessageList, {
       ...answerListProps,
       modelDisplayNames: {},
+      sandboxDisplayNames: {},
     })
   )
 })
@@ -1322,6 +1330,11 @@ assert.match(
   JSON.stringify(answerFooterTree.toJSON()),
   /glm-5\.3/,
   "unknown or archived profiles must fall back to the persisted model id"
+)
+assert.match(
+  JSON.stringify(answerFooterTree.toJSON()),
+  /sandbox-alpha/,
+  "unknown or archived sandboxes must fall back to the persisted environment id"
 )
 await act(async () => answerFooterTree.unmount())
 

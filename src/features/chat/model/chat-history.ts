@@ -103,6 +103,7 @@ export function createAssistantEntry(
     definitionFingerprint: null,
     agentId: null,
     modelProfileId: null,
+    sandboxEnvironmentId: null,
     runStartedAt: null,
     runCompletedAt: null,
     runDurationMs: null,
@@ -291,6 +292,9 @@ function buildAssistantEntryFromMessages(
   const agentId = messages.find((message) => message.agent_id)?.agent_id ?? null
   const modelProfileId =
     messages.find((message) => message.model_profile_id)?.model_profile_id ?? null
+  const sandboxEnvironmentId =
+    messages.find((message) => message.sandbox_environment_id)
+      ?.sandbox_environment_id ?? null
   const runStartedAt =
     messages.find((message) => message.run_started_at)?.run_started_at ?? null
   const runCompletedAt =
@@ -452,6 +456,7 @@ function buildAssistantEntryFromMessages(
     definitionFingerprint,
     agentId,
     modelProfileId,
+    sandboxEnvironmentId,
     runStartedAt,
     runCompletedAt,
     runDurationMs,

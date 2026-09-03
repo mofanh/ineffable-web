@@ -1146,6 +1146,16 @@ export function GatewayChatSidebar({
       ),
     [modelProfiles]
   )
+  const sandboxDisplayNames = React.useMemo(
+    () =>
+      Object.fromEntries(
+        sandboxOptions.map((environment) => [
+          environment.environmentId,
+          environment.label || environment.environmentId,
+        ])
+      ),
+    [sandboxOptions]
+  )
 
   const bindStatus = currentConversationId
     ? i18n.t("chat.gateway.bound")
@@ -1795,18 +1805,32 @@ export function GatewayChatSidebar({
     assistantVisualScheduler.enqueue({ kind: "updater", updater, runId }, priority)
   }
 
-  function ensureAssistantEntry() {
+  function ensureAssistantEntry(runtimeSelection?: {
+    modelProfileId: string
+    sandboxEnvironmentId: string
+  }) {
     updateAssistantEntry((entry) => {
       if (entry) {
-        return entry.runId || !activeRunIdRef.current
-          ? entry
-          : {
-              ...entry,
-              runId: activeRunIdRef.current,
-            }
+        return {
+          ...entry,
+          runId: entry.runId || !activeRunIdRef.current
+            ? entry.runId
+            : activeRunIdRef.current,
+          modelProfileId:
+            entry.modelProfileId ?? runtimeSelection?.modelProfileId ?? null,
+          sandboxEnvironmentId:
+            entry.sandboxEnvironmentId ??
+            runtimeSelection?.sandboxEnvironmentId ??
+            null,
+        }
       }
 
-      return createAssistantEntry("streaming", activeRunIdRef.current)
+      return {
+        ...createAssistantEntry("streaming", activeRunIdRef.current),
+        modelProfileId: runtimeSelection?.modelProfileId || null,
+        sandboxEnvironmentId:
+          runtimeSelection?.sandboxEnvironmentId || null,
+      }
     })
   }
 
@@ -3164,7 +3188,10 @@ export function GatewayChatSidebar({
               userMessageCommitted = true
               if (currentConversationIdRef.current === targetConversationId) {
                 appendUserMessage(content)
-                ensureAssistantEntry()
+                ensureAssistantEntry({
+                  modelProfileId: selectedModelProfileId,
+                  sandboxEnvironmentId: selectedSandboxEnvironmentId,
+                })
               }
             }
             applyEnvelopeEvent(envelope)
@@ -3493,6 +3520,7 @@ export function GatewayChatSidebar({
         <ChatMessageList
           entries={renderedEntries}
           modelDisplayNames={modelDisplayNames}
+          sandboxDisplayNames={sandboxDisplayNames}
           hasOlderEntries={hasOlderEntries}
           isLoadingOlderEntries={isLoadingOlderEntries}
           olderEntriesError={olderMessagesError}

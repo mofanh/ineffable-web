@@ -183,6 +183,7 @@ export type ConversationMessageRecord = {
   definition_fingerprint?: string | null
   agent_id?: string | null
   model_profile_id?: string | null
+  sandbox_environment_id?: string | null
   run_started_at?: string | null
   run_completed_at?: string | null
   run_duration_ms?: number | null

@@ -56,6 +56,7 @@ export type AssistantEntry = {
   definitionFingerprint?: string | null
   agentId?: string | null
   modelProfileId?: string | null
+  sandboxEnvironmentId?: string | null
   runStartedAt?: string | null
   runCompletedAt?: string | null
   runDurationMs?: number | null

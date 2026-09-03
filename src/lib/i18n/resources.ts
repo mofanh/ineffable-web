@@ -448,6 +448,9 @@ export const resources = {
         },
       },
       chat: {
+        answerMetadata: {
+          sandboxTitle: "Sandbox：{{id}}",
+        },
         header: {
           older: "更早",
           today: "今天",
@@ -1898,6 +1901,9 @@ export const resources = {
         },
       },
       chat: {
+        answerMetadata: {
+          sandboxTitle: "Sandbox: {{id}}",
+        },
         header: {
           older: "Earlier",
           today: "Today",
