@@ -31,7 +31,7 @@ export function AppDialog({
         <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
         <DialogPrimitive.Content
           className={cn(
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl border border-border p-5 shadow-lg duration-100 outline-none",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-border p-0 shadow-lg duration-100 outline-none",
             maxWidth === "lg" && "max-w-lg",
             maxWidth === "xl" && "max-w-xl",
             maxWidth === "2xl" && "max-w-2xl",
@@ -39,7 +39,7 @@ export function AppDialog({
             maxWidth === "6xl" && "max-w-6xl"
           )}
         >
-          <div className="pr-8">
+          <div className="border-border border-b px-5 py-4 pr-12">
             <DialogPrimitive.Title className="text-base font-medium">
               {title}
             </DialogPrimitive.Title>
@@ -49,7 +49,9 @@ export function AppDialog({
               </DialogPrimitive.Description>
             ) : null}
           </div>
-          {children}
+          <div className="min-h-0 overscroll-contain overflow-y-auto p-5">
+            {children}
+          </div>
           <DialogPrimitive.Close asChild>
             <Button
               type="button"
@@ -64,5 +66,24 @@ export function AppDialog({
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  )
+}
+
+export function AppDialogFooter({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "bg-background/95 border-border sticky bottom-0 z-10 -mx-5 -mb-5 flex justify-end gap-2 border-t px-5 py-4 backdrop-blur-sm",
+        className
+      )}
+    >
+      {children}
+    </div>
   )
 }

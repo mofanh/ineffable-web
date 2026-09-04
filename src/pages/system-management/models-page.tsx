@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import {
   AppDialog,
+  AppDialogFooter,
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
@@ -1169,7 +1170,7 @@ function ModelForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <div className="flex justify-end gap-2">
+      <AppDialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           {t("system.models.form.cancel")}
         </Button>
@@ -1177,7 +1178,7 @@ function ModelForm({
           <SaveIcon />
           {t("system.models.form.save")}
         </Button>
-      </div>
+      </AppDialogFooter>
     </form>
   );
 }

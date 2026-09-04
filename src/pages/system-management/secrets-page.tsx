@@ -17,6 +17,7 @@ import {
   type AppBarChartDatum,
   type AppBarChartSeries,
   AppDialog,
+  AppDialogFooter,
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
@@ -749,7 +750,7 @@ function SecretForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <div className="flex justify-end gap-2">
+      <AppDialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           {t("system.secrets.form.cancel")}
         </Button>
@@ -757,7 +758,7 @@ function SecretForm({
           <SaveIcon />
           {t("system.secrets.form.save")}
         </Button>
-      </div>
+      </AppDialogFooter>
     </form>
   );
 }

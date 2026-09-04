@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   AppDialog,
+  AppDialogFooter,
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
@@ -572,7 +573,7 @@ export function SystemUserManagementPage() {
                 </FormField>
               </AppFieldGrid>
             </AppDisclosureSection>
-            <div className="flex justify-end gap-2">
+            <AppDialogFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -584,7 +585,7 @@ export function SystemUserManagementPage() {
                 <SaveIcon />
                 {t("system.users.save")}
               </Button>
-            </div>
+            </AppDialogFooter>
           </form>
         ) : null}
       </AppDialog>

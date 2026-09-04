@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next"
 
 import {
   AppDialog,
+  AppDialogFooter,
   AppMetricPage,
   AppSearchBar,
   AppSectionCard,
@@ -1074,7 +1075,7 @@ export function AutomationPage() {
               ) : null}
             </FormField>
           ) : null}
-          <div className="flex justify-end gap-2 border-t pt-4">
+          <AppDialogFooter>
             <Button
               type="button"
               variant="outline"
@@ -1090,7 +1091,7 @@ export function AutomationPage() {
             >
               {t("automation.form.save")}
             </AsyncButton>
-          </div>
+          </AppDialogFooter>
         </form>
       </AutomationDialog>
     </AppMetricPage>

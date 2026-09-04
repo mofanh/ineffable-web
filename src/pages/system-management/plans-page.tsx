@@ -25,6 +25,7 @@ import {
   type AppBarChartDatum,
   type AppBarChartSeries,
   AppDialog,
+  AppDialogFooter,
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
@@ -1500,7 +1501,7 @@ function PlanForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <div className="flex justify-end gap-2">
+      <AppDialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           {t("system.plans.form.cancel")}
         </Button>
@@ -1508,7 +1509,7 @@ function PlanForm({
           <SaveIcon />
           {t("system.plans.form.save")}
         </Button>
-      </div>
+      </AppDialogFooter>
     </form>
   );
 }
