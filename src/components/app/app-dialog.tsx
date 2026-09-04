@@ -13,6 +13,7 @@ export function AppDialog({
   title,
   description,
   children,
+  footer,
   maxWidth = "xl",
   onOpenChange,
 }: {
@@ -20,6 +21,7 @@ export function AppDialog({
   title: string
   description?: string
   children: React.ReactNode
+  footer?: React.ReactNode
   maxWidth?: AppDialogMaxWidth
   onOpenChange: (open: boolean) => void
 }) {
@@ -31,7 +33,10 @@ export function AppDialog({
         <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
         <DialogPrimitive.Content
           className={cn(
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-border p-0 shadow-lg duration-100 outline-none",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-border p-0 shadow-lg duration-100 outline-none",
+            footer
+              ? "grid-rows-[auto_minmax(0,1fr)_auto]"
+              : "grid-rows-[auto_minmax(0,1fr)]",
             maxWidth === "lg" && "max-w-lg",
             maxWidth === "xl" && "max-w-xl",
             maxWidth === "2xl" && "max-w-2xl",
@@ -49,9 +54,10 @@ export function AppDialog({
               </DialogPrimitive.Description>
             ) : null}
           </div>
-          <div className="min-h-0 overscroll-contain overflow-y-auto p-5 has-[[data-slot=app-dialog-footer]]:pb-0">
+          <div className="min-h-0 overscroll-contain overflow-y-auto p-5">
             {children}
           </div>
+          {footer}
           <DialogPrimitive.Close asChild>
             <Button
               type="button"
@@ -80,7 +86,7 @@ export function AppDialogFooter({
     <div
       data-slot="app-dialog-footer"
       className={cn(
-        "bg-background border-border sticky bottom-0 z-10 -mx-5 flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-5 py-2 shadow-[0_-8px_18px_-18px_rgba(0,0,0,0.45)]",
+        "bg-background border-border flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-5 py-2",
         className
       )}
     >

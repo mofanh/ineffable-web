@@ -703,15 +703,34 @@ export function SystemModelManagementPage() {
         }
         description={t("system.models.dialogDescription")}
         maxWidth="3xl"
+        footer={
+          editingModel ? (
+            <AppDialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                {t("system.models.form.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                form="admin-model-form"
+                disabled={state !== "idle"}
+              >
+                <SaveIcon />
+                {t("system.models.form.save")}
+              </Button>
+            </AppDialogFooter>
+          ) : undefined
+        }
         onOpenChange={setDialogOpen}
       >
         {editingModel ? (
           <ModelForm
             model={editingModel}
-            state={state}
             onChange={setEditingModel}
             onSubmit={saveModel}
-            onCancel={() => setDialogOpen(false)}
           />
         ) : null}
       </AppDialog>
@@ -954,22 +973,22 @@ function CapabilityTag({ children }: { children: React.ReactNode }) {
 
 function ModelForm({
   model,
-  state,
   onChange,
   onSubmit,
-  onCancel,
 }: {
   model: AdminModelProfilePayload;
-  state: LoadState;
   onChange: React.Dispatch<
     React.SetStateAction<AdminModelProfilePayload | null>
   >;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  onCancel: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
+    <form
+      id="admin-model-form"
+      onSubmit={(event) => void onSubmit(event)}
+      className="space-y-4"
+    >
       <AppDisclosureSection
         title={t("system.models.form.basic")}
         description={t("system.models.form.basicDescription")}
@@ -1170,15 +1189,6 @@ function ModelForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <AppDialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          {t("system.models.form.cancel")}
-        </Button>
-        <Button type="submit" disabled={state !== "idle"}>
-          <SaveIcon />
-          {t("system.models.form.save")}
-        </Button>
-      </AppDialogFooter>
     </form>
   );
 }

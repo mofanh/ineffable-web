@@ -527,10 +527,32 @@ export function SystemUserManagementPage() {
         open={dialogOpen}
         title={t("system.users.editTitle")}
         description={t("system.users.editDescription")}
+        footer={
+          editingUser ? (
+            <AppDialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                {t("system.users.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                form="admin-user-form"
+                disabled={state !== "idle"}
+              >
+                <SaveIcon />
+                {t("system.users.save")}
+              </Button>
+            </AppDialogFooter>
+          ) : undefined
+        }
         onOpenChange={setDialogOpen}
       >
         {editingUser ? (
           <form
+            id="admin-user-form"
             onSubmit={(event) => void saveUser(event)}
             className="space-y-4"
           >
@@ -573,19 +595,6 @@ export function SystemUserManagementPage() {
                 </FormField>
               </AppFieldGrid>
             </AppDisclosureSection>
-            <AppDialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-              >
-                {t("system.users.cancel")}
-              </Button>
-              <Button type="submit" disabled={state !== "idle"}>
-                <SaveIcon />
-                {t("system.users.save")}
-              </Button>
-            </AppDialogFooter>
           </form>
         ) : null}
       </AppDialog>

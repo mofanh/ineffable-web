@@ -698,19 +698,38 @@ export function SystemPlanManagementPage() {
             : t("system.plans.addTitle")
         }
         description={t("system.plans.dialogDescription")}
+        footer={
+          editingPlan ? (
+            <AppDialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                {t("system.plans.form.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                form="admin-plan-form"
+                disabled={state !== "idle"}
+              >
+                <SaveIcon />
+                {t("system.plans.form.save")}
+              </Button>
+            </AppDialogFooter>
+          ) : undefined
+        }
         onOpenChange={setDialogOpen}
       >
         {editingPlan ? (
           <PlanForm
             plan={editingPlan}
-            state={state}
             capabilityFamilies={capabilityFamilyResource.data ?? []}
             capabilityFamiliesState={capabilityFamilyResource.state}
             capabilityFamiliesError={capabilityFamilyResource.error?.message ?? ""}
             onCapabilityFamiliesRetry={() => void capabilityFamilyResource.reload()}
             onChange={setEditingPlan}
             onSubmit={savePlan}
-            onCancel={() => setDialogOpen(false)}
           />
         ) : null}
       </AppDialog>
@@ -947,24 +966,20 @@ function InsightItem({
 
 function PlanForm({
   plan,
-  state,
   capabilityFamilies,
   capabilityFamiliesState,
   capabilityFamiliesError,
   onCapabilityFamiliesRetry,
   onChange,
   onSubmit,
-  onCancel,
 }: {
   plan: AdminPlanPayload;
-  state: LoadState;
   capabilityFamilies: AdminCapabilityFamilyCatalogEntry[];
   capabilityFamiliesState: ApiResourceState;
   capabilityFamiliesError: string;
   onCapabilityFamiliesRetry: () => void;
   onChange: React.Dispatch<React.SetStateAction<AdminPlanPayload | null>>;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  onCancel: () => void;
 }) {
   const { t } = useTranslation();
   const policy = plan.agent_evolution_policy;
@@ -1032,7 +1047,11 @@ function PlanForm({
   }
 
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
+    <form
+      id="admin-plan-form"
+      onSubmit={(event) => void onSubmit(event)}
+      className="space-y-4"
+    >
       <AppDisclosureSection title={t("system.plans.form.basic")}>
         <AppFieldGrid columns={1}>
           <FormField label={t("system.plans.form.internalName")}>
@@ -1501,15 +1520,6 @@ function PlanForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <AppDialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          {t("system.plans.form.cancel")}
-        </Button>
-        <Button type="submit" disabled={state !== "idle"}>
-          <SaveIcon />
-          {t("system.plans.form.save")}
-        </Button>
-      </AppDialogFooter>
     </form>
   );
 }

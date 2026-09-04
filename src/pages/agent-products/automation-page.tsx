@@ -828,12 +828,36 @@ export function AutomationPage() {
       <AutomationDialog
         open={automationDialogOpen}
         title={t("automation.form.editTitle")}
+        footer={
+          <AppDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeAutomationDialog}
+            >
+              {t("automation.form.cancel")}
+            </Button>
+            <AsyncButton
+              type="submit"
+              form="automation-edit-form"
+              isLoading={saving}
+              loadingLabel={t("automation.form.saving")}
+              disabled={!editingAutomation}
+            >
+              {t("automation.form.save")}
+            </AsyncButton>
+          </AppDialogFooter>
+        }
         onOpenChange={(open) => {
           if (open) setAutomationDialogOpen(true)
           else closeAutomationDialog()
         }}
       >
-        <form className="space-y-5" onSubmit={handleSaveAutomation}>
+        <form
+          id="automation-edit-form"
+          className="space-y-5"
+          onSubmit={handleSaveAutomation}
+        >
           <FormSection className="space-y-4">
             <FormField
               htmlFor="automation-name"
@@ -1075,23 +1099,6 @@ export function AutomationPage() {
               ) : null}
             </FormField>
           ) : null}
-          <AppDialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={closeAutomationDialog}
-            >
-              {t("automation.form.cancel")}
-            </Button>
-            <AsyncButton
-              type="submit"
-              isLoading={saving}
-              loadingLabel={t("automation.form.saving")}
-              disabled={!editingAutomation}
-            >
-              {t("automation.form.save")}
-            </AsyncButton>
-          </AppDialogFooter>
         </form>
       </AutomationDialog>
     </AppMetricPage>
@@ -1295,11 +1302,13 @@ function AutomationDialog({
   open,
   title,
   children,
+  footer,
   onOpenChange,
 }: {
   open: boolean
   title: string
   children: React.ReactNode
+  footer: React.ReactNode
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
@@ -1309,6 +1318,7 @@ function AutomationDialog({
       open={open}
       title={title}
       description={t("automation.form.dialogDescription")}
+      footer={footer}
       onOpenChange={onOpenChange}
     >
       {children}

@@ -417,16 +417,35 @@ export function SystemSecretManagementPage() {
             ? t("system.secrets.addDescription")
             : t("system.secrets.editDescription")
         }
+        footer={
+          editingSecret ? (
+            <AppDialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+              >
+                {t("system.secrets.form.cancel")}
+              </Button>
+              <Button
+                type="submit"
+                form="admin-secret-form"
+                disabled={state !== "idle"}
+              >
+                <SaveIcon />
+                {t("system.secrets.form.save")}
+              </Button>
+            </AppDialogFooter>
+          ) : undefined
+        }
         onOpenChange={setDialogOpen}
       >
         {editingSecret ? (
           <SecretForm
             mode={secretDialogMode}
             secret={editingSecret}
-            state={state}
             onChange={setEditingSecret}
             onSubmit={saveSecret}
-            onCancel={() => setDialogOpen(false)}
           />
         ) : null}
       </AppDialog>
@@ -682,21 +701,21 @@ function formatCompactNumber(value: number) {
 function SecretForm({
   mode,
   secret,
-  state,
   onChange,
   onSubmit,
-  onCancel,
 }: {
   mode: "create" | "edit";
   secret: SecretForm;
-  state: LoadState;
   onChange: React.Dispatch<React.SetStateAction<SecretForm | null>>;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  onCancel: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
+    <form
+      id="admin-secret-form"
+      onSubmit={(event) => void onSubmit(event)}
+      className="space-y-4"
+    >
       <AppDisclosureSection
         title={t("system.secrets.form.security")}
         description={t("system.secrets.form.securityDescription")}
@@ -750,15 +769,6 @@ function SecretForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
-      <AppDialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          {t("system.secrets.form.cancel")}
-        </Button>
-        <Button type="submit" disabled={state !== "idle"}>
-          <SaveIcon />
-          {t("system.secrets.form.save")}
-        </Button>
-      </AppDialogFooter>
     </form>
   );
 }
