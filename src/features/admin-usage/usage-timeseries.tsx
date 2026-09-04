@@ -160,6 +160,9 @@ export function buildModelUsageChart(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([modelId]) => modelId)
+  const seriesKeys = new Map(
+    modelIds.map((modelId, index) => [modelId, `model_${index}`]),
+  )
   const buckets = Array.from(
     new Set(timeseries.points.map((point) => point.bucket_start)),
   ).sort()
@@ -175,12 +178,14 @@ export function buildModelUsageChart(
     }
     for (const modelId of modelIds) {
       const point = byIdentity.get(`${modelId}\u0000${bucket}`)
-      datum[chartKey(modelId)] = point ? modelMetricValue(point, metric) : 0
+      datum[seriesKeys.get(modelId) ?? modelId] = point
+        ? modelMetricValue(point, metric)
+        : 0
     }
     return datum
   })
   const series = modelIds.map<AppLineChartSeries>((modelId, index) => ({
-    key: chartKey(modelId),
+    key: seriesKeys.get(modelId) ?? modelId,
     label: names.get(modelId) ?? modelId,
     color: `var(--chart-${(index % 5) + 1})`,
   }))
@@ -257,8 +262,4 @@ export function formatUsageMetricValue(metric: Metric, value: number) {
     notation: "compact",
     maximumFractionDigits: value >= 100 ? 1 : 2,
   }).format(value)
-}
-
-function chartKey(modelId: string) {
-  return `model_${modelId.replace(/[^a-zA-Z0-9_]/g, "_")}`
 }

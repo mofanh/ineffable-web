@@ -40,9 +40,43 @@ const modelChart = buildModelUsageChart(
   "failureRate",
 )
 assert.equal(modelChart.data.length, 2)
-assert.equal(modelChart.data[0].model_model_a, 25)
-assert.equal(modelChart.data[1].model_model_a, 0)
+assert.equal(modelChart.data[0].model_0, 25)
+assert.equal(modelChart.data[1].model_0, 0)
 assert.equal(modelChart.series[0].label, "Model A")
+
+const collisionChart = buildModelUsageChart(
+  [
+    { id: "a-b", display_name: "Dash" },
+    { id: "a_b", display_name: "Underscore" },
+  ],
+  {
+    range: "7d",
+    granularity: "day",
+    has_data: true,
+    points: [
+      {
+        model_profile_id: "a-b",
+        bucket_start: "2026-09-04T00:00:00Z",
+        request_count: 2,
+        failed_request_count: 0,
+        raw_total_tokens: 2,
+        charged_credits: 2,
+        average_latency_ms: 2,
+      },
+      {
+        model_profile_id: "a_b",
+        bucket_start: "2026-09-04T00:00:00Z",
+        request_count: 1,
+        failed_request_count: 0,
+        raw_total_tokens: 1,
+        charged_credits: 1,
+        average_latency_ms: 1,
+      },
+    ],
+  },
+  "credits",
+)
+assert.equal(new Set(collisionChart.series.map((item) => item.key)).size, 2)
 
 const userChart = buildUserUsageChart(
   {
