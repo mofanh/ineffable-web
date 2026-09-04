@@ -619,6 +619,7 @@ export function ChatComposer({
                             value={capabilitySearch}
                             onChange={(event) => setCapabilitySearch(event.target.value)}
                             onKeyDown={(event) => event.stopPropagation()}
+                            aria-label={t("chat.composer.capabilitySearch")}
                             placeholder={t("chat.composer.capabilitySearch")}
                             className="h-8 pl-7 text-xs"
                           />
@@ -649,13 +650,20 @@ export function ChatComposer({
                       </DropdownMenuLabel>
                       <div className="max-h-56 overflow-y-auto overscroll-contain">
                         {capabilityCatalogStatus === "loading" ? (
-                          <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+                          <div
+                            role="status"
+                            aria-live="polite"
+                            className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground"
+                          >
                             <LoaderCircleIcon className="size-3.5 animate-spin" />
                             {t("chat.composer.capabilityLoading")}
                           </div>
                         ) : null}
                         {capabilityCatalogStatus === "error" ? (
-                          <div className="flex items-center justify-between gap-2 px-2 py-2 text-xs text-destructive">
+                          <div
+                            role="alert"
+                            className="flex items-center justify-between gap-2 px-2 py-2 text-xs text-destructive"
+                          >
                             <span>{t("chat.composer.capabilityLoadFailed")}</span>
                             <Button
                               type="button"
@@ -673,7 +681,11 @@ export function ChatComposer({
                         ) : null}
                         {capabilityCatalogStatus === "ready" &&
                         filteredCapabilityCatalog.length === 0 ? (
-                          <div className="px-2 py-3 text-xs text-muted-foreground">
+                          <div
+                            role="status"
+                            aria-live="polite"
+                            className="px-2 py-3 text-xs text-muted-foreground"
+                          >
                             {t("chat.composer.capabilityEmpty")}
                           </div>
                         ) : null}
