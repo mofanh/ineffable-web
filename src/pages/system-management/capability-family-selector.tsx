@@ -36,8 +36,11 @@ export function CapabilityFamilySelector({
     [entries, query],
   );
   const unavailableSelected = React.useMemo(
-    () => unavailableSelectedCapabilityFamilies(selected, entries),
-    [entries, selected],
+    () =>
+      state === "success" || state === "refreshing"
+        ? unavailableSelectedCapabilityFamilies(selected, entries)
+        : [],
+    [entries, selected, state],
   );
   const unrestricted = selected.length === 0;
 
