@@ -49,7 +49,7 @@ export function AppDialog({
               </DialogPrimitive.Description>
             ) : null}
           </div>
-          <div className="min-h-0 overscroll-contain overflow-y-auto p-5">
+          <div className="min-h-0 overscroll-contain overflow-y-auto p-5 has-[[data-slot=app-dialog-footer]]:pb-0">
             {children}
           </div>
           <DialogPrimitive.Close asChild>
@@ -78,8 +78,9 @@ export function AppDialogFooter({
 }) {
   return (
     <div
+      data-slot="app-dialog-footer"
       className={cn(
-        "bg-background border-border sticky -bottom-5 z-10 -mx-5 flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-5 py-2 shadow-[0_-8px_18px_-18px_rgba(0,0,0,0.45)]",
+        "bg-background border-border sticky bottom-0 z-10 -mx-5 flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-5 py-2 shadow-[0_-8px_18px_-18px_rgba(0,0,0,0.45)]",
         className
       )}
     >
