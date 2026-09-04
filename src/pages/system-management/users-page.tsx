@@ -18,9 +18,6 @@ import {
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
-  AppLineChart,
-  type AppLineChartDatum,
-  type AppLineChartSeries,
   AppListToolbar,
   AppSearchBar,
   AppSectionCard,
@@ -37,6 +34,7 @@ import {
   listAdminPlans,
   listAdminUserMonthlyUsage,
   listAdminUserPlanAssignments,
+  listAdminUserUsageTimeseries,
   listAdminUsers,
   listAdminWorkspaceUsage,
   setAdminUserRole,
@@ -44,12 +42,18 @@ import {
   type AdminUser,
   type AdminUserMonthlyUsage,
   type AdminUserPlanAssignment,
+  type AdminUsageRange,
   type AdminWorkspaceUsage,
 } from "@/lib/api/api-client";
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { notify } from "@/lib/app/notifications";
 import { useApiResource } from "@/lib/app/use-api-resource";
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
+import {
+  buildUserUsageChart,
+  UsageTimeseriesPanel,
+  type UserUsageMetric,
+} from "@/features/admin-usage/usage-timeseries";
 
 import {
   AdminAccessDenied,
@@ -621,7 +625,31 @@ function UserDetail({
   user: AdminUser;
 }) {
   const { t } = useTranslation();
-  const usageTrend = React.useMemo(() => buildUserUsageTrend(usage), [usage]);
+  const { accessToken, currentSessionId } = useAuthSession();
+  const [usageRange, setUsageRange] = React.useState<AdminUsageRange>("30d");
+  const [usageMetric, setUsageMetric] =
+    React.useState<UserUsageMetric>("credits");
+  const loadUsageTimeseries = React.useCallback(async () => {
+    if (!accessToken) {
+      throw new Error("user usage timeseries requires an admin session");
+    }
+    return listAdminUserUsageTimeseries(accessToken, user.id, usageRange);
+  }, [accessToken, usageRange, user.id]);
+  const usageTimeseriesResource = useApiResource({
+    enabled: Boolean(accessToken),
+    cacheKey: [
+      "system-user-usage-timeseries",
+      currentSessionId,
+      user.id,
+      usageRange,
+    ],
+    load: loadUsageTimeseries,
+    errorMessage: t("system.usageTimeseries.loadFailed"),
+  });
+  const usageTrend = React.useMemo(
+    () => buildUserUsageChart(usageTimeseriesResource.data, usageMetric),
+    [usageMetric, usageTimeseriesResource.data],
+  );
   const riskItems = React.useMemo(
     () => buildUserRiskItems(assignments, usage, workspaceUsage),
     [assignments, usage, workspaceUsage],
@@ -634,13 +662,19 @@ function UserDetail({
           <GaugeIcon className="size-4 text-muted-foreground" />
           {t("system.users.detail.trend")}
         </div>
-        <AppLineChart
-          data={usageTrend.chartData}
-          series={usageTrend.chartSeries}
-          height={180}
-          valueFormatter={formatMetricNumber}
-          emptyTitle={t("system.users.detail.trendEmpty")}
-          emptyDescription={t("system.users.detail.trendEmptyDescription")}
+        <UsageTimeseriesPanel
+          range={usageRange}
+          onRangeChange={setUsageRange}
+          metric={usageMetric}
+          onMetricChange={(value) => setUsageMetric(value as UserUsageMetric)}
+          metricOptions={["credits", "requests", "tokens"]}
+          granularity={usageTimeseriesResource.data?.granularity}
+          state={usageTimeseriesResource.state}
+          error={usageTimeseriesResource.error}
+          onRetry={() => void usageTimeseriesResource.reload()}
+          empty={usageTimeseriesResource.data?.has_data === false}
+          data={usageTrend.data}
+          series={usageTrend.series}
         />
       </div>
       <div className="grid gap-2">
@@ -759,30 +793,6 @@ function UserDetail({
   );
 }
 
-function buildUserUsageTrend(usage: AdminUserMonthlyUsage[]) {
-  const rows = [...usage].sort((a, b) =>
-    a.period_yyyymm.localeCompare(b.period_yyyymm),
-  );
-  const chartData: AppLineChartDatum[] = rows.slice(-12).map((item) => ({
-    label: formatPeriod(item.period_yyyymm),
-    credits: item.charged_credits,
-    tokens: item.raw_total_tokens,
-  }));
-  const chartSeries: AppLineChartSeries[] = [
-    {
-      key: "credits",
-      label: i18n.t("system.users.chart.credits"),
-      color: "var(--chart-1)",
-    },
-    {
-      key: "tokens",
-      label: i18n.t("system.users.chart.tokens"),
-      color: "var(--chart-2)",
-    },
-  ];
-  return { chartData, chartSeries };
-}
-
 function buildUserRiskItems(
   assignments: AdminUserPlanAssignment[],
   usage: AdminUserMonthlyUsage[],
@@ -883,9 +893,4 @@ function formatDateTime(value?: string | null) {
       minute: "2-digit",
     },
   );
-}
-
-function formatPeriod(period: string) {
-  if (period.length !== 6) return period;
-  return `${period.slice(0, 4)}-${period.slice(4)}`;
 }

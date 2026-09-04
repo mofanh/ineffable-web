@@ -15,6 +15,7 @@
     "check:chat-web-integration": "tsx scripts/check-chat-web-integration.mjs",
     "check:capability-catalog": "tsx scripts/check-capability-catalog-selection.mjs",
     "check:admin-capability-families": "tsx scripts/check-admin-capability-family-selection.mjs",
+    "check:admin-usage-timeseries": "tsx scripts/check-admin-usage-timeseries.mjs",
     "check:chat-browser": "node scripts/check-chat-virtualization-browser.mjs",
     "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",
     "check:responsive-layout": "node --experimental-strip-types scripts/check-responsive-layout.mjs",

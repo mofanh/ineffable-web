@@ -27,6 +27,7 @@ export function LineChartPanel({
   valueFormatter = formatCompactValue,
   emptyTitle,
   emptyDescription,
+  hasData: hasDataOverride,
   className,
 }: {
   data: UiLineChartDatum[]
@@ -35,15 +36,18 @@ export function LineChartPanel({
   valueFormatter?: (value: number) => string
   emptyTitle?: string
   emptyDescription?: string
+  hasData?: boolean
   className?: string
 }) {
   const { t } = useTranslation()
   const resolvedEmptyTitle = emptyTitle ?? t("common.chart.trendEmpty")
   const resolvedEmptyDescription =
     emptyDescription ?? t("common.chart.trendEmptyDescription")
-  const hasData = data.some((datum) =>
-    series.some((item) => Number(datum[item.key] ?? 0) > 0),
-  )
+  const hasData =
+    hasDataOverride ??
+    data.some((datum) =>
+      series.some((item) => Number(datum[item.key] ?? 0) > 0),
+    )
 
   if (!hasData) {
     return (

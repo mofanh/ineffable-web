@@ -518,7 +518,8 @@ export const resources = {
           capabilityUpdateFailed: "无法更新本会话的能力模式。",
           capabilityUpdateFailedTitle: "能力模式更新失败",
           nodeIteration: "Node 迭代模式",
-          nodeIterationHint: "允许本会话在高信号场景中检查、定义并试跑新的 Node 版本",
+          nodeIterationHint:
+            "允许本会话在高信号场景中检查、定义并试跑新的 Node 版本",
           iterationMode: {
             disabled: "不可用",
             declarative_only: "声明式",
@@ -778,6 +779,30 @@ export const resources = {
             user: "普通用户",
           },
         },
+        usageTimeseries: {
+          rangeLabel: "趋势范围",
+          metricLabel: "趋势指标",
+          loadFailed: "加载用量趋势失败。",
+          loading: "正在加载用量趋势",
+          empty: "暂无趋势数据",
+          emptyDescription: "所选时间范围内还没有已结算的用量记录。",
+          granularity: "按{{value}}聚合",
+          granularities: { hour: "小时", day: "天", month: "月" },
+          ranges: {
+            "24h": "近 24 小时",
+            "7d": "近 7 天",
+            "30d": "近 30 天",
+            "6m": "近 6 个月",
+            "12m": "近 12 个月",
+          },
+          metrics: {
+            credits: "点数",
+            requests: "请求数",
+            tokens: "Token",
+            failureRate: "失败率",
+            latency: "平均耗时",
+          },
+        },
         models: {
           capabilities: {
             tool: "工具调用",
@@ -818,7 +843,7 @@ export const resources = {
             "维护模型配置，并通过真实调用数据观察模型用量趋势和成本贡献。",
           usageTitle: "模型用量趋势",
           usageDescription:
-            "按模型聚合最近 6 个月的实际计费点数，数据来自后端用量事件。",
+            "按范围查看模型点数、请求、Token、失败率与平均耗时，月额度口径保持不变。",
           listTitle: "模型列表",
           listDescription: "主视图保持单列表格，技术细节通过行内展开查看。",
           search: "搜索模型...",
@@ -1019,7 +1044,8 @@ export const resources = {
             maxEvaluationWallMs: "单次评估时间（ms）",
             runtimeLabLimits: "开放运行时资源限额",
             cloudSandboxes: "活跃云 Sandbox 上限",
-            cloudSandboxesDescription: "留空表示不限额，0 表示禁止创建云 Sandbox。",
+            cloudSandboxesDescription:
+              "留空表示不限额，0 表示禁止创建云 Sandbox。",
             runtimeLabTtl: "Lab TTL（秒）",
             maxRuntimeLabs: "并行 Lab 数",
             maxRuntimeLabComponents: "每个 Lab 组件数",
@@ -2017,7 +2043,8 @@ export const resources = {
           capabilitySearch: "Search capabilities, families, or providers",
           capabilityLoading: "Loading available capabilities…",
           capabilityLoadFailed: "Could not load capabilities",
-          capabilityEmpty: "No matching capabilities are available in this scope",
+          capabilityEmpty:
+            "No matching capabilities are available in this scope",
           capabilityBudget: "Up to {{count}} tools this turn",
           capabilityUpdateFailed:
             "Unable to update this conversation's capability mode.",
@@ -2304,6 +2331,31 @@ export const resources = {
             user: "Standard user",
           },
         },
+        usageTimeseries: {
+          rangeLabel: "Trend range",
+          metricLabel: "Trend metric",
+          loadFailed: "Unable to load the usage trend.",
+          loading: "Loading usage trend",
+          empty: "No trend data",
+          emptyDescription:
+            "There are no finalized usage records in the selected range.",
+          granularity: "Grouped by {{value}}",
+          granularities: { hour: "hour", day: "day", month: "month" },
+          ranges: {
+            "24h": "Last 24 hours",
+            "7d": "Last 7 days",
+            "30d": "Last 30 days",
+            "6m": "Last 6 months",
+            "12m": "Last 12 months",
+          },
+          metrics: {
+            credits: "Credits",
+            requests: "Requests",
+            tokens: "Tokens",
+            failureRate: "Failure rate",
+            latency: "Average latency",
+          },
+        },
         models: {
           capabilities: {
             tool: "Tool calling",
@@ -2345,7 +2397,7 @@ export const resources = {
             "Maintain model configuration and inspect usage trends and cost contribution from real calls.",
           usageTitle: "Model usage trend",
           usageDescription:
-            "Actual billed credits grouped by model over the last six months, from backend usage events.",
+            "Inspect model credits, requests, tokens, failure rate, and average latency by range without changing monthly quota accounting.",
           listTitle: "Model list",
           listDescription:
             "The primary view stays a single table; expand a row for technical details.",
@@ -2533,7 +2585,8 @@ export const resources = {
             capabilityFamiliesSelected: "Restricted to {{count}} tool families",
             capabilityFamiliesSelectCurrent: "Select current catalog",
             capabilityFamiliesLoading: "Loading the tool-family catalog…",
-            capabilityFamiliesLoadFailed: "Could not load the tool-family catalog",
+            capabilityFamiliesLoadFailed:
+              "Could not load the tool-family catalog",
             capabilityFamiliesRetry: "Retry",
             capabilityFamiliesEmpty: "No matching tool families",
             capabilityFamiliesUnavailable: "Historical tool families",

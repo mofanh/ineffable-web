@@ -1307,6 +1307,42 @@ export type AdminModelMonthlyUsage = {
   updated_at: string
 }
 
+export type AdminUsageRange = "24h" | "7d" | "30d" | "6m" | "12m"
+
+export type AdminUsageGranularity = "hour" | "day" | "month"
+
+export type AdminModelUsageTimeseriesPoint = {
+  model_profile_id: string
+  bucket_start: string
+  request_count: number
+  failed_request_count: number
+  raw_total_tokens: number
+  charged_credits: number
+  average_latency_ms?: number | null
+}
+
+export type AdminModelUsageTimeseries = {
+  range: AdminUsageRange
+  granularity: AdminUsageGranularity
+  has_data: boolean
+  points: AdminModelUsageTimeseriesPoint[]
+}
+
+export type AdminUserUsageTimeseriesPoint = {
+  user_id: string
+  bucket_start: string
+  request_count: number
+  raw_total_tokens: number
+  charged_credits: number
+}
+
+export type AdminUserUsageTimeseries = {
+  range: AdminUsageRange
+  granularity: AdminUsageGranularity
+  has_data: boolean
+  points: AdminUserUsageTimeseriesPoint[]
+}
+
 export type AdminModelProfilePayload = Omit<
   AdminModelProfile,
   "id" | "archived_at"
@@ -1365,6 +1401,16 @@ export function deleteAdminModelProfile(accessToken: string, modelId: string) {
 export function listAdminModelMonthlyUsage(accessToken: string, limit = 6) {
   return requestApiJson<{ usage: AdminModelMonthlyUsage[] }>(
     `/gateway/v1/admin/models/usage/monthly?limit=${encodeURIComponent(String(limit))}`,
+    { accessToken },
+  )
+}
+
+export function listAdminModelUsageTimeseries(
+  accessToken: string,
+  range: AdminUsageRange,
+) {
+  return requestApiJson<AdminModelUsageTimeseries>(
+    `/gateway/v1/admin/models/usage/timeseries?range=${encodeURIComponent(range)}`,
     { accessToken },
   )
 }
@@ -1529,6 +1575,17 @@ export function listAdminUserMonthlyUsage(
 ) {
   return requestApiJson<{ usage: AdminUserMonthlyUsage[] }>(
     `/gateway/v1/admin/users/${encodeURIComponent(userId)}/usage/monthly?limit=${encodeURIComponent(String(limit))}`,
+    { accessToken },
+  )
+}
+
+export function listAdminUserUsageTimeseries(
+  accessToken: string,
+  userId: string,
+  range: AdminUsageRange,
+) {
+  return requestApiJson<AdminUserUsageTimeseries>(
+    `/gateway/v1/admin/users/${encodeURIComponent(userId)}/usage/timeseries?range=${encodeURIComponent(range)}`,
     { accessToken },
   )
 }

@@ -27,9 +27,6 @@ import {
   AppDisclosureSection,
   AppExpandablePanel,
   AppFieldGrid,
-  AppLineChart,
-  type AppLineChartDatum,
-  type AppLineChartSeries,
   AppListToolbar,
   AppSearchBar,
   AppSectionCard,
@@ -47,10 +44,12 @@ import {
   deleteAdminModelProfile,
   listAdminModelMonthlyUsage,
   listAdminModelProfiles,
+  listAdminModelUsageTimeseries,
   updateAdminModelProfile,
   type AdminModelMonthlyUsage,
   type AdminModelProfile,
   type AdminModelProfilePayload,
+  type AdminUsageRange,
 } from "@/lib/api/api-client";
 import { normalizeAppError } from "@/lib/app/api-errors";
 import { confirm } from "@/lib/app/confirm";
@@ -60,6 +59,11 @@ import {
   useApiResource,
 } from "@/lib/app/use-api-resource";
 import { getCurrentLocale, i18n, normalizeLanguage } from "@/lib/i18n/i18n";
+import {
+  buildModelUsageChart,
+  UsageTimeseriesPanel,
+  type ModelUsageMetric,
+} from "@/features/admin-usage/usage-timeseries";
 
 import {
   AdminAccessDenied,
@@ -105,6 +109,9 @@ export function SystemModelManagementPage() {
     ModelCapabilityFilter[]
   >([]);
   const [sortKey, setSortKey] = React.useState<ModelSortKey>("sort_order");
+  const [usageRange, setUsageRange] = React.useState<AdminUsageRange>("30d");
+  const [usageMetric, setUsageMetric] =
+    React.useState<ModelUsageMetric>("credits");
   const [editingModel, setEditingModel] =
     React.useState<AdminModelProfilePayload | null>(null);
   const [editingModelId, setEditingModelId] = React.useState<string | null>(
@@ -126,14 +133,14 @@ export function SystemModelManagementPage() {
         usage: [] as AdminModelMonthlyUsage[],
       };
     }
-      const [modelResult, usageResult] = await Promise.all([
-        listAdminModelProfiles(accessToken),
-        listAdminModelMonthlyUsage(accessToken, 6),
-      ]);
-      return {
-        profiles: modelResult.profiles,
-        usage: usageResult.usage,
-      };
+    const [modelResult, usageResult] = await Promise.all([
+      listAdminModelProfiles(accessToken),
+      listAdminModelMonthlyUsage(accessToken, 6),
+    ]);
+    return {
+      profiles: modelResult.profiles,
+      usage: usageResult.usage,
+    };
   }, [accessToken, isAdmin]);
   const modelResource = useApiResource({
     enabled: Boolean(accessToken && isAdmin),
@@ -150,9 +157,27 @@ export function SystemModelManagementPage() {
     [modelResource.data?.usage],
   );
 
+  const loadUsageTimeseries = React.useCallback(async () => {
+    if (!accessToken || !isAdmin) {
+      throw new Error("model usage timeseries requires an admin session");
+    }
+    return listAdminModelUsageTimeseries(accessToken, usageRange);
+  }, [accessToken, isAdmin, usageRange]);
+  const usageTimeseriesResource = useApiResource({
+    enabled: Boolean(accessToken && isAdmin),
+    cacheKey: ["system-model-usage-timeseries", currentSessionId, usageRange],
+    load: loadUsageTimeseries,
+    errorMessage: t("system.usageTimeseries.loadFailed"),
+  });
+
   const usageSummary = React.useMemo(
     () => buildModelUsageSummary(models, usageRows),
     [models, usageRows],
+  );
+  const usageChart = React.useMemo(
+    () =>
+      buildModelUsageChart(models, usageTimeseriesResource.data, usageMetric),
+    [models, usageMetric, usageTimeseriesResource.data],
   );
 
   const filteredModels = React.useMemo(() => {
@@ -408,11 +433,25 @@ export function SystemModelManagementPage() {
         description={t("system.models.usageDescription")}
         icon={TrendingUpIcon}
       >
-        <AppLineChart
-          data={usageSummary.chartData}
-          series={usageSummary.chartSeries}
-          height={220}
-          valueFormatter={formatNumber}
+        <UsageTimeseriesPanel
+          range={usageRange}
+          onRangeChange={setUsageRange}
+          metric={usageMetric}
+          onMetricChange={(value) => setUsageMetric(value as ModelUsageMetric)}
+          metricOptions={[
+            "credits",
+            "requests",
+            "tokens",
+            "failureRate",
+            "latency",
+          ]}
+          granularity={usageTimeseriesResource.data?.granularity}
+          state={usageTimeseriesResource.state}
+          error={usageTimeseriesResource.error}
+          onRetry={() => void usageTimeseriesResource.reload()}
+          empty={usageTimeseriesResource.data?.has_data === false}
+          data={usageChart.data}
+          series={usageChart.series}
         />
       </AppSectionCard>
 
@@ -801,11 +840,8 @@ function buildModelUsageSummary(
   const modelNames = new Map(
     models.map((model) => [model.id, model.display_name]),
   );
-  const periods = Array.from(
-    new Set(usageRows.map((row) => row.period_yyyymm)),
-  ).sort();
-  const recentPeriods = periods.slice(-6);
-  const currentPeriod = recentPeriods.at(-1) ?? "";
+  const now = new Date();
+  const currentPeriod = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   const currentRows = usageRows.filter(
     (row) => row.period_yyyymm === currentPeriod,
   );
@@ -828,24 +864,6 @@ function buildModelUsageSummary(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  const chartData: AppLineChartDatum[] = recentPeriods.map((period) => {
-    const datum: AppLineChartDatum = { label: formatPeriod(period) };
-    for (const [modelId] of topModels) {
-      const row = usageRows.find(
-        (item) =>
-          item.period_yyyymm === period && item.model_profile_id === modelId,
-      );
-      datum[chartKey(modelId)] = row?.charged_credits ?? 0;
-    }
-    return datum;
-  });
-  const chartSeries: AppLineChartSeries[] = topModels.map(
-    ([modelId], index) => ({
-      key: chartKey(modelId),
-      label: modelNames.get(modelId) ?? modelId,
-      color: `var(--chart-${(index % 5) + 1})`,
-    }),
-  );
   const [topModelId, topModelCredits] = topModels[0] ?? [];
 
   return {
@@ -863,8 +881,6 @@ function buildModelUsageSummary(
       : "-",
     topModelCreditsLabel:
       topModelCredits == null ? "-" : formatNumber(topModelCredits),
-    chartData,
-    chartSeries,
   };
 }
 
@@ -934,15 +950,6 @@ function compareModels(
         a.display_name.localeCompare(b.display_name)
       );
   }
-}
-
-function chartKey(modelId: string) {
-  return `model_${modelId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
-}
-
-function formatPeriod(period: string) {
-  if (period.length !== 6) return period;
-  return `${period.slice(0, 4)}-${period.slice(4)}`;
 }
 
 function formatNumber(value: number) {
