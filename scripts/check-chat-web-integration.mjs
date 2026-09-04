@@ -54,7 +54,10 @@ import {
   writeCanonicalComposerRuntimeSelection,
   writeComposerRuntimeSelectionDraft,
 } from "../src/features/chat/model/composer-runtime-selection.ts"
-import { capabilityExposureForSubmission } from "../src/features/chat/model/capability-exposure-draft.ts"
+import {
+  capabilityExposureForSubmission,
+  reconcileCapabilityExposureDraftPolicy,
+} from "../src/features/chat/model/capability-exposure-draft.ts"
 import {
   agentNodeManagementTargetKey,
   matchesAgentNodeProjectionTarget,
@@ -77,6 +80,34 @@ const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
 
 const draftCapabilitySelection = { mode: "clean" }
+const capabilityPolicy = {
+  allowed_modes: ["smart", "clean", "custom"],
+  allowed_families: [],
+  exposure_budget: { max_count: 8, max_schema_bytes: 16_384 },
+  max_prefetched_tools: 4,
+  max_dynamic_tools: 4,
+  max_discovery_results: 8,
+}
+assert.equal(
+  reconcileCapabilityExposureDraftPolicy(
+    draftCapabilitySelection,
+    true,
+    { mode: "smart" },
+    capabilityPolicy
+  ),
+  draftCapabilitySelection,
+  "a token refresh must preserve a user-modified draft mode"
+)
+assert.deepEqual(
+  reconcileCapabilityExposureDraftPolicy(
+    { mode: "full" },
+    true,
+    { mode: "smart" },
+    capabilityPolicy
+  ),
+  { mode: "smart" },
+  "a refreshed plan must replace a draft mode that is no longer authorized"
+)
 assert.equal(
   capabilityExposureForSubmission(draftCapabilitySelection, null, null),
   draftCapabilitySelection,

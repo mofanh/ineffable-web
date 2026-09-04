@@ -151,7 +151,10 @@ import {
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/features/chat/api/chat-api"
-import { capabilityExposureForSubmission } from "@/features/chat/model/capability-exposure-draft"
+import {
+  capabilityExposureForSubmission,
+  reconcileCapabilityExposureDraftPolicy,
+} from "@/features/chat/model/capability-exposure-draft"
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -359,6 +362,10 @@ export function GatewayChatSidebar({
     React.useState<CapabilityExposureSelection | null>(null)
   const [capabilityExposurePolicy, setCapabilityExposurePolicy] =
     React.useState<CapabilityExposurePolicy | null>(null)
+  const [capabilityExposureDraftStatus, setCapabilityExposureDraftStatus] =
+    React.useState<"idle" | "loading" | "ready" | "error">("idle")
+  const [capabilityExposureDraftRevision, setCapabilityExposureDraftRevision] =
+    React.useState(0)
   const [capabilityCatalog, setCapabilityCatalog] = React.useState<
     CapabilityCatalogEntry[]
   >([])
@@ -368,6 +375,7 @@ export function GatewayChatSidebar({
   const [capabilityCatalogRevision, setCapabilityCatalogRevision] = React.useState(0)
   const capabilityCatalogRequestRef = React.useRef(0)
   const capabilityExposurePolicyRequestRef = React.useRef(0)
+  const capabilityExposureDraftDirtyRef = React.useRef(false)
   const capabilityExposureSelectionRef = React.useRef(
     capabilityExposureSelection
   )
@@ -869,10 +877,20 @@ export function GatewayChatSidebar({
 
   React.useEffect(() => {
     const requestId = ++capabilityExposurePolicyRequestRef.current
-    if (!accessToken || currentConversationId) {
+    if (currentConversationId) {
+      setCapabilityExposureDraftStatus("idle")
+      return
+    }
+    if (!accessToken) {
+      capabilityExposureDraftDirtyRef.current = false
+      capabilityExposureSelectionRef.current = null
+      setCapabilityExposureSelection(null)
+      setCapabilityExposurePolicy(null)
+      setCapabilityExposureDraftStatus("idle")
       return
     }
 
+    setCapabilityExposureDraftStatus("loading")
     void getCapabilityExposureDraft(accessToken)
       .then((draft) => {
         if (
@@ -881,9 +899,17 @@ export function GatewayChatSidebar({
         ) {
           return
         }
-        capabilityExposureSelectionRef.current = draft.selection
-        setCapabilityExposureSelection(draft.selection)
-        setCapabilityExposurePolicy(draft.capability_exposure_policy.policy)
+        const policy = draft.capability_exposure_policy.policy
+        const selection = reconcileCapabilityExposureDraftPolicy(
+          capabilityExposureSelectionRef.current,
+          capabilityExposureDraftDirtyRef.current,
+          draft.selection,
+          policy
+        )
+        capabilityExposureSelectionRef.current = selection
+        setCapabilityExposureSelection(selection)
+        setCapabilityExposurePolicy(policy)
+        setCapabilityExposureDraftStatus("ready")
       })
       .catch((caught) => {
         if (
@@ -897,8 +923,14 @@ export function GatewayChatSidebar({
           i18n.t("chat.composer.capabilityLoadFailed"),
           i18n.t("chat.composer.capabilityLoadFailedTitle")
         )
+        setCapabilityExposureDraftStatus("error")
       })
-  }, [accessToken, currentConversationId, reportChatError])
+  }, [
+    accessToken,
+    capabilityExposureDraftRevision,
+    currentConversationId,
+    reportChatError,
+  ])
 
   React.useEffect(() => {
     entriesRef.current = entries
@@ -1835,9 +1867,11 @@ export function GatewayChatSidebar({
       : null
     applyConversationWindow(currentConversationId, cachedWindow)
     hydratedConversationIdRef.current = null
-    capabilityExposureSelectionRef.current = null
-    setCapabilityExposureSelection(null)
-    setCapabilityExposurePolicy(null)
+    if (currentConversationId) {
+      capabilityExposureSelectionRef.current = null
+      setCapabilityExposureSelection(null)
+      setCapabilityExposurePolicy(null)
+    }
     pendingOlderLoadMetricsRef.current = null
     olderMessagesInFlightCursorRef.current = null
     setOlderMessagesError(null)
@@ -2949,7 +2983,18 @@ export function GatewayChatSidebar({
     lastViewportScrollTopRef.current = 0
   }
 
+  function refreshCapabilityExposureDraft() {
+    capabilityExposurePolicyRequestRef.current += 1
+    setCapabilityExposureDraftStatus("loading")
+    setCapabilityExposureDraftRevision((revision) => revision + 1)
+  }
+
   function startNewChat() {
+    capabilityExposureDraftDirtyRef.current = false
+    capabilityExposureSelectionRef.current = null
+    setCapabilityExposureSelection(null)
+    setCapabilityExposurePolicy(null)
+    refreshCapabilityExposureDraft()
     selectConversationTarget(null)
     abortRef.current?.abort()
     runtimeControllerRef.current.disconnectAll()
@@ -3502,6 +3547,9 @@ export function GatewayChatSidebar({
     capabilityExposureSelectionRef.current = selection
     setCapabilityExposureSelection(selection)
     const conversationId = currentConversationIdRef.current
+    if (!conversationId) {
+      capabilityExposureDraftDirtyRef.current = true
+    }
     if (!accessToken || !conversationId) return
 
     capabilityExposureSaveChainRef.current = capabilityExposureSaveChainRef.current
@@ -3769,6 +3817,7 @@ export function GatewayChatSidebar({
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         capabilityExposureSelection={capabilityExposureSelection}
         capabilityExposurePolicy={capabilityExposurePolicy}
+        capabilityExposureDraftStatus={capabilityExposureDraftStatus}
         capabilityCatalog={capabilityCatalog}
         capabilityCatalogStatus={capabilityCatalogStatus}
         onCapabilityCatalogRefresh={() =>
@@ -3786,6 +3835,7 @@ export function GatewayChatSidebar({
           void refreshSandboxOptions()
         }}
         onCapabilityExposureChange={handleCapabilityExposureChange}
+        onCapabilityExposureDraftRefresh={refreshCapabilityExposureDraft}
         onAgentIterationChange={(requested) => {
           void handleAgentIterationChange(requested)
         }}

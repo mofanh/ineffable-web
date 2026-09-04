@@ -514,6 +514,7 @@ export const resources = {
           capabilityLoading: "正在读取当前可用能力…",
           capabilityLoadFailed: "能力目录读取失败",
           capabilityLoadFailedTitle: "能力配置加载失败",
+          capabilityRetry: "重试能力配置",
           capabilityEmpty: "当前范围没有匹配的可用能力",
           capabilityBudget: "本轮最多暴露 {{count}} 个工具",
           capabilityUpdateFailed: "无法更新本会话的能力模式。",
@@ -2045,6 +2046,7 @@ export const resources = {
           capabilityLoading: "Loading available capabilities…",
           capabilityLoadFailed: "Could not load capabilities",
           capabilityLoadFailedTitle: "Unable to load capability settings",
+          capabilityRetry: "Retry capability settings",
           capabilityEmpty:
             "No matching capabilities are available in this scope",
           capabilityBudget: "Up to {{count}} tools this turn",

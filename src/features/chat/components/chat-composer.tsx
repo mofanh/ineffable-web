@@ -95,6 +95,7 @@ type ChatComposerProps = {
   selectedSandboxEnvironmentId: string
   capabilityExposureSelection: CapabilityExposureSelection | null
   capabilityExposurePolicy: CapabilityExposurePolicy | null
+  capabilityExposureDraftStatus: "idle" | "loading" | "ready" | "error"
   capabilityCatalog: CapabilityCatalogEntry[]
   capabilityCatalogStatus: "idle" | "loading" | "ready" | "error"
   onCapabilityCatalogRefresh: () => void
@@ -108,6 +109,7 @@ type ChatComposerProps = {
   onSandboxEnvironmentChange: (value: string) => void
   onSandboxOptionsRefresh: () => void
   onCapabilityExposureChange: (selection: CapabilityExposureSelection) => void
+  onCapabilityExposureDraftRefresh: () => void
   onAgentIterationChange: (requested: boolean) => void
   onSend: () => void
   onStop: () => void
@@ -132,6 +134,7 @@ export function ChatComposer({
   selectedSandboxEnvironmentId,
   capabilityExposureSelection,
   capabilityExposurePolicy,
+  capabilityExposureDraftStatus,
   capabilityCatalog,
   capabilityCatalogStatus,
   onCapabilityCatalogRefresh,
@@ -145,6 +148,7 @@ export function ChatComposer({
   onSandboxEnvironmentChange,
   onSandboxOptionsRefresh,
   onCapabilityExposureChange,
+  onCapabilityExposureDraftRefresh,
   onAgentIterationChange,
   onSend,
   onStop,
@@ -578,12 +582,27 @@ export function ChatComposer({
                     variant="ghost"
                     size="sm"
                     className="h-8 min-w-0 max-w-28 shrink gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground"
-                    title={t("chat.composer.capabilityModeHint")}
-                    disabled={!capabilityExposureSelection || !capabilityExposurePolicy}
+                    title={
+                      capabilityExposureDraftStatus === "error"
+                        ? t("chat.composer.capabilityLoadFailed")
+                        : t("chat.composer.capabilityModeHint")
+                    }
+                    disabled={
+                      capabilityExposureDraftStatus !== "error" &&
+                      (!capabilityExposureSelection || !capabilityExposurePolicy)
+                    }
+                    onClick={(event) => {
+                      if (capabilityExposureDraftStatus === "error") {
+                        event.preventDefault()
+                        onCapabilityExposureDraftRefresh()
+                      }
+                    }}
                   >
                     <SparklesIcon className="size-3.5 shrink-0" />
                     <span className="truncate">
-                      {capabilityExposureSelection
+                      {capabilityExposureDraftStatus === "error"
+                        ? t("chat.composer.capabilityRetry")
+                        : capabilityExposureSelection
                         ? `${t(
                             `chat.composer.capabilityMode.${capabilityExposureSelection.mode}`
                           )}${capabilityExposureSelection.mode === "custom" && customSelectionCount > 0 ? ` · ${customSelectionCount}` : ""}`
