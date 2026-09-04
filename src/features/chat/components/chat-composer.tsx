@@ -2,8 +2,13 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
+import { StatusBadge } from "@/components/app"
 import { Input } from "@/components/ui/input"
 import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
+import {
+  ComposerSingleSelect,
+  type ComposerSingleSelectOption,
+} from "@/features/chat/components/composer-single-select"
 import {
   capabilityCatalogFamilies,
   capabilityKeysEqual,
@@ -17,13 +22,6 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { SidebarFooter } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -47,6 +45,7 @@ import {
   ArrowUpIcon,
   AtSignIcon,
   BotIcon,
+  BoxIcon,
   FileTextIcon,
   GripVerticalIcon,
   GitBranchIcon,
@@ -175,6 +174,62 @@ export function ChatComposer({
     ? capabilityExposureSelection.custom.families.length +
       capabilityExposureSelection.custom.capabilities.length
     : 0
+
+  const modelPickerOptions = React.useMemo<ComposerSingleSelectOption[]>(
+    () =>
+      modelOptions.map((option) => ({
+        value: option.id,
+        label: option.displayName,
+        searchText: [
+          option.supportsReasoning ? t("chat.composer.modelReasoning") : "",
+          option.supportsToolCalls ? t("chat.composer.modelTools") : "",
+        ].join(" "),
+        supportingContent: (
+          <>
+            {option.supportsReasoning ? (
+              <span className="rounded-full border border-border/80 bg-muted/45 px-1.5 py-0.5">
+                {t("chat.composer.modelReasoning")}
+              </span>
+            ) : null}
+            {option.supportsToolCalls ? (
+              <span className="rounded-full border border-border/80 bg-muted/45 px-1.5 py-0.5">
+                {t("chat.composer.modelTools")}
+              </span>
+            ) : null}
+            {!option.supportsReasoning && !option.supportsToolCalls ? (
+              <span>{t("chat.composer.modelTextOnly")}</span>
+            ) : null}
+          </>
+        ),
+      })),
+    [modelOptions, t]
+  )
+
+  const sandboxPickerOptions = React.useMemo<ComposerSingleSelectOption[]>(
+    () => [
+      {
+        value: "__disabled__",
+        label: t("chat.composer.noSandbox"),
+        searchText: t("chat.composer.noSandboxDescription"),
+        supportingContent: t("chat.composer.noSandboxDescription"),
+      },
+      ...sandboxOptions.map((option) => ({
+        value: option.environmentId,
+        label: option.label,
+        searchText: option.status,
+        supportingContent: (
+          <StatusBadge
+            status={option.status}
+            label={t(`chat.composer.sandboxStatus.${option.status}`, {
+              defaultValue: option.status,
+            })}
+            className="px-1.5 py-0 text-[10px]"
+          />
+        ),
+      })),
+    ],
+    [sandboxOptions, t]
+  )
 
   function selectCapabilityMode(mode: CapabilityExposureMode) {
     onCapabilityExposureChange({
@@ -479,27 +534,18 @@ export function ChatComposer({
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
               <div className="flex w-fit min-w-0 max-w-40 shrink">
                 {modelOptions.length > 0 ? (
-                  <Select
+                  <ComposerSingleSelect
                     value={selectedModelProfileId}
-                    onValueChange={onModelProfileChange}
-                  >
-                    <SelectTrigger
-                      size="sm"
-                      className="h-8 w-full min-w-0 rounded-full border-transparent bg-transparent px-2 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
-                    >
+                    options={modelPickerOptions}
+                    icon={
                       <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                      <SelectValue
-                        placeholder={t("chat.composer.noModelSelected")}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {modelOptions.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.displayName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    }
+                    label={t("chat.composer.modelPickerLabel")}
+                    placeholder={t("chat.composer.noModelSelected")}
+                    emptyLabel={t("chat.composer.noMatchingModels")}
+                    searchPlaceholder={t("chat.composer.modelSearch")}
+                    onValueChange={onModelProfileChange}
+                  />
                 ) : (
                   <div
                     className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground"
@@ -521,8 +567,18 @@ export function ChatComposer({
                 )}
               </div>
               <div className="flex w-fit min-w-0 max-w-40 shrink">
-                <Select
+                <ComposerSingleSelect
                   value={selectedSandboxEnvironmentId || "__disabled__"}
+                  options={sandboxPickerOptions}
+                  icon={
+                    <BoxIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  }
+                  label={t("chat.composer.sandboxPickerLabel")}
+                  placeholder={t("chat.composer.sandbox")}
+                  emptyLabel={t("chat.composer.noMatchingSandboxes")}
+                  searchPlaceholder={t("chat.composer.sandboxSearch")}
+                  loading={isRefreshingSandboxOptions}
+                  loadingLabel={t("chat.composer.sandboxSyncing")}
                   onOpenChange={(open) => {
                     if (open) {
                       onSandboxOptionsRefresh()
@@ -546,33 +602,7 @@ export function ChatComposer({
                     }
                     onSandboxEnvironmentChange(nextValue)
                   }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="h-8 w-full min-w-0 rounded-full border-transparent bg-transparent px-2 text-xs shadow-none hover:bg-sidebar-accent/70 focus-visible:border-sidebar-border focus-visible:ring-0"
-                    aria-busy={isRefreshingSandboxOptions}
-                    title={
-                      isRefreshingSandboxOptions
-                        ? t("chat.composer.sandboxSyncing")
-                        : t("chat.composer.sandboxTitle")
-                    }
-                  >
-                    <SelectValue placeholder={t("chat.composer.sandbox")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__disabled__">
-                      {t("chat.composer.noSandbox")}
-                    </SelectItem>
-                    {sandboxOptions.map((option) => (
-                      <SelectItem
-                        key={option.environmentId}
-                        value={option.environmentId}
-                      >
-                        {option.label} / {option.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
               <DropdownMenu>
