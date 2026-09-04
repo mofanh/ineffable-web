@@ -379,6 +379,7 @@ export function GatewayChatSidebar({
   const capabilityExposureSelectionRef = React.useRef(
     capabilityExposureSelection
   )
+  const capabilityExposurePolicyRef = React.useRef(capabilityExposurePolicy)
   const capabilityExposureSaveChainRef = React.useRef<Promise<void>>(
     Promise.resolve()
   )
@@ -832,6 +833,10 @@ export function GatewayChatSidebar({
   }, [capabilityExposureSelection])
 
   React.useEffect(() => {
+    capabilityExposurePolicyRef.current = capabilityExposurePolicy
+  }, [capabilityExposurePolicy])
+
+  React.useEffect(() => {
     const requestId = ++capabilityCatalogRequestRef.current
     if (
       !accessToken ||
@@ -884,6 +889,7 @@ export function GatewayChatSidebar({
     if (!accessToken) {
       capabilityExposureDraftDirtyRef.current = false
       capabilityExposureSelectionRef.current = null
+      capabilityExposurePolicyRef.current = null
       setCapabilityExposureSelection(null)
       setCapabilityExposurePolicy(null)
       setCapabilityExposureDraftStatus("idle")
@@ -907,6 +913,7 @@ export function GatewayChatSidebar({
           policy
         )
         capabilityExposureSelectionRef.current = selection
+        capabilityExposurePolicyRef.current = policy
         setCapabilityExposureSelection(selection)
         setCapabilityExposurePolicy(policy)
         setCapabilityExposureDraftStatus("ready")
@@ -923,7 +930,9 @@ export function GatewayChatSidebar({
           i18n.t("chat.composer.capabilityLoadFailed"),
           i18n.t("chat.composer.capabilityLoadFailedTitle")
         )
-        setCapabilityExposureDraftStatus("error")
+        setCapabilityExposureDraftStatus(
+          capabilityExposurePolicyRef.current ? "ready" : "error"
+        )
       })
   }, [
     accessToken,
@@ -1869,6 +1878,7 @@ export function GatewayChatSidebar({
     hydratedConversationIdRef.current = null
     if (currentConversationId) {
       capabilityExposureSelectionRef.current = null
+      capabilityExposurePolicyRef.current = null
       setCapabilityExposureSelection(null)
       setCapabilityExposurePolicy(null)
     }
@@ -2992,6 +3002,7 @@ export function GatewayChatSidebar({
   function startNewChat() {
     capabilityExposureDraftDirtyRef.current = false
     capabilityExposureSelectionRef.current = null
+    capabilityExposurePolicyRef.current = null
     setCapabilityExposureSelection(null)
     setCapabilityExposurePolicy(null)
     refreshCapabilityExposureDraft()
