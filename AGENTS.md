@@ -241,6 +241,10 @@ return (
 - SSE byte parser 只能保留在 `src/lib/api/chat/sse-stream.ts`；feature API 复用该 parser。
 - product chat 只消费 v1 canonical event kind。legacy event 转换属于 gateway，不能重新放回
   React 组件或前端 normalizer。
+- 尚未持久化的新会话应先读取 Gateway 返回的当前套餐能力策略，并允许用户形成单份本地
+  selection 草稿；首次发送携带该草稿，由 Gateway 裁决和持久化。静默 token 刷新只能更新
+  policy 并重新校验草稿，不能覆盖仍被允许的用户选择；已有会话未完成自身 hydration 时
+  不得继承其他会话或新会话的 selection。
 
 ## Conversation Web Plugin 渲染
 
