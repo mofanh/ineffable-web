@@ -14,6 +14,7 @@
     "check:chat-architecture": "node --experimental-strip-types scripts/check-chat-runtime-architecture.mjs",
     "check:chat-web-runtime": "node --experimental-strip-types scripts/check-chat-web-runtime.mjs",
     "check:chat-web-integration": "tsx scripts/check-chat-web-integration.mjs",
+    "check:model-failure": "node --experimental-strip-types scripts/check-model-failure-presentation.mjs",
     "check:capability-catalog": "tsx scripts/check-capability-catalog-selection.mjs",
     "check:admin-capability-families": "tsx scripts/check-admin-capability-family-selection.mjs",
     "check:admin-usage-timeseries": "tsx scripts/check-admin-usage-timeseries.mjs",

@@ -169,11 +169,53 @@ import type {
   GatewayChatStreamEvent,
 } from "@/lib/api/chat/gateway-events"
 import { i18n } from "@/lib/i18n/i18n"
+import { modelFailurePresentationFromEvent } from "@/features/chat/model/model-failure-presentation"
 
 function formatSendErrorMessage(message: string) {
   return message.trim() === "no_available_model"
     ? i18n.t("chat.gateway.noModel")
     : message
+}
+
+function formatRunFailureMessage(event: GatewayChatStreamEvent) {
+  const failure = modelFailurePresentationFromEvent(event)
+  if (!failure) {
+    return formatSendErrorMessage((event.content ?? "Gateway stream failed").trim())
+  }
+  const lines = [
+    failure.translationKey
+      ? i18n.t(`chat.gateway.modelFailure.${failure.translationKey}`)
+      : formatSendErrorMessage(failure.fallbackMessage),
+  ]
+  if (failure.retryAfterMs != null) {
+    lines.push(
+      i18n.t("chat.gateway.modelFailure.retryAfter", {
+        seconds: Math.max(1, Math.ceil(failure.retryAfterMs / 1000)),
+      })
+    )
+  }
+  if (failure.providerMessage) {
+    lines.push(
+      i18n.t("chat.gateway.modelFailure.providerMessage", {
+        message: failure.providerMessage,
+      })
+    )
+  }
+  if (failure.providerCode) {
+    lines.push(
+      i18n.t("chat.gateway.modelFailure.providerCode", {
+        code: failure.providerCode,
+      })
+    )
+  }
+  if (failure.providerRequestId) {
+    lines.push(
+      i18n.t("chat.gateway.modelFailure.requestId", {
+        requestId: failure.providerRequestId,
+      })
+    )
+  }
+  return lines.join("\n\n")
 }
 
 function sandboxOptionLabel(
@@ -2605,9 +2647,7 @@ export function GatewayChatSidebar({
 
     if (event.event === "run.failed") {
       const conversationId = identity.conversationId
-      const errorMessage = formatSendErrorMessage(
-        (event.content ?? "Gateway stream failed").trim()
-      )
+      const errorMessage = formatRunFailureMessage(event)
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       if (activeStreamConversationIdRef.current === conversationId) {
