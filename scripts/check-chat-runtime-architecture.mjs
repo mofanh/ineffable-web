@@ -15,6 +15,7 @@ const projector = source(
 )
 const messageList = source("src/features/chat/components/chat-message-list.tsx")
 const chatComposer = source("src/features/chat/components/chat-composer.tsx")
+const inputGroup = source("src/components/ui/input-group.tsx")
 const composerSingleSelect = source(
   "src/features/chat/components/composer-single-select.tsx"
 )
@@ -140,6 +141,16 @@ assert.match(
 assert.match(composerSingleSelect, /role="listbox"/)
 assert.match(composerSingleSelect, /overflow-y-auto overscroll-contain/)
 assert.match(composerSingleSelect, /tabIndex=\{option\.value === rovingOptionValue/)
+assert.match(
+  inputGroup,
+  /!e\.currentTarget\.contains\(target\)/,
+  "InputGroup addon clicks bubbling through a React portal must not steal focus from popup controls"
+)
+assert.match(
+  inputGroup,
+  /querySelector<HTMLElement>\("\[data-slot='input-group-control'\]"\)/,
+  "InputGroup addon whitespace must focus its declared control instead of a hidden descendant input"
+)
 assert.doesNotMatch(
   chatComposer,
   /__auto__|__default__|chat\.composer\.defaultModel/,

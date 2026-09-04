@@ -82,3 +82,12 @@ Model 搜索面板支持从搜索框以 `ArrowDown` 进入第一个选项、从�
 
 真实页面验证：在 1200×900 视口展开 Model 面板后，焦点落在当前模型选项；
 `Shift+Tab` 可进入搜索框，没有再自动激活文本输入。
+
+## Phase 6：Portal 交互边界
+
+- [x] InputGroup Addon 忽略从 React Portal 冒泡而来的点击，弹出面板内的搜索框不再被误判为工具栏空白。
+- [x] Addon 空白点击只聚焦显式 `input-group-control`，不再误聚焦隐藏 Select/Switch input。
+- [x] Model 与能力搜索框点击后保持弹窗打开，架构、i18n、lint、build 与 Chat Runtime 验证通过。
+
+真实页面验证：Model 搜索框输入 `glm` 后 Popover 保持打开并只展示匹配模型；能力模式
+切换为自定义后，能力搜索框输入 `web`，DropdownMenu 同样保持打开且焦点未被工具栏抢走。

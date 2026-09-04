@@ -55,10 +55,18 @@ function InputGroupAddon({
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button")) {
+        const target = e.target as HTMLElement
+        if (
+          !e.currentTarget.contains(target) ||
+          target.closest(
+            "button, input, textarea, select, [contenteditable='true']"
+          )
+        ) {
           return
         }
-        e.currentTarget.parentElement?.querySelector("input")?.focus()
+        e.currentTarget.parentElement
+          ?.querySelector<HTMLElement>("[data-slot='input-group-control']")
+          ?.focus()
       }}
       {...props}
     />
