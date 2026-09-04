@@ -4,6 +4,7 @@ export {
   createConversation,
   deletePendingInput,
   getConversation,
+  getCapabilityExposureDraft,
   evaluateAgentDefinition,
   getAgentEvolutionProjection,
   getAgentEvolutionReviewQueue,

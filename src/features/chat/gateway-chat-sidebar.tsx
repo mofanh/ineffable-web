@@ -123,6 +123,7 @@ import {
   approveSandboxApproval,
   deletePendingInput,
   getConversation,
+  getCapabilityExposureDraft,
   getConversationEvents,
   getConversationMessages,
   getAgentEvolutionProjection,
@@ -150,6 +151,7 @@ import {
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
 } from "@/features/chat/api/chat-api"
+import { capabilityExposureForSubmission } from "@/features/chat/model/capability-exposure-draft"
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -365,6 +367,7 @@ export function GatewayChatSidebar({
   >("idle")
   const [capabilityCatalogRevision, setCapabilityCatalogRevision] = React.useState(0)
   const capabilityCatalogRequestRef = React.useRef(0)
+  const capabilityExposurePolicyRequestRef = React.useRef(0)
   const capabilityExposureSelectionRef = React.useRef(
     capabilityExposureSelection
   )
@@ -824,7 +827,6 @@ export function GatewayChatSidebar({
     const requestId = ++capabilityCatalogRequestRef.current
     if (
       !accessToken ||
-      !currentConversationId ||
       capabilityExposureSelection?.mode !== "custom"
     ) {
       setCapabilityCatalog([])
@@ -864,6 +866,39 @@ export function GatewayChatSidebar({
     currentConversationId,
     selectedSandboxEnvironmentId,
   ])
+
+  React.useEffect(() => {
+    const requestId = ++capabilityExposurePolicyRequestRef.current
+    if (!accessToken || currentConversationId) {
+      return
+    }
+
+    void getCapabilityExposureDraft(accessToken)
+      .then((draft) => {
+        if (
+          requestId !== capabilityExposurePolicyRequestRef.current ||
+          currentConversationIdRef.current !== null
+        ) {
+          return
+        }
+        capabilityExposureSelectionRef.current = draft.selection
+        setCapabilityExposureSelection(draft.selection)
+        setCapabilityExposurePolicy(draft.capability_exposure_policy.policy)
+      })
+      .catch((caught) => {
+        if (
+          requestId !== capabilityExposurePolicyRequestRef.current ||
+          currentConversationIdRef.current !== null
+        ) {
+          return
+        }
+        reportChatError(
+          caught,
+          i18n.t("chat.composer.capabilityLoadFailed"),
+          i18n.t("chat.composer.capabilityLoadFailedTitle")
+        )
+      })
+  }, [accessToken, currentConversationId, reportChatError])
 
   React.useEffect(() => {
     entriesRef.current = entries
@@ -3121,6 +3156,11 @@ export function GatewayChatSidebar({
       : undefined
     const submissionConversationId =
       currentConversationIdRef.current ?? currentConversationId
+    const submissionCapabilityExposure = capabilityExposureForSubmission(
+      capabilityExposureSelectionRef.current,
+      submissionConversationId,
+      hydratedConversationIdRef.current
+    )
     const iterationRequestedForSubmission =
       agentIterationConversationId === submissionConversationId
       && isAgentIterationResolved
@@ -3148,10 +3188,7 @@ export function GatewayChatSidebar({
             model_profile_id: submissionModelProfileId || undefined,
             sandbox: sandboxPayload,
             agent_iteration_requested: iterationRequestedForSubmission,
-            capability_exposure:
-              hydratedConversationIdRef.current === targetConversationId
-                ? capabilityExposureSelectionRef.current ?? undefined
-                : undefined,
+            capability_exposure: submissionCapabilityExposure,
           },
           {
             onEnvelope: (envelope) => {
@@ -3264,10 +3301,7 @@ export function GatewayChatSidebar({
           model_profile_id: submissionModelProfileId || undefined,
           sandbox: sandboxPayload,
           agent_iteration_requested: iterationRequestedForSubmission,
-          capability_exposure:
-            hydratedConversationIdRef.current === targetConversationId
-              ? capabilityExposureSelectionRef.current ?? undefined
-              : undefined,
+          capability_exposure: submissionCapabilityExposure,
         },
         {
           signal: controller.signal,

@@ -216,6 +216,11 @@ export type ResolvedCapabilityExposurePolicy = {
   policy: CapabilityExposurePolicy
 }
 
+export type CapabilityExposureDraft = {
+  selection: CapabilityExposureSelection
+  capability_exposure_policy: ResolvedCapabilityExposurePolicy
+}
+
 export type Automation = {
   id: string
   user_id: string
@@ -1110,12 +1115,22 @@ export function setConversationCapabilityExposure(
   })
 }
 
+export function getCapabilityExposureDraft(accessToken: string) {
+  return requestApiJson<CapabilityExposureDraft>(
+    "/gateway/v1/conversations/capability-exposure/policy",
+    { accessToken }
+  )
+}
+
 export function listConversationCapabilityCatalog(
   accessToken: string,
-  conversationId: string,
+  conversationId: string | null,
   sandboxEnvironmentId?: string | null
 ) {
-  const params = new URLSearchParams({ conversation_id: conversationId })
+  const params = new URLSearchParams()
+  if (conversationId) {
+    params.set("conversation_id", conversationId)
+  }
   if (sandboxEnvironmentId) {
     params.set("sandbox_environment_id", sandboxEnvironmentId)
   }

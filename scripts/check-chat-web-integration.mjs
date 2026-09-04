@@ -54,6 +54,7 @@ import {
   writeCanonicalComposerRuntimeSelection,
   writeComposerRuntimeSelectionDraft,
 } from "../src/features/chat/model/composer-runtime-selection.ts"
+import { capabilityExposureForSubmission } from "../src/features/chat/model/capability-exposure-draft.ts"
 import {
   agentNodeManagementTargetKey,
   matchesAgentNodeProjectionTarget,
@@ -74,6 +75,31 @@ globalThis.matchMedia = () => ({
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
+
+const draftCapabilitySelection = { mode: "clean" }
+assert.equal(
+  capabilityExposureForSubmission(draftCapabilitySelection, null, null),
+  draftCapabilitySelection,
+  "an unsaved conversation must submit its selected capability mode on the first message"
+)
+assert.equal(
+  capabilityExposureForSubmission(
+    draftCapabilitySelection,
+    conversationId,
+    conversationId
+  ),
+  draftCapabilitySelection,
+  "a hydrated conversation may submit its own selected capability mode"
+)
+assert.equal(
+  capabilityExposureForSubmission(
+    draftCapabilitySelection,
+    conversationId,
+    "another-conversation"
+  ),
+  undefined,
+  "an unhydrated conversation must not inherit another conversation's capability mode"
+)
 
 assert.equal(
   resolveAgentEvolutionWorkspaceId({
