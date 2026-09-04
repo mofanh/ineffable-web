@@ -473,6 +473,7 @@ export function GatewayChatSidebar({
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const messageProjectionRequestRef = React.useRef(0)
   const agentEvolutionRequestRef = React.useRef(0)
+  const pendingAgentIterationHandoffsRef = React.useRef(new Map<string, boolean>())
   const seenEventRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
@@ -599,13 +600,26 @@ export function GatewayChatSidebar({
     )
     const requestId = ++agentEvolutionRequestRef.current
     setAgentEvolution(null)
-    setAgentIterationRequestedState(false)
-    setAgentIterationConversationId(conversationId)
-    setIsAgentIterationResolved(false)
     if (!accessToken || !conversationId) {
+      if (!accessToken) pendingAgentIterationHandoffsRef.current.clear()
+      setAgentIterationRequestedState(false)
+      setAgentIterationConversationId(conversationId)
+      setIsAgentIterationResolved(false)
       setIsAgentIterationLoading(false)
       return
     }
+    if (pendingAgentIterationHandoffsRef.current.has(requestTargetKey)) {
+      setAgentIterationRequestedState(
+        pendingAgentIterationHandoffsRef.current.get(requestTargetKey) ?? false
+      )
+      setAgentIterationConversationId(conversationId)
+      setIsAgentIterationResolved(true)
+      setIsAgentIterationLoading(true)
+      return
+    }
+    setAgentIterationRequestedState(false)
+    setAgentIterationConversationId(conversationId)
+    setIsAgentIterationResolved(false)
     let cancelled = false
     setIsAgentIterationLoading(true)
     void getAgentEvolutionProjection(
@@ -675,6 +689,7 @@ export function GatewayChatSidebar({
         requestTargetKey !== currentTargetKey ||
         currentConversationIdRef.current !== projection.conversation_id
       ) return
+      pendingAgentIterationHandoffsRef.current.delete(requestTargetKey)
       setAgentEvolution(projection)
       setAgentIterationRequestedState(projection.requested)
       setAgentIterationConversationId(projection.conversation_id)
@@ -691,6 +706,41 @@ export function GatewayChatSidebar({
       }
     }
   }, [accessToken, currentWorkspace])
+
+  function reconcileAgentIterationHandoff(
+    conversationId: string,
+    workspaceId: string | undefined
+  ) {
+    const targetKey = agentNodeManagementTargetKey(conversationId, workspaceId)
+    if (!pendingAgentIterationHandoffsRef.current.has(targetKey)) return
+
+    const currentTargetKey = agentNodeManagementTargetKey(
+      currentConversationIdRef.current ?? "",
+      agentEvolutionWorkspaceIdRef.current
+    )
+    if (currentTargetKey !== targetKey) {
+      pendingAgentIterationHandoffsRef.current.delete(targetKey)
+      return
+    }
+
+    void refreshAgentEvolution().catch((caught) => {
+      if (
+        targetKey ===
+        agentNodeManagementTargetKey(
+          currentConversationIdRef.current ?? "",
+          agentEvolutionWorkspaceIdRef.current
+        )
+      ) {
+        pendingAgentIterationHandoffsRef.current.delete(targetKey)
+        setIsAgentIterationResolved(false)
+      }
+      reportChatError(
+        caught,
+        i18n.t("chat.composer.iterationLoadFailed"),
+        i18n.t("chat.composer.iterationLoadFailedTitle")
+      )
+    })
+  }
 
   React.useEffect(
     () =>
@@ -3222,6 +3272,8 @@ export function GatewayChatSidebar({
       && isAgentIterationResolved
         ? agentIterationRequested
         : undefined
+    const submissionAgentEvolutionWorkspaceId =
+      resolveAgentEvolutionWorkspaceId(currentWorkspace)
 
     if (mode === "guided") {
       const targetConversationId = submissionConversationId
@@ -3285,6 +3337,20 @@ export function GatewayChatSidebar({
         skipNextConversationSyncRef.current = targetConversationId
         clearConversation()
         setIsSubmittingInput(true)
+        if (iterationRequestedForSubmission !== undefined) {
+          const handoffTargetKey = agentNodeManagementTargetKey(
+            targetConversationId,
+            submissionAgentEvolutionWorkspaceId
+          )
+          pendingAgentIterationHandoffsRef.current.set(
+            handoffTargetKey,
+            iterationRequestedForSubmission
+          )
+          setAgentIterationConversationId(targetConversationId)
+          setAgentIterationRequestedState(iterationRequestedForSubmission)
+          setIsAgentIterationResolved(true)
+          setIsAgentIterationLoading(true)
+        }
         selectConversationTarget(targetConversationId)
         if (typeof window !== "undefined") {
           writeComposerRuntimeSelectionDraft(
@@ -3315,6 +3381,10 @@ export function GatewayChatSidebar({
         i18n.t("chat.gateway.initFailedTitle")
       )
       setError(message)
+      reconcileAgentIterationHandoff(
+        targetConversationId,
+        submissionAgentEvolutionWorkspaceId
+      )
       return false
     }
 
@@ -3343,6 +3413,10 @@ export function GatewayChatSidebar({
       }
       setIsSubmittingInput(false)
       onAccepted?.()
+      reconcileAgentIterationHandoff(
+        targetConversationId,
+        submissionAgentEvolutionWorkspaceId
+      )
     }
 
     try {
@@ -3420,6 +3494,10 @@ export function GatewayChatSidebar({
       }
       if (!acceptedAsRun) {
         setIsSubmittingInput(false)
+        reconcileAgentIterationHandoff(
+          targetConversationId,
+          submissionAgentEvolutionWorkspaceId
+        )
         return false
       }
 
@@ -3436,6 +3514,12 @@ export function GatewayChatSidebar({
       }
     } catch (streamError) {
       setIsSubmittingInput(false)
+      if (!accepted) {
+        reconcileAgentIterationHandoff(
+          targetConversationId,
+          submissionAgentEvolutionWorkspaceId
+        )
+      }
       if (controller.signal.aborted) {
         if (abortRef.current === controller) {
           clearRecoveryTimer()
