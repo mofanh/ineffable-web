@@ -586,20 +586,6 @@ export function ChatComposer({
                   }}
                   onValueChange={(value) => {
                     const nextValue = value === "__disabled__" ? "" : value
-                    if (
-                      !nextValue &&
-                      selectedSandboxEnvironmentId &&
-                      !sandboxOptions.some(
-                        (option) =>
-                          option.environmentId === selectedSandboxEnvironmentId
-                      )
-                    ) {
-                      // Base UI's hidden native select can coerce an as-yet
-                      // unavailable controlled value to its first option while
-                      // the workspace catalog is hydrating. That is not a user
-                      // choice and must not become a persisted no-sandbox draft.
-                      return
-                    }
                     onSandboxEnvironmentChange(nextValue)
                   }}
                 />

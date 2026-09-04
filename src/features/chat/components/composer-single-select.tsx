@@ -67,6 +67,11 @@ export function ComposerSingleSelect({
     : options
 
   const showSearch = Boolean(searchPlaceholder && options.length >= 5)
+  const rovingOptionValue = filteredOptions.some(
+    (option) => option.value === value
+  )
+    ? value
+    : filteredOptions[0]?.value
 
   function setOptionRef(optionValue: string, element: HTMLButtonElement | null) {
     if (element) optionRefs.current.set(optionValue, element)
@@ -118,8 +123,6 @@ export function ComposerSingleSelect({
           )}
           title={selectedOption?.label ?? placeholder}
           aria-busy={loading}
-          aria-haspopup="listbox"
-          aria-controls={open ? listboxId : undefined}
         >
           {icon}
           <span className="sr-only">{label}: </span>
@@ -136,7 +139,7 @@ export function ComposerSingleSelect({
       <PopoverContent
         align="start"
         side="top"
-        className="w-72 max-w-[calc(100vw-2rem)]"
+        className="flex max-h-(--radix-popover-content-available-height) w-72 max-w-[calc(100vw-2rem)] flex-col overflow-hidden"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           requestAnimationFrame(() => {
@@ -167,10 +170,8 @@ export function ComposerSingleSelect({
                     }
                   }}
                   aria-label={searchPlaceholder}
-                  role="combobox"
-                  aria-autocomplete="list"
+                  role="searchbox"
                   aria-controls={listboxId}
-                  aria-expanded={open}
                   placeholder={searchPlaceholder}
                   className="h-8 pl-7 text-xs"
                 />
@@ -191,7 +192,12 @@ export function ComposerSingleSelect({
             <span>{loadingLabel}</span>
           </div>
         ) : null}
-        <div id={listboxId} role="listbox" aria-label={label}>
+        <div
+          id={listboxId}
+          role="listbox"
+          aria-label={label}
+          className="min-h-0 overflow-y-auto overscroll-contain"
+        >
           {filteredOptions.map((option, index) => (
             <button
               key={option.value}
@@ -199,6 +205,7 @@ export function ComposerSingleSelect({
               type="button"
               role="option"
               aria-selected={option.value === value}
+              tabIndex={option.value === rovingOptionValue ? 0 : -1}
               className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-start gap-1.5 rounded-md px-2 py-2 pr-8 text-left outline-none select-none"
               onKeyDown={(event) => handleOptionKeyDown(event, index)}
               onClick={() => {

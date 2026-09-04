@@ -58,6 +58,8 @@
 - [x] Sandbox 面板用语义状态徽标展示环境状态，并在面板内反馈刷新过程。
 - [x] 保持底部工具栏单行、自然宽度和现有输入区高度，不改变模型与 Sandbox 的提交语义。
 - [x] 搜索型选择器使用 Popover + listbox 焦点模型，支持键盘进入搜索、上下导航与返回搜索框。
+- [x] 移除旧 Select hydration 空值保护，确保用户可以主动清除已经失效的 Sandbox 选择。
+- [x] 长目录限制在 Popover 可用高度内滚动，listbox 使用单一 roving tab stop。
 - [x] 补齐中英文文案，并通过 i18n、lint、build 与 Chat Runtime/Web Runtime 高信号检查。
 
 ### 非目标

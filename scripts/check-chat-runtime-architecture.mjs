@@ -15,6 +15,9 @@ const projector = source(
 )
 const messageList = source("src/features/chat/components/chat-message-list.tsx")
 const chatComposer = source("src/features/chat/components/chat-composer.tsx")
+const composerSingleSelect = source(
+  "src/features/chat/components/composer-single-select.tsx"
+)
 const chatHeader = source("src/features/chat/components/chat-sidebar-header.tsx")
 const agentNodePage = source("src/pages/agent-node-management-page.tsx")
 const agentNodeView = source(
@@ -124,11 +127,19 @@ assert.match(
 )
 assert.match(composerRuntimeSelection, /runtime-selection-draft/)
 assert.match(composerRuntimeSelection, /RUNTIME_SELECTION_DRAFT_VERSION/)
-assert.match(
+assert.doesNotMatch(
   chatComposer,
   /!nextValue &&[\s\S]{0,300}!sandboxOptions\.some/,
-  "sandbox catalog hydration must not be persisted as an explicit no-sandbox user choice"
+  "the obsolete native Select hydration guard must not block an explicit no-sandbox choice"
 )
+assert.match(
+  composerSingleSelect,
+  /onClick=\{\(\) => \{[\s\S]{0,160}onValueChange\(option\.value\)/,
+  "the Composer picker must publish a value only from an explicit option click"
+)
+assert.match(composerSingleSelect, /role="listbox"/)
+assert.match(composerSingleSelect, /overflow-y-auto overscroll-contain/)
+assert.match(composerSingleSelect, /tabIndex=\{option\.value === rovingOptionValue/)
 assert.doesNotMatch(
   chatComposer,
   /__auto__|__default__|chat\.composer\.defaultModel/,
