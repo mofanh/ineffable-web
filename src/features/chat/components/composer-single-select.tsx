@@ -143,11 +143,9 @@ export function ComposerSingleSelect({
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           requestAnimationFrame(() => {
-            if (showSearch) searchInputRef.current?.focus()
-            else
-              optionRefs.current
-                .get(selectedOption?.value ?? filteredOptions[0]?.value ?? "")
-                ?.focus()
+            optionRefs.current
+              .get(selectedOption?.value ?? filteredOptions[0]?.value ?? "")
+              ?.focus()
           })
         }}
       >
