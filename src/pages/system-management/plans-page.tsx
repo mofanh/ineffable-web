@@ -43,6 +43,7 @@ import { useAuthSession } from "@/features/auth/app-session";
 import {
   createAdminPlan,
   deleteAdminPlan,
+  listAdminCapabilityFamilies,
   listAdminModelProfiles,
   listAdminPlanInsights,
   listAdminPlanModelAccess,
@@ -50,6 +51,7 @@ import {
   upsertAdminPlanModelAccess,
   updateAdminPlan,
   type AdminModelProfile,
+  type AdminCapabilityFamilyCatalogEntry,
   type AdminPlan,
   type AdminPlanInsight,
   type AdminPlanPayload,
@@ -61,6 +63,7 @@ import { notify } from "@/lib/app/notifications";
 import {
   invalidateApiResourceCache,
   useApiResource,
+  type ApiResourceState,
 } from "@/lib/app/use-api-resource";
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 
@@ -74,6 +77,7 @@ import {
   systemStatusLabel,
   type LoadState,
 } from "./shared";
+import { CapabilityFamilySelector } from "./capability-family-selector";
 
 type PlanInsight = {
   planId: string;
@@ -129,6 +133,18 @@ export function SystemPlanManagementPage() {
     cacheKey: ["system-plans", currentSessionId],
     load: loadPlans,
     errorMessage: t("system.plans.loadFailed"),
+  });
+  const loadCapabilityFamilies = React.useCallback(async () => {
+    if (!accessToken || !isAdmin) {
+      return [] as AdminCapabilityFamilyCatalogEntry[];
+    }
+    return (await listAdminCapabilityFamilies(accessToken)).items;
+  }, [accessToken, isAdmin]);
+  const capabilityFamilyResource = useApiResource({
+    enabled: Boolean(accessToken && isAdmin),
+    cacheKey: ["admin-capability-families", currentSessionId],
+    load: loadCapabilityFamilies,
+    errorMessage: t("system.plans.form.capabilityFamiliesLoadFailed"),
   });
   const models = React.useMemo(
     () => planResource.data?.models ?? [],
@@ -687,6 +703,10 @@ export function SystemPlanManagementPage() {
           <PlanForm
             plan={editingPlan}
             state={state}
+            capabilityFamilies={capabilityFamilyResource.data ?? []}
+            capabilityFamiliesState={capabilityFamilyResource.state}
+            capabilityFamiliesError={capabilityFamilyResource.error?.message ?? ""}
+            onCapabilityFamiliesRetry={() => void capabilityFamilyResource.reload()}
             onChange={setEditingPlan}
             onSubmit={savePlan}
             onCancel={() => setDialogOpen(false)}
@@ -927,12 +947,20 @@ function InsightItem({
 function PlanForm({
   plan,
   state,
+  capabilityFamilies,
+  capabilityFamiliesState,
+  capabilityFamiliesError,
+  onCapabilityFamiliesRetry,
   onChange,
   onSubmit,
   onCancel,
 }: {
   plan: AdminPlanPayload;
   state: LoadState;
+  capabilityFamilies: AdminCapabilityFamilyCatalogEntry[];
+  capabilityFamiliesState: ApiResourceState;
+  capabilityFamiliesError: string;
+  onCapabilityFamiliesRetry: () => void;
   onChange: React.Dispatch<React.SetStateAction<AdminPlanPayload | null>>;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
   onCancel: () => void;
@@ -1086,20 +1114,14 @@ function PlanForm({
               "system.plans.form.allowedCapabilityFamiliesDescription",
             )}
           >
-            <Input
-              value={capabilityPolicy.allowed_families.join(", ")}
-              placeholder="workspace, sandbox, web.research"
-              onChange={(event) =>
-                updateCapabilityPolicy({
-                  allowed_families: Array.from(
-                    new Set(
-                      event.target.value
-                        .split(",")
-                        .map((value) => value.trim().toLowerCase())
-                        .filter(Boolean),
-                    ),
-                  ),
-                })
+            <CapabilityFamilySelector
+              entries={capabilityFamilies}
+              selected={capabilityPolicy.allowed_families}
+              state={capabilityFamiliesState}
+              error={capabilityFamiliesError}
+              onRetry={onCapabilityFamiliesRetry}
+              onChange={(allowedFamilies) =>
+                updateCapabilityPolicy({ allowed_families: allowedFamilies })
               }
             />
           </FormField>

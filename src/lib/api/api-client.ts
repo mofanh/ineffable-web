@@ -162,6 +162,12 @@ export type CapabilityCatalogEntry = {
   family?: string | null
 }
 
+export type AdminCapabilityFamilyCatalogEntry = {
+  family: string
+  display_name: string
+  description: string
+}
+
 export type CapabilityDiscoveryScope =
   | { kind: "disabled" }
   | { kind: "all_authorized" }
@@ -1367,6 +1373,13 @@ export function listAdminPlans(accessToken: string) {
   return requestApiJson<{ plans: AdminPlan[] }>("/gateway/v1/admin/plans", {
     accessToken,
   })
+}
+
+export function listAdminCapabilityFamilies(accessToken: string) {
+  return requestApiJson<{ items: AdminCapabilityFamilyCatalogEntry[] }>(
+    "/gateway/v1/admin/capability-families",
+    { accessToken },
+  )
 }
 
 export function listAdminPlanInsights(accessToken: string) {
