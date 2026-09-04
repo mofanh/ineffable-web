@@ -1,18 +1,19 @@
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { ChevronDownIcon, LoaderCircleIcon, SearchIcon } from "lucide-react"
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  LoaderCircleIcon,
+  SearchIcon,
+} from "lucide-react"
 
 export type ComposerSingleSelectOption = {
   value: string
@@ -50,7 +51,11 @@ export function ComposerSingleSelect({
   onOpenChange,
   onValueChange,
 }: ComposerSingleSelectProps) {
+  const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const optionRefs = React.useRef(new Map<string, HTMLButtonElement>())
+  const listboxId = React.useId()
   const selectedOption = options.find((option) => option.value === value)
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const filteredOptions = normalizedQuery
@@ -61,14 +66,48 @@ export function ComposerSingleSelect({
       )
     : options
 
+  const showSearch = Boolean(searchPlaceholder && options.length >= 5)
+
+  function setOptionRef(optionValue: string, element: HTMLButtonElement | null) {
+    if (element) optionRefs.current.set(optionValue, element)
+    else optionRefs.current.delete(optionValue)
+  }
+
+  function focusOption(index: number) {
+    const option = filteredOptions[index]
+    if (option) optionRefs.current.get(option.value)?.focus()
+  }
+
+  function handleOptionKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      focusOption(Math.min(index + 1, filteredOptions.length - 1))
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      if (index === 0 && showSearch) searchInputRef.current?.focus()
+      else focusOption(Math.max(index - 1, 0))
+    } else if (event.key === "Home") {
+      event.preventDefault()
+      focusOption(0)
+    } else if (event.key === "End") {
+      event.preventDefault()
+      focusOption(filteredOptions.length - 1)
+    }
+  }
+
   return (
-    <DropdownMenu
+    <Popover
+      open={open}
       onOpenChange={(open) => {
         if (!open) setQuery("")
+        setOpen(open)
         onOpenChange?.(open)
       }}
     >
-      <DropdownMenuTrigger asChild>
+      <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
@@ -78,10 +117,12 @@ export function ComposerSingleSelect({
             className
           )}
           title={selectedOption?.label ?? placeholder}
-          aria-label={label}
           aria-busy={loading}
+          aria-haspopup="listbox"
+          aria-controls={open ? listboxId : undefined}
         >
           {icon}
+          <span className="sr-only">{label}: </span>
           <span className="min-w-0 flex-1 truncate text-left">
             {selectedOption?.label ?? placeholder}
           </span>
@@ -91,34 +132,54 @@ export function ComposerSingleSelect({
             <ChevronDownIcon className="size-3 shrink-0 opacity-65" />
           )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
+      </PopoverTrigger>
+      <PopoverContent
         align="start"
         side="top"
         className="w-72 max-w-[calc(100vw-2rem)]"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          requestAnimationFrame(() => {
+            if (showSearch) searchInputRef.current?.focus()
+            else
+              optionRefs.current
+                .get(selectedOption?.value ?? filteredOptions[0]?.value ?? "")
+                ?.focus()
+          })
+        }}
       >
-        <DropdownMenuLabel className="px-2 py-1.5 text-xs font-medium text-foreground">
+        <div className="px-2 py-1.5 text-xs font-medium text-foreground">
           {label}
-        </DropdownMenuLabel>
-        {searchPlaceholder && options.length >= 6 ? (
+        </div>
+        {showSearch ? (
           <>
             <div className="px-2 pb-1.5 pt-1">
               <div className="relative">
                 <SearchIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={searchInputRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault()
+                      focusOption(0)
+                    }
+                  }}
                   aria-label={searchPlaceholder}
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-controls={listboxId}
+                  aria-expanded={open}
                   placeholder={searchPlaceholder}
                   className="h-8 pl-7 text-xs"
                 />
               </div>
             </div>
-            <DropdownMenuSeparator />
+            <div className="bg-border -mx-1 my-1 h-px" />
           </>
         ) : (
-          <DropdownMenuSeparator />
+          <div className="bg-border -mx-1 my-1 h-px" />
         )}
         {loading && loadingLabel ? (
           <div
@@ -130,12 +191,20 @@ export function ComposerSingleSelect({
             <span>{loadingLabel}</span>
           </div>
         ) : null}
-        <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
-          {filteredOptions.map((option) => (
-            <DropdownMenuRadioItem
+        <div id={listboxId} role="listbox" aria-label={label}>
+          {filteredOptions.map((option, index) => (
+            <button
               key={option.value}
-              value={option.value}
-              className="items-start px-2 py-2 pr-8"
+              ref={(element) => setOptionRef(option.value, element)}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className="focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-start gap-1.5 rounded-md px-2 py-2 pr-8 text-left outline-none select-none"
+              onKeyDown={(event) => handleOptionKeyDown(event, index)}
+              onClick={() => {
+                onValueChange(option.value)
+                setOpen(false)
+              }}
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">
@@ -147,9 +216,12 @@ export function ComposerSingleSelect({
                   </span>
                 ) : null}
               </span>
-            </DropdownMenuRadioItem>
+              {option.value === value ? (
+                <CheckIcon className="absolute right-2 top-2.5 size-4" />
+              ) : null}
+            </button>
           ))}
-        </DropdownMenuRadioGroup>
+        </div>
         {filteredOptions.length === 0 ? (
           <div
             role="status"
@@ -159,7 +231,7 @@ export function ComposerSingleSelect({
             {emptyLabel}
           </div>
         ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }
