@@ -473,7 +473,9 @@ export function GatewayChatSidebar({
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const messageProjectionRequestRef = React.useRef(0)
   const agentEvolutionRequestRef = React.useRef(0)
-  const pendingAgentIterationHandoffsRef = React.useRef(new Map<string, boolean>())
+  const pendingAgentIterationHandoffsRef = React.useRef(
+    new Map<string, { requested: boolean }>()
+  )
   const seenEventRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const autoStickToBottomRef = React.useRef(true)
@@ -610,7 +612,7 @@ export function GatewayChatSidebar({
     }
     if (pendingAgentIterationHandoffsRef.current.has(requestTargetKey)) {
       setAgentIterationRequestedState(
-        pendingAgentIterationHandoffsRef.current.get(requestTargetKey) ?? false
+        pendingAgentIterationHandoffsRef.current.get(requestTargetKey)?.requested ?? false
       )
       setAgentIterationConversationId(conversationId)
       setIsAgentIterationResolved(true)
@@ -712,34 +714,55 @@ export function GatewayChatSidebar({
     workspaceId: string | undefined
   ) {
     const targetKey = agentNodeManagementTargetKey(conversationId, workspaceId)
-    if (!pendingAgentIterationHandoffsRef.current.has(targetKey)) return
+    const handoff = pendingAgentIterationHandoffsRef.current.get(targetKey)
+    if (!handoff || !accessToken) return
 
-    const currentTargetKey = agentNodeManagementTargetKey(
-      currentConversationIdRef.current ?? "",
-      agentEvolutionWorkspaceIdRef.current
-    )
-    if (currentTargetKey !== targetKey) {
-      pendingAgentIterationHandoffsRef.current.delete(targetKey)
-      return
-    }
-
-    void refreshAgentEvolution().catch((caught) => {
-      if (
-        targetKey ===
-        agentNodeManagementTargetKey(
-          currentConversationIdRef.current ?? "",
-          agentEvolutionWorkspaceIdRef.current
-        )
-      ) {
+    void getAgentEvolutionProjection(accessToken, conversationId, workspaceId)
+      .then((projection) => {
+        if (pendingAgentIterationHandoffsRef.current.get(targetKey) !== handoff) {
+          return
+        }
         pendingAgentIterationHandoffsRef.current.delete(targetKey)
+        if (
+          targetKey !==
+            agentNodeManagementTargetKey(
+              currentConversationIdRef.current ?? "",
+              agentEvolutionWorkspaceIdRef.current
+            ) ||
+          projection.conversation_id !== conversationId
+        ) {
+          return
+        }
+        agentEvolutionRequestRef.current += 1
+        setAgentEvolution(projection)
+        setAgentIterationRequestedState(projection.requested)
+        setAgentIterationConversationId(projection.conversation_id)
+        setIsAgentIterationResolved(true)
+        setIsAgentIterationLoading(false)
+      })
+      .catch((caught) => {
+        if (pendingAgentIterationHandoffsRef.current.get(targetKey) !== handoff) {
+          return
+        }
+        pendingAgentIterationHandoffsRef.current.delete(targetKey)
+        if (
+          targetKey !==
+          agentNodeManagementTargetKey(
+            currentConversationIdRef.current ?? "",
+            agentEvolutionWorkspaceIdRef.current
+          )
+        ) {
+          return
+        }
+        agentEvolutionRequestRef.current += 1
         setIsAgentIterationResolved(false)
-      }
-      reportChatError(
-        caught,
-        i18n.t("chat.composer.iterationLoadFailed"),
-        i18n.t("chat.composer.iterationLoadFailedTitle")
-      )
-    })
+        setIsAgentIterationLoading(false)
+        reportChatError(
+          caught,
+          i18n.t("chat.composer.iterationLoadFailed"),
+          i18n.t("chat.composer.iterationLoadFailedTitle")
+        )
+      })
   }
 
   React.useEffect(
@@ -3342,10 +3365,9 @@ export function GatewayChatSidebar({
             targetConversationId,
             submissionAgentEvolutionWorkspaceId
           )
-          pendingAgentIterationHandoffsRef.current.set(
-            handoffTargetKey,
-            iterationRequestedForSubmission
-          )
+          pendingAgentIterationHandoffsRef.current.set(handoffTargetKey, {
+            requested: iterationRequestedForSubmission,
+          })
           setAgentIterationConversationId(targetConversationId)
           setAgentIterationRequestedState(iterationRequestedForSubmission)
           setIsAgentIterationResolved(true)

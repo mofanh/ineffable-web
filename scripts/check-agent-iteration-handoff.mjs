@@ -18,7 +18,11 @@ assert.notEqual(
   agentNodeManagementTargetKey("conversation-2", "workspace-1"),
   "a handoff must not cross conversations"
 )
-assert.match(sidebar, /pendingAgentIterationHandoffsRef = React\.useRef\(new Map<string, boolean>\(\)\)/)
+assert.match(
+  sidebar,
+  /new Map<string, \{ requested: boolean \}>\(\)/,
+  "handoffs need stable object identity so stale requests cannot settle replacements"
+)
 assert.match(
   sidebar,
   /pendingAgentIterationHandoffsRef\.current\.has\(requestTargetKey\)[\s\S]{0,420}setIsAgentIterationLoading\(true\)[\s\S]{0,80}return/,
@@ -33,6 +37,16 @@ assert.match(
   sidebar,
   /pendingAgentIterationHandoffsRef\.current\.delete\(requestTargetKey\)[\s\S]{0,160}setAgentEvolution\(projection\)/,
   "an authoritative projection must settle the pending handoff"
+)
+assert.match(
+  sidebar,
+  /getAgentEvolutionProjection\(accessToken, conversationId, workspaceId\)[\s\S]{0,180}pendingAgentIterationHandoffsRef\.current\.get\(targetKey\) !== handoff[\s\S]{0,120}pendingAgentIterationHandoffsRef\.current\.delete\(targetKey\)/,
+  "handoff reconciliation must settle its own identity independently of global hydration generations"
+)
+assert.match(
+  sidebar,
+  /\.catch\(\(caught\) => \{[\s\S]{0,180}pendingAgentIterationHandoffsRef\.current\.get\(targetKey\) !== handoff[\s\S]{0,120}pendingAgentIterationHandoffsRef\.current\.delete\(targetKey\)/,
+  "failed reconciliation must release its own pending handoff even after navigation"
 )
 assert.match(
   sidebar,
