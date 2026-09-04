@@ -79,7 +79,7 @@ export function AppDialogFooter({
   return (
     <div
       className={cn(
-        "bg-background/95 border-border sticky bottom-0 z-10 -mx-5 -mb-5 flex justify-end gap-2 border-t px-5 py-4 backdrop-blur-sm",
+        "bg-background border-border sticky -bottom-5 z-10 -mx-5 flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-5 py-2 shadow-[0_-8px_18px_-18px_rgba(0,0,0,0.45)]",
         className
       )}
     >
