@@ -128,6 +128,7 @@ import {
   getAgentEvolutionProjection,
   getPendingInputs,
   listModelProfiles,
+  listConversationCapabilityCatalog,
   listSandboxWorkspaceEnvironments,
   promotePendingInput,
   rejectSandboxApproval,
@@ -142,6 +143,7 @@ import {
   type AgentEvolutionProjection,
   type CapabilityExposurePolicy,
   type CapabilityExposureSelection,
+  type CapabilityCatalogEntry,
   type Conversation,
   type ModelProfile,
   type ResumeRunResponse,
@@ -355,6 +357,14 @@ export function GatewayChatSidebar({
     React.useState<CapabilityExposureSelection | null>(null)
   const [capabilityExposurePolicy, setCapabilityExposurePolicy] =
     React.useState<CapabilityExposurePolicy | null>(null)
+  const [capabilityCatalog, setCapabilityCatalog] = React.useState<
+    CapabilityCatalogEntry[]
+  >([])
+  const [capabilityCatalogStatus, setCapabilityCatalogStatus] = React.useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle")
+  const [capabilityCatalogRevision, setCapabilityCatalogRevision] = React.useState(0)
+  const capabilityCatalogRequestRef = React.useRef(0)
   const capabilityExposureSelectionRef = React.useRef(
     capabilityExposureSelection
   )
@@ -809,6 +819,51 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     capabilityExposureSelectionRef.current = capabilityExposureSelection
   }, [capabilityExposureSelection])
+
+  React.useEffect(() => {
+    const requestId = ++capabilityCatalogRequestRef.current
+    if (
+      !accessToken ||
+      !currentConversationId ||
+      capabilityExposureSelection?.mode !== "custom"
+    ) {
+      setCapabilityCatalog([])
+      setCapabilityCatalogStatus("idle")
+      return
+    }
+    setCapabilityCatalogStatus("loading")
+    void listConversationCapabilityCatalog(
+      accessToken,
+      currentConversationId,
+      selectedSandboxEnvironmentId || null
+    )
+      .then((response) => {
+        if (
+          capabilityCatalogRequestRef.current !== requestId ||
+          currentConversationIdRef.current !== currentConversationId
+        ) {
+          return
+        }
+        setCapabilityCatalog(response.items)
+        setCapabilityCatalogStatus("ready")
+      })
+      .catch(() => {
+        if (
+          capabilityCatalogRequestRef.current !== requestId ||
+          currentConversationIdRef.current !== currentConversationId
+        ) {
+          return
+        }
+        setCapabilityCatalog([])
+        setCapabilityCatalogStatus("error")
+      })
+  }, [
+    accessToken,
+    capabilityExposureSelection?.mode,
+    capabilityCatalogRevision,
+    currentConversationId,
+    selectedSandboxEnvironmentId,
+  ])
 
   React.useEffect(() => {
     entriesRef.current = entries
@@ -3680,6 +3735,11 @@ export function GatewayChatSidebar({
         selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
         capabilityExposureSelection={capabilityExposureSelection}
         capabilityExposurePolicy={capabilityExposurePolicy}
+        capabilityCatalog={capabilityCatalog}
+        capabilityCatalogStatus={capabilityCatalogStatus}
+        onCapabilityCatalogRefresh={() =>
+          setCapabilityCatalogRevision((revision) => revision + 1)
+        }
         agentIterationRequested={agentIterationRequested}
         agentIterationMode={agentEvolution?.effective_mode ?? "disabled"}
         isAgentIterationLoading={isAgentIterationLoading}

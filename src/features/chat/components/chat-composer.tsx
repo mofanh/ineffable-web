@@ -2,7 +2,15 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
+import {
+  capabilityCatalogFamilies,
+  capabilityKeysEqual,
+  filterCapabilityCatalog,
+  groupCapabilityCatalog,
+  updateSelectedCapabilityKeys,
+} from "@/features/chat/model/capability-catalog-selection"
 import {
   InputGroup,
   InputGroupAddon,
@@ -32,6 +40,7 @@ import type {
   CapabilityExposureMode,
   CapabilityExposurePolicy,
   CapabilityExposureSelection,
+  CapabilityCatalogEntry,
 } from "@/lib/api/api-client"
 import { cn } from "@/lib/utils"
 import {
@@ -42,6 +51,7 @@ import {
   GripVerticalIcon,
   GitBranchIcon,
   LoaderCircleIcon,
+  SearchIcon,
   SendHorizontalIcon,
   SquareIcon,
   SparklesIcon,
@@ -85,6 +95,9 @@ type ChatComposerProps = {
   selectedSandboxEnvironmentId: string
   capabilityExposureSelection: CapabilityExposureSelection | null
   capabilityExposurePolicy: CapabilityExposurePolicy | null
+  capabilityCatalog: CapabilityCatalogEntry[]
+  capabilityCatalogStatus: "idle" | "loading" | "ready" | "error"
+  onCapabilityCatalogRefresh: () => void
   agentIterationRequested: boolean
   agentIterationMode: "disabled" | "declarative_only" | "artifact_allowed" | "runtime_lab_allowed"
   isAgentIterationLoading: boolean
@@ -119,6 +132,9 @@ export function ChatComposer({
   selectedSandboxEnvironmentId,
   capabilityExposureSelection,
   capabilityExposurePolicy,
+  capabilityCatalog,
+  capabilityCatalogStatus,
+  onCapabilityCatalogRefresh,
   agentIterationRequested,
   agentIterationMode,
   isAgentIterationLoading,
@@ -137,11 +153,24 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const { t } = useTranslation()
   const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
+  const [capabilitySearch, setCapabilitySearch] = React.useState("")
   const allowedCapabilityModes = capabilityExposurePolicy?.allowed_modes ?? []
-  const selectableCapabilityFamilies =
-    capabilityExposurePolicy?.allowed_families.length
-      ? capabilityExposurePolicy.allowed_families
-      : []
+  const selectableCapabilityFamilies = React.useMemo(
+    () => capabilityCatalogFamilies(capabilityCatalog),
+    [capabilityCatalog]
+  )
+  const filteredCapabilityCatalog = React.useMemo(
+    () => filterCapabilityCatalog(capabilityCatalog, capabilitySearch),
+    [capabilityCatalog, capabilitySearch]
+  )
+  const groupedCapabilityCatalog = React.useMemo(
+    () => groupCapabilityCatalog(filteredCapabilityCatalog),
+    [filteredCapabilityCatalog]
+  )
+  const customSelectionCount = capabilityExposureSelection?.custom
+    ? capabilityExposureSelection.custom.families.length +
+      capabilityExposureSelection.custom.capabilities.length
+    : 0
 
   function selectCapabilityMode(mode: CapabilityExposureMode) {
     onCapabilityExposureChange({
@@ -175,6 +204,23 @@ export function ChatComposer({
           ? { kind: "families", families }
           : { kind: "all_authorized" },
       },
+    })
+  }
+
+  function toggleCapability(entry: CapabilityCatalogEntry, checked: boolean) {
+    const current = capabilityExposureSelection?.custom ?? {
+      families: [],
+      capabilities: [],
+      discovery_scope: { kind: "all_authorized" } as const,
+    }
+    const capabilities = updateSelectedCapabilityKeys(
+      current.capabilities,
+      entry,
+      checked
+    )
+    onCapabilityExposureChange({
+      mode: "custom",
+      custom: { ...current, capabilities },
     })
   }
 
@@ -538,14 +584,14 @@ export function ChatComposer({
                     <SparklesIcon className="size-3.5 shrink-0" />
                     <span className="truncate">
                       {capabilityExposureSelection
-                        ? t(
+                        ? `${t(
                             `chat.composer.capabilityMode.${capabilityExposureSelection.mode}`
-                          )
+                          )}${capabilityExposureSelection.mode === "custom" && customSelectionCount > 0 ? ` · ${customSelectionCount}` : ""}`
                         : "—"}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" side="top" className="w-64">
+                <DropdownMenuContent align="start" side="top" className="w-80">
                   <DropdownMenuLabel>
                     {t("chat.composer.capabilityModeLabel")}
                   </DropdownMenuLabel>
@@ -566,6 +612,18 @@ export function ChatComposer({
                   {capabilityExposureSelection?.mode === "custom" ? (
                     <>
                       <DropdownMenuSeparator />
+                      <div className="px-2 py-1.5">
+                        <div className="relative">
+                          <SearchIcon className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={capabilitySearch}
+                            onChange={(event) => setCapabilitySearch(event.target.value)}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            placeholder={t("chat.composer.capabilitySearch")}
+                            className="h-8 pl-7 text-xs"
+                          />
+                        </div>
+                      </div>
                       <DropdownMenuLabel>
                         {t("chat.composer.capabilityFamilies")}
                       </DropdownMenuLabel>
@@ -585,6 +643,72 @@ export function ChatComposer({
                           <span className="truncate">{family}</span>
                         </DropdownMenuCheckboxItem>
                       ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>
+                        {t("chat.composer.capabilities")}
+                      </DropdownMenuLabel>
+                      <div className="max-h-56 overflow-y-auto overscroll-contain">
+                        {capabilityCatalogStatus === "loading" ? (
+                          <div className="flex items-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+                            <LoaderCircleIcon className="size-3.5 animate-spin" />
+                            {t("chat.composer.capabilityLoading")}
+                          </div>
+                        ) : null}
+                        {capabilityCatalogStatus === "error" ? (
+                          <div className="flex items-center justify-between gap-2 px-2 py-2 text-xs text-destructive">
+                            <span>{t("chat.composer.capabilityLoadFailed")}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={(event) => {
+                                event.preventDefault()
+                                onCapabilityCatalogRefresh()
+                              }}
+                            >
+                              {t("common.retry")}
+                            </Button>
+                          </div>
+                        ) : null}
+                        {capabilityCatalogStatus === "ready" &&
+                        filteredCapabilityCatalog.length === 0 ? (
+                          <div className="px-2 py-3 text-xs text-muted-foreground">
+                            {t("chat.composer.capabilityEmpty")}
+                          </div>
+                        ) : null}
+                        {groupedCapabilityCatalog.map((group) => (
+                          <div key={group.family}>
+                            <div className="px-2 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              {group.family}
+                            </div>
+                            {group.items.map((entry) => (
+                              <DropdownMenuCheckboxItem
+                                key={`${entry.key.provider_id}:${entry.key.capability_id}`}
+                                checked={
+                                  capabilityExposureSelection.custom?.capabilities.some(
+                                    (candidate) => capabilityKeysEqual(candidate, entry.key)
+                                  ) ?? false
+                                }
+                                onCheckedChange={(checked) =>
+                                  toggleCapability(entry, checked === true)
+                                }
+                                onSelect={(event) => event.preventDefault()}
+                                className="items-start"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-xs font-medium">
+                                    {entry.name}
+                                  </span>
+                                  <span className="block truncate text-[11px] text-muted-foreground">
+                                    {entry.provider_name}
+                                  </span>
+                                </span>
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     </>
                   ) : null}
                   {capabilityExposurePolicy ? (

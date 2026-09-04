@@ -152,6 +152,16 @@ export type CapabilityExposureKey = {
   capability_id: string
 }
 
+export type CapabilityCatalogEntry = {
+  key: CapabilityExposureKey
+  provider_name: string
+  model_tool_name: string
+  name: string
+  description: string
+  kind: string | Record<string, string>
+  family?: string | null
+}
+
 export type CapabilityDiscoveryScope =
   | { kind: "disabled" }
   | { kind: "all_authorized" }
@@ -1092,6 +1102,21 @@ export function setConversationCapabilityExposure(
     accessToken,
     body: { conversation_id: conversationId, selection },
   })
+}
+
+export function listConversationCapabilityCatalog(
+  accessToken: string,
+  conversationId: string,
+  sandboxEnvironmentId?: string | null
+) {
+  const params = new URLSearchParams({ conversation_id: conversationId })
+  if (sandboxEnvironmentId) {
+    params.set("sandbox_environment_id", sandboxEnvironmentId)
+  }
+  return requestApiJson<{ items: CapabilityCatalogEntry[] }>(
+    `/gateway/v1/conversations/capability-catalog?${params.toString()}`,
+    { accessToken }
+  )
 }
 
 export function getConversationMessages(
