@@ -20,6 +20,7 @@ export type StreamConnectionState =
 export type ConversationRunRuntime = {
   conversationId: string
   runId: string | null
+  executionEpoch: number | null
   lifecycle: RunLifecycle
   connection: StreamConnectionState
   lastSeq: number
@@ -28,7 +29,7 @@ export type ConversationRunRuntime = {
 }
 
 export type RuntimeAction =
-  | { type: "connect"; runId?: string | null }
+  | { type: "connect"; runId?: string | null; executionEpoch?: number | null }
   | { type: "connected" }
   | { type: "recovering"; error?: string | null }
   | { type: "transport_closed" }
@@ -41,6 +42,7 @@ export function createConversationRunRuntime(
   return {
     conversationId,
     runId: null,
+    executionEpoch: null,
     lifecycle: "idle",
     connection: "idle",
     lastSeq: 0,
@@ -87,9 +89,15 @@ export function reduceConversationRunRuntime(
     return createConversationRunRuntime(state.conversationId)
   }
   if (action.type === "connect") {
+    if (action.runId && action.runId !== state.runId) {
+      state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
+    }
     return {
       ...state,
       runId: action.runId ?? state.runId,
+      executionEpoch: action.runId && action.runId !== state.runId
+        ? action.executionEpoch ?? null
+        : Math.max(state.executionEpoch ?? 0, action.executionEpoch ?? 0) || null,
       connection: "connecting",
       error: null,
     }
@@ -126,6 +134,9 @@ export function reduceConversationRunRuntime(
     }
   }
 
+  const rawEpoch = action.event.metadata?.execution_epoch
+  const epoch = typeof rawEpoch === "number" && Number.isSafeInteger(rawEpoch) ? rawEpoch : null
+  if (epoch != null && state.executionEpoch != null && epoch < state.executionEpoch) return state
   const seq = action.event.seq
   if (
     typeof seq !== "number" ||
@@ -144,6 +155,7 @@ export function reduceConversationRunRuntime(
   return {
     ...state,
     runId: identity.runId,
+    executionEpoch: epoch ?? state.executionEpoch,
     lifecycle: nextLifecycle,
     connection:
       terminal ||

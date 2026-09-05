@@ -70,13 +70,22 @@ export function reduceConversationTimeline(
   const handoffConfirmed = handoff
     ? hasCanonicalAssistantHandoff(action.entries, handoff)
     : true
-  const incoming =
+  const candidates =
     handoff && !handoffConfirmed
       ? action.entries.filter(
           (entry) =>
             entry.role !== "assistant" || entry.runId !== handoff.runId
         )
       : action.entries
+  const localBoundaries = new Map(current.flatMap((entry) =>
+    isLocalAssistantEntry(entry) && entry.humanInputBoundarySeq != null
+      ? [[timelineIdentity(entry), entry.humanInputBoundarySeq] as const] : []
+  ))
+  const incoming = candidates.filter((entry) => {
+    const boundary = localBoundaries.get(timelineIdentity(entry))
+    return boundary == null || entry.role !== "assistant" ||
+      (entry.canonicalMessageSeqEnd ?? -1) > boundary
+  })
   const incomingIdentities = new Set(incoming.map(timelineIdentity))
   const incomingAssistantRunIds = new Set(
     incoming.flatMap((entry) =>
@@ -85,12 +94,23 @@ export function reduceConversationTimeline(
   )
 
   const retained = current.filter((entry) => {
-    if (incomingIdentities.has(timelineIdentity(entry))) return false
+    if (incomingIdentities.has(timelineIdentity(entry))) {
+      if (isLocalAssistantEntry(entry) && entry.humanInputBoundarySeq != null &&
+          !incoming.some((candidate) => candidate.role === "assistant" &&
+            candidate.timelineUnitId === entry.timelineUnitId &&
+            (candidate.canonicalMessageSeqEnd ?? -1) > entry.humanInputBoundarySeq!)) return true
+      return false
+    }
     if (
+      action.type === "canonical-patch" &&
       isLocalAssistantEntry(entry) &&
       entry.runId &&
       incomingAssistantRunIds.has(entry.runId)
     ) {
+      if (entry.humanInputBoundarySeq != null && !incoming.some((candidate) =>
+        candidate.role === "assistant" && candidate.runId === entry.runId &&
+        (candidate.canonicalMessageSeqEnd ?? -1) > entry.humanInputBoundarySeq!
+      )) return true
       return Boolean(
         handoff && entry.runId === handoff.runId && !handoffConfirmed
       )

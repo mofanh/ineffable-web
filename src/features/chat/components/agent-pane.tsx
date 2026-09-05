@@ -943,7 +943,8 @@ const ToolNodeRenderer: WebNodeRenderer<ToolWebNodePayload | null> = ({
   node.payload ? (
     <ToolCallCard
       tool={node.payload.tool}
-      canRespondToUserInput={node.payload.canRespondToUserInput}
+      canRespondToUserInput={node.payload.canRespondToUserInput && Boolean(context.activeHumanNeedId) &&
+        (node.payload.tool.needId ?? node.payload.tool.protocolId) === context.activeHumanNeedId}
       onSubmitUserInput={context.onSubmitUserInput}
     />
   ) : null
@@ -1063,6 +1064,7 @@ export const WebNodeList = React.memo(function WebNodeList({
   isStreaming = false,
   prefersReducedMotion = false,
   canRespondToUserInput = false,
+  activeHumanNeedId,
   onSubmitUserInput,
   subagentOrder = [],
   subagents = {},
@@ -1071,6 +1073,7 @@ export const WebNodeList = React.memo(function WebNodeList({
   isStreaming?: boolean
   prefersReducedMotion?: boolean
   canRespondToUserInput?: boolean
+  activeHumanNeedId?: string | null
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
   subagentOrder?: string[]
   subagents?: Record<string, SubagentView>
@@ -1087,8 +1090,8 @@ export const WebNodeList = React.memo(function WebNodeList({
     [canRespondToUserInput, isStreaming, pane, projectionCache, subagentOrder, subagents]
   )
   const context = React.useMemo(
-    () => ({ prefersReducedMotion, onSubmitUserInput }),
-    [onSubmitUserInput, prefersReducedMotion]
+    () => ({ prefersReducedMotion, onSubmitUserInput, activeHumanNeedId }),
+    [onSubmitUserInput, prefersReducedMotion, activeHumanNeedId]
   )
   const rootRef = React.useRef<HTMLDivElement | null>(null)
   const [visibleNodeCount, setVisibleNodeCount] = React.useState(

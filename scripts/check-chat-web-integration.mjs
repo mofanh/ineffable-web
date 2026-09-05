@@ -1,3 +1,5 @@
+import { matchesConversationOperation } from "../src/features/chat/model/conversation-operation-identity.ts"
+import { bindAssistantToHumanBoundary } from "../src/features/chat/model/human-input-timeline.ts"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 import { renderSpecializedTool } from "../src/features/chat/components/agent-tool-renderers.tsx"
 import assert from "node:assert/strict"
@@ -1234,6 +1236,46 @@ for (const unrelated of [
   assert.equal(timeline[0].pane.tools["tool-user-input"].responseMessageId, undefined,
     "ordinary input or a different need/run must never answer the nearest question")
 }
+const resumedLive = bindAssistantToHumanBoundary(createAssistantEntry("streaming", runId), canonicalAnswerEntries)
+const oldQuestion = { ...canonicalQuestionEntries[0], canonicalMessageSeqEnd: 2 }
+for (const action of ["prepend-history", "canonical-patch"]) {
+  const merged = reduceConversationTimeline([...canonicalAnswerEntries, resumedLive], {
+    type: action, entries: [oldQuestion],
+  })
+  assert(merged.some((entry) => entry.id === resumedLive.id),
+    `${action} of an old question must not remove output after the answer`)
+}
+const confirmedContinuation = { ...resumedLive, id: resumedLive.timelineUnitId,
+  canonicalMessageSeqEnd: 5, status: "done" }
+const continuationHandoff = reduceConversationTimeline([...canonicalAnswerEntries, resumedLive], {
+  type: "canonical-patch", entries: [oldQuestion, confirmedContinuation],
+})
+assert(!continuationHandoff.some((entry) => entry.id === resumedLive.id))
+assert.equal(continuationHandoff.filter((entry) => entry.timelineUnitId === resumedLive.timelineUnitId).length, 1)
+const operation = { conversationId: "A", runId: "R", executionEpoch: 2, generation: 7 }
+assert(matchesConversationOperation(operation, { ...operation }))
+for (const changed of [
+  { conversationId: "B" }, { runId: "S" }, { executionEpoch: 3 }, { generation: 8 },
+]) assert(!matchesConversationOperation(operation, { ...operation, ...changed }))
+let resolveRecovery
+let currentOperation = { ...operation }
+let staleDeliveries = 0
+const delayedRecovery = new Promise((resolve) => { resolveRecovery = resolve }).then(() => {
+  if (matchesConversationOperation(operation, currentOperation)) staleDeliveries += 1
+})
+currentOperation = { ...operation, generation: 9 } // navigated away and back to A
+resolveRecovery()
+await delayedRecovery
+assert.equal(staleDeliveries, 0, "an old same-conversation response cannot survive a new view generation")
+let epochRuntime = reduceConversationRunRuntime(createConversationRunRuntime(conversationId), {
+  type: "connect", runId, executionEpoch: 2,
+})
+const beforeStaleEpoch = epochRuntime
+epochRuntime = reduceConversationRunRuntime(epochRuntime, { type: "event", event: event(999, "run.awaiting_human", null, {
+  execution_epoch: 1, pending_need: userInputNeed,
+}) })
+assert.strictEqual(epochRuntime, beforeStaleEpoch, "a previous epoch cannot re-open its question after resume acceptance")
+
 let answeredCard
 await act(async () => {
   answeredCard = TestRenderer.create(renderSpecializedTool({
@@ -1243,6 +1285,28 @@ await act(async () => {
 assert.match(JSON.stringify(answeredCard.toJSON()), /已回答|Answered/)
 assert.equal(answeredCard.root.findAll((node) => node.props.role === "radio").length, 0,
   "answered assistant card must not render selected-answer controls")
+await act(async () => {
+  answeredCard.update(renderSpecializedTool({
+    tool: { ...answerTimeline[0].pane.tools["tool-user-input"], status: "waiting" },
+    canRespondToUserInput: true,
+  }))
+})
+assert.equal(answeredCard.root.findAll((node) => node.props.role === "radio").length, 0,
+  "even an expanded answered card must not render the user's selected answer")
+for (const needId of ["tool-user-input", "unrelated-need"]) {
+  let questionTree
+  await act(async () => {
+    questionTree = TestRenderer.create(React.createElement(WebNodeList, {
+      pane: restoredUserInputEntries[0].pane, canRespondToUserInput: true,
+      activeHumanNeedId: needId, onSubmitUserInput: async () => {},
+    }))
+  })
+  const radios = questionTree.root.findAll((node) => node.props.role === "radio" && node.type === "button")
+  assert(radios.length > 0)
+  assert.equal(radios[0].props.disabled, needId !== "tool-user-input",
+    "only the exact authoritative pending need can enable an answer control")
+  await act(async () => questionTree.unmount())
+}
 await act(async () => answeredCard.unmount())
 
 const previousRunEntry = {

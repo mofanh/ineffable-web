@@ -65,6 +65,8 @@ export type CapabilityExposureSummary = {
 }
 
 export type AssistantEntry = {
+  humanInputBoundarySeq?: number
+
   id: string
   role: "assistant"
   runId?: string | null

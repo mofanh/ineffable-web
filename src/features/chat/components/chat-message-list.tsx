@@ -43,6 +43,7 @@ type ChatMessageListProps = {
   onApproveApproval: (entryId: string) => void
   onRejectApproval: (entryId: string) => void
   activeHumanRunId: string | null
+  activeHumanNeedId?: string | null
   onSubmitUserInput: (response: AgentUserInputResponse) => Promise<void>
   isFullScreen: boolean
   trialVerdict?: {
@@ -171,6 +172,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onApproveApproval,
   onRejectApproval,
   activeHumanRunId,
+  activeHumanNeedId,
   onSubmitUserInput,
   isFullScreen,
   trialVerdict,
@@ -443,8 +445,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}
                   canRespondToUserInput={
-                    Number.isSafeInteger(entry.timelineSeq) && Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
+                    Number.isSafeInteger(entry.canonicalMessageSeqEnd) && Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
                   }
+                  activeHumanNeedId={activeHumanNeedId}
                   onSubmitUserInput={onSubmitUserInput}
                   subagentOrder={entry.subagentOrder}
                   subagents={entry.subagents}

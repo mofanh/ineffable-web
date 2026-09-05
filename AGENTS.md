@@ -259,7 +259,9 @@ return (
   回答与问题只按 `(run_id, need_id)` 关联，在同一个 timeline reducer 中兼容实时和跨页加载。
   同一 run 的回答后续输出必须创建回答之后的新 assistant entry；提交跨 await 固定会话与
   request generation，旧响应不得串写新选择。resume receipt 的 streaming 是后台继续执行，
-  不能解释成 completed。
+  不能解释成 completed。恢复读取在每个 await 后核对会话、run、epoch 和请求代数，旧请求
+  的 finally 只能释放自己的 recovery ownership；历史 prepend 不得淘汰后续 live entry，
+  canonical handoff 必须覆盖对应回答边界和 watermark。
 - canonical reducer/projector 即时消费全部事件；高频正文、reasoning 和 tool argument
   视觉更新由 frame scheduler 合并，每帧至多发布一次。terminal、error、awaiting-human、
   approval 和显式 stop 必须立即 flush。

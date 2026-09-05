@@ -1,3 +1,5 @@
+import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
+import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
@@ -441,7 +443,6 @@ export function GatewayChatSidebar({
   const [trialVerdictBusy, setTrialVerdictBusy] = React.useState<
     "accept" | "rollback" | null
   >(null)
-  const [awaitingHumanRunId, setAwaitingHumanRunId] = React.useState<string | null>(null)
   const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
     AgentDescriptorOption[]
   >([])
@@ -508,6 +509,7 @@ export function GatewayChatSidebar({
   const activeRunIdRef = React.useRef<string | null>(null)
   const terminalEventSeenRef = React.useRef(false)
   const recoveryInFlightRef = React.useRef(false)
+  const recoveryRequestIdRef = React.useRef(0)
   const recoveryTimerRef = React.useRef<number | null>(null)
   const catchupInFlightRef = React.useRef(false)
   const conversationSeqRef = React.useRef(new Map<string, number>())
@@ -597,6 +599,8 @@ export function GatewayChatSidebar({
   const selectConversationTarget = React.useCallback(
     (conversationId: string | null) => {
       humanInputSubmissionGenerationRef.current += 1
+      recoveryRequestIdRef.current += 1
+      recoveryInFlightRef.current = false
       const currentId = currentConversationIdRef.current
       if (
         currentId &&
@@ -963,6 +967,8 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
     humanInputSubmissionGenerationRef.current += 1
+    recoveryRequestIdRef.current += 1
+    recoveryInFlightRef.current = false
   }, [currentConversationId])
 
   React.useEffect(() => {
@@ -1500,7 +1506,6 @@ export function GatewayChatSidebar({
     setEntries((current) =>
       reconcilePendingUserInput(current, selectedPendingUserInput)
     )
-    setAwaitingHumanRunId(selectedPendingUserInput.runId)
   }, [
     currentConversationId,
     hydratedConversationId,
@@ -2003,6 +2008,7 @@ export function GatewayChatSidebar({
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
     terminalEventSeenRef.current = false
+    recoveryRequestIdRef.current += 1
     recoveryInFlightRef.current = false
     updateStreamStatus("idle")
     assistantEntryIdRef.current = null
@@ -2074,6 +2080,8 @@ export function GatewayChatSidebar({
   }
 
   function resetTurnState() {
+    humanInputSubmissionGenerationRef.current += 1
+    recoveryRequestIdRef.current += 1
     assistantEntryIdRef.current = null
     activeRunIdRef.current = null
     terminalEventSeenRef.current = false
@@ -2103,8 +2111,9 @@ export function GatewayChatSidebar({
       }
     }
     if (!assistantId) {
-      const created = updater(undefined)
-      if (!created) return current
+      const provisional = updater(undefined)
+      if (!provisional) return current
+      const created = bindAssistantToHumanBoundary(provisional, current)
       assistantEntryIdRef.current = created.id
       return [...current, created]
     }
@@ -2113,8 +2122,9 @@ export function GatewayChatSidebar({
       (entry) => entry.role === "assistant" && entry.id === assistantId
     )
     if (index < 0) {
-      const created = updater(undefined)
-      if (!created) return current
+      const provisional = updater(undefined)
+      if (!provisional) return current
+      const created = bindAssistantToHumanBoundary(provisional, current)
       assistantEntryIdRef.current = created.id
       return [...current, created]
     }
@@ -2301,11 +2311,12 @@ export function GatewayChatSidebar({
   }
 
   function markAwaitingHuman(runId?: string | null) {
+    humanInputSubmissionGenerationRef.current += 1
     const conversationId =
       activeStreamConversationIdRef.current ?? currentConversationIdRef.current
     const awaitingRunId = runId ?? activeRunIdRef.current
-    setAwaitingHumanRunId(awaitingRunId)
     terminalEventSeenRef.current = true
+    recoveryRequestIdRef.current += 1
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
@@ -2399,8 +2410,9 @@ export function GatewayChatSidebar({
     runId: string | null,
     canonicalMessageSeqEnd: number | null
   ) {
-    setAwaitingHumanRunId(null)
+    humanInputSubmissionGenerationRef.current += 1
     terminalEventSeenRef.current = true
+    recoveryRequestIdRef.current += 1
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
@@ -2438,11 +2450,11 @@ export function GatewayChatSidebar({
       return true
     }
     if (lifecycle === "suspended") {
+      recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
-      setAwaitingHumanRunId(null)
       completeAssistantEntry()
       assistantEntryIdRef.current = null
       updateStreamStatus("idle")
@@ -2450,6 +2462,7 @@ export function GatewayChatSidebar({
     }
     if (lifecycle === "failed") {
       terminalEventSeenRef.current = true
+      recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       activeStreamConversationIdRef.current = null
@@ -2474,6 +2487,15 @@ export function GatewayChatSidebar({
     if (currentConversationIdRef.current !== conversationId) {
       void refreshConversations().catch(() => {})
       return
+    }
+    const observedRuntime = runtimeStoreRef.current.get(conversationId)
+    if ((activeRunIdRef.current && response.run_id && activeRunIdRef.current !== response.run_id) ||
+        (observedRuntime.runId === response.run_id && response.execution_epoch != null && observedRuntime.executionEpoch != null &&
+         response.execution_epoch < observedRuntime.executionEpoch)) return
+    if (response.run_id && response.execution_epoch != null) {
+      runtimeStoreRef.current.dispatch(conversationId, {
+        type: "connect", runId: response.run_id, executionEpoch: response.execution_epoch,
+      })
     }
     if (response.input_message) {
       const canonicalEntries = mapConversationMessagesToEntries([response.input_message])
@@ -2556,7 +2578,8 @@ export function GatewayChatSidebar({
 
     const resumedRunState = response.run_state?.trim().toLowerCase()
     if (resumedRunState === "streaming" || resumedRunState === "resuming") {
-      setAwaitingHumanRunId(null)
+      recoveryRequestIdRef.current += 1
+      recoveryInFlightRef.current = false
       terminalEventSeenRef.current = false
       activeRunIdRef.current = response.run_id ?? null
       assistantEntryIdRef.current = null
@@ -2570,7 +2593,6 @@ export function GatewayChatSidebar({
       const errorMessage = formatSendErrorMessage(
         response.output?.trim() || i18n.t("chat.gateway.sendFailed")
       )
-      setAwaitingHumanRunId(null)
       terminalEventSeenRef.current = true
       activeRunIdRef.current = null
       updateStreamStatus("error")
@@ -2598,7 +2620,7 @@ export function GatewayChatSidebar({
       return
     }
     if (resumedRunState === "suspended") {
-      setAwaitingHumanRunId(null)
+      recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       activeRunIdRef.current = null
@@ -2613,8 +2635,8 @@ export function GatewayChatSidebar({
       completeAssistantEntry(response.output)
     }
 
-    setAwaitingHumanRunId(null)
     terminalEventSeenRef.current = true
+    recoveryRequestIdRef.current += 1
     recoveryInFlightRef.current = false
     clearRecoveryTimer()
     if (activeStreamConversationIdRef.current === conversationId) {
@@ -2705,8 +2727,10 @@ export function GatewayChatSidebar({
     }
 
     if (event.event === "run.failed") {
+      humanInputSubmissionGenerationRef.current += 1
       const conversationId = identity.conversationId
       const errorMessage = formatRunFailureMessage(event)
+      recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       if (activeStreamConversationIdRef.current === conversationId) {
@@ -2749,6 +2773,7 @@ export function GatewayChatSidebar({
         )
       } else {
         terminalEventSeenRef.current = true
+        recoveryRequestIdRef.current += 1
         recoveryInFlightRef.current = false
         clearRecoveryTimer()
         activeStreamConversationIdRef.current = null
@@ -2782,79 +2807,64 @@ export function GatewayChatSidebar({
 
   const recoverConversationEvents = React.useEffectEvent(
     async (conversationId: string, keepPolling = true) => {
-      if (!accessToken || !conversationId) {
-        return
-      }
-
-      const isTrackedConversation =
-        activeStreamConversationIdRef.current === conversationId ||
-        currentConversationIdRef.current === conversationId
-
-      if (recoveryInFlightRef.current) {
-        return
-      }
-
-      if (!isTrackedConversation) {
-        return
-      }
-
+      if (!accessToken || !conversationId || currentConversationIdRef.current !== conversationId ||
+          recoveryInFlightRef.current) return
       if (terminalEventSeenRef.current || streamStatusRef.current === "error") {
         clearRecoveryTimer()
         return
       }
-
+      const readIdentity = () => {
+        const runtime = runtimeStoreRef.current.get(conversationId)
+        return {
+          conversationId: currentConversationIdRef.current,
+          runId: activeRunIdRef.current ?? runtime.runId,
+          executionEpoch: runtime.executionEpoch,
+          generation: humanInputSubmissionGenerationRef.current,
+        }
+      }
+      const expected = readIdentity()
+      const requestId = ++recoveryRequestIdRef.current
+      const ownsRequest = () => requestId === recoveryRequestIdRef.current
+      const isCurrent = () => ownsRequest() && matchesConversationOperation(expected, readIdentity())
       recoveryInFlightRef.current = true
       try {
         const afterSeq = conversationSeqRef.current.get(conversationId)
-        const response = await getConversationEvents(
-          accessToken,
-          conversationId,
-          {
-            afterSeq,
-            max: 200,
-          }
-        )
-
+        const response = await getConversationEvents(accessToken, conversationId, { afterSeq, max: 200 })
+        if (!isCurrent()) return
         for (const envelope of response.events) {
+          if (!isCurrent()) break
           applyEnvelopeEvent(envelope)
+          // This synchronous batch may itself observe a newer canonical epoch.
+          expected.executionEpoch = runtimeStoreRef.current.get(conversationId).executionEpoch
         }
+        if (!isCurrent()) return
         if (response.events.length === 0 && !terminalEventSeenRef.current) {
           const conversation = await getConversation(accessToken, conversationId)
+          if (!isCurrent()) return
+          if (expected.runId && conversation.current_run?.id !== expected.runId) {
+            void refreshConversations().catch(() => {})
+            return
+          }
           settleConversationRecovery(conversation)
         }
       } catch (recoveryError) {
-        if (!terminalEventSeenRef.current && isTrackedConversation) {
+        if (isCurrent() && !terminalEventSeenRef.current) {
           updateStreamStatus("recovering")
-          setError(
-            reportChatError(
-              recoveryError,
-              i18n.t("chat.gateway.reconnecting"),
-              i18n.t("chat.gateway.reconnectFailedTitle"),
-              {
-                toast: false,
-                format: (message) =>
-                  i18n.t("chat.gateway.reconnectingWithMessage", { message }),
-              }
-            )
-          )
+          setError(reportChatError(
+            recoveryError, i18n.t("chat.gateway.reconnecting"), i18n.t("chat.gateway.reconnectFailedTitle"),
+            { toast: false, format: (message) => i18n.t("chat.gateway.reconnectingWithMessage", { message }) }
+          ))
         }
       } finally {
-        recoveryInFlightRef.current = false
-        const shouldContinueRecovery =
-          streamStatusRef.current === "streaming" ||
-          streamStatusRef.current === "recovering"
-
-        if (
-          keepPolling &&
-          (activeStreamConversationIdRef.current === conversationId ||
-            currentConversationIdRef.current === conversationId) &&
-          !terminalEventSeenRef.current &&
-          shouldContinueRecovery
-        ) {
-          clearRecoveryTimer()
-          recoveryTimerRef.current = window.setTimeout(() => {
-            void recoverConversationEvents(conversationId, true)
-          }, 1200)
+        if (ownsRequest()) {
+          recoveryInFlightRef.current = false
+          if (isCurrent() && keepPolling && !terminalEventSeenRef.current &&
+              (streamStatusRef.current === "streaming" || streamStatusRef.current === "recovering")) {
+            clearRecoveryTimer()
+            recoveryTimerRef.current = window.setTimeout(() => {
+              if (isCurrent()) void recoverConversationEvents(conversationId, true)
+            }, 1200)
+          }
         }
       }
     }
@@ -2871,8 +2881,12 @@ export function GatewayChatSidebar({
       }
 
       clearRecoveryTimer()
+      recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       resetTurnState()
+      const generation = humanInputSubmissionGenerationRef.current
+      const isCurrentConnection = () => currentConversationIdRef.current === conversationId &&
+        humanInputSubmissionGenerationRef.current === generation
 
       activeStreamConversationIdRef.current = conversationId
       activeRunIdRef.current = runId ?? null
@@ -2904,6 +2918,7 @@ export function GatewayChatSidebar({
             })
         )
 
+        if (!isCurrentConnection()) return
         if (outcome === "aborted") {
           clearRecoveryTimer()
           activeStreamConversationIdRef.current = null
@@ -2917,6 +2932,7 @@ export function GatewayChatSidebar({
           await recoverConversationEvents(conversationId, true)
         }
       } catch (resumeError) {
+        if (!isCurrentConnection()) return
         const message = reportChatError(
           resumeError,
           i18n.t("chat.gateway.reconnectFailed"),
@@ -2965,6 +2981,7 @@ export function GatewayChatSidebar({
 
     if (envelope.type === "error") {
       const errorMessage = formatSendErrorMessage(envelope.error)
+      recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       updateStreamStatus("recovering")
@@ -3146,7 +3163,6 @@ export function GatewayChatSidebar({
     hydratedConversationIdRef.current = null
     setHydratedConversationId(null)
     setIsLoadingMessages(false)
-    setAwaitingHumanRunId(null)
     setError(null)
     setIsSubmittingInput(false)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
@@ -3159,6 +3175,7 @@ export function GatewayChatSidebar({
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
     activeRunIdRef.current = null
+    recoveryRequestIdRef.current += 1
     recoveryInFlightRef.current = false
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
@@ -3238,7 +3255,6 @@ export function GatewayChatSidebar({
     }))
     setError(null)
     updateStreamStatus("streaming")
-    setAwaitingHumanRunId(null)
 
     try {
       if (approved) {
@@ -3326,7 +3342,8 @@ export function GatewayChatSidebar({
     assistantEntryIdRef.current = null
     const isCurrentSubmission = () =>
       currentConversationIdRef.current === targetConversationId &&
-      humanInputSubmissionGenerationRef.current === generation
+      humanInputSubmissionGenerationRef.current === generation &&
+      (!activeRunIdRef.current || activeRunIdRef.current === response.runId)
     setError(null)
     setEntries((current) =>
       current.map((entry) =>
@@ -3349,6 +3366,9 @@ export function GatewayChatSidebar({
         }
       )
       if (!isCurrentSubmission()) {
+        if (currentConversationIdRef.current === targetConversationId) {
+          void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
+        }
         void refreshConversations().catch(() => {})
         return
       }
@@ -3613,6 +3633,7 @@ export function GatewayChatSidebar({
               abortRef.current = controller
               previousController?.abort()
               clearRecoveryTimer()
+              recoveryRequestIdRef.current += 1
               recoveryInFlightRef.current = false
               resetTurnState()
               activeStreamConversationIdRef.current = targetConversationId
@@ -4126,9 +4147,8 @@ export function GatewayChatSidebar({
           onStreamingContentProgress={handleStreamingContentProgress}
           onApproveApproval={handleApproveApproval}
           onRejectApproval={handleRejectApproval}
-          activeHumanRunId={
-            awaitingHumanRunId ?? selectedConversation?.current_run_id ?? null
-          }
+          activeHumanRunId={selectedPendingUserInput?.runId ?? null}
+          activeHumanNeedId={selectedPendingUserInput?.needId ?? null}
           onSubmitUserInput={handleSubmitUserInput}
           isFullScreen={isFullScreen}
           trialVerdict={

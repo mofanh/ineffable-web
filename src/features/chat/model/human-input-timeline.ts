@@ -1,5 +1,5 @@
 import type { AgentPaneState } from "../chat-pane-state.ts"
-import type { ChatEntry, UserEntry } from "../gateway-chat-types.ts"
+import type { AssistantEntry, ChatEntry, UserEntry } from "../gateway-chat-types.ts"
 
 export function humanInputResponseIdentity(
   runId: string | null | undefined,
@@ -55,4 +55,19 @@ export function reconcileHumanInputAnswers(entries: ChatEntry[]): ChatEntry[] {
     return { ...entry, pane, subagents }
   })
   return changed ? result : entries
+}
+
+export function bindAssistantToHumanBoundary(entry: AssistantEntry, entries: ChatEntry[]): AssistantEntry {
+  if (!entry.runId || entry.timelineUnitId) return entry
+  let boundary: number | undefined
+  for (const candidate of entries) {
+    if (candidate.role === "user" && candidate.humanInputResponse?.runId === entry.runId &&
+        Number.isSafeInteger(candidate.timelineSeq)) {
+      boundary = Math.max(boundary ?? 0, candidate.timelineSeq!)
+    }
+  }
+  return boundary == null ? entry : {
+    ...entry, humanInputBoundarySeq: boundary, timelineSeq: boundary + 1,
+    timelineUnitId: `run:${entry.runId}:anchor:${boundary + 1}`,
+  }
 }

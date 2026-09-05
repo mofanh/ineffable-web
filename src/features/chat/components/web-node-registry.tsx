@@ -9,6 +9,7 @@ import {
 
 export type WebNodeRenderContext = {
   prefersReducedMotion: boolean
+  activeHumanNeedId?: string | null
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
 }
 
