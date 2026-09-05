@@ -527,7 +527,7 @@ export const resources = {
           capabilityLoadFailedTitle: "能力配置加载失败",
           capabilityRetry: "重试能力配置",
           capabilityEmpty: "当前范围没有匹配的可用能力",
-          capabilityBudget: "本轮最多暴露 {{count}} 个工具",
+          capabilityBudget: "自动暴露预算：{{count}} 个工具",
           capabilityUpdateFailed: "无法更新本会话的能力模式。",
           capabilityUpdateFailedTitle: "能力模式更新失败",
           nodeIteration: "Node 迭代模式",
@@ -1047,7 +1047,7 @@ export const resources = {
             agentEvolution: "Agent 迭代",
             capabilityExposure: "Agent 能力暴露",
             capabilityExposureDescription:
-              "配置套餐允许的能力模式、工具族范围和模型可见工具预算。实际权限仍由 Gateway 实时裁决。",
+              "配置允许的能力模式、工具族及智能／精简模式的自动暴露预算。全量和自定义完整加载已授权的所选工具，不受自动暴露数量和描述预算限制。",
             defaultCapabilityMode: "默认能力模式",
             allowedCapabilityFamilies: "允许的工具族",
             allowedCapabilityFamiliesDescription:
@@ -1066,8 +1066,8 @@ export const resources = {
             capabilityFamiliesUnavailableDescription:
               "这些工具族不在当前目录中；保存时仍会保留，除非你主动移除。",
             capabilityFamilyUnavailable: "当前不可用",
-            maxExposedTools: "单轮最大工具数",
-            maxSchemaBytes: "单轮 Schema Bytes",
+            maxExposedTools: "智能／精简自动暴露工具预算",
+            maxSchemaBytes: "智能／精简工具描述预算（字节）",
             maxPrefetchedTools: "智能预取上限",
             maxDynamicTools: "运行时激活上限",
             maxDiscoveryResults: "单次发现结果上限",
@@ -2099,7 +2099,7 @@ export const resources = {
           capabilityRetry: "Retry capability settings",
           capabilityEmpty:
             "No matching capabilities are available in this scope",
-          capabilityBudget: "Up to {{count}} tools this turn",
+          capabilityBudget: "Automatic exposure budget: {{count}} tools",
           capabilityUpdateFailed:
             "Unable to update this conversation's capability mode.",
           capabilityUpdateFailedTitle: "Capability mode update failed",
@@ -2655,7 +2655,7 @@ export const resources = {
             agentEvolution: "Agent evolution",
             capabilityExposure: "Agent capability exposure",
             capabilityExposureDescription:
-              "Configure allowed modes, tool-family scope, and model-visible tool budgets. Gateway still authorizes every request at runtime.",
+              "Configure allowed modes, tool families, and automatic exposure budgets for Smart/Clean. Full and Custom load all selected authorized tools without automatic count or schema budgets.",
             defaultCapabilityMode: "Default capability mode",
             allowedCapabilityFamilies: "Allowed tool families",
             allowedCapabilityFamiliesDescription:
@@ -2675,8 +2675,8 @@ export const resources = {
             capabilityFamiliesUnavailableDescription:
               "These families are absent from the current catalog. They remain saved unless you remove them explicitly.",
             capabilityFamilyUnavailable: "Currently unavailable",
-            maxExposedTools: "Maximum tools per turn",
-            maxSchemaBytes: "Schema bytes per turn",
+            maxExposedTools: "Smart/Clean automatic tool budget",
+            maxSchemaBytes: "Smart/Clean schema budget (bytes)",
             maxPrefetchedTools: "Smart prefetch limit",
             maxDynamicTools: "Runtime activation limit",
             maxDiscoveryResults: "Discovery result limit",

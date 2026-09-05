@@ -42,4 +42,15 @@ assert.deepEqual(
 )
 assert.deepEqual(updateSelectedCapabilityKeys([entries[0].key], entries[0], false), [])
 
+const largeCatalog = Array.from({ length: 80 }, (_, index) => ({
+  ...entries[0],
+  key: { provider_id: "backend", capability_id: `tool_${index}` },
+}))
+const selected = largeCatalog.reduce(
+  (keys, entry) => updateSelectedCapabilityKeys(keys, entry, true),
+  []
+)
+assert.deepEqual(selected, largeCatalog.map((entry) => entry.key))
+assert.equal(updateSelectedCapabilityKeys(selected, largeCatalog[79], false).length, 79)
+
 console.log("capability catalog selection checks passed")

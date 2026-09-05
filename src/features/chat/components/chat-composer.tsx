@@ -813,7 +813,9 @@ export function ChatComposer({
                       </div>
                     </>
                   ) : null}
-                  {capabilityExposurePolicy ? (
+                  {capabilityExposurePolicy &&
+                  (capabilityExposureSelection?.mode === "smart" ||
+                    capabilityExposureSelection?.mode === "clean") ? (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel className="font-normal">
