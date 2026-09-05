@@ -2327,6 +2327,16 @@ export function updateAgentDefinitionDefault(
   })
 }
 
+export function rebuildAgentDefinition(
+  accessToken: string,
+  body: { conversation_id: string; workspace_id?: string; source_fingerprint: string }
+) {
+  return requestApiJson<{ fingerprint: string; parent_fingerprint: string | null }>(
+    "/gateway/v1/plugins/agent-evolution/rebuild",
+    { method: "POST", accessToken, body }
+  )
+}
+
 export function updateAgentDefinitionTrial(
   accessToken: string,
   payload:

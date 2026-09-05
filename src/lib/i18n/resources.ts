@@ -1,6 +1,10 @@
 export const resources = {
   "zh-CN": {
     translation: {
+      agentEvolution: {
+        rebuild: "按当前版本重建",
+        rebuildHint: "重建保留原版本；有变化时生成新候选，再选择“应用到当前会话”开始试用。",
+      },
       language: {
         label: "语言",
         chinese: "中文",
@@ -1550,6 +1554,10 @@ export const resources = {
   },
   "en-US": {
     translation: {
+      agentEvolution: {
+        rebuild: "Rebuild for current version",
+        rebuildHint: "Rebuilding preserves the original version. If it changes, select Apply to conversation on the new candidate to start a trial.",
+      },
       language: {
         label: "Language",
         chinese: "中文",

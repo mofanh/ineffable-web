@@ -21,6 +21,7 @@ export {
   resumePendingInputs,
   rejectSandboxApproval,
   runRuntimeLabCommand,
+  rebuildAgentDefinition,
   updateAgentDefinitionDefault,
   updateAgentDefinitionTrial,
   resumeRunWithApproval,

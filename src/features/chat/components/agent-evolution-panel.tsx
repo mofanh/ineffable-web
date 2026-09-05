@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,7 @@ import {
   evaluateAgentDefinition,
   getAgentEvolutionReviewQueue,
   runRuntimeLabCommand,
+  rebuildAgentDefinition,
   updateAgentDefinitionDefault,
   updateAgentDefinitionTrial,
   type AgentEvolutionProjection,
@@ -63,6 +65,7 @@ export function AgentNodeManagementView({
   onMutationBusyChange,
   targetLabel,
 }: AgentNodeManagementViewProps) {
+  const { t } = useTranslation()
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [candidate, setCandidate] = React.useState<string | null>(null)
   const [fixture, setFixture] = React.useState("")
@@ -202,6 +205,7 @@ export function AgentNodeManagementView({
 
           <section className="space-y-2">
             <h3 className="text-sm font-medium">Agent Node 版本链</h3>
+            <p className="text-xs text-muted-foreground">{t("agentEvolution.rebuildHint")}</p>
             <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">
               当前默认：{projection?.default_binding?.fingerprint
                 ? shortFingerprint(projection.default_binding.fingerprint)
@@ -212,6 +216,7 @@ export function AgentNodeManagementView({
               const action = actionFor(projection, "evaluate_definition", item.fingerprint)
               const defaultAction = actionFor(projection, "set_default_definition", item.fingerprint)
               const trialAction = actionFor(projection, "start_definition_trial", item.fingerprint)
+              const rebuildAction = actionFor(projection, "rebuild_definition", item.fingerprint)
               const isDefault = projection.default_binding?.fingerprint === item.fingerprint
               return (
                 <div key={item.fingerprint} className="relative ml-3 rounded-xl border p-3 before:absolute before:-left-4 before:top-5 before:size-2 before:rounded-full before:bg-primary after:absolute after:-left-[13px] after:top-7 after:h-[calc(100%+0.75rem)] after:w-px after:bg-border last:after:hidden">
@@ -241,6 +246,23 @@ export function AgentNodeManagementView({
                     </Badge>
                   </div>
                   <div className="mt-3 flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      title={t("agentEvolution.rebuildHint")}
+                      disabled={!accessToken || !rebuildAction?.enabled || busyKey !== null}
+                      onClick={() => accessToken && void run(
+                        `rebuild:${item.fingerprint}`,
+                        () => rebuildAgentDefinition(accessToken, {
+                          conversation_id: projection.conversation_id,
+                          workspace_id: projection.workspace_id ?? undefined,
+                          source_fingerprint: item.fingerprint,
+                        })
+                      )}
+                    >
+                      {t("agentEvolution.rebuild")}
+                    </Button>
                     <Button
                       type="button"
                       size="sm"
