@@ -155,7 +155,10 @@ import {
   capabilityExposureForSubmission,
   reconcileCapabilityExposureDraftPolicy,
 } from "@/features/chat/model/capability-exposure-draft"
-import { isActionablePreInput } from "@/features/chat/model/pending-input"
+import {
+  bindOptimisticUserMessage,
+  isActionablePreInput,
+} from "@/features/chat/model/pending-input"
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -3364,6 +3367,25 @@ export function GatewayChatSidebar({
           },
           {
             onEnvelope: (envelope) => {
+              if (
+                (envelope.type === "guided" || envelope.type === "queued") &&
+                envelope.message_id
+              ) {
+                setEntries((current) =>
+                  bindOptimisticUserMessage(
+                    current,
+                    optimisticId,
+                    envelope.message_id ?? ""
+                  )
+                )
+              }
+              if (envelope.type === "queued" && envelope.pending_id != null) {
+                setPreInputQueue((current) => {
+                  const id = `db-${envelope.pending_id}`
+                  if (current.some((item) => item.id === id)) return current
+                  return [...current, { id, content, status: "queued" }]
+                })
+              }
               applyEnvelopeEvent(envelope)
             },
           }
@@ -3750,7 +3772,15 @@ export function GatewayChatSidebar({
         accessToken,
         currentConversationId,
         dbId
-      ).catch((promoteError) => {
+      ).then((response) => {
+        setEntries((current) =>
+          bindOptimisticUserMessage(
+            current,
+            guidedEntryId,
+            response.pending_input.message_id
+          )
+        )
+      }).catch((promoteError) => {
         const message = reportChatError(
           promoteError,
           i18n.t("chat.gateway.promoteFailed"),

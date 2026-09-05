@@ -23,7 +23,10 @@ import {
 import {
   normalizeGatewayEnvelope,
 } from "../src/lib/api/chat/gateway-events.ts"
-import { isActionablePreInput } from "../src/features/chat/model/pending-input.ts"
+import {
+  bindOptimisticUserMessage,
+  isActionablePreInput,
+} from "../src/features/chat/model/pending-input.ts"
 import { parseSseStream } from "../src/lib/api/chat/sse-stream.ts"
 import {
   WebNodeRendererRegistry,
@@ -100,6 +103,34 @@ assert.equal(
   isActionablePreInput({ kind: "guided", status: "queued" }),
   false,
   "an injected-but-unsettled guided input must not reappear in the actionable queue"
+)
+const optimisticGuidedUser = {
+  id: "guided-local",
+  role: "user",
+  content: "guide",
+}
+assert.deepEqual(
+  bindOptimisticUserMessage([optimisticGuidedUser], "guided-local", "message-1"),
+  [
+    {
+      ...optimisticGuidedUser,
+      id: "message:message-1",
+      timelineUnitId: "message:message-1",
+    },
+  ],
+  "guided acknowledgement must bind the optimistic bubble to the canonical message id"
+)
+assert.deepEqual(
+  bindOptimisticUserMessage(
+    [
+      optimisticGuidedUser,
+      { ...optimisticGuidedUser, id: "message:message-1" },
+    ],
+    "guided-local",
+    "message-1"
+  ),
+  [{ ...optimisticGuidedUser, id: "message:message-1" }],
+  "canonical refresh arriving before the acknowledgement must not duplicate the user bubble"
 )
 
 const draftCapabilitySelection = { mode: "clean" }
