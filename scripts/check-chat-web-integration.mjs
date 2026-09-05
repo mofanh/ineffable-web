@@ -23,6 +23,7 @@ import {
 import {
   normalizeGatewayEnvelope,
 } from "../src/lib/api/chat/gateway-events.ts"
+import { isActionablePreInput } from "../src/features/chat/model/pending-input.ts"
 import { parseSseStream } from "../src/lib/api/chat/sse-stream.ts"
 import {
   WebNodeRendererRegistry,
@@ -78,6 +79,28 @@ globalThis.matchMedia = () => ({
 
 const conversationId = "conversation-web-integration"
 const runId = "run-web-integration"
+
+assert.deepEqual(
+  normalizeGatewayEnvelope({
+    status: "guided_injected",
+    conversation_id: conversationId,
+    message_id: "guided-message",
+    pending_id: "42",
+  }),
+  {
+    type: "guided",
+    conversation_id: conversationId,
+    message_id: "guided-message",
+    pending_id: 42,
+  },
+  "a guided acknowledgement must not be interpreted as a new run event"
+)
+assert.equal(isActionablePreInput({ kind: "pre_input", status: "queued" }), true)
+assert.equal(
+  isActionablePreInput({ kind: "guided", status: "queued" }),
+  false,
+  "an injected-but-unsettled guided input must not reappear in the actionable queue"
+)
 
 const draftCapabilitySelection = { mode: "clean" }
 const capabilityPolicy = {

@@ -251,6 +251,7 @@ export type ConversationRunSummary = {
   completed_at?: string | null
   is_streaming: boolean
   is_live: boolean
+  accepts_guided_input: boolean
   pending_need?: Record<string, unknown> | null
 }
 

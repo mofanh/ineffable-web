@@ -36,6 +36,12 @@ export type GatewayChatStreamEnvelope =
       conversation_id?: string | null
       message_id?: string | null
     }
+  | {
+      type: "guided"
+      pending_id: number
+      conversation_id?: string | null
+      message_id?: string | null
+    }
 
 export function normalizeGatewayEnvelope(
   raw: unknown
@@ -96,6 +102,26 @@ export function normalizeGatewayEnvelope(
       queue_len: candidate.queue_len as number,
       pending_id: Number.isFinite(pendingId) ? pendingId : null,
       seq: Number.isFinite(seq) ? seq : null,
+      conversation_id:
+        typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
+      message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,
+    }
+  }
+
+  if (candidate.status === "guided_injected") {
+    const pendingIdRaw = candidate.pending_id
+    const pendingId =
+      typeof pendingIdRaw === "number"
+        ? pendingIdRaw
+        : typeof pendingIdRaw === "string"
+          ? Number(pendingIdRaw)
+          : Number.NaN
+    if (!Number.isFinite(pendingId)) {
+      return null
+    }
+    return {
+      type: "guided",
+      pending_id: pendingId,
       conversation_id:
         typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
       message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,

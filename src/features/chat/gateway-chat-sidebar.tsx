@@ -155,6 +155,7 @@ import {
   capabilityExposureForSubmission,
   reconcileCapabilityExposureDraftPolicy,
 } from "@/features/chat/model/capability-exposure-draft"
+import { isActionablePreInput } from "@/features/chat/model/pending-input"
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -909,7 +910,7 @@ export function GatewayChatSidebar({
         accessToken,
         conversationId
       )
-      const dbItems = res.pending_inputs.filter((item) => item.status === "queued")
+      const dbItems = res.pending_inputs.filter(isActionablePreInput)
       setPreInputQueue(
         dbItems.map((item) => ({
           id: `db-${item.id}`,
@@ -2872,7 +2873,7 @@ export function GatewayChatSidebar({
   )
 
   const applyEnvelopeEvent = React.useEffectEvent((envelope: GatewayChatStreamEnvelope) => {
-    if (envelope.type === "queued") {
+    if (envelope.type === "queued" || envelope.type === "guided") {
       return
     }
 
@@ -3963,7 +3964,9 @@ export function GatewayChatSidebar({
         error={error}
         isSending={isSending}
         isSubmittingInput={isSubmittingInput}
-        canPromoteToGuided={Boolean(selectedLiveRun)}
+        canPromoteToGuided={
+          selectedConversation?.current_run?.accepts_guided_input === true
+        }
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
         modelOptions={modelOptions}
