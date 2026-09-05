@@ -26,6 +26,7 @@ import {
 import {
   bindOptimisticUserMessage,
   isActionablePreInput,
+  isPendingInputSuccessorRun,
 } from "../src/features/chat/model/pending-input.ts"
 import { parseSseStream } from "../src/lib/api/chat/sse-stream.ts"
 import {
@@ -103,6 +104,17 @@ assert.equal(
   isActionablePreInput({ kind: "guided", status: "queued" }),
   false,
   "an injected-but-unsettled guided input must not reappear in the actionable queue"
+)
+assert.equal(isPendingInputSuccessorRun("run-old", "run-new"), true)
+assert.equal(
+  isPendingInputSuccessorRun("run-old", "run-old"),
+  false,
+  "the failed predecessor must not be mistaken for a dispatched successor"
+)
+assert.equal(
+  isPendingInputSuccessorRun(null, "run-old"),
+  false,
+  "a stale or missing predecessor snapshot must not accept an arbitrary run"
 )
 const optimisticGuidedUser = {
   id: "guided-local",

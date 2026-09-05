@@ -160,6 +160,7 @@ import {
 import {
   bindOptimisticUserMessage,
   isActionablePreInput,
+  isPendingInputSuccessorRun,
 } from "@/features/chat/model/pending-input"
 import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
@@ -3884,9 +3885,19 @@ export function GatewayChatSidebar({
     }
     setPendingQueueAction("resuming")
     try {
-      const previousRunId = selectedConversation?.current_run?.id ?? null
+      const predecessor = await getConversation(accessToken, conversationId)
+      if (currentConversationIdRef.current !== conversationId) {
+        return
+      }
+      const previousRunId = predecessor.current_run?.id ?? null
       const resumed = await resumePendingInputs(accessToken, conversationId)
+      if (currentConversationIdRef.current !== conversationId) {
+        return
+      }
       await refreshPendingInputsForConversation(conversationId)
+      if (currentConversationIdRef.current !== conversationId) {
+        return
+      }
       if (resumed.released > 0) {
         const deadline = Date.now() + 6_000
         while (
@@ -3894,9 +3905,15 @@ export function GatewayChatSidebar({
           Date.now() < deadline
         ) {
           const conversation = await getConversation(accessToken, conversationId)
+          if (currentConversationIdRef.current !== conversationId) {
+            return
+          }
           const nextRunId = conversation.current_run?.id ?? null
-          if (nextRunId && nextRunId !== previousRunId) {
+          if (isPendingInputSuccessorRun(previousRunId, nextRunId)) {
             await refreshConversations()
+            if (currentConversationIdRef.current !== conversationId) {
+              return
+            }
             if (conversation.current_run?.is_live) {
               void resumeConversationStream(
                 conversationId,
@@ -3911,6 +3928,9 @@ export function GatewayChatSidebar({
           await new Promise<void>((resolve) => {
             window.setTimeout(resolve, 250)
           })
+          if (currentConversationIdRef.current !== conversationId) {
+            return
+          }
         }
       }
       await Promise.all([

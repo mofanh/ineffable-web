@@ -7,6 +7,15 @@ export function isActionablePreInput(input: {
   return input.kind === "pre_input" && input.status === "queued"
 }
 
+export function isPendingInputSuccessorRun(
+  predecessorRunId: string | null | undefined,
+  candidateRunId: string | null | undefined
+): boolean {
+  const predecessor = predecessorRunId?.trim()
+  const candidate = candidateRunId?.trim()
+  return Boolean(predecessor && candidate && predecessor !== candidate)
+}
+
 export function canonicalUserMessageEntryId(messageId: string): string | null {
   const normalized = messageId.trim()
   return normalized ? `message:${normalized}` : null

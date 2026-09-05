@@ -201,5 +201,15 @@ assert.match(
   /resumed\.released > 0[\s\S]{0,1200}conversation\.current_run\?\.is_live[\s\S]{0,500}resumeConversationStream/,
   "explicit queue resume must wait for the dispatcher-created run and attach recovery"
 )
+assert.match(
+  sidebar,
+  /const predecessor = await getConversation\(accessToken, conversationId\)[\s\S]{0,300}const previousRunId = predecessor\.current_run\?\.id \?\? null/,
+  "explicit queue resume must fence against the authoritative predecessor run"
+)
+assert.match(
+  sidebar,
+  /isPendingInputSuccessorRun\(previousRunId, nextRunId\)/,
+  "explicit queue resume must only attach to an explicit successor run"
+)
 
 console.log("chat runtime architecture checks passed")
