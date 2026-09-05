@@ -3,7 +3,7 @@ export const resources = {
     translation: {
       agentEvolution: {
         rebuild: "按当前版本重建",
-        rebuildHint: "重建保留原版本；有变化时生成新候选，再选择“应用到当前会话”开始试用。",
+        rebuildHint: "重建保留原版本；有变化时生成或复用候选，再选择“应用到当前会话”开始试用。回滚只恢复历史选择；旧版本不兼容时仍需重建。",
       },
       language: {
         label: "语言",
@@ -1556,7 +1556,7 @@ export const resources = {
     translation: {
       agentEvolution: {
         rebuild: "Rebuild for current version",
-        rebuildHint: "Rebuilding preserves the original version. If it changes, select Apply to conversation on the new candidate to start a trial.",
+        rebuildHint: "Rebuilding preserves the original version and creates or reuses a candidate when it changes. Select Apply to conversation to start a trial. Rollback restores the previous selection; incompatible versions still need rebuilding.",
       },
       language: {
         label: "Language",
