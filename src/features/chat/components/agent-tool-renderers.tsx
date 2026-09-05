@@ -101,41 +101,6 @@ function buildResolutionInput(
     .join("\n")
 }
 
-function restoredAnswerState(
-  questions: UserInputQuestion[],
-  answer: string | null | undefined
-) {
-  const selections: Record<string, string> = {}
-  const customAnswers: Record<string, string> = {}
-  if (!answer?.trim()) {
-    return { selections, customAnswers }
-  }
-
-  const answers =
-    questions.length === 1
-      ? [answer.trim()]
-      : answer.split("\n").map((line, index) => {
-          const question = questions[index]
-          const prefix = `${question?.header || question?.question}:`
-          return line.startsWith(prefix) ? line.slice(prefix.length).trim() : line.trim()
-        })
-
-  questions.forEach((question, index) => {
-    const restored = answers[index] ?? ""
-    const option = question.options.find((candidate) => candidate.label === restored)
-    if (option) {
-      selections[question.id] = option.label
-      return
-    }
-    if (restored) {
-      selections[question.id] = "__other__"
-      customAnswers[question.id] = restored
-    }
-  })
-
-  return { selections, customAnswers }
-}
-
 function RequestUserInputCard({
   tool,
   canRespond,
@@ -146,21 +111,13 @@ function RequestUserInputCard({
   onSubmit?: (response: AgentUserInputResponse) => Promise<void>
 }) {
   const questions = React.useMemo(() => requestUserInputQuestions(tool), [tool])
-  const restoredAnswer = React.useMemo(
-    () => restoredAnswerState(questions, tool.answer),
-    [questions, tool.answer]
-  )
-  const [selections, setSelections] = React.useState<Record<string, string>>(
-    restoredAnswer.selections
-  )
-  const [customAnswers, setCustomAnswers] = React.useState<Record<string, string>>(
-    restoredAnswer.customAnswers
-  )
+  const [selections, setSelections] = React.useState<Record<string, string>>({})
+  const [customAnswers, setCustomAnswers] = React.useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState("")
-  const isAnswered = tool.status === "succeeded" && Boolean(tool.answer)
+  const isAnswered = Boolean(tool.responseMessageId)
   const isInteractive =
-    tool.status === "waiting" && canRespond && Boolean(onSubmit) && Boolean(tool.runId)
+    !isAnswered && tool.status === "waiting" && canRespond && Boolean(onSubmit) && Boolean(tool.runId)
   const isComplete = questions.every((question) => {
     const selected = selections[question.id]
     return Boolean(
@@ -173,6 +130,7 @@ function RequestUserInputCard({
     <ToolCallShell
       tool={tool}
       title={i18n.t("chat.agent.userInputTitle")}
+      statusLabel={isAnswered ? i18n.t("chat.agent.answerSubmitted") : tool.status === "succeeded" ? i18n.t("chat.agent.questionClosed") : undefined}
       icon={
         <CircleHelpIcon className="size-3.5 flex-none text-amber-600 dark:text-amber-400" />
       }
@@ -206,7 +164,7 @@ function RequestUserInputCard({
               </span>
             </legend>
 
-            <div className="grid gap-2" role="radiogroup">
+            {!isAnswered && <div className="grid gap-2" role="radiogroup">
               {question.options.map((option) => {
                 const selected = selections[question.id] === option.label
                 return (
@@ -293,7 +251,7 @@ function RequestUserInputCard({
                   className="h-9 bg-background/70 text-xs"
                 />
               ) : null}
-            </div>
+            </div>}
           </fieldset>
         ))}
 

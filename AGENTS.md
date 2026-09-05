@@ -254,6 +254,12 @@ return (
 - Default Web Plugin 的固定 renderer 与扩展 renderer 共用 node identity、视觉调度和
   fallback。扩展 renderer 只负责展示，不得修改 canonical transcript、run lifecycle、
   terminal watermark 或 Agentic/Gateway 状态。
+- `request_user_input` 提交的回答是 Gateway canonical user message。回答只按 receipt 的 message id 接管；问题在 AwaitingHuman
+  时先完成 canonical handoff 才开放提交；问题卡仅保存 `responseMessageId` 并标记已回答，不保存答案正文。
+  回答与问题只按 `(run_id, need_id)` 关联，在同一个 timeline reducer 中兼容实时和跨页加载。
+  同一 run 的回答后续输出必须创建回答之后的新 assistant entry；提交跨 await 固定会话与
+  request generation，旧响应不得串写新选择。resume receipt 的 streaming 是后台继续执行，
+  不能解释成 completed。
 - canonical reducer/projector 即时消费全部事件；高频正文、reasoning 和 tool argument
   视觉更新由 frame scheduler 合并，每帧至多发布一次。terminal、error、awaiting-human、
   approval 和显式 stop 必须立即 flush。

@@ -151,7 +151,7 @@ export function projectConversationUserInputNeed(
       status: "waiting",
       runId: need.runId,
       sessionKey: need.sessionKey,
-      answer: existing?.answer,
+      responseMessageId: existing?.responseMessageId,
     }),
   }
 }

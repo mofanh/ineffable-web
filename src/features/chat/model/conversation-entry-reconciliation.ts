@@ -1,3 +1,4 @@
+import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
 import type { AssistantEntry, ChatEntry } from "../gateway-chat-types.ts"
 
 function isLocalAssistantEntry(entry: ChatEntry): entry is AssistantEntry {
@@ -62,7 +63,7 @@ export function reduceConversationTimeline(
   action: ConversationTimelineAction
 ) {
   if (action.type === "hydrate") {
-    return sortTimeline(action.entries)
+    return reconcileHumanInputAnswers(sortTimeline(action.entries))
   }
 
   const handoff = action.type === "canonical-patch" ? action.handoff : null
@@ -97,5 +98,5 @@ export function reduceConversationTimeline(
     return true
   })
 
-  return sortTimeline([...retained, ...incoming])
+  return reconcileHumanInputAnswers(sortTimeline([...retained, ...incoming]))
 }

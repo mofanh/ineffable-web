@@ -1,3 +1,5 @@
+import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
+import { renderSpecializedTool } from "../src/features/chat/components/agent-tool-renderers.tsx"
 import assert from "node:assert/strict"
 import React from "react"
 import TestRenderer, { act } from "react-test-renderer"
@@ -1191,6 +1193,58 @@ assert.equal(
   "the authoritative current-run need must restore interactivity after refresh"
 )
 
+const answeredUserMessage = {
+  id: "answer-message", conversation_id: conversationId, run_id: runId,
+  role: "user", message_type: "input", content: "Code",
+  metadata_json: { human_resolution: { kind: "user_input", need_id: "tool-user-input" } },
+  created_at: "2026-08-30T00:00:02Z", updated_at: "2026-08-30T00:00:02Z",
+  timeline_seq: 3, canonical_seq: 3, timeline_unit_id: "message:answer-message",
+}
+const canonicalQuestionEntries = restoredUserInputEntries.map((entry) => ({
+  ...entry, id: "run:question", timelineSeq: 1, timelineUnitId: "run:question",
+}))
+const canonicalAnswerEntries = mapConversationMessagesToEntries([answeredUserMessage])
+const answerTimeline = reduceConversationTimeline(canonicalQuestionEntries, {
+  type: "canonical-patch", entries: canonicalAnswerEntries,
+})
+assert.equal(answerTimeline.length, 2)
+assert.equal(answerTimeline[1].role, "user")
+assert.equal(answerTimeline[1].content, "Code")
+assert.equal(answerTimeline[0].pane.tools["tool-user-input"].responseMessageId, "message:answer-message")
+assert.equal(answerTimeline[0].pane.tools["tool-user-input"].answer, undefined)
+assert.equal(findAssistantEntryIdForRun(answerTimeline, runId), null,
+  "resumed output must start after the human answer, even though the run id is unchanged")
+const replayedAnswerTimeline = reduceConversationTimeline(answerTimeline, {
+  type: "canonical-patch", entries: canonicalAnswerEntries,
+})
+assert.equal(replayedAnswerTimeline.length, 2, "replayed acknowledgements never duplicate the user bubble")
+const paginatedAnswerTimeline = reduceConversationTimeline(canonicalAnswerEntries, {
+  type: "prepend-history", entries: canonicalQuestionEntries,
+})
+assert.deepEqual(paginatedAnswerTimeline, answerTimeline,
+  "loading the question after its answer must restore exactly the same receipt")
+for (const unrelated of [
+  { ...answeredUserMessage, metadata_json: {} },
+  { ...answeredUserMessage, run_id: "different-run" },
+  { ...answeredUserMessage, metadata_json: { human_resolution: { kind: "user_input", need_id: "different-need" } } },
+]) {
+  const timeline = reduceConversationTimeline(canonicalQuestionEntries, {
+    type: "canonical-patch", entries: mapConversationMessagesToEntries([unrelated]),
+  })
+  assert.equal(timeline[0].pane.tools["tool-user-input"].responseMessageId, undefined,
+    "ordinary input or a different need/run must never answer the nearest question")
+}
+let answeredCard
+await act(async () => {
+  answeredCard = TestRenderer.create(renderSpecializedTool({
+    tool: answerTimeline[0].pane.tools["tool-user-input"], canRespondToUserInput: false,
+  }))
+})
+assert.match(JSON.stringify(answeredCard.toJSON()), /已回答|Answered/)
+assert.equal(answeredCard.root.findAll((node) => node.props.role === "radio").length, 0,
+  "answered assistant card must not render selected-answer controls")
+await act(async () => answeredCard.unmount())
+
 const previousRunEntry = {
   ...restoredUserInputEntries[0],
   id: "assistant-previous-run",
@@ -1203,7 +1257,7 @@ const previousRunEntry = {
         ...restoredUserInputEntries[0].pane.tools["tool-user-input"],
         runId: "run-previous",
         status: "succeeded",
-        answer: "previous answer",
+        responseMessageId: "previous-answer-message",
       },
     },
   },

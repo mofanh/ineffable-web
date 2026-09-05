@@ -544,6 +544,10 @@ export type SandboxApprovalListResponse = {
 }
 
 export type ResumeRunResponse = {
+  conversation_id?: string
+  need_id?: string
+  execution_epoch?: number
+  input_message?: ConversationMessageRecord | null
   output?: string
   session_key?: string
   agent_id?: string

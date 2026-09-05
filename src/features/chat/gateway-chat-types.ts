@@ -5,6 +5,7 @@ export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "
 export type UserEntry = {
   id: string
   role: "user"
+  humanInputResponse?: { runId: string; needId: string }
   content: string
   timelineSeq?: number | null
   timelineUnitId?: string | null

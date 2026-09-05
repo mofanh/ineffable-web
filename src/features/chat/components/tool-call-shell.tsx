@@ -69,6 +69,7 @@ export function ToolCallShell({
   tool,
   title,
   summary,
+  statusLabel,
   icon,
   children,
   defaultOpen,
@@ -80,6 +81,7 @@ export function ToolCallShell({
   tool: ToolCallView
   title?: React.ReactNode
   summary?: React.ReactNode
+  statusLabel?: React.ReactNode
   icon?: React.ReactNode
   children: React.ReactNode
   defaultOpen?: boolean
@@ -160,7 +162,7 @@ export function ToolCallShell({
                 tool.status === "running" && "animate-pulse"
               )}
             />
-            {toolStatusLabel(tool.status)}
+            {statusLabel ?? toolStatusLabel(tool.status)}
             <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
           </span>
         </button>

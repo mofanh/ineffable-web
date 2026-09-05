@@ -512,6 +512,7 @@ export function GatewayChatSidebar({
   const catchupInFlightRef = React.useRef(false)
   const conversationSeqRef = React.useRef(new Map<string, number>())
   const currentConversationIdRef = React.useRef<string | null>(currentConversationId)
+  const humanInputSubmissionGenerationRef = React.useRef(0)
   const agentEvolutionWorkspaceIdRef = React.useRef(
     resolveAgentEvolutionWorkspaceId(currentWorkspace)
   )
@@ -595,6 +596,7 @@ export function GatewayChatSidebar({
 
   const selectConversationTarget = React.useCallback(
     (conversationId: string | null) => {
+      humanInputSubmissionGenerationRef.current += 1
       const currentId = currentConversationIdRef.current
       if (
         currentId &&
@@ -960,6 +962,7 @@ export function GatewayChatSidebar({
 
   React.useEffect(() => {
     currentConversationIdRef.current = currentConversationId
+    humanInputSubmissionGenerationRef.current += 1
   }, [currentConversationId])
 
   React.useEffect(() => {
@@ -2314,7 +2317,12 @@ export function GatewayChatSidebar({
     assistantEntryIdRef.current = null
     setError(null)
     updateStreamStatus("completed")
-    void refreshConversations().catch(() => {})
+    if (conversationId) {
+      // AwaitingHuman is also a canonical handoff: the question must acquire its
+      // message_seq before the user can submit the next timeline boundary.
+      void syncLatestConversationMessagesPage(conversationId)
+        .then(() => refreshConversations()).catch(() => {})
+    }
   }
 
   function completeAssistantEntry(fallback?: string, runId = activeRunIdRef.current) {
@@ -2467,6 +2475,12 @@ export function GatewayChatSidebar({
       void refreshConversations().catch(() => {})
       return
     }
+    if (response.input_message) {
+      const canonicalEntries = mapConversationMessagesToEntries([response.input_message])
+      setEntries((current) => reduceConversationTimeline(current, {
+        type: "canonical-patch", entries: canonicalEntries,
+      }))
+    }
     const forwardMessages = Array.isArray(response.forward_messages)
       ? response.forward_messages
       : []
@@ -2541,6 +2555,17 @@ export function GatewayChatSidebar({
     }
 
     const resumedRunState = response.run_state?.trim().toLowerCase()
+    if (resumedRunState === "streaming" || resumedRunState === "resuming") {
+      setAwaitingHumanRunId(null)
+      terminalEventSeenRef.current = false
+      activeRunIdRef.current = response.run_id ?? null
+      assistantEntryIdRef.current = null
+      setError(null)
+      updateStreamStatus("streaming")
+      void refreshConversations().catch(() => {})
+      void recoverConversationEvents(conversationId, true)
+      return
+    }
     if (resumedRunState === "failed" || resumedRunState === "busy_rejected") {
       const errorMessage = formatSendErrorMessage(
         response.output?.trim() || i18n.t("chat.gateway.sendFailed")
@@ -3200,6 +3225,12 @@ export function GatewayChatSidebar({
       return
     }
 
+    const targetConversationId = currentConversationIdRef.current
+    if (!targetConversationId) return
+    const generation = ++humanInputSubmissionGenerationRef.current
+    const isCurrentSubmission = () => currentConversationIdRef.current === targetConversationId &&
+      humanInputSubmissionGenerationRef.current === generation
+
     updateApprovalEntry(entryId, (current) => ({
       ...current,
       status: approved ? "approving" : "rejecting",
@@ -3220,13 +3251,14 @@ export function GatewayChatSidebar({
         })
       }
 
-      updateApprovalEntry(entryId, (current) => ({
+      if (isCurrentSubmission()) updateApprovalEntry(entryId, (current) => ({
         ...current,
         status: approved ? "approved" : "rejected",
         error: null,
       }))
 
       if (!entry.runId && !entry.sessionKey) {
+        if (!isCurrentSubmission()) return
         updateStreamStatus("completed")
         appendSystemMessage(
           approved
@@ -3236,10 +3268,6 @@ export function GatewayChatSidebar({
         return
       }
 
-      const targetConversationId = currentConversationIdRef.current
-      if (!targetConversationId) {
-        throw new Error(i18n.t("chat.gateway.approvalFailed"))
-      }
       const resumed = await resumeRunWithApproval(
         accessToken,
         currentWorkspace.id,
@@ -3250,8 +3278,10 @@ export function GatewayChatSidebar({
           approved,
         }
       )
-      applyResumeResponse(resumed, targetConversationId)
+      if (isCurrentSubmission()) applyResumeResponse(resumed, targetConversationId)
+      else void refreshConversations().catch(() => {})
     } catch (approvalError) {
+      if (!isCurrentSubmission()) return
       const message = reportChatError(
         approvalError,
         i18n.t("chat.gateway.approvalFailed"),
@@ -3288,6 +3318,15 @@ export function GatewayChatSidebar({
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
 
+    const targetConversationId = currentConversationIdRef.current
+    if (!targetConversationId) {
+      throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
+    }
+    const generation = ++humanInputSubmissionGenerationRef.current
+    assistantEntryIdRef.current = null
+    const isCurrentSubmission = () =>
+      currentConversationIdRef.current === targetConversationId &&
+      humanInputSubmissionGenerationRef.current === generation
     setError(null)
     setEntries((current) =>
       current.map((entry) =>
@@ -3298,10 +3337,6 @@ export function GatewayChatSidebar({
       )
     )
 
-    const targetConversationId = currentConversationIdRef.current
-    if (!targetConversationId) {
-      throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
-    }
     try {
       const resumed = await resumeRunWithUserInput(
         accessToken,
@@ -3313,25 +3348,27 @@ export function GatewayChatSidebar({
           input: response.input,
         }
       )
+      if (!isCurrentSubmission()) {
+        void refreshConversations().catch(() => {})
+        return
+      }
+      if (resumed.run_id !== response.runId || resumed.need_id !== response.needId ||
+          resumed.conversation_id !== targetConversationId || !resumed.input_message) {
+        throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
+      }
       applyResumeResponse(resumed, targetConversationId)
-      setEntries((current) =>
-        current.map((entry) =>
-          updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
-            ...tool,
-            status: "succeeded",
-            answer: response.input,
-          }))
-        )
-      )
     } catch (submitError) {
+      if (!isCurrentSubmission()) return
       setEntries((current) =>
         current.map((entry) =>
           updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
             ...tool,
-            status: "failed",
+            status: tool.responseMessageId ? "succeeded" : "waiting",
           }))
         )
       )
+      // A lost acknowledgement can still have committed; recover the canonical tail.
+      void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
       throw submitError
     }
   }

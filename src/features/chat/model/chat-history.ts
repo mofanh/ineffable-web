@@ -1,3 +1,4 @@
+import { humanInputResponseIdentity, reconcileHumanInputAnswers } from "./human-input-timeline"
 import {
   applyCanonicalMessageToPane,
   applyMessageToPane,
@@ -22,7 +23,6 @@ import {
   isTextDeltaEvent,
   isToolEvent,
 } from "@/features/chat/gateway-chat-helpers"
-import type { ToolCallView } from "@/features/chat/chat-pane-state"
 import type {
   AssistantEntry,
   CapabilityExposureSummary,
@@ -185,6 +185,7 @@ export function findAssistantEntryIdForRun(
 
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
+    if (entry.role === "user" && entry.humanInputResponse?.runId === normalizedRunId) return null
     if (entry.role === "assistant" && entry.runId === normalizedRunId) {
       return entry.id
     }
@@ -538,71 +539,6 @@ function buildAssistantEntryFromMessages(
   }
 }
 
-function resolveWaitingUserInputTool(
-  tool: ToolCallView,
-  answer: string
-): ToolCallView {
-  if (tool.name !== "request_user_input" || tool.status !== "waiting") {
-    return tool
-  }
-
-  return {
-    ...tool,
-    status: "succeeded",
-    answer,
-  }
-}
-
-function restoreUserInputAnswer(
-  entry: AssistantEntry,
-  answer: string
-): AssistantEntry {
-  let resolved = false
-  const resolvePane = (pane: AgentPaneState) => {
-    const tools = { ...pane.tools }
-
-    for (let index = pane.blockOrder.length - 1; index >= 0; index -= 1) {
-      const block = pane.blocks[pane.blockOrder[index]]
-      if (block?.type !== "tool") continue
-      const tool = tools[block.toolId]
-      if (
-        tool?.name !== "request_user_input" ||
-        tool.status !== "waiting"
-      ) {
-        continue
-      }
-
-      tools[block.toolId] = resolveWaitingUserInputTool(tool, answer)
-      resolved = true
-      break
-    }
-
-    return resolved ? { ...pane, tools } : pane
-  }
-
-  const pane = resolvePane(entry.pane)
-  if (resolved) {
-    return { ...entry, pane }
-  }
-
-  const subagents = { ...entry.subagents }
-  for (let index = entry.subagentOrder.length - 1; index >= 0; index -= 1) {
-    const subagentId = entry.subagentOrder[index]
-    const subagent = subagents[subagentId]
-    if (!subagent) continue
-    const restored = resolvePane(subagent)
-    if (resolved) {
-      subagents[subagentId] = {
-        ...subagent,
-        ...restored,
-      }
-      return { ...entry, subagents }
-    }
-  }
-
-  return entry
-}
-
 export function mapConversationMessagesToEntries(
   messages: ConversationMessageRecord[]
 ): ChatEntry[] {
@@ -640,16 +576,10 @@ export function mapConversationMessagesToEntries(
 
       if (message.role === "user" || message.message_type === "input") {
         flushAssistantMessages()
-        const previousEntry = entries[entries.length - 1]
-        if (previousEntry?.role === "assistant") {
-          entries[entries.length - 1] = restoreUserInputAnswer(
-            previousEntry,
-            message.content
-          )
-        }
         entries.push({
           id: message.timeline_unit_id || message.id,
           role: "user",
+          humanInputResponse: humanInputResponseIdentity(message.run_id, message.metadata_json),
           content: message.content,
           timelineSeq: message.timeline_seq,
           timelineUnitId: message.timeline_unit_id,
@@ -696,7 +626,7 @@ export function mapConversationMessagesToEntries(
     })
 
   flushAssistantMessages()
-  return entries
+  return reconcileHumanInputAnswers(entries)
 }
 
 export function reconcilePendingUserInput(
@@ -742,7 +672,7 @@ export function reconcilePendingUserInput(
       status: "waiting",
       runId: need.runId,
       sessionKey: need.sessionKey,
-      answer: existing?.answer,
+      responseMessageId: existing?.responseMessageId,
     }),
   }
 

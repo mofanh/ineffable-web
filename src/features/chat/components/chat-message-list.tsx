@@ -443,7 +443,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}
                   canRespondToUserInput={
-                    Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
+                    Number.isSafeInteger(entry.timelineSeq) && Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
                   }
                   onSubmitUserInput={onSubmitUserInput}
                   subagentOrder={entry.subagentOrder}

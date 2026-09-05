@@ -26,7 +26,7 @@ export type ToolCallView = {
   status: ToolCallStatus
   runId?: string | null
   sessionKey?: string | null
-  answer?: string | null
+  responseMessageId?: string | null
 }
 
 export type TextBlock = {
