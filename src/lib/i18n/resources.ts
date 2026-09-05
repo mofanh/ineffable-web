@@ -481,6 +481,11 @@ export const resources = {
           createAgentHint:
             "在 workspace 文件中创建 system/agents/*.md 后可引用",
           queue: "预输入队列 ({{count}})",
+          queueBlocked: "前序任务未成功，仍待处理",
+          resumeQueue: "继续执行",
+          clearQueue: "清空",
+          resumeQueueFailed: "无法继续执行预输入队列",
+          clearQueueFailed: "无法清空预输入队列",
           queued: "排队中 · ",
           promoting: "引导中 · ",
           deleting: "删除中 · ",
@@ -2044,6 +2049,11 @@ export const resources = {
           createAgentHint:
             "Create system/agents/*.md in a workspace to reference Agent files",
           queue: "Pre-input queue ({{count}})",
+          queueBlocked: "Previous run did not succeed; inputs are still pending",
+          resumeQueue: "Continue",
+          clearQueue: "Clear",
+          resumeQueueFailed: "Unable to continue the pre-input queue",
+          clearQueueFailed: "Unable to clear the pre-input queue",
           queued: "Queued · ",
           promoting: "Guiding · ",
           deleting: "Deleting · ",

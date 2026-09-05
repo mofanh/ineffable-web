@@ -121,6 +121,7 @@ import { mergeAssistantDeltaEvents } from "@/features/chat/runtime/assistant-eve
 import { useAppSession } from "@/features/auth/app-session"
 import {
   approveSandboxApproval,
+  clearPendingInputs,
   deletePendingInput,
   getConversation,
   getCapabilityExposureDraft,
@@ -135,6 +136,7 @@ import {
   rejectSandboxApproval,
   resumeRunWithApproval,
   resumeRunWithUserInput,
+  resumePendingInputs,
   stopConversationRun,
   subscribeConversationEvents,
   streamConversationSend,
@@ -555,6 +557,13 @@ export function GatewayChatSidebar({
   > | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
+  const [blockedPreInputRunStatus, setBlockedPreInputRunStatus] = React.useState<
+    string | null
+  >(null)
+  const [canResumePreInputQueue, setCanResumePreInputQueue] = React.useState(false)
+  const [pendingQueueAction, setPendingQueueAction] = React.useState<
+    "idle" | "resuming" | "clearing"
+  >("idle")
   const [isSubmittingInput, setIsSubmittingInput] = React.useState(false)
   const [unreadConversationIds, setUnreadConversationIds] = React.useState(
     () => new Set<string>()
@@ -913,6 +922,9 @@ export function GatewayChatSidebar({
         accessToken,
         conversationId
       )
+      if (currentConversationIdRef.current !== conversationId) {
+        return
+      }
       const dbItems = res.pending_inputs.filter(isActionablePreInput)
       setPreInputQueue(
         dbItems.map((item) => ({
@@ -921,6 +933,8 @@ export function GatewayChatSidebar({
           status: "queued" as const,
         }))
       )
+      setBlockedPreInputRunStatus(res.blocked_by_run_status)
+      setCanResumePreInputQueue(res.can_resume)
     },
     [accessToken]
   )
@@ -1289,6 +1303,9 @@ export function GatewayChatSidebar({
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
     if (!currentConversationId || !accessToken) {
+      setPreInputQueue([])
+      setBlockedPreInputRunStatus(null)
+      setCanResumePreInputQueue(false)
       return
     }
 
@@ -2535,7 +2552,10 @@ export function GatewayChatSidebar({
       appendSystemMessage(
         i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
       )
-      void refreshConversations().catch(() => {})
+      void Promise.all([
+        refreshConversations(),
+        refreshPendingInputsForConversation(conversationId),
+      ]).catch(() => {})
       return
     }
     if (resumedRunState === "awaiting_human") {
@@ -3848,6 +3868,51 @@ export function GatewayChatSidebar({
     setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
   }
 
+  async function handleResumePreInputQueue() {
+    const conversationId = currentConversationIdRef.current
+    if (!accessToken || !conversationId || pendingQueueAction !== "idle") {
+      return
+    }
+    setPendingQueueAction("resuming")
+    try {
+      await resumePendingInputs(accessToken, conversationId)
+      await Promise.all([
+        refreshPendingInputsForConversation(conversationId),
+        refreshConversations(),
+      ])
+    } catch (caught) {
+      const message = reportChatError(
+        caught,
+        i18n.t("chat.composer.resumeQueueFailed"),
+        i18n.t("chat.composer.resumeQueueFailed")
+      )
+      setError(message)
+    } finally {
+      setPendingQueueAction("idle")
+    }
+  }
+
+  async function handleClearPreInputQueue() {
+    const conversationId = currentConversationIdRef.current
+    if (!accessToken || !conversationId || pendingQueueAction !== "idle") {
+      return
+    }
+    setPendingQueueAction("clearing")
+    try {
+      await clearPendingInputs(accessToken, conversationId)
+      await refreshPendingInputsForConversation(conversationId)
+    } catch (caught) {
+      const message = reportChatError(
+        caught,
+        i18n.t("chat.composer.clearQueueFailed"),
+        i18n.t("chat.composer.clearQueueFailed")
+      )
+      setError(message)
+    } finally {
+      setPendingQueueAction("idle")
+    }
+  }
+
   const resolveApproval = React.useEffectEvent(
     async (entryId: string, approved: boolean) => {
       await handleResolveApproval(entryId, approved)
@@ -3997,6 +4062,9 @@ export function GatewayChatSidebar({
         canPromoteToGuided={
           selectedConversation?.current_run?.accepts_guided_input === true
         }
+        canResumePreInputQueue={canResumePreInputQueue}
+        blockedPreInputRunStatus={blockedPreInputRunStatus}
+        pendingQueueAction={pendingQueueAction}
         preInputQueue={preInputQueue}
         agentDescriptorOptions={agentDescriptorOptions}
         modelOptions={modelOptions}
@@ -4037,6 +4105,12 @@ export function GatewayChatSidebar({
         }}
         onPromoteToGuided={handlePromoteToGuided}
         onDeleteFromQueue={handleDeleteFromQueue}
+        onResumePreInputQueue={() => {
+          void handleResumePreInputQueue()
+        }}
+        onClearPreInputQueue={() => {
+          void handleClearPreInputQueue()
+        }}
       />
     </>
   )

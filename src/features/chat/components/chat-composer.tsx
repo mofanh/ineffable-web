@@ -50,10 +50,12 @@ import {
   GripVerticalIcon,
   GitBranchIcon,
   LoaderCircleIcon,
+  RotateCcwIcon,
   SearchIcon,
   SendHorizontalIcon,
   SquareIcon,
   SparklesIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react"
 
@@ -84,6 +86,9 @@ type ChatComposerProps = {
   isSending: boolean
   isSubmittingInput: boolean
   canPromoteToGuided: boolean
+  canResumePreInputQueue: boolean
+  blockedPreInputRunStatus: string | null
+  pendingQueueAction: "idle" | "resuming" | "clearing"
   preInputQueue: PreInputQueueItem[]
   agentDescriptorOptions: AgentDescriptorOption[]
   modelOptions: ModelProfileOption[]
@@ -114,6 +119,8 @@ type ChatComposerProps = {
   onStop: () => void
   onPromoteToGuided: (id: string) => void
   onDeleteFromQueue: (id: string) => void
+  onResumePreInputQueue: () => void
+  onClearPreInputQueue: () => void
 }
 
 export function ChatComposer({
@@ -123,6 +130,9 @@ export function ChatComposer({
   isSending,
   isSubmittingInput,
   canPromoteToGuided,
+  canResumePreInputQueue,
+  blockedPreInputRunStatus,
+  pendingQueueAction,
   preInputQueue,
   agentDescriptorOptions,
   modelOptions,
@@ -153,6 +163,8 @@ export function ChatComposer({
   onStop,
   onPromoteToGuided,
   onDeleteFromQueue,
+  onResumePreInputQueue,
+  onClearPreInputQueue,
 }: ChatComposerProps) {
   const { t } = useTranslation()
   const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
@@ -384,9 +396,52 @@ export function ChatComposer({
     >
       {preInputQueue.length > 0 ? (
         <div className="mb-1.5 space-y-1.5">
-          <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted-foreground">
-            <GripVerticalIcon className="size-3" />
-            <span>{t("chat.composer.queue", { count: preInputQueue.length })}</span>
+          <div className="flex min-h-6 items-center justify-between gap-2 px-1 text-[11px] font-medium text-muted-foreground">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <GripVerticalIcon className="size-3 shrink-0" />
+              <span className="shrink-0">
+                {t("chat.composer.queue", { count: preInputQueue.length })}
+              </span>
+              {blockedPreInputRunStatus ? (
+                <span className="truncate text-amber-700 dark:text-amber-400">
+                  {t("chat.composer.queueBlocked")}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {canResumePreInputQueue ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 gap-1 rounded-md px-1.5 text-[11px] text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:text-amber-400"
+                  onClick={onResumePreInputQueue}
+                  disabled={pendingQueueAction !== "idle"}
+                >
+                  {pendingQueueAction === "resuming" ? (
+                    <LoaderCircleIcon className="size-3 animate-spin" />
+                  ) : (
+                    <RotateCcwIcon className="size-3" />
+                  )}
+                  {t("chat.composer.resumeQueue")}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 rounded-md px-1.5 text-[11px] hover:bg-destructive/10 hover:text-destructive"
+                onClick={onClearPreInputQueue}
+                disabled={pendingQueueAction !== "idle"}
+              >
+                {pendingQueueAction === "clearing" ? (
+                  <LoaderCircleIcon className="size-3 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-3" />
+                )}
+                {t("chat.composer.clearQueue")}
+              </Button>
+            </div>
           </div>
           <div className="max-h-[140px] space-y-1 overflow-y-auto rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-1.5">
             {preInputQueue.map((item) => (

@@ -2400,9 +2400,39 @@ export function getPendingInputs(
   accessToken: string,
   conversationId: string
 ) {
-  return requestApiJson<{ pending_inputs: PendingInputItem[] }>(
+  return requestApiJson<{
+    pending_inputs: PendingInputItem[]
+    blocked_by_run_status: string | null
+    can_resume: boolean
+  }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs`,
     {
+      accessToken,
+    }
+  )
+}
+
+export function resumePendingInputs(
+  accessToken: string,
+  conversationId: string
+) {
+  return requestApiJson<{ ok: boolean; released: number }>(
+    `/gateway/v1/conversations/${conversationId}/pending-inputs/resume`,
+    {
+      method: "POST",
+      accessToken,
+    }
+  )
+}
+
+export function clearPendingInputs(
+  accessToken: string,
+  conversationId: string
+) {
+  return requestApiJson<{ ok: boolean; cancelled: number }>(
+    `/gateway/v1/conversations/${conversationId}/pending-inputs/clear`,
+    {
+      method: "DELETE",
       accessToken,
     }
   )
