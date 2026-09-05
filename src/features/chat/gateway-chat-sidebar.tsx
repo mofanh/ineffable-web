@@ -2409,6 +2409,14 @@ export function GatewayChatSidebar({
     void syncTerminalConversationMessages(conversationId, handoff).catch(() => {})
   }
 
+  function refreshFailedConversationProjection(conversationId: string) {
+    void Promise.all([
+      refreshConversations(),
+      refreshPendingInputsForConversation(conversationId),
+      syncLatestConversationMessagesPage(conversationId),
+    ]).catch(() => {})
+  }
+
   function settleConversationRecovery(conversation: Conversation) {
     const lifecycle = getConversationRunLifecycle(conversation)
     const runId = conversation.current_run?.id ?? null
@@ -2442,6 +2450,7 @@ export function GatewayChatSidebar({
       assistantEntryIdRef.current = null
       updateStreamStatus("error")
       setError(i18n.t("chat.gateway.sendFailed"))
+      refreshFailedConversationProjection(conversation.id)
       return true
     }
 
@@ -2684,7 +2693,7 @@ export function GatewayChatSidebar({
         clearConversationResumeState(conversationId)
       }
       updateStreamStatus("error")
-      void refreshConversations().catch(() => {})
+      refreshFailedConversationProjection(conversationId)
       setError(errorMessage)
       appendSystemMessage(
         i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
@@ -3875,10 +3884,39 @@ export function GatewayChatSidebar({
     }
     setPendingQueueAction("resuming")
     try {
-      await resumePendingInputs(accessToken, conversationId)
+      const previousRunId = selectedConversation?.current_run?.id ?? null
+      const resumed = await resumePendingInputs(accessToken, conversationId)
+      await refreshPendingInputsForConversation(conversationId)
+      if (resumed.released > 0) {
+        const deadline = Date.now() + 6_000
+        while (
+          currentConversationIdRef.current === conversationId &&
+          Date.now() < deadline
+        ) {
+          const conversation = await getConversation(accessToken, conversationId)
+          const nextRunId = conversation.current_run?.id ?? null
+          if (nextRunId && nextRunId !== previousRunId) {
+            await refreshConversations()
+            if (conversation.current_run?.is_live) {
+              void resumeConversationStream(
+                conversationId,
+                nextRunId,
+                conversationSeqRef.current.get(conversationId) ?? null
+              )
+            } else {
+              settleConversationRecovery(conversation)
+            }
+            return
+          }
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 250)
+          })
+        }
+      }
       await Promise.all([
-        refreshPendingInputsForConversation(conversationId),
         refreshConversations(),
+        refreshPendingInputsForConversation(conversationId),
+        syncLatestConversationMessagesPage(conversationId),
       ])
     } catch (caught) {
       const message = reportChatError(

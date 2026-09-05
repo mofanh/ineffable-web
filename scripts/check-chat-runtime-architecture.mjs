@@ -191,5 +191,15 @@ assert.match(sidebar, /resumePendingInputs\(accessToken, conversationId\)/)
 assert.match(sidebar, /clearPendingInputs\(accessToken, conversationId\)/)
 assert.match(chatComposer, /canResumePreInputQueue/)
 assert.match(chatComposer, /chat\.composer\.queueBlocked/)
+assert.match(
+  sidebar,
+  /function refreshFailedConversationProjection[\s\S]{0,400}refreshPendingInputsForConversation/,
+  "every failed terminal projection must refresh the authoritative pending queue"
+)
+assert.match(
+  sidebar,
+  /resumed\.released > 0[\s\S]{0,1200}conversation\.current_run\?\.is_live[\s\S]{0,500}resumeConversationStream/,
+  "explicit queue resume must wait for the dispatcher-created run and attach recovery"
+)
 
 console.log("chat runtime architecture checks passed")
