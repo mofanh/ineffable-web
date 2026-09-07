@@ -1088,11 +1088,20 @@ export function createConversation(
   })
 }
 
+const pendingConversationRenames = new Map<string, Promise<Conversation>>()
+
 export function renameConversation(accessToken: string, conversationId: string, title: string) {
-  return requestApiJson<Conversation>("/gateway/v1/conversations/rename", {
-    method: "POST",
-    accessToken,
-    body: { conversation_id: conversationId, title },
+  const previous = pendingConversationRenames.get(conversationId)
+  const request = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(() =>
+    requestApiJson<Conversation>("/gateway/v1/conversations/rename", {
+      method: "POST",
+      accessToken,
+      body: { conversation_id: conversationId, title },
+    })
+  )
+  pendingConversationRenames.set(conversationId, request)
+  return request.finally(() => {
+    if (pendingConversationRenames.get(conversationId) === request) pendingConversationRenames.delete(conversationId)
   })
 }
 

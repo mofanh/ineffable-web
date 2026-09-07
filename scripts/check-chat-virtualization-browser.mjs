@@ -70,10 +70,14 @@ try {
   await page.getByRole("button", { name: "取消", exact: true }).click()
   await editTitle.click()
   await titleInput.fill("New editor draft")
+  await titleInput.press("Enter")
+  await page.waitForTimeout(100)
+  assert.equal(renameRequests.length, 3, "a second save must wait until the previous write settles")
+  holdRename = false
   releaseRename()
-  await page.locator('[data-sidebar="header"] button[title="Retry title"]').waitFor()
-  assert.equal(await titleInput.inputValue(), "New editor draft", "late save must not close or replace a reopened editor")
-  await page.getByRole("button", { name: "取消", exact: true }).click()
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
+  await page.locator('[data-sidebar="header"] button[title="New editor draft"]').waitFor()
+  assert.equal(renameRequests[3].title, "New editor draft", "latest title must be the final persisted write")
   for (const width of [900, 390]) {
     await page.setViewportSize({ width, height: 700 })
     const layout = await page.locator('[data-terminal-chat]').evaluate((root) => {

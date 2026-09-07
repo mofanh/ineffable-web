@@ -1,4 +1,5 @@
 import * as React from "react"
+import { renameConversation as persistConversationTitle } from "@/lib/api/api-client"
 import { Navigate, useLocation } from "react-router-dom"
 
 import { FullPageLoading } from "@/components/app/route-loading"
@@ -67,6 +68,7 @@ type ConversationSessionContextValue = {
   conversations: Conversation[]
   currentConversationId: string | null
   refreshConversations: () => Promise<void>
+  renameConversation: (conversationId: string, title: string) => Promise<void>
   createConversation: (title: string) => Promise<Conversation>
   selectConversation: (conversationId: string | null) => void
 }
@@ -196,8 +198,10 @@ export function AppSessionProvider({
   const initialBootstrapStartedRef = React.useRef(false)
   const conversationSelectionVersionRef = React.useRef(0)
   const conversationRefreshRequestRef = React.useRef(0)
+  const sessionGenerationRef = React.useRef(0)
 
   const clearSession = React.useCallback(() => {
+    sessionGenerationRef.current += 1
     clearApiResourceCache()
     setStatus("unauthenticated")
     setAccessToken(null)
@@ -582,11 +586,24 @@ export function AppSessionProvider({
     [currentWorkspaceId, selectWorkspace, workspaces],
   )
 
+  const renameConversation = React.useCallback(async (conversationId: string, title: string) => {
+    if (!accessToken) throw new Error(i18n.t("chat.header.renameFailed"))
+    const generation = sessionGenerationRef.current
+    const saved = await persistConversationTitle(accessToken, conversationId, title)
+    if (generation !== sessionGenerationRef.current) return
+    // Invalidate list reads started before the canonical rename response.
+    conversationRefreshRequestRef.current += 1
+    setConversations((current) => current.map((conversation) =>
+      conversation.id === conversationId ? { ...conversation, title: saved.title } : conversation
+    ))
+  }, [accessToken])
+
   const conversationValue = React.useMemo<ConversationSessionContextValue>(
     () => ({
       conversations,
       currentConversationId,
       refreshConversations: refreshConversationList,
+      renameConversation,
       createConversation: createConversationForWorkspace,
       selectConversation,
     }),
@@ -595,6 +612,7 @@ export function AppSessionProvider({
       createConversationForWorkspace,
       currentConversationId,
       refreshConversationList,
+      renameConversation,
       selectConversation,
     ],
   )
