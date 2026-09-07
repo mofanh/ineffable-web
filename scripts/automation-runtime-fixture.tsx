@@ -1,4 +1,8 @@
+import { AppHeaderProvider } from "../src/app/shell/app-header-context"
 import * as React from "react"
+import { MemoryRouter } from "react-router-dom"
+import { AppSessionProvider } from "../src/features/auth/app-session"
+import { AutomationPage } from "../src/pages/agent-products/automation-page"
 import { createRoot } from "react-dom/client"
 import { AutomationRuntimeFields } from "../src/pages/agent-products/automation-runtime-fields"
 import { updateAutomation, type AutomationRuntimeConfig } from "../src/lib/api/api-client"
@@ -13,4 +17,4 @@ function Fixture() {
   })
   return <main><AutomationRuntimeFields accessToken="test-token" conversationId="conversation-a" value={value} onChange={setValue} /><pre data-config>{JSON.stringify(value)}</pre><button onClick={() => void updateAutomation("test-token", "automation-a", { runtime_config: value })}>Save fixture</button></main>
 }
-createRoot(document.getElementById("root")!).render(<Fixture />)
+createRoot(document.getElementById("root")!).render(location.search.includes("page") ? <MemoryRouter><AppSessionProvider><AppHeaderProvider><AutomationPage /></AppHeaderProvider></AppSessionProvider></MemoryRouter> : <Fixture />)

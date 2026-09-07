@@ -308,6 +308,7 @@ export function AutomationPage() {
   })
   const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
+  const editorGeneration = React.useRef(0)
   const [lastRunConversationId, setLastRunConversationId] = React.useState<
     string | null
   >(null)
@@ -383,11 +384,16 @@ export function AutomationPage() {
   }
 
   function closeAutomationDialog() {
+    editorGeneration.current += 1
+    setSaving(false)
     setAutomationDialogOpen(false)
     resetForm()
   }
 
   function startEditAutomation(automation: Automation) {
+    editorGeneration.current += 1
+    setSaving(false)
+    setError(null)
     const onceDateTime = parseOnceRunAt(automation.trigger_spec?.run_at)
     const intervalMinutes =
       typeof automation.trigger_spec?.interval_minutes === "number"
@@ -471,6 +477,8 @@ export function AutomationPage() {
     if (!editingAutomation) {
       return
     }
+    const generation = ++editorGeneration.current
+    const isCurrentEditor = () => editorGeneration.current === generation
     setSaving(true)
     setError(null)
     try {
@@ -482,20 +490,24 @@ export function AutomationPage() {
         trigger_kind: form.trigger_kind,
         trigger_spec: buildTriggerSpec(),
       })
-      closeAutomationDialog()
+      if (isCurrentEditor()) {
+        setAutomationDialogOpen(false)
+        resetForm()
+      }
       notify.success({
         title: t("automation.feedback.saved"),
         description: form.name,
       })
       await reload()
     } catch (err) {
+      if (!isCurrentEditor()) return
       reportActionError(
         err,
         t("automation.feedback.saveFailed"),
         t("automation.feedback.saveFailedTitle"),
       )
     } finally {
-      setSaving(false)
+      if (isCurrentEditor()) setSaving(false)
     }
   }
 

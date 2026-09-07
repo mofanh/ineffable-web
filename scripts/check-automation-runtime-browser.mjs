@@ -48,5 +48,50 @@ try {
   assert.equal(current.capability_exposure.custom.capabilities.length, 20)
   assert.ok(calls.length < 20, "configuration rerenders must not cause request loops")
   assert.deepEqual(errors, [])
+  // Mount the actual page/dialog and hold A's save while editing B.
+  const editorPage = await browser.newPage()
+  editorPage.on("pageerror", (error) => console.error(error.message))
+  await editorPage.addInitScript(() => {
+    localStorage.setItem("ineffable.auth.access_token", "test-token")
+    localStorage.setItem("ineffable.auth.session_id", "test-session")
+    localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
+  })
+  const config = saved.runtime_config
+  const automations = ["A", "B"].map((name) => ({ id: name, name, message: "Task", conversation_id: "conversation-a", status: "active", trigger_kind: "manual", trigger_spec: {}, runtime_config: config }))
+  let releaseSave
+  let saveStarted = false
+  await editorPage.route("**/gateway/v1/**", async (route) => {
+    const url = route.request().url()
+    let body = {}
+    if (route.request().method() === "PATCH") {
+      saveStarted = true
+      await new Promise((resolve) => { releaseSave = resolve })
+      body = { automation: automations[0] }
+    } else if (url.includes("auth/me")) body = { user: { id: "actor", display_name: "Actor" }, workspaces: [] }
+    else if (url.includes("/automations")) body = { automations, runs: [] }
+    else if (url.includes("conversations/list")) body = { conversations: [] }
+    else if (url.includes("models/profiles")) body = { profiles: [{ id: "model-a", display_name: "Model A" }] }
+    else if (url.includes("workspaces/list")) body = { workspaces: [] }
+    else if (url.includes("sandbox/environments")) body = { providers: [], environments: [] }
+    else if (url.includes("capability-catalog")) body = { items: [] }
+    else if (url.includes("capability-exposure/policy")) body = { capability_exposure_policy: { policy: { allowed_modes: ["smart", "custom"], exposure_budget: { max_count: 12 } } } }
+    await route.fulfill({ json: body })
+  })
+  await editorPage.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/automation-runtime-fixture.html?page`)
+  await editorPage.getByRole("button", { name: /Runtime configuration/ }).first().click().catch(async (error) => { console.error(await editorPage.locator("body").innerText()); throw error })
+  await editorPage.locator("#automation-name").fill("A changed")
+  await editorPage.locator('button[type="submit"][form="automation-edit-form"]').click()
+  await editorPage.waitForFunction(() => document.querySelector('button[form="automation-edit-form"]')?.disabled === true)
+  assert.ok(saveStarted)
+  await editorPage.getByRole("button", { name: "Cancel", exact: true }).click()
+  await editorPage.getByRole("button", { name: /Runtime configuration/ }).nth(1).click()
+  await editorPage.locator("#automation-name").fill("B draft")
+  const response = editorPage.waitForResponse((r) => r.request().method() === "PATCH")
+  releaseSave()
+  await response
+  await editorPage.waitForLoadState("networkidle")
+  assert.equal(await editorPage.locator("#automation-name").inputValue(), "B draft")
+  assert.equal(await editorPage.getByRole("dialog").count(), 1)
+  await editorPage.close()
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }
