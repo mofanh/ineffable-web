@@ -2,6 +2,12 @@ export const resources = {
   "zh-CN": {
     translation: {
       agentEvolution: {
+        quota: "已用 {{used}} / {{limit}} 个候选，剩余 {{remaining}} 个",
+        quotaHint: "按用户和空间统计存储中的候选，不按月重置。归档不释放配额；删除未引用候选才释放。触限仍可试用已有候选或回滚。",
+        create: "新建候选", rename: "修改名称", editNew: "编辑为新版本", archive: "归档", unarchive: "取消归档", delete: "删除",
+        showArchived: "显示归档版本", hideArchived: "隐藏归档版本", retained: "已选择或引用的版本须保留，可归档隐藏。",
+        deleteConfirm: "删除这个未引用候选并释放一个配额？", immutableHint: "名称修改不改变行为；配置修改创建新的不可变候选，应用后才影响后续消息。",
+        name: "候选名称", composition: "候选配置（JSON）",
         rebuild: "按当前版本重建",
         rebuildHint: "重建保留原版本；有变化时生成或复用候选，再选择“应用到当前会话”开始试用。回滚只恢复历史选择；旧版本不兼容时仍需重建。",
       },
@@ -1557,6 +1563,12 @@ export const resources = {
   "en-US": {
     translation: {
       agentEvolution: {
+        quota: "{{used}} / {{limit}} candidates used, {{remaining}} remaining",
+        quotaHint: "Stored candidates are counted per owner and workspace, with no monthly reset. Archiving does not release quota; deleting an unreferenced candidate does. Existing trials and rollback remain available at the limit.",
+        create: "Create candidate", rename: "Rename", editNew: "Edit as new version", archive: "Archive", unarchive: "Unarchive", delete: "Delete",
+        showArchived: "Show archived versions", hideArchived: "Hide archived versions", retained: "Selected or referenced versions must be retained; archive to hide them.",
+        deleteConfirm: "Delete this unreferenced candidate and release one quota slot?", immutableHint: "Renaming preserves behavior. Configuration edits create an immutable candidate that affects later messages only after activation.",
+        name: "Candidate name", composition: "Candidate configuration (JSON)",
         rebuild: "Rebuild for current version",
         rebuildHint: "Rebuilding preserves the original version and creates or reuses a candidate when it changes. Select Apply to conversation to start a trial. Rollback restores the previous selection; incompatible versions still need rebuilding.",
       },

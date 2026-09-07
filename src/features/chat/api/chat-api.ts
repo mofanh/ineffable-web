@@ -22,6 +22,8 @@ export {
   rejectSandboxApproval,
   runRuntimeLabCommand,
   rebuildAgentDefinition,
+  manageAgentCandidate,
+  createAgentCandidate,
   updateAgentDefinitionDefault,
   updateAgentDefinitionTrial,
   resumeRunWithApproval,

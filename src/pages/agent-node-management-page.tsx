@@ -240,6 +240,7 @@ export function AgentNodeManagementPage() {
           </div>
           {activeProjection ? (
             <AgentNodeManagementView
+              key={`${activeProjection.conversation_id}:${activeProjection.workspace_id ?? ""}`}
               accessToken={accessToken}
               projection={activeProjection}
               onRefresh={refresh}

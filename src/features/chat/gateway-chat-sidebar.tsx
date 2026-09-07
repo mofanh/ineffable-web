@@ -1274,7 +1274,7 @@ export function GatewayChatSidebar({
     }
 
     let cancelled = false
-    Promise.all(
+    Promise.allSettled(
       workspaces.map(async (workspace) => {
         const found: { id: string; path: string; name: string; kind: string }[] = []
         let cursor: string | undefined
@@ -1303,7 +1303,7 @@ export function GatewayChatSidebar({
     )
       .then((groups) => {
         if (!cancelled) {
-          setAgentDescriptorOptions(groups.flat())
+          setAgentDescriptorOptions(groups.flatMap(group => group.status === "fulfilled" ? group.value : []))
         }
       })
       .catch(() => {

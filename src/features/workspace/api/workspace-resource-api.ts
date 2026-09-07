@@ -1,9 +1,7 @@
 import {
   getWorkspaceObjectContent,
-  listWorkspaceTree,
   listWorkspaceDirectory,
   type WorkspaceObjectContentResponse,
-  type WorkspaceTreeResponse,
 } from "@/features/workspace/api/workspace-api"
 
 type InFlightRequest<T> = {
@@ -11,10 +9,6 @@ type InFlightRequest<T> = {
   promise: Promise<T>
 }
 
-const workspaceTreeRequests = new Map<
-  string,
-  InFlightRequest<WorkspaceTreeResponse>
->()
 const workspaceContentRequests = new Map<
   string,
   InFlightRequest<WorkspaceObjectContentResponse>
@@ -51,18 +45,6 @@ function reuseInFlightRequest<T>({
     }
   )
   return promise
-}
-
-export function listWorkspaceTreeDeduped(
-  accessToken: string,
-  workspaceId: string
-) {
-  return reuseInFlightRequest({
-    requests: workspaceTreeRequests,
-    key: workspaceId,
-    accessToken,
-    load: () => listWorkspaceTree(accessToken, workspaceId),
-  })
 }
 
 export function getWorkspaceObjectContentDeduped(

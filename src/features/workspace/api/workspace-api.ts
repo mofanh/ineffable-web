@@ -14,7 +14,6 @@ export {
   listWorkspaceMembers,
   listWorkspaceObjectVersions,
   listWorkspaces,
-  listWorkspaceTree,
   listWorkspaceDirectory,
   statWorkspacePath,
   searchWorkspacePaths,

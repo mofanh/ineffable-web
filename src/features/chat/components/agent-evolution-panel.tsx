@@ -1,3 +1,5 @@
+import { FormField } from "@/components/app/form"
+import { AppDialog } from "@/components/app/app-dialog"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
@@ -11,6 +13,8 @@ import {
   getAgentEvolutionReviewQueue,
   runRuntimeLabCommand,
   rebuildAgentDefinition,
+  manageAgentCandidate,
+  createAgentCandidate,
   updateAgentDefinitionDefault,
   updateAgentDefinitionTrial,
   type AgentEvolutionProjection,
@@ -68,6 +72,21 @@ export function AgentNodeManagementView({
   const { t } = useTranslation()
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const [candidate, setCandidate] = React.useState<string | null>(null)
+  const [showArchived, setShowArchived] = React.useState(false)
+  const [editor, setEditor] = React.useState<{ item?: AgentEvolutionProjection["definitions"][number]; mode: "metadata" | "composition"; conversationId: string; workspaceId: string | null } | null>(null)
+  const [candidateName, setCandidateName] = React.useState("")
+  const [compositionText, setCompositionText] = React.useState("")
+  const currentScopeRef = React.useRef("")
+  const scope = `${projection.conversation_id}:${projection.workspace_id ?? ""}`
+  currentScopeRef.current = scope
+  React.useEffect(() => {
+    currentScopeRef.current = scope
+    return () => {
+      currentScopeRef.current = ""
+      onMutationBusyChange(false)
+    }
+  }, [scope, onMutationBusyChange])
+
   const [fixture, setFixture] = React.useState("")
   const [expected, setExpected] = React.useState("")
   const [result, setResult] = React.useState<string | null>(null)
@@ -82,13 +101,13 @@ export function AgentNodeManagementView({
       setReviewQueue(null)
       return
     }
-    setReviewQueue(
-      await getAgentEvolutionReviewQueue(
+    const requestScope = scope
+    const queue = await getAgentEvolutionReviewQueue(
         accessToken,
         projection.workspace_id ?? undefined
       )
-    )
-  }, [accessToken, projection.workspace_id])
+    if (currentScopeRef.current === requestScope) setReviewQueue(queue)
+  }, [accessToken, projection.workspace_id, scope])
 
   React.useEffect(() => {
     void refreshReviewQueue().catch(() => setReviewQueue(null))
@@ -96,10 +115,12 @@ export function AgentNodeManagementView({
 
   const run = React.useCallback(
     async (key: string, operation: () => Promise<unknown>) => {
+      const operationScope = scope
       setBusyKey(key)
       onMutationBusyChange(true)
       try {
         const value = await operation()
+        if (currentScopeRef.current !== operationScope) return
         setResult(JSON.stringify(value, null, 2))
         publishAgentEvolutionChanged({
           conversationId: projection.conversation_id,
@@ -107,14 +128,17 @@ export function AgentNodeManagementView({
         })
         await Promise.all([onRefresh(), refreshReviewQueue()])
       } catch (caught) {
+        if (currentScopeRef.current !== operationScope) return
         const error = normalizeAppError(caught, { fallbackMessage: "Agent 迭代操作失败" })
         notify.error({ title: "Agent 迭代操作失败", description: error.message })
       } finally {
-        setBusyKey(null)
-        onMutationBusyChange(false)
+        if (currentScopeRef.current === operationScope) {
+          setBusyKey(null)
+          onMutationBusyChange(false)
+        }
       }
     },
-    [onMutationBusyChange, onRefresh, projection, refreshReviewQueue]
+    [onMutationBusyChange, onRefresh, projection, refreshReviewQueue, scope]
   )
 
   const runConfirmed = React.useCallback(
@@ -142,9 +166,40 @@ export function AgentNodeManagementView({
 
   return (
     <div className="space-y-5">
+          <AppDialog open={editor !== null && editor.conversationId === projection.conversation_id && editor.workspaceId === (projection.workspace_id ?? null)}
+            title={t(editor?.mode === "composition" ? "agentEvolution.editNew" : "agentEvolution.rename")}
+            description={t("agentEvolution.immutableHint")} onOpenChange={open => { if (!open) setEditor(null) }}>
+            <div className="space-y-3">
+              <FormField label={t("agentEvolution.name")}><Input value={candidateName} maxLength={128} onChange={event => setCandidateName(event.target.value)} /></FormField>
+              {editor?.mode === "composition" && <FormField label={t("agentEvolution.composition")}><Textarea className="min-h-64 font-mono" value={compositionText} onChange={event => setCompositionText(event.target.value)} /></FormField>}
+              <Button disabled={!accessToken || busyKey !== null} onClick={() => {
+                if (!accessToken || !editor) return
+                const target = editor
+                void run(`edit:${target.item?.fingerprint ?? "new"}`, async () => {
+                  const value = target.mode === "composition" ? await createAgentCandidate(accessToken, {
+                    conversation_id: target.conversationId, workspace_id: target.workspaceId ?? undefined,
+                    parent_fingerprint: target.item?.fingerprint, display_name: candidateName, composition: JSON.parse(compositionText),
+                  }) : target.item ? await manageAgentCandidate(accessToken, {
+                    conversation_id: target.conversationId, workspace_id: target.workspaceId ?? undefined,
+                    fingerprint: target.item.fingerprint, expected_version: target.item.metadata_version,
+                    action: "metadata", display_name: candidateName, archived: target.item.archived,
+                  }) : undefined
+                  if (currentScopeRef.current === `${target.conversationId}:${target.workspaceId ?? ""}`) setEditor(null)
+                  return value
+                })
+              }}>{t("common.confirm")}</Button>
+            </div>
+          </AppDialog>
+          <Button variant="outline" disabled={!accessToken || busyKey !== null || !actionFor(projection, "create_definition")?.enabled}
+            onClick={() => {
+              setCandidateName("")
+              setCompositionText(JSON.stringify({schema_version: "ineffable.agent-composition/v1", agent_profile_id: "default", declarative_nodes: [], artifact_nodes: []}, null, 2))
+              setEditor({mode: "composition", conversationId: projection.conversation_id, workspaceId: projection.workspace_id ?? null})
+            }}>{t("agentEvolution.create")}</Button>
           <div className="rounded-xl border bg-muted/20 p-3">
             <div className="text-xs text-muted-foreground">
-              已使用 {projection.definition_usage} 个 Agent Node 版本
+              {t("agentEvolution.quota", { used: projection.definition_usage, limit: projection.policy.max_definitions, remaining: Math.max(0, projection.policy.max_definitions - projection.definition_usage) })}
+              <p className="mt-1">{t("agentEvolution.quotaHint")}</p>
             </div>
           </div>
 
@@ -212,7 +267,8 @@ export function AgentNodeManagementView({
                 : "系统 Agent"}
               {projection?.default_binding ? ` · v${projection.default_binding.version}` : ""}
             </div>
-            {definitions.length ? definitions.map((item) => {
+            <Button variant="ghost" size="sm" onClick={() => setShowArchived(value => !value)}>{t(showArchived ? "agentEvolution.hideArchived" : "agentEvolution.showArchived")}</Button>
+            {definitions.length ? definitions.filter(item => showArchived || !item.archived).map((item) => {
               const action = actionFor(projection, "evaluate_definition", item.fingerprint)
               const defaultAction = actionFor(projection, "set_default_definition", item.fingerprint)
               const trialAction = actionFor(projection, "start_definition_trial", item.fingerprint)
@@ -245,7 +301,26 @@ export function AgentNodeManagementView({
                       {item.admitted_for_future_selection ? "已准入" : item.latest_verdict || "候选"}
                     </Badge>
                   </div>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" disabled={busyKey !== null || !actionFor(projection, "manage_definition", item.fingerprint)?.enabled}
+                      onClick={() => { setCandidateName(item.display_name ?? ""); setEditor({ item, mode: "metadata", conversationId: projection.conversation_id, workspaceId: projection.workspace_id ?? null }) }}>
+                      {t("agentEvolution.rename")}
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busyKey !== null || !rebuildAction?.enabled}
+                      onClick={() => { setCandidateName(item.display_name ?? ""); setCompositionText(JSON.stringify(item.composition_json, null, 2)); setEditor({ item, mode: "composition", conversationId: projection.conversation_id, workspaceId: projection.workspace_id ?? null }) }}>
+                      {t("agentEvolution.editNew")}
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busyKey !== null || !accessToken || !actionFor(projection, "manage_definition", item.fingerprint)?.enabled}
+                      onClick={() => accessToken && void run(`archive:${item.fingerprint}`, () => manageAgentCandidate(accessToken, {
+                        conversation_id: projection.conversation_id, workspace_id: projection.workspace_id ?? undefined,
+                        fingerprint: item.fingerprint, expected_version: item.metadata_version, action: "metadata", display_name: item.display_name ?? null, archived: !item.archived,
+                      }))}>{t(item.archived ? "agentEvolution.unarchive" : "agentEvolution.archive")}</Button>
+                    <Button size="sm" variant="outline" disabled={busyKey !== null || !accessToken || !actionFor(projection, "delete_definition", item.fingerprint)?.enabled}
+                      title={item.retained_for_history ? t("agentEvolution.retained") : undefined}
+                      onClick={() => accessToken && void runConfirmed(`delete:${item.fingerprint}`, t("agentEvolution.deleteConfirm"), () => manageAgentCandidate(accessToken, {
+                        conversation_id: projection.conversation_id, workspace_id: projection.workspace_id ?? undefined,
+                        fingerprint: item.fingerprint, expected_version: item.metadata_version, action: "delete",
+                      }), "destructive")}>{t("agentEvolution.delete")}</Button>
                     <Button
                       type="button"
                       size="sm"

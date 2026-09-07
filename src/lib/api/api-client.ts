@@ -822,16 +822,6 @@ export function listWorkspaceDirectory(accessToken: string, workspaceId: string,
   )
 }
 
-export function listWorkspaceTree(accessToken: string, workspaceId: string) {
-  return requestApiJson<WorkspaceTreeResponse>(
-    `/gateway/v1/workspaces/${workspaceId}/tree`,
-    {
-      accessToken,
-      workspaceId,
-    }
-  )
-}
-
 export function createWorkspaceFolder(
   accessToken: string,
   workspaceId: string,
@@ -2099,7 +2089,11 @@ export type AgentEvolutionProjection = {
   effective_mode: AgentIterationMode
   unavailable_reason?: string | null
   definition_usage: number
+  policy: { max_definitions: number }
   definitions: Array<{
+    archived: boolean
+    metadata_version: number
+    retained_for_history: boolean
     fingerprint: string
     parent_fingerprint?: string | null
     display_name?: string | null
@@ -2498,4 +2492,16 @@ export function deletePendingInput(
       accessToken,
     }
   )
+}
+
+export function manageAgentCandidate(accessToken: string, payload: {
+  conversation_id: string; workspace_id?: string; fingerprint: string; expected_version: number;
+} & ({ action: "metadata"; display_name: string | null; archived: boolean } | { action: "delete" })) {
+  const { conversation_id, workspace_id, fingerprint, expected_version, ...operation } = payload
+  return requestApiJson<{ updated: boolean }>("/gateway/v1/plugins/agent-evolution/candidate-metadata", { method: "POST", accessToken, body: { conversation_id, workspace_id, fingerprint, expected_version, operation } })
+}
+export function createAgentCandidate(accessToken: string, payload: {
+  conversation_id: string; workspace_id?: string; parent_fingerprint?: string; display_name?: string; composition: unknown;
+}) {
+  return requestApiJson<{ fingerprint: string }>("/gateway/v1/plugins/agent-evolution/candidates", { method: "POST", accessToken, body: payload })
 }
