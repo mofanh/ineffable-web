@@ -1,4 +1,5 @@
 export type InputProgress = {
+  message_seq?: number
   message_id: string
   conversation_id: string
   phase: "received" | "queued" | "resuming" | "accepted" | "cancelled"
@@ -15,6 +16,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
   if (typeof item.message_id !== "string" || typeof item.conversation_id !== "string" ||
       !["received", "queued", "resuming", "accepted", "cancelled"].includes(String(item.phase))) return undefined
   return {
+    message_seq: Number.isSafeInteger(item.message_seq) ? item.message_seq as number : undefined,
     message_id: item.message_id, conversation_id: item.conversation_id,
     phase: item.phase as InputProgress["phase"], kind: typeof item.kind === "string" ? item.kind : "ordinary",
     run_id: typeof item.run_id === "string" ? item.run_id : null,
@@ -56,4 +58,9 @@ export function inputProgressLabel(progress: InputProgress | undefined, delivery
   if (["completed", "failed", "cancelled"].includes(progress.run_state ?? "")) return "inputProgress.unconfirmed"
   if (progress.phase === "resuming") return "inputProgress.resuming"
   return "inputProgress.received"
+}
+
+export function isWaitingGuidedInput(entry: { inputProgress?: InputProgress; inputMode?: "guided" }) {
+  return (entry.inputProgress?.kind === "guided" || entry.inputMode === "guided") &&
+    entry.inputProgress?.phase !== "accepted"
 }

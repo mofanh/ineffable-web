@@ -80,6 +80,18 @@ try {
   assert.equal(await queuedBubbles.count(), 1, "only the consuming input renders")
   await page.evaluate(() => window.chatVirtualizationFixture.inputQueue("consuming"))
   assert.equal(await queuedBubbles.count(), 1, "canonical refresh cannot duplicate the consuming input")
+  const guidance = page.locator('[data-terminal-chat] [data-chat-entry-role="user"]').filter({ hasText: "引导输入" })
+  await page.evaluate(() => window.chatVirtualizationFixture.guidedInput("waiting"))
+  assert.equal(await guidance.locator('[data-input-waiting]').evaluate((node) => getComputedStyle(node).opacity), "0.5")
+  for (const phase of ["accepted", "refresh"]) {
+    await page.evaluate((phase) => window.chatVirtualizationFixture.guidedInput(phase), phase)
+    assert.equal(await guidance.locator('[data-input-waiting]').count(), 0)
+    const rows = await page.locator('[data-terminal-chat] [data-chat-entry-role]').allTextContents()
+    assert.equal(rows.length, 4)
+    assert.ok(rows[0].includes("原输入") && rows[1].includes("原输入的回答") && rows[2].includes("引导输入") && rows[3].includes("引导输入的回答"), `${phase}: answers must stay on each side of guidance`)
+  }
+  await page.evaluate(() => window.chatVirtualizationFixture.guidedInput("downgrade"))
+  assert.equal(await guidance.count(), 0, "unaccepted downgraded input belongs only in the queue")
   console.log("chat virtualization and input queue browser checks passed")
 } finally {
   await browser?.close()

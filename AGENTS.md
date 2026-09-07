@@ -442,3 +442,5 @@ npm run build
 输入时间线 reducer 必须根据权威 input_progress 排除 queued/cancelled 的普通预输入，覆盖 hydrate、历史分页、实时合并和缓存清理；不能仅依赖后端新页省略消息，因为增量合并会保留既有气泡。浏览器回归必须验证连续两条排队输入、刷新、缓存与开始消费后单一气泡。
 
 pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气泡的权威身份来源；待处理快照进入同一 reducer，并参与后续分页合并。已接纳消息和不同 successor 的消息不能被旧队列快照删除。队列刷新、删除和清空必须冻结会话与请求代次，取消操作使旧消息分页请求失效。
+
+引导投递后、Agent 实际接纳前，用户气泡以半透明和等待图标显示；接纳回执恢复正常透明度，不等待模型首次吐字。半透明输入不得关闭前一段回答或增加错误的“正在思考”占位。后续回答按已接纳输入的 canonical message_seq 建立 run 内边界；Finalizer 批量回传中的 response_to_message_seq 必须路由回对应回答，不能全部写入最新 assistant。迟到 HTTP 回执只清理自己的 optimistic identity，禁止跨会话串写。

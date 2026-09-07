@@ -1,5 +1,5 @@
 import { parseInputProgress } from "./input-progress"
-import { humanInputResponseIdentity, reconcileHumanInputAnswers } from "./human-input-timeline"
+import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryForRun } from "./human-input-timeline"
 import {
   applyCanonicalMessageToPane,
   applyMessageToPane,
@@ -184,10 +184,14 @@ export function findAssistantEntryIdForRun(
   const normalizedRunId = runId?.trim()
   if (!normalizedRunId) return null
 
+  const boundary = inputBoundaryForRun(entries, normalizedRunId)
+  const hasLaterInput = entries.some((entry) => entry.role === "user" &&
+    (entry.humanInputResponse?.runId === normalizedRunId || (entry.inputProgress?.kind === "guided" &&
+      entry.inputProgress.phase === "accepted" && entry.inputProgress.run_id === normalizedRunId)))
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
-    if (entry.role === "user" && entry.humanInputResponse?.runId === normalizedRunId) return null
-    if (entry.role === "assistant" && entry.runId === normalizedRunId) {
+    if (entry.role === "assistant" && entry.runId === normalizedRunId &&
+        (boundary == null || (!hasLaterInput && !entry.timelineUnitId) || entry.timelineUnitId === `run:${normalizedRunId}:anchor:${boundary + 1}`)) {
       return entry.id
     }
   }

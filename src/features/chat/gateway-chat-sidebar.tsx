@@ -497,7 +497,8 @@ export function GatewayChatSidebar({
                         update.event,
                         update.runId
                       )
-              return applyAssistantEntryUpdate(nextEntries, updater, update.runId)
+              return applyAssistantEntryUpdate(nextEntries, updater, update.runId,
+                update.kind === "event" ? objectValue(update.event.metadata)?.response_to_message_seq : undefined)
             },
             current
           )
@@ -2118,29 +2119,18 @@ export function GatewayChatSidebar({
   function applyAssistantEntryUpdate(
     current: ChatEntry[],
     updater: AssistantEntryUpdater,
-    targetRunId?: string | null
+    targetRunId?: string | null,
+    targetInputSequence?: unknown
   ) {
+    const targetInputSeq = typeof targetInputSequence === "number" && Number.isSafeInteger(targetInputSequence) ? targetInputSequence : undefined
     const normalizedRunId = targetRunId?.trim() || null
-    let assistantId = assistantEntryIdRef.current
-    if (
-      normalizedRunId &&
-      (!assistantId ||
-        !current.some(
-          (entry) =>
-            entry.role === "assistant" &&
-            entry.id === assistantId &&
-            entry.runId === normalizedRunId
-        ))
-    ) {
-      assistantId = findAssistantEntryIdForRun(current, normalizedRunId)
-      if (assistantId) {
-        assistantEntryIdRef.current = assistantId
-      }
-    }
+    const assistantId = targetInputSeq != null && normalizedRunId
+      ? current.find((entry) => entry.role === "assistant" && entry.timelineUnitId === `run:${normalizedRunId}:anchor:${targetInputSeq + 1}`)?.id ?? null
+      : normalizedRunId ? findAssistantEntryIdForRun(current, normalizedRunId) : assistantEntryIdRef.current
     if (!assistantId) {
       const provisional = updater(undefined)
       if (!provisional) return current
-      const created = bindAssistantToHumanBoundary(provisional, current)
+      const created = bindAssistantToHumanBoundary(provisional, current, targetInputSeq)
       assistantEntryIdRef.current = created.id
       return [...current, created]
     }
@@ -2151,7 +2141,7 @@ export function GatewayChatSidebar({
     if (index < 0) {
       const provisional = updater(undefined)
       if (!provisional) return current
-      const created = bindAssistantToHumanBoundary(provisional, current)
+      const created = bindAssistantToHumanBoundary(provisional, current, targetInputSeq)
       assistantEntryIdRef.current = created.id
       return [...current, created]
     }
@@ -2163,7 +2153,7 @@ export function GatewayChatSidebar({
     if (!next || next === existing) return current
 
     const cloned = [...current]
-    cloned[index] = next
+    cloned[index] = bindAssistantToHumanBoundary(next, current, targetInputSeq)
     return cloned
   }
 
@@ -2402,7 +2392,7 @@ export function GatewayChatSidebar({
   }
 
   function beginGuidedUserTurn(content: string, id = createMessageId("user")) {
-    appendUserMessage(content, id, "sending")
+    setEntries((current) => [...current, { id, role: "user", content, deliveryStatus: "sending", inputMode: "guided" }])
     return id
   }
 
@@ -2691,11 +2681,13 @@ export function GatewayChatSidebar({
     if (event.event === "input.accepted") {
       const progress = parseInputProgress(objectValue(event.metadata)?.input_progress)
       if (progress && progress.conversation_id === identity.conversationId && progress.run_id === identity.runId) {
-        setEntries((current) => reduceCurrentTimeline(current, { type: "input-progress", progress }))
         if (progress.kind === "guided") {
           completeAssistantEntry()
           assistantEntryIdRef.current = null
         }
+        setEntries((current) => reduceCurrentTimeline(current, {
+          type: "input-progress", progress, content: event.content ?? undefined,
+        }))
       }
       void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
       return
@@ -3500,7 +3492,13 @@ export function GatewayChatSidebar({
           },
           {
             onEnvelope: (envelope) => {
-              if (!isCurrentGuidedSubmission()) return
+              if (!isCurrentGuidedSubmission()) {
+                if (currentConversationIdRef.current === targetConversationId) {
+                  setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
+                  void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
+                }
+                return
+              }
               if (
                 envelope.type === "guided" &&
                 envelope.message_id
@@ -3539,7 +3537,10 @@ export function GatewayChatSidebar({
         }
         return true
       } catch (enqueueError) {
-        if (!isCurrentGuidedSubmission()) return false
+        if (!isCurrentGuidedSubmission()) {
+          if (currentConversationIdRef.current === targetConversationId) setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
+          return false
+        }
         setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
         const message = reportChatError(
           enqueueError,
@@ -3919,7 +3920,13 @@ export function GatewayChatSidebar({
         conversationId,
         dbId
       ).then((response) => {
-        if (!isCurrentPromotion()) return
+        if (!isCurrentPromotion()) {
+          if (currentConversationIdRef.current === conversationId) {
+            setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
+            void syncLatestConversationMessagesPage(conversationId).catch(() => {})
+          }
+          return
+        }
         void syncLatestConversationMessagesPage(conversationId).catch(() => {})
         setEntries((current) =>
           bindOptimisticUserMessage(
@@ -3929,7 +3936,13 @@ export function GatewayChatSidebar({
           )
         )
       }).catch((promoteError) => {
-        if (!isCurrentPromotion()) return
+        if (!isCurrentPromotion()) {
+          if (currentConversationIdRef.current === conversationId) {
+            setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
+            void syncLatestConversationMessagesPage(conversationId).catch(() => {})
+          }
+          return
+        }
         const message = reportChatError(
           promoteError,
           i18n.t("chat.gateway.promoteFailed"),

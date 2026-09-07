@@ -57,15 +57,23 @@ export function reconcileHumanInputAnswers(entries: ChatEntry[]): ChatEntry[] {
   return changed ? result : entries
 }
 
-export function bindAssistantToHumanBoundary(entry: AssistantEntry, entries: ChatEntry[]): AssistantEntry {
-  if (!entry.runId || entry.timelineUnitId) return entry
+/** The accepted user identity, including guided input, splits a single run into answers. */
+export function inputBoundaryForRun(entries: ChatEntry[], runId: string): number | undefined {
   let boundary: number | undefined
   for (const candidate of entries) {
-    if (candidate.role === "user" && candidate.humanInputResponse?.runId === entry.runId &&
-        Number.isSafeInteger(candidate.timelineSeq)) {
+    if (candidate.role !== "user" || !Number.isSafeInteger(candidate.timelineSeq)) continue
+    if (candidate.humanInputResponse?.runId === runId ||
+        (candidate.inputProgress?.phase === "accepted" &&
+         candidate.inputProgress.run_id === runId)) {
       boundary = Math.max(boundary ?? 0, candidate.timelineSeq!)
     }
   }
+  return boundary
+}
+
+export function bindAssistantToHumanBoundary(entry: AssistantEntry, entries: ChatEntry[], targetInputSeq?: number): AssistantEntry {
+  if (!entry.runId || entry.timelineUnitId) return entry
+  const boundary = targetInputSeq ?? inputBoundaryForRun(entries, entry.runId)
   return boundary == null ? entry : {
     ...entry, humanInputBoundarySeq: boundary, timelineSeq: boundary + 1,
     timelineUnitId: `run:${entry.runId}:anchor:${boundary + 1}`,

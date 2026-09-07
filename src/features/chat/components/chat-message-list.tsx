@@ -1,4 +1,4 @@
-import { inputProgressLabel } from "@/features/chat/model/input-progress"
+import { inputProgressLabel, isWaitingGuidedInput } from "@/features/chat/model/input-progress"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
@@ -232,6 +232,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const lastEntry = entries.at(-1)
   const showThinkingPlaceholder =
     isAwaitingResponse &&
+    !(lastEntry?.role === "user" && isWaitingGuidedInput(lastEntry)) &&
     !(
       lastEntry?.role === "assistant" &&
       lastEntry.status === "streaming"
@@ -375,7 +376,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 className="flex justify-end"
               >
                 <div className="min-w-0 max-w-[82%]">
-                  <div className="rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
+                  <div data-input-waiting={isWaitingGuidedInput(entry) || undefined}
+                    className={cn("rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground transition-opacity", isWaitingGuidedInput(entry) && "opacity-50")}>
+
                     <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
                   </div>
                   {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}

@@ -1,3 +1,6 @@
+import { createAssistantEntry, findAssistantEntryIdForRun } from "../src/features/chat/model/chat-history"
+import { bindAssistantToHumanBoundary } from "../src/features/chat/model/human-input-timeline"
+import { applyTextDeltaToPane } from "../src/features/chat/chat-pane-state"
 import * as React from "react"
 import type { ChatEntry } from "../src/features/chat/gateway-chat-types"
 import { TooltipProvider } from "../src/components/ui/tooltip"
@@ -75,6 +78,7 @@ declare global {
       materializedRows: () => number
       hasAbsoluteRows: () => boolean
       settleTerminal: () => Promise<void>
+      guidedInput: (phase: "waiting" | "accepted" | "refresh" | "downgrade") => Promise<void>
       inputQueue: (phase: "queued" | "cached" | "consuming" | "hydrate" | "downgrade" | "missing-progress" | "stale-page") => Promise<void>
       terminalLayout: () => Array<{ role: string; top: number; bottom: number }>
     }
@@ -178,6 +182,30 @@ function Fixture() {
         return Array.from(
           viewportRef.current?.querySelectorAll<HTMLElement>("[data-web-node-row]") ?? []
         ).some((row) => window.getComputedStyle(row).position === "absolute")
+      },
+      async guidedInput(phase) {
+        const runId = "guided-browser-run"
+        const progress = { message_id: "guide", message_seq: 2, conversation_id: "c", kind: "guided", phase: "received" as const, run_id: runId, run_state: "streaming", execution_epoch: 1, run_version: 1 }
+        const before = createAssistantEntry("streaming", runId)
+        before.pane = applyTextDeltaToPane(before.pane, "原输入的回答")
+        const waiting: ChatEntry[] = [
+          { id: "message:initial", role: "user", content: "原输入", timelineSeq: 1 }, before,
+          { id: "message:guide", timelineUnitId: "message:guide", role: "user", content: "引导输入", timelineSeq: 2, inputProgress: progress },
+        ]
+        if (phase === "waiting") setTerminalEntries(waiting)
+        else if (phase === "downgrade") setTerminalEntries(reduceConversationTimeline(waiting, { type: "input-progress", progress: { ...progress, kind: "pre_input", phase: "queued" } }))
+        else {
+          before.status = "done"
+          before.timelineUnitId = `run:${runId}:anchor:2`
+          before.timelineSeq = 2
+          const accepted = reduceConversationTimeline(waiting, { type: "input-progress", progress: { ...progress, phase: "accepted" } })
+          if (findAssistantEntryIdForRun(accepted, runId)) throw new Error("selected old answer")
+          const next = bindAssistantToHumanBoundary(createAssistantEntry("streaming", runId), accepted)
+          next.pane = applyTextDeltaToPane(next.pane, "引导输入的回答")
+          const entries = [...accepted, next]
+          setTerminalEntries(phase === "refresh" ? reduceConversationTimeline([], { type: "hydrate", entries: entries.map((entry) => entry.role === "assistant" ? { ...entry, status: "done", canonicalMessageSeqEnd: entry === next ? 4 : 3 } : entry) }) : entries)
+        }
+        await afterLayout()
       },
       async inputQueue(phase) {
         const inputs: ChatEntry[] = ["a", "b"].map((id) => ({

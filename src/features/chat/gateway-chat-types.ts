@@ -6,6 +6,7 @@ export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "
 export type UserEntry = {
   id: string
   role: "user"
+  inputMode?: "guided"
   inputProgress?: InputProgress
   deliveryStatus?: "sending" | "received"
   humanInputResponse?: { runId: string; needId: string }

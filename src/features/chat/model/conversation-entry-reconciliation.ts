@@ -60,7 +60,7 @@ export function hasCanonicalAssistantHandoff(
 
 export type ConversationTimelineAction =
   | { type: "pending-inputs"; inputs: QueuedInputIdentity[] }
-  | { type: "input-progress"; progress: InputProgress }
+  | { type: "input-progress"; progress: InputProgress; content?: string }
   | { type: "hydrate"; entries: ChatEntry[] }
   | {
       type: "canonical-patch"
@@ -82,10 +82,16 @@ export function reduceConversationTimeline(
   if (action.type === "pending-inputs") return visibleTimelineEntries(current, action.inputs)
   if (action.type === "input-progress") {
     const progress = action.progress
-    return visibleTimelineEntries(current.map((entry) => entry.role === "user" &&
-      timelineIdentity(entry) === `message:${progress.message_id}`
-      ? { ...entry, inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
-      : entry), queuedInputs)
+    const identity = `message:${progress.message_id}`
+    const next = current.map((entry) => entry.role === "user" && timelineIdentity(entry) === identity
+      ? { ...entry, timelineSeq: progress.message_seq ?? entry.timelineSeq,
+          inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
+      : entry)
+    if (!next.some((entry) => timelineIdentity(entry) === identity) && action.content != null) {
+      next.push({ id: identity, timelineUnitId: identity, role: "user", content: action.content,
+        timelineSeq: progress.message_seq, inputProgress: progress, deliveryStatus: "received" })
+    }
+    return visibleTimelineEntries(next, queuedInputs)
   }
   const previousUsers = new Map(current.filter((entry) => entry.role === "user").map((entry) => [timelineIdentity(entry), entry]))
   action = { ...action, entries: action.entries.map((entry) => {
@@ -139,7 +145,7 @@ export function reduceConversationTimeline(
       incomingAssistantRunIds.has(entry.runId)
     ) {
       if (entry.humanInputBoundarySeq != null && !incoming.some((candidate) =>
-        candidate.role === "assistant" && candidate.runId === entry.runId &&
+        candidate.role === "assistant" && candidate.timelineUnitId === entry.timelineUnitId &&
         (candidate.canonicalMessageSeqEnd ?? -1) > entry.humanInputBoundarySeq!
       )) return true
       return Boolean(

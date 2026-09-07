@@ -2552,3 +2552,20 @@ try {
 }
 
 console.log("chat web integration checks passed")
+
+// A guided acceptance must create a new answer even if an older assistant is last in a cached array.
+{
+  const runId = "guided-boundary-run"
+  const old = { ...createAssistantEntry("done", runId), id: "assistant-before" }
+  const progress = { message_id: "guide", message_seq: 2, conversation_id: "c", kind: "guided", phase: "accepted", run_id: runId, run_state: "streaming", execution_epoch: 1, run_version: 1 }
+  const accepted = reduceConversationTimeline([old], { type: "input-progress", progress, content: "adjust" })
+  assert.equal(findAssistantEntryIdForRun([accepted[1], old], runId), null, "same run id cannot select the previous answer")
+  const next = bindAssistantToHumanBoundary(createAssistantEntry("streaming", runId), accepted)
+  assert.equal(next.timelineUnitId, `run:${runId}:anchor:3`)
+  assert.equal(findAssistantEntryIdForRun([...accepted, next], runId), next.id)
+  const beforeOnly = { ...old, id: "canonical-before", timelineUnitId: `run:${runId}:anchor:2`, timelineSeq: 2, canonicalMessageSeqEnd: 10 }
+  const merged = reduceConversationTimeline([...accepted, next], { type: "canonical-patch", entries: [beforeOnly] })
+  assert.ok(merged.some((entry) => entry.id === next.id), "earlier answer committed late cannot replace guided live output")
+  const once = bindOptimisticUserMessage([...accepted, {id:"optimistic",role:"user",content:"adjust"}], "optimistic", "guide")
+  assert.equal(once.filter((entry) => entry.role === "user").length, 1, "acceptance before HTTP receipt must not duplicate the input")
+}
