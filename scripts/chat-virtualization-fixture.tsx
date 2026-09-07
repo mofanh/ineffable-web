@@ -75,7 +75,7 @@ declare global {
       materializedRows: () => number
       hasAbsoluteRows: () => boolean
       settleTerminal: () => Promise<void>
-      inputQueue: (phase: "queued" | "cached" | "consuming" | "hydrate") => Promise<void>
+      inputQueue: (phase: "queued" | "cached" | "consuming" | "hydrate" | "downgrade" | "missing-progress" | "stale-page") => Promise<void>
       terminalLayout: () => Array<{ role: string; top: number; bottom: number }>
     }
   }
@@ -184,6 +184,15 @@ function Fixture() {
           id: `message:${id}`, timelineUnitId: `message:${id}`, role: "user", content: "继续",
           inputProgress: { message_id: id, conversation_id: "c", kind: "pre_input", phase: "queued", run_id: "r", run_state: "streaming", execution_epoch: 1, run_version: 1 },
         }))
+        if (["downgrade", "missing-progress", "stale-page"].includes(phase)) {
+          const old = inputs.map((entry) => entry.role === "user" ? { ...entry, inputProgress: phase === "missing-progress" ? undefined : { ...entry.inputProgress!, kind: "guided", phase: "received" as const } } : entry)
+          const pending = [{ messageId: "a", runId: "r" }, { messageId: "b", runId: "r" }]
+          setTerminalEntries(phase === "stale-page"
+            ? reduceConversationTimeline([], { type: "canonical-patch", entries: old }, pending)
+            : reduceConversationTimeline(old, { type: "pending-inputs", inputs: pending }))
+          await afterLayout()
+          return
+        }
         if (phase === "consuming" && inputs[0].role === "user") {
           inputs[0].inputProgress = { ...inputs[0].inputProgress!, phase: "received", run_id: "successor" }
         }

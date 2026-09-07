@@ -26,6 +26,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
 
 export function mergeInputProgress(current: InputProgress | undefined, incoming: InputProgress | undefined) {
   if (!incoming) return current
+  if (current?.phase === "accepted" && incoming.kind === "pre_input" && ["queued", "cancelled"].includes(incoming.phase)) return current
   if (!current || incoming.run_id !== current.run_id) return incoming
   if ((incoming.execution_epoch ?? 0) < (current.execution_epoch ?? 0) ||
       (incoming.run_version ?? 0) < (current.run_version ?? 0)) return current

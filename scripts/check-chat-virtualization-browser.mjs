@@ -72,7 +72,7 @@ try {
     `terminal rows must not overlap (${JSON.stringify(terminalLayout)})`
   )
   const queuedBubbles = page.locator('[data-terminal-chat] [data-chat-entry-role="user"]').filter({ hasText: "继续" })
-  for (const phase of ["queued", "hydrate", "cached"]) {
+  for (const phase of ["queued", "hydrate", "cached", "downgrade", "missing-progress", "stale-page"]) {
     await page.evaluate((phase) => window.chatVirtualizationFixture.inputQueue(phase), phase)
     assert.equal(await queuedBubbles.count(), 0, `${phase}: two queued inputs must not render as chat bubbles`)
   }

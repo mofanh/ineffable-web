@@ -42,3 +42,14 @@ assert.equal(started[0].id, queuedA.id)
 const replayed = reduceConversationTimeline(started, { type: "canonical-patch", entries: [consuming] })
 assert.equal(replayed.length, 1, "consumption and refresh preserve canonical identity")
 assert.deepEqual(reduceConversationTimeline([], { type: "hydrate", entries: [{ ...queuedA, inputProgress: { ...queuedA.inputProgress, phase: "cancelled" } }] }), [], "cleared input must not reappear")
+
+const pendingIdentities = [{ messageId: "m", runId: "r" }]
+for (const inputProgress of [received, { ...received, kind: "pre_input" }, undefined]) {
+  const cached = { ...user, inputProgress }
+  assert.deepEqual(reduceConversationTimeline([cached], { type: "pending-inputs", inputs: pendingIdentities }), [], "authoritative pending identity removes received/guided/old cache bubbles")
+  assert.deepEqual(reduceConversationTimeline([], { type: "canonical-patch", entries: [cached] }, pendingIdentities), [], "a delayed page cannot reintroduce the queued message")
+}
+assert.equal(reduceConversationTimeline([{ ...user, inputProgress: accepted }], { type: "pending-inputs", inputs: pendingIdentities }).length, 1, "a stale queue snapshot cannot erase confirmed acceptance")
+assert.equal(reduceConversationTimeline([consuming], { type: "pending-inputs", inputs: pendingIdentities }).length, 1, "an old predecessor snapshot cannot erase a new consuming run")
+assert.equal(mergeInputProgress(accepted, queuedA.inputProgress), accepted, "confirmed consumption cannot roll back to a stale queued projection")
+assert.equal(reduceConversationTimeline([{ ...user, id: "message:other", timelineUnitId: "message:other" }], { type: "pending-inputs", inputs: pendingIdentities }).length, 1, "identical text is not identity")

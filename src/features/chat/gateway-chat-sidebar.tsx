@@ -1,3 +1,4 @@
+import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
@@ -561,6 +562,12 @@ export function GatewayChatSidebar({
     ConversationRunObservation
   > | null>(null)
   const [showScrollToBottom, setShowScrollToBottom] = React.useState(false)
+  const pendingInputProjectionRef = React.useRef<{ conversationId: string; inputs: QueuedInputIdentity[] } | null>(null)
+  const pendingInputRequestRef = React.useRef(0)
+  const reduceCurrentTimeline = React.useCallback((current: ChatEntry[], action: ConversationTimelineAction) => {
+    const snapshot = pendingInputProjectionRef.current
+    return reduceConversationTimeline(current, action, snapshot?.conversationId === currentConversationIdRef.current ? snapshot.inputs : [])
+  }, [])
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
   const [blockedPreInputRunStatus, setBlockedPreInputRunStatus] = React.useState<
     string | null
@@ -600,6 +607,12 @@ export function GatewayChatSidebar({
   const selectConversationTarget = React.useCallback(
     (conversationId: string | null) => {
       humanInputSubmissionGenerationRef.current += 1
+      pendingInputRequestRef.current += 1
+      pendingInputProjectionRef.current = null
+      setPreInputQueue([])
+      setPendingQueueAction("idle")
+      setBlockedPreInputRunStatus(null)
+      setCanResumePreInputQueue(false)
       recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       const currentId = currentConversationIdRef.current
@@ -922,18 +935,23 @@ export function GatewayChatSidebar({
 
   const refreshPendingInputsForConversation = React.useCallback(
     async (conversationId: string) => {
-      if (!conversationId || !accessToken) {
+      if (!conversationId || !accessToken || currentConversationIdRef.current !== conversationId) {
         return
       }
 
+      const requestId = ++pendingInputRequestRef.current
+      const generation = humanInputSubmissionGenerationRef.current
       const res = await getPendingInputs(
         accessToken,
         conversationId
       )
-      if (currentConversationIdRef.current !== conversationId) {
+      if (currentConversationIdRef.current !== conversationId || requestId !== pendingInputRequestRef.current || generation !== humanInputSubmissionGenerationRef.current) {
         return
       }
       const dbItems = res.pending_inputs.filter(isActionablePreInput)
+      const inputs = dbItems.map((item) => ({ messageId: item.message_id, runId: item.run_id, pendingId: item.id }))
+      pendingInputProjectionRef.current = { conversationId, inputs }
+      setEntries((current) => reduceCurrentTimeline(current, { type: "pending-inputs", inputs }))
       setPreInputQueue(
         dbItems.map((item) => ({
           id: `db-${item.id}`,
@@ -944,7 +962,7 @@ export function GatewayChatSidebar({
       setBlockedPreInputRunStatus(res.blocked_by_run_status)
       setCanResumePreInputQueue(res.can_resume)
     },
-    [accessToken]
+    [accessToken, reduceCurrentTimeline]
   )
 
   React.useEffect(() => {
@@ -1772,7 +1790,7 @@ export function GatewayChatSidebar({
 
         const olderEntries = mapConversationMessagesToEntries(response.messages)
         setEntries((current) =>
-          reduceConversationTimeline(current, {
+          reduceCurrentTimeline(current, {
             type: "prepend-history",
             entries: olderEntries,
           })
@@ -1814,6 +1832,7 @@ export function GatewayChatSidebar({
     reportChatError,
     setConversationLastSeq,
     visibleEntries.length,
+    reduceCurrentTimeline,
   ])
 
   const primeConversationCursor = React.useCallback(
@@ -1947,13 +1966,13 @@ export function GatewayChatSidebar({
           !(handoff && !handoffConfirmed && entriesRef.current.length > 0)
         setEntries((current) => {
           if (shouldReplaceTranscript) {
-            return reduceConversationTimeline(current, {
+            return reduceCurrentTimeline(current, {
               type: "hydrate",
               entries: latestEntries,
             })
           }
 
-          return reduceConversationTimeline(current, {
+          return reduceCurrentTimeline(current, {
             type: "canonical-patch",
             entries: latestEntries,
             handoff,
@@ -1996,7 +2015,7 @@ export function GatewayChatSidebar({
         }
       }
     },
-    [accessToken, setConversationLastSeq]
+    [accessToken, setConversationLastSeq, reduceCurrentTimeline]
   )
 
   React.useEffect(() => {
@@ -2507,7 +2526,7 @@ export function GatewayChatSidebar({
     }
     if (response.input_message) {
       const canonicalEntries = mapConversationMessagesToEntries([response.input_message])
-      setEntries((current) => reduceConversationTimeline(current, {
+      setEntries((current) => reduceCurrentTimeline(current, {
         type: "canonical-patch", entries: canonicalEntries,
       }))
     }
@@ -2672,7 +2691,7 @@ export function GatewayChatSidebar({
     if (event.event === "input.accepted") {
       const progress = parseInputProgress(objectValue(event.metadata)?.input_progress)
       if (progress && progress.conversation_id === identity.conversationId && progress.run_id === identity.runId) {
-        setEntries((current) => reduceConversationTimeline(current, { type: "input-progress", progress }))
+        setEntries((current) => reduceCurrentTimeline(current, { type: "input-progress", progress }))
         if (progress.kind === "guided") {
           completeAssistantEntry()
           assistantEntryIdRef.current = null
@@ -2703,6 +2722,8 @@ export function GatewayChatSidebar({
     if (event.event === "pending_input_guided") {
       const id = parsePendingInputId(event)
       if (id != null) {
+        const snapshot = pendingInputProjectionRef.current
+        if (snapshot?.conversationId === identity.conversationId) snapshot.inputs = snapshot.inputs.filter((item) => item.pendingId !== id)
         setPreInputQueue((prev) => prev.filter((q) => q.id !== `db-${id}`))
       }
       return
@@ -2710,6 +2731,8 @@ export function GatewayChatSidebar({
     if (event.event === "pending_input_consuming") {
       const id = parsePendingInputId(event)
       if (id != null) {
+        const snapshot = pendingInputProjectionRef.current
+        if (snapshot?.conversationId === identity.conversationId) snapshot.inputs = snapshot.inputs.filter((item) => item.pendingId !== id)
         setPreInputQueue((prev) => prev.filter((q) => q.id !== `db-${id}`))
       }
       return
@@ -3939,6 +3962,9 @@ export function GatewayChatSidebar({
 
     const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
     if (dbId && accessToken && currentConversationId) {
+      const conversationId = currentConversationId
+      const generation = humanInputSubmissionGenerationRef.current
+      const isCurrentDelete = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
       setPreInputQueue((prev) =>
         prev.map((queueItem) =>
           queueItem.id === id ? { ...queueItem, status: "deleting" } : queueItem
@@ -3946,13 +3972,18 @@ export function GatewayChatSidebar({
       )
       void deletePendingInput(
         accessToken,
-        currentConversationId,
+        conversationId,
         dbId
       )
         .then(() => {
+          if (!isCurrentDelete()) return
+          messageProjectionRequestRef.current += 1
+          olderMessagesInFlightCursorRef.current = null
+          void refreshPendingInputsForConversation(conversationId).then(() => syncLatestConversationMessagesPage(conversationId)).catch(() => {})
           setPreInputQueue((prev) => prev.filter((q) => q.id !== id))
         })
         .catch((deleteError) => {
+          if (!isCurrentDelete()) return
           const message = reportChatError(
             deleteError,
             i18n.t("chat.gateway.deletePendingFailed"),
@@ -3979,35 +4010,37 @@ export function GatewayChatSidebar({
     if (!accessToken || !conversationId || pendingQueueAction !== "idle") {
       return
     }
+    const generation = humanInputSubmissionGenerationRef.current
+    const isCurrentResume = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
     setPendingQueueAction("resuming")
     try {
       const predecessor = await getConversation(accessToken, conversationId)
-      if (currentConversationIdRef.current !== conversationId) {
+      if (!isCurrentResume()) {
         return
       }
       const previousRunId = predecessor.current_run?.id ?? null
       const resumed = await resumePendingInputs(accessToken, conversationId)
-      if (currentConversationIdRef.current !== conversationId) {
+      if (!isCurrentResume()) {
         return
       }
       await refreshPendingInputsForConversation(conversationId)
-      if (currentConversationIdRef.current !== conversationId) {
+      if (!isCurrentResume()) {
         return
       }
       if (resumed.released > 0) {
         const deadline = Date.now() + 6_000
         while (
-          currentConversationIdRef.current === conversationId &&
+          isCurrentResume() &&
           Date.now() < deadline
         ) {
           const conversation = await getConversation(accessToken, conversationId)
-          if (currentConversationIdRef.current !== conversationId) {
+          if (!isCurrentResume()) {
             return
           }
           const nextRunId = conversation.current_run?.id ?? null
           if (isPendingInputSuccessorRun(previousRunId, nextRunId)) {
             await refreshConversations()
-            if (currentConversationIdRef.current !== conversationId) {
+            if (!isCurrentResume()) {
               return
             }
             if (conversation.current_run?.is_live) {
@@ -4024,7 +4057,7 @@ export function GatewayChatSidebar({
           await new Promise<void>((resolve) => {
             window.setTimeout(resolve, 250)
           })
-          if (currentConversationIdRef.current !== conversationId) {
+          if (!isCurrentResume()) {
             return
           }
         }
@@ -4035,6 +4068,7 @@ export function GatewayChatSidebar({
         syncLatestConversationMessagesPage(conversationId),
       ])
     } catch (caught) {
+      if (!isCurrentResume()) return
       const message = reportChatError(
         caught,
         i18n.t("chat.composer.resumeQueueFailed"),
@@ -4042,7 +4076,7 @@ export function GatewayChatSidebar({
       )
       setError(message)
     } finally {
-      setPendingQueueAction("idle")
+      if (isCurrentResume()) setPendingQueueAction("idle")
     }
   }
 
@@ -4051,11 +4085,19 @@ export function GatewayChatSidebar({
     if (!accessToken || !conversationId || pendingQueueAction !== "idle") {
       return
     }
+    const generation = humanInputSubmissionGenerationRef.current
+    const isCurrentClear = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
     setPendingQueueAction("clearing")
     try {
       await clearPendingInputs(accessToken, conversationId)
+      if (!isCurrentClear()) return
+      messageProjectionRequestRef.current += 1
+      olderMessagesInFlightCursorRef.current = null
       await refreshPendingInputsForConversation(conversationId)
+      if (!isCurrentClear()) return
+      await syncLatestConversationMessagesPage(conversationId)
     } catch (caught) {
+      if (!isCurrentClear()) return
       const message = reportChatError(
         caught,
         i18n.t("chat.composer.clearQueueFailed"),
@@ -4063,7 +4105,7 @@ export function GatewayChatSidebar({
       )
       setError(message)
     } finally {
-      setPendingQueueAction("idle")
+      if (isCurrentClear()) setPendingQueueAction("idle")
     }
   }
 

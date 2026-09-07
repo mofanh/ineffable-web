@@ -14,10 +14,17 @@ function timelineSequence(entry: ChatEntry) {
   return Number.isSafeInteger(entry.timelineSeq) ? entry.timelineSeq! : null
 }
 
-function visibleTimelineEntries(entries: ChatEntry[]) {
-  return entries.filter((entry) => entry.role !== "user" ||
-    entry.inputProgress?.kind !== "pre_input" ||
-    !["queued", "cancelled"].includes(entry.inputProgress.phase))
+export type QueuedInputIdentity = { messageId: string; runId: string | null; pendingId?: number }
+
+function visibleTimelineEntries(entries: ChatEntry[], queuedInputs: readonly QueuedInputIdentity[] = []) {
+  const queued = new Map(queuedInputs.map((input) => [`message:${input.messageId}`, input]))
+  return entries.filter((entry) => {
+    if (entry.role !== "user") return true
+    if (entry.inputProgress?.phase === "accepted") return true
+    const pending = queued.get(timelineIdentity(entry))
+    if (pending && (!entry.inputProgress?.run_id || entry.inputProgress.run_id === pending.runId)) return false
+    return entry.inputProgress?.kind !== "pre_input" || !["queued", "cancelled"].includes(entry.inputProgress.phase)
+  })
 }
 
 function sortTimeline(entries: ChatEntry[]) {
@@ -52,6 +59,7 @@ export function hasCanonicalAssistantHandoff(
 }
 
 export type ConversationTimelineAction =
+  | { type: "pending-inputs"; inputs: QueuedInputIdentity[] }
   | { type: "input-progress"; progress: InputProgress }
   | { type: "hydrate"; entries: ChatEntry[] }
   | {
@@ -68,14 +76,16 @@ export type ConversationTimelineAction =
  */
 export function reduceConversationTimeline(
   current: ChatEntry[],
-  action: ConversationTimelineAction
+  action: ConversationTimelineAction,
+  queuedInputs: readonly QueuedInputIdentity[] = []
 ) {
+  if (action.type === "pending-inputs") return visibleTimelineEntries(current, action.inputs)
   if (action.type === "input-progress") {
     const progress = action.progress
     return visibleTimelineEntries(current.map((entry) => entry.role === "user" &&
       timelineIdentity(entry) === `message:${progress.message_id}`
       ? { ...entry, inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
-      : entry))
+      : entry), queuedInputs)
   }
   const previousUsers = new Map(current.filter((entry) => entry.role === "user").map((entry) => [timelineIdentity(entry), entry]))
   action = { ...action, entries: action.entries.map((entry) => {
@@ -84,7 +94,7 @@ export function reduceConversationTimeline(
     return previous?.role === "user" ? { ...entry, inputProgress: mergeInputProgress(previous.inputProgress, entry.inputProgress) } : entry
   }) }
   if (action.type === "hydrate") {
-    return reconcileHumanInputAnswers(sortTimeline(visibleTimelineEntries(action.entries)))
+    return reconcileHumanInputAnswers(sortTimeline(visibleTimelineEntries(action.entries, queuedInputs)))
   }
 
   const handoff = action.type === "canonical-patch" ? action.handoff : null
@@ -139,5 +149,5 @@ export function reduceConversationTimeline(
     return true
   })
 
-  return reconcileHumanInputAnswers(sortTimeline(visibleTimelineEntries([...retained, ...incoming])))
+  return reconcileHumanInputAnswers(sortTimeline(visibleTimelineEntries([...retained, ...incoming], queuedInputs)))
 }

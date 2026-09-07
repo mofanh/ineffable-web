@@ -2413,6 +2413,7 @@ export function stopConversationRun(
 // ── Pending Inputs API ──
 
 export type PendingInputItem = {
+  run_id: string | null
   id: number
   conversation_id: string
   message_id: string
