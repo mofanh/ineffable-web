@@ -42,11 +42,13 @@ try {
         viewportTop: viewport.getBoundingClientRect().top,
         contentTop: content.getBoundingClientRect().top,
         blur: getComputedStyle(header).backdropFilter,
+        background: getComputedStyle(header).backgroundColor,
       }
     })
     assert.equal(layout.viewportTop, layout.headerTop, "history must extend beneath the floating header")
     assert.ok(layout.contentTop >= layout.headerBottom, "initial content must clear the header")
-    assert.notEqual(layout.blur, "none", "floating controls need a frosted backdrop")
+    assert.equal(layout.blur, "none", "focus mode must not blur history underneath its header")
+    assert.equal(layout.background, "rgba(0, 0, 0, 0)", "focus mode header must be transparent")
   }
   await page.setViewportSize({ width: 900, height: 700 })
   await page.evaluate(() => window.chatVirtualizationFixture.scrollTo(40_000))
