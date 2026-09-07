@@ -1124,8 +1124,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      const objects = workspaceTrees[item.workspaceId] ?? []
       const source = item.object
+      const scope = directoryScopeRef.current
+      const objects: WorkspaceObject[] = []
+      const parentPath = source.path.split("/").slice(0, -1).join("/")
+      let cursor: string | undefined
+      do {
+        const page = await listWorkspaceDirectoryDeduped(accessToken, item.workspaceId, parentPath, cursor)
+        if (scope !== directoryScopeRef.current) return
+        objects.push(...page.objects)
+        cursor = page.next_cursor ?? undefined
+      } while (cursor)
       const preferredName = getUniqueName(
         objects,
         source.parent_id,
@@ -1144,7 +1153,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           content: content.content,
           mime_type: source.mime_type || "text/plain",
         })
-        setSelectedEntryId(created.object.id)
+        if (scope === directoryScopeRef.current) setSelectedEntryId(created.object.id)
         return
       }
 
@@ -1152,7 +1161,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         name: preferredName,
         parent_id: source.parent_id ?? null,
       })
-      setSelectedEntryId(createdRoot.object.id)
+      if (scope === directoryScopeRef.current) setSelectedEntryId(createdRoot.object.id)
 
       const cloneChildren = async (sourcePath: string, targetParentId: string) => {
         const discovered: WorkspaceObject[] = []
@@ -1197,7 +1206,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       await cloneChildren(source.path, createdRoot.object.id)
     },
-    [accessToken, workspaceTrees]
+    [accessToken]
   )
 
   const handleObjectAction = React.useCallback(

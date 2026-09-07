@@ -340,6 +340,8 @@ export function WorkspaceObjectEditorPage() {
   const [now, setNow] = React.useState(() => Date.now())
   const ignoredWorkspaceEventKeysRef = React.useRef(new Set<string>())
   const contentLoadRequestRef = React.useRef(0)
+  const currentObjectRouteRef = React.useRef("")
+  currentObjectRouteRef.current = `${workspaceId}:${objectId}`
 
   const workspace = workspaces.find((candidate) => candidate.id === workspaceId)
   const isDirty = content !== savedContent
@@ -705,7 +707,7 @@ export function WorkspaceObjectEditorPage() {
   }, [accessToken, navigate, object, reportActionError, savedContent, t, workspaceId])
 
   const renameObject = React.useCallback(async () => {
-    if (!accessToken || !workspaceId || !object) {
+    if (!accessToken || !workspaceId || !object || object.id !== objectId) {
       return
     }
 
@@ -715,10 +717,11 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
+    const route = `${workspaceId}:${objectId}`
+    const generation = contentLoadRequestRef.current
     try {
       const response = await renameMoveWorkspaceObject(accessToken, workspaceId, object.id, { name: normalizedName })
-      setObject(response.object)
-      ignoredWorkspaceEventKeysRef.current.add(`rename_move:${response.object.id}:`)
+      if (generation === contentLoadRequestRef.current && route === currentObjectRouteRef.current) ignoredWorkspaceEventKeysRef.current.add(`rename_move:${response.object.id}:`)
       dispatchWorkspaceObjectsChanged({
         workspaceId,
         objectId: response.object.id,
@@ -726,18 +729,21 @@ export function WorkspaceObjectEditorPage() {
         action: "rename_move",
         source: "user",
       })
+      if (generation !== contentLoadRequestRef.current || route !== currentObjectRouteRef.current) return
+      setObject(response.object)
       notify.success({
         title: t("workspace.feedback.renamed"),
         description: response.object.name,
       })
     } catch (renameError) {
+      if (generation !== contentLoadRequestRef.current || route !== currentObjectRouteRef.current) return
       reportActionError(
         renameError,
         t("workspace.feedback.renameFailed"),
         t("workspace.feedback.renameFailedTitle"),
       )
     }
-  }, [accessToken, object, reportActionError, t, workspaceId])
+  }, [accessToken, object, objectId, reportActionError, t, workspaceId])
 
   const moveObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
