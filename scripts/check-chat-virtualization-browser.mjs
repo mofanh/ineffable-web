@@ -90,6 +90,12 @@ try {
     assert.equal(rows.length, 4)
     assert.ok(rows[0].includes("原输入") && rows[1].includes("原输入的回答") && rows[2].includes("引导输入") && rows[3].includes("引导输入的回答"), `${phase}: answers must stay on each side of guidance`)
   }
+  for (const phase of ["multiple", "multiple-refresh"]) {
+    await page.evaluate((phase) => window.chatVirtualizationFixture.guidedInput(phase), phase)
+    const rows = await page.locator('[data-terminal-chat] [data-chat-entry-role]').allTextContents()
+    assert.equal(rows.length, 5)
+    assert.ok(rows[3].includes("引导输入的回答") && rows[4].includes("尚未读取的C"), `${phase}: B answer precedes waiting C`)
+  }
   await page.evaluate(() => window.chatVirtualizationFixture.guidedInput("downgrade"))
   assert.equal(await guidance.count(), 0, "unaccepted downgraded input belongs only in the queue")
   console.log("chat virtualization and input queue browser checks passed")

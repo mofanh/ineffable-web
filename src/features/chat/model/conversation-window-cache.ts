@@ -215,6 +215,12 @@ export class ConversationWindowCache {
     }
   }
 
+  removeEntry(conversationId: string, entryId: string) {
+    const cached = this.values.get(conversationId)?.snapshot
+    if (!cached || !cached.entries.some((entry) => entry.id === entryId)) return
+    this.set(conversationId, { ...cached, entries: cached.entries.filter((entry) => entry.id !== entryId) })
+  }
+
   delete(conversationId: string) {
     const existing = this.values.get(conversationId)
     if (!existing) return

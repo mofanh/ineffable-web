@@ -1,3 +1,4 @@
+import { ConversationWindowCache } from "../src/features/chat/model/conversation-window-cache.ts"
 import { matchesConversationOperation } from "../src/features/chat/model/conversation-operation-identity.ts"
 import { bindAssistantToHumanBoundary } from "../src/features/chat/model/human-input-timeline.ts"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
@@ -2568,4 +2569,21 @@ console.log("chat web integration checks passed")
   assert.ok(merged.some((entry) => entry.id === next.id), "earlier answer committed late cannot replace guided live output")
   const once = bindOptimisticUserMessage([...accepted, {id:"optimistic",role:"user",content:"adjust"}], "optimistic", "guide")
   assert.equal(once.filter((entry) => entry.role === "user").length, 1, "acceptance before HTTP receipt must not duplicate the input")
+}
+
+{
+  const progress = { message_id: "B", message_seq: 2, conversation_id: "A", kind: "guided", phase: "accepted", run_id: "r", run_state: "streaming", execution_epoch: 1, run_version: 1 }
+  const b = { id: "message:B", role: "user", content: "B", timelineSeq: 2, inputProgress: progress }
+  const c = { id: "message:C", role: "user", content: "C", timelineSeq: 3, inputProgress: { ...progress, message_id: "C", phase: "received" } }
+  const answer = bindAssistantToHumanBoundary(createAssistantEntry("streaming", "r"), [b,c])
+  const live = reduceConversationTimeline([b,c], { type: "assistant-entry", entry: answer })
+  assert.deepEqual(live.map((entry) => entry.id), [b.id, answer.id, c.id])
+  assert.deepEqual(reduceConversationTimeline([], { type: "hydrate", entries: [b,c,answer] }).map((entry) => entry.id), [b.id, answer.id, c.id], "hydrate must use the same equal-sequence order")
+  const cache = new ConversationWindowCache()
+  const snapshot = { entries: [{ id: "guided-optimistic", role: "user", content: "B" }], renderedEntryLimit: 20, olderMessagesCursor: null, hasOlderMessages: false, scrollAnchor: { atBottom: true, scrollTop: 0 } }
+  cache.set("A", snapshot)
+  cache.set("other", { ...snapshot, entries: [c] })
+  cache.removeEntry("A", "guided-optimistic")
+  assert.deepEqual(cache.get("other").entries, [c], "late cleanup cannot change selected other conversation")
+  assert.deepEqual(reduceConversationTimeline(cache.get("A").entries, {type:"canonical-patch",entries:[b]}).map((entry)=>entry.id), [b.id])
 }

@@ -2132,7 +2132,7 @@ export function GatewayChatSidebar({
       if (!provisional) return current
       const created = bindAssistantToHumanBoundary(provisional, current, targetInputSeq)
       assistantEntryIdRef.current = created.id
-      return [...current, created]
+      return reduceCurrentTimeline(current, { type: "assistant-entry", entry: created })
     }
 
     const index = current.findIndex(
@@ -2143,7 +2143,7 @@ export function GatewayChatSidebar({
       if (!provisional) return current
       const created = bindAssistantToHumanBoundary(provisional, current, targetInputSeq)
       assistantEntryIdRef.current = created.id
-      return [...current, created]
+      return reduceCurrentTimeline(current, { type: "assistant-entry", entry: created })
     }
 
     const existing = current[index]
@@ -2152,9 +2152,7 @@ export function GatewayChatSidebar({
     const next = updater(existing)
     if (!next || next === existing) return current
 
-    const cloned = [...current]
-    cloned[index] = bindAssistantToHumanBoundary(next, current, targetInputSeq)
-    return cloned
+    return reduceCurrentTimeline(current, { type: "assistant-entry", entry: bindAssistantToHumanBoundary(next, current, targetInputSeq) })
   }
 
   function updateAssistantEntry(
@@ -2389,6 +2387,13 @@ export function GatewayChatSidebar({
         subagents: nextSubagents,
       }
     }, "immediate", runId)
+  }
+
+  function removeGuidedOptimisticEntry(conversationId: string, optimisticId: string) {
+    conversationWindowCacheRef.current.removeEntry(conversationId, optimisticId)
+    if (currentConversationIdRef.current === conversationId) {
+      setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
+    }
   }
 
   function beginGuidedUserTurn(content: string, id = createMessageId("user")) {
@@ -3493,8 +3498,8 @@ export function GatewayChatSidebar({
           {
             onEnvelope: (envelope) => {
               if (!isCurrentGuidedSubmission()) {
+                removeGuidedOptimisticEntry(targetConversationId, optimisticId)
                 if (currentConversationIdRef.current === targetConversationId) {
-                  setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
                   void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
                 }
                 return
@@ -3538,7 +3543,7 @@ export function GatewayChatSidebar({
         return true
       } catch (enqueueError) {
         if (!isCurrentGuidedSubmission()) {
-          if (currentConversationIdRef.current === targetConversationId) setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
+          removeGuidedOptimisticEntry(targetConversationId, optimisticId)
           return false
         }
         setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
@@ -3921,8 +3926,8 @@ export function GatewayChatSidebar({
         dbId
       ).then((response) => {
         if (!isCurrentPromotion()) {
+          removeGuidedOptimisticEntry(conversationId, guidedEntryId)
           if (currentConversationIdRef.current === conversationId) {
-            setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
             void syncLatestConversationMessagesPage(conversationId).catch(() => {})
           }
           return
@@ -3937,8 +3942,8 @@ export function GatewayChatSidebar({
         )
       }).catch((promoteError) => {
         if (!isCurrentPromotion()) {
+          removeGuidedOptimisticEntry(conversationId, guidedEntryId)
           if (currentConversationIdRef.current === conversationId) {
-            setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
             void syncLatestConversationMessagesPage(conversationId).catch(() => {})
           }
           return

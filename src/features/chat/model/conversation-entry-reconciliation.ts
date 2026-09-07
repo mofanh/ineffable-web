@@ -34,6 +34,12 @@ function sortTimeline(entries: ChatEntry[]) {
       if (left.seq != null && right.seq != null && left.seq !== right.seq) {
         return left.seq - right.seq
       }
+      // An answer anchored at input.seq + 1 precedes a later user input
+      // allocated that same sequence. Never let arrival order decide ownership.
+      if (left.seq != null && left.seq === right.seq && left.entry.role !== right.entry.role) {
+        if (left.entry.role === "assistant") return -1
+        if (right.entry.role === "assistant") return 1
+      }
       if (left.seq != null && right.seq == null) return -1
       if (left.seq == null && right.seq != null) return 1
       return left.index - right.index
@@ -59,6 +65,7 @@ export function hasCanonicalAssistantHandoff(
 }
 
 export type ConversationTimelineAction =
+  | { type: "assistant-entry"; entry: AssistantEntry }
   | { type: "pending-inputs"; inputs: QueuedInputIdentity[] }
   | { type: "input-progress"; progress: InputProgress; content?: string }
   | { type: "hydrate"; entries: ChatEntry[] }
@@ -79,6 +86,16 @@ export function reduceConversationTimeline(
   action: ConversationTimelineAction,
   queuedInputs: readonly QueuedInputIdentity[] = []
 ) {
+  if (action.type === "assistant-entry") {
+    const entry = action.entry
+    const index = current.findIndex((candidate) => candidate.id === entry.id)
+    if (index < 0) return sortTimeline([...current, entry])
+    const previous = current[index]
+    if (previous === entry) return current
+    const next = [...current]
+    next[index] = entry
+    return previous.timelineSeq === entry.timelineSeq ? next : sortTimeline(next)
+  }
   if (action.type === "pending-inputs") return visibleTimelineEntries(current, action.inputs)
   if (action.type === "input-progress") {
     const progress = action.progress
