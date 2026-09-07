@@ -299,7 +299,7 @@ export function ChatComposer({
   return (
     <SidebarFooter
       className={cn(
-        "w-full p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]",
+        "w-full px-2 pt-0 pb-[calc(0.5rem+env(safe-area-inset-bottom))]",
         isFullScreen && "mx-auto max-w-[780px] px-5 md:px-2"
       )}
     >
