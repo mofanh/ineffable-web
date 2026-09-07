@@ -34,7 +34,11 @@ export class ConversationRuntimeController {
         runId,
         afterSeq,
         controller.signal,
-        onEnvelope
+        (envelope) => {
+          if (!controller.signal.aborted && this.subscriptions.get(conversationId) === controller) {
+            onEnvelope(envelope)
+          }
+        }
       )
       if (!controller.signal.aborted) {
         this.store.dispatch(conversationId, { type: "transport_closed" })

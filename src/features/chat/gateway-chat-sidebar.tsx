@@ -2585,15 +2585,8 @@ export function GatewayChatSidebar({
 
     const resumedRunState = response.run_state?.trim().toLowerCase()
     if (resumedRunState === "streaming" || resumedRunState === "resuming") {
-      recoveryRequestIdRef.current += 1
-      recoveryInFlightRef.current = false
-      terminalEventSeenRef.current = false
-      activeRunIdRef.current = response.run_id ?? null
-      assistantEntryIdRef.current = null
-      setError(null)
-      updateStreamStatus("streaming")
+      void resumeConversationStream(conversationId, response.run_id, undefined, "human-resume")
       void refreshConversations().catch(() => {})
-      void recoverConversationEvents(conversationId, true)
       return
     }
     if (resumedRunState === "failed" || resumedRunState === "busy_rejected") {
@@ -2881,7 +2874,8 @@ export function GatewayChatSidebar({
     async (
       conversationId: string,
       runId?: string | null,
-      afterSeq?: number | null
+      afterSeq?: number | null,
+      reason: "restore" | "human-resume" = "restore"
     ) => {
       if (!accessToken || !conversationId) {
         return
@@ -2897,16 +2891,17 @@ export function GatewayChatSidebar({
 
       activeStreamConversationIdRef.current = conversationId
       activeRunIdRef.current = runId ?? null
-      assistantEntryIdRef.current = findAssistantEntryIdForRun(
-        entriesRef.current,
-        runId
-      )
-      updateStreamStatus("recovering")
-      setError(i18n.t("chat.gateway.pageRestored"))
+      // Human input is a canonical user boundary, even when the run id is unchanged.
+      assistantEntryIdRef.current = reason === "human-resume"
+        ? null
+        : findAssistantEntryIdForRun(entriesRef.current, runId)
+      const cursor = afterSeq ?? conversationSeqRef.current.get(conversationId) ?? null
+      updateStreamStatus(reason === "human-resume" ? "streaming" : "recovering")
+      setError(reason === "human-resume" ? null : i18n.t("chat.gateway.pageRestored"))
       persistResumeState({
         conversationId,
         runId: runId ?? null,
-        afterSeq: afterSeq ?? conversationSeqRef.current.get(conversationId) ?? null,
+        afterSeq: cursor,
         force: true,
       })
 
@@ -2914,8 +2909,10 @@ export function GatewayChatSidebar({
         const outcome = await runtimeControllerRef.current.connect(
           conversationId,
           runId ?? null,
-          afterSeq ?? null,
-          applyEnvelopeEvent,
+          cursor,
+          (envelope) => {
+            if (isCurrentConnection()) applyEnvelopeEvent(envelope)
+          },
           (targetConversationId, targetRunId, cursor, signal, onEnvelope) =>
             subscribeConversationEvents(accessToken, targetConversationId, {
               runId: targetRunId,

@@ -213,3 +213,11 @@ assert.match(
 )
 
 console.log("chat runtime architecture checks passed")
+
+const resumedLiveBranch = sidebar.slice(
+  sidebar.indexOf('if (resumedRunState === "streaming"'),
+  sidebar.indexOf('if (resumedRunState === "failed"')
+)
+assert.match(resumedLiveBranch, /resumeConversationStream\(conversationId, response\.run_id, undefined, "human-resume"\)/)
+assert.doesNotMatch(resumedLiveBranch, /recoverConversationEvents/,
+  "successful human resume must attach live SSE instead of starting polling")
