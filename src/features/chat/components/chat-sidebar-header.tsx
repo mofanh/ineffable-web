@@ -195,12 +195,8 @@ export function ChatSidebarHeader({
     [filteredConversations]
   )
   return (
-    <SidebarHeader className="gap-0 bg-sidebar p-0">
-      <div className="flex h-[60px] shrink-0 items-center gap-2.5 bg-sidebar pr-3 pl-5">
-        {/* <HeaderAvatar /> */}
-
-        {/* <div className="h-4 w-px shrink-0 bg-border" aria-hidden="true" /> */}
-
+    <SidebarHeader className="absolute inset-x-0 top-0 z-20 gap-0 bg-sidebar/80 p-0 backdrop-blur-md">
+      <div className="flex h-11 shrink-0 items-center gap-2.5 pr-3 pl-5">
         <DropdownMenu open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
             <button

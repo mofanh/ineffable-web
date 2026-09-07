@@ -4211,7 +4211,7 @@ export function GatewayChatSidebar({
   }
 
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
       <ChatSidebarHeader
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
@@ -4325,6 +4325,6 @@ export function GatewayChatSidebar({
           void handleClearPreInputQueue()
         }}
       />
-    </>
+    </div>
   )
 }

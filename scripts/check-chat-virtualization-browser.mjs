@@ -30,6 +30,25 @@ try {
     `http://127.0.0.1:${address.port}/scripts/chat-virtualization-fixture.html`
   )
   await page.waitForFunction(() => Boolean(window.chatVirtualizationFixture))
+  for (const width of [900, 390]) {
+    await page.setViewportSize({ width, height: 700 })
+    const layout = await page.locator('[data-terminal-chat]').evaluate((root) => {
+      const header = root.querySelector('[data-sidebar="header"]')
+      const viewport = root.querySelector('[data-chat-scroll-region]')
+      const content = root.querySelector('[data-chat-scroll-content]')
+      return {
+        headerBottom: header.getBoundingClientRect().bottom,
+        headerTop: header.getBoundingClientRect().top,
+        viewportTop: viewport.getBoundingClientRect().top,
+        contentTop: content.getBoundingClientRect().top,
+        blur: getComputedStyle(header).backdropFilter,
+      }
+    })
+    assert.equal(layout.viewportTop, layout.headerTop, "history must extend beneath the floating header")
+    assert.ok(layout.contentTop >= layout.headerBottom, "initial content must clear the header")
+    assert.notEqual(layout.blur, "none", "floating controls need a frosted backdrop")
+  }
+  await page.setViewportSize({ width: 900, height: 700 })
   await page.evaluate(() => window.chatVirtualizationFixture.scrollTo(40_000))
 
   const before = await page.evaluate(() =>

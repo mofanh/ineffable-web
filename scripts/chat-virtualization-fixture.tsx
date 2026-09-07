@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client"
 
 import { WebNodeList } from "../src/features/chat/components/agent-pane"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list"
+import { ChatSidebarHeader } from "../src/features/chat/components/chat-sidebar-header"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation"
 import "../src/index.css"
 
@@ -291,7 +292,19 @@ function Fixture() {
           <WebNodeList pane={pane} />
         </div>
       </div>
-      <div data-terminal-chat style={{ height: 600 }}>
+      <div data-terminal-chat className="relative flex flex-col [--chat-header-height:2.75rem]" style={{ height: 600 }}>
+        <ChatSidebarHeader
+          bindStatus=""
+          selectedConversationId="fixture"
+          selectedConversationTitle="Conversation history"
+          conversations={[]}
+          onSelectConversation={() => {}}
+          onRefreshConversations={() => {}}
+          onStartNewChat={() => {}}
+          isFullScreen
+          onFullScreenChange={() => {}}
+          onCollapseSidebar={() => {}}
+        />
         <ChatMessageList
           entries={terminalEntries}
           hasOlderEntries={false}

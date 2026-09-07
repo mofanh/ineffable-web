@@ -313,7 +313,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           }
         }}
         className={cn(
-          "h-full min-h-0 overflow-y-auto overscroll-contain py-4",
+          "h-full min-h-0 overflow-y-auto overscroll-contain pt-[calc(var(--chat-header-height,0px)+0.5rem)] pb-4 scroll-pt-[calc(var(--chat-header-height,0px)+0.5rem)]",
           isFullScreen ? "px-5 md:px-8" : "px-3"
         )}
       >
