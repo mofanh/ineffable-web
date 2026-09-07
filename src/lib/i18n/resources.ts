@@ -14,6 +14,7 @@ export const resources = {
         shortChinese: "中文",
       },
       common: {
+        loadMore: "加载更多",
         close: "关闭",
         cancel: "取消",
         confirm: "确认",
@@ -1568,6 +1569,7 @@ export const resources = {
         shortChinese: "中文",
       },
       common: {
+        loadMore: "Load more",
         close: "Close",
         cancel: "Cancel",
         confirm: "Confirm",

@@ -60,7 +60,8 @@ import {
   type Workspace,
   type WorkspaceObject,
 } from "@/features/workspace/api/workspace-api"
-import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
+import { statWorkspacePath } from "@/features/workspace/api/workspace-api"
+import { listWorkspaceDirectoryDeduped } from "@/features/workspace/api/workspace-resource-api"
 import { downloadTextFile } from "@/features/workspace/model/download"
 import {
   buildWorkspaceEntries,
@@ -361,6 +362,7 @@ function SidebarEntryButton({
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
   onTeamAction?: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
+  const { t } = useTranslation()
   const depthClass =
     item.depth === 2 ? "pl-12" : item.depth === 1 ? "pl-7" : undefined
 
@@ -377,11 +379,11 @@ function SidebarEntryButton({
         }}
       >
         <EntryIcon item={item} />
-        <span>{item.title}</span>
+        <span>{item.more ? t("common.loadMore") : item.title}</span>
       </SidebarMenuButton>
       {item.isWorkspaceRoot && item.accent === "team" && onTeamAction ? (
         <TeamWorkspaceMenu item={item} onAction={onTeamAction} />
-      ) : item.workspaceId ? (
+      ) : item.workspaceId && !item.more ? (
         <WorkspaceObjectMenu item={item} onAction={onAction} />
       ) : null}
     </SidebarMenuItem>
@@ -783,6 +785,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const navigate = useNavigate()
   const [selectedEntryId, setSelectedEntryId] = React.useState("")
   const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
+  const [directoryPages, setDirectoryPages] = React.useState<Record<string, Record<string, string | null>>>({})
+  const directoryGeneration = React.useRef(0)
+  const directoryScope = `${currentUser?.id ?? ""}:${workspaces.map(w => w.id).join(",")}`
+  const directoryScopeRef = React.useRef(directoryScope)
+  directoryScopeRef.current = directoryScope
+
   const [collapsedEntryIds, setCollapsedEntryIds] = React.useState<Set<string>>(
     () => new Set()
   )
@@ -852,25 +860,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
       setTreeError(null)
 
+      const generation = ++directoryGeneration.current
+      const scope = directoryScopeRef.current
       const results = await Promise.allSettled(
         targetWorkspaces.map(async (workspace) => {
-          const tree = await listWorkspaceTreeDeduped(accessToken, workspace.id)
-          return [workspace.id, tree.objects] as const
+          const tree = await listWorkspaceDirectoryDeduped(accessToken, workspace.id)
+          return [workspace.id, tree] as const
         })
       )
 
+      if (generation !== directoryGeneration.current || scope !== directoryScopeRef.current) return
+      const nextPages: Record<string, Record<string, string | null>> = {}
+      const collapsed = new Set<string>()
       const nextTrees: WorkspaceTreeMap = {}
       let failed = false
 
       for (const result of results) {
         if (result.status === "fulfilled") {
-          const [workspaceId, objects] = result.value
-          nextTrees[workspaceId] = objects
+          const [workspaceId, page] = result.value
+          nextTrees[workspaceId] = page.objects
+          nextPages[workspaceId] = { "": page.next_cursor }
+          page.objects.filter(o => o.kind === "folder").forEach(o => collapsed.add(o.id))
         } else {
           failed = true
         }
       }
 
+      setDirectoryPages(current => workspaceIds ? { ...current, ...nextPages } : nextPages)
+      setCollapsedEntryIds(current => new Set([...current, ...collapsed]))
       setWorkspaceTrees((current) =>
         workspaceIds ? { ...current, ...nextTrees } : nextTrees
       )
@@ -987,9 +1004,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           includeRoot: true,
           rootAccent: "team",
           collapsedEntryIds,
+          pages: directoryPages[workspace.id],
         })
       ),
-    [collapsedEntryIds, teamWorkspaces, workspaceTrees]
+    [collapsedEntryIds, directoryPages, teamWorkspaces, workspaceTrees]
   )
 
   const personalSpaceEntries = React.useMemo(
@@ -998,9 +1016,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         buildWorkspaceEntries(workspace, workspaceTrees[workspace.id] ?? [], {
           includeRoot: personalWorkspaces.length > 1,
           collapsedEntryIds,
+          pages: directoryPages[workspace.id],
         })
       ),
-    [collapsedEntryIds, personalWorkspaces, workspaceTrees]
+    [collapsedEntryIds, directoryPages, personalWorkspaces, workspaceTrees]
   )
 
   const getSectionWorkspace = React.useCallback(
@@ -1129,22 +1148,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         return
       }
 
-      const childrenByParent = new Map<string, WorkspaceObject[]>()
-      for (const object of objects) {
-        const parentKey = object.parent_id || "root"
-        const siblings = childrenByParent.get(parentKey) ?? []
-        siblings.push(object)
-        childrenByParent.set(parentKey, siblings)
-      }
-
       const createdRoot = await createWorkspaceFolder(accessToken, item.workspaceId, {
         name: preferredName,
         parent_id: source.parent_id ?? null,
       })
       setSelectedEntryId(createdRoot.object.id)
 
-      const cloneChildren = async (sourceParentId: string, targetParentId: string) => {
-        const children = [...(childrenByParent.get(sourceParentId) ?? [])].sort(
+      const cloneChildren = async (sourcePath: string, targetParentId: string) => {
+        const discovered: WorkspaceObject[] = []
+        let cursor: string | undefined
+        do {
+          const page = await listWorkspaceDirectoryDeduped(accessToken, item.workspaceId!, sourcePath, cursor)
+          discovered.push(...page.objects)
+          cursor = page.next_cursor ?? undefined
+        } while (cursor)
+        const children = discovered.sort(
           (left, right) => {
             if (left.kind !== right.kind) {
               return left.kind === "folder" ? -1 : 1
@@ -1160,7 +1178,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               name: child.name,
               parent_id: targetParentId,
             })
-            await cloneChildren(child.id, created.object.id)
+            await cloneChildren(child.path, created.object.id)
           } else {
             const content = await getWorkspaceObjectContent(
               accessToken,
@@ -1177,7 +1195,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         }
       }
 
-      await cloneChildren(source.id, createdRoot.object.id)
+      await cloneChildren(source.path, createdRoot.object.id)
     },
     [accessToken, workspaceTrees]
   )
@@ -1311,13 +1329,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
           const normalizedPath = targetPath.trim().replace(/^\/+|\/+$/g, "")
           const targetFolder = normalizedPath
-            ? (workspaceTrees[item.workspaceId] ?? []).find(
-                (object) =>
-                  object.kind === "folder" &&
-                  object.path.toLowerCase() === normalizedPath.toLowerCase()
-              )
-            : null
-          if (normalizedPath && !targetFolder) {
+            ? (await statWorkspacePath(accessToken, item.workspaceId, normalizedPath)).object : null
+          if (normalizedPath && targetFolder?.kind !== "folder") {
             notify.error({
               title: t("workspace.sidebarFeedback.moveFailed"),
               description: t("workspace.sidebarFeedback.folderNotFound"),
@@ -1445,9 +1458,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     [handleTeamSpaceAction]
   )
 
+  const loadDirectory = React.useCallback(async (workspaceId: string, path: string, parentId: string | null, cursor?: string) => {
+    if (!accessToken) return
+    const scope = directoryScopeRef.current
+    const generation = directoryGeneration.current
+    try {
+      const page = await listWorkspaceDirectoryDeduped(accessToken, workspaceId, path, cursor)
+      if (scope !== directoryScopeRef.current || generation !== directoryGeneration.current) return
+      setWorkspaceTrees(current => {
+        const retained = (current[workspaceId] ?? []).filter(object => cursor || object.parent_id !== parentId)
+        const objects = new Map(retained.map(object => [object.id, object]))
+        page.objects.forEach(object => objects.set(object.id, object))
+        return { ...current, [workspaceId]: [...objects.values()] }
+      })
+      setDirectoryPages(current => ({ ...current, [workspaceId]: { ...current[workspaceId], [path]: page.next_cursor } }))
+      setCollapsedEntryIds(current => new Set([...current, ...page.objects.filter(o => o.kind === "folder").map(o => o.id)]))
+    } catch (error) {
+      if (scope === directoryScopeRef.current && generation === directoryGeneration.current) reportActionError(error, t("workspace.sidebarFeedback.treeFailed"), t("workspace.sidebarFeedback.treeFailed"))
+    }
+  }, [accessToken, reportActionError, t])
+
   const openEntry = React.useCallback(
     (item: SidebarEntry) => {
+      if (item.more && item.workspaceId) {
+        const parentId = workspaceTrees[item.workspaceId]?.find(o => o.path === item.more?.path)?.id ?? null
+        void loadDirectory(item.workspaceId, item.more.path, parentId, item.more.cursor)
+        return
+      }
       if (item.kind === "folder") {
+        if (collapsedEntryIds.has(item.id) && item.workspaceId) {
+          void loadDirectory(item.workspaceId, item.object?.path ?? "", item.object?.id ?? null)
+        }
         setCollapsedEntryIds((current) => {
           const next = new Set(current)
           if (next.has(item.id)) {
@@ -1464,7 +1505,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         navigate(`/workspace/${item.workspaceId}/objects/${item.object.id}`)
       }
     },
-    [navigate]
+    [navigate, collapsedEntryIds, loadDirectory, workspaceTrees]
   )
 
   const navSecondary = navigation.secondary.map((item) => ({

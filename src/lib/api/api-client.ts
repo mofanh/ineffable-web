@@ -802,6 +802,26 @@ export function acceptWorkspaceInvitationById(
   )
 }
 
+export function statWorkspacePath(accessToken: string, workspaceId: string, path: string) {
+  return requestApiJson<{ object: WorkspaceObject | null }>(
+    `/gateway/v1/workspaces/${workspaceId}/stat?${new URLSearchParams({ path })}`, { accessToken, workspaceId })
+}
+
+export function searchWorkspacePaths(accessToken: string, workspaceId: string, path: string, query: string, cursor?: string) {
+  const params = new URLSearchParams({ path, query, limit: "100" })
+  if (cursor) params.set("cursor", cursor)
+  return requestApiJson<{ matches: { object: Pick<WorkspaceObject, "id" | "path" | "name" | "kind"> }[]; next_cursor: string | null }>(
+    `/gateway/v1/workspaces/${workspaceId}/search?${params}`, { accessToken, workspaceId })
+}
+
+export function listWorkspaceDirectory(accessToken: string, workspaceId: string, path = "", cursor?: string) {
+  const query = new URLSearchParams({ path, limit: "100" })
+  if (cursor) query.set("cursor", cursor)
+  return requestApiJson<{ workspace_id: string; objects: WorkspaceObject[]; next_cursor: string | null }>(
+    `/gateway/v1/workspaces/${workspaceId}/directory?${query}`, { accessToken, workspaceId }
+  )
+}
+
 export function listWorkspaceTree(accessToken: string, workspaceId: string) {
   return requestApiJson<WorkspaceTreeResponse>(
     `/gateway/v1/workspaces/${workspaceId}/tree`,

@@ -1,3 +1,4 @@
+import { statWorkspacePath } from "@/features/workspace/api/workspace-api"
 import * as React from "react"
 import MarkdownIt from "markdown-it"
 import {
@@ -49,7 +50,7 @@ import {
 } from "@/features/workspace/api/workspace-api"
 import {
   getWorkspaceObjectContentDeduped,
-  listWorkspaceTreeDeduped,
+  listWorkspaceDirectoryDeduped,
 } from "@/features/workspace/api/workspace-resource-api"
 import { downloadTextFile } from "@/features/workspace/model/download"
 import { getCopyName, getUniqueName, getWorkspaceType } from "@/features/workspace/model/workspace-tree"
@@ -321,7 +322,6 @@ export function WorkspaceObjectEditorPage() {
   const { accessToken, currentUser } = useAuthSession()
   const { workspaces } = useWorkspaceSession()
   const [object, setObject] = React.useState<WorkspaceObject | null>(null)
-  const [workspaceObjects, setWorkspaceObjects] = React.useState<WorkspaceObject[]>([])
   const [version, setVersion] = React.useState<WorkspaceObjectVersion | null>(null)
   const [content, setContent] = React.useState("")
   const [savedContent, setSavedContent] = React.useState("")
@@ -377,15 +377,6 @@ export function WorkspaceObjectEditorPage() {
     setVersions(response.versions)
   }, [accessToken, objectId, workspaceId])
 
-  const loadWorkspaceTree = React.useCallback(async () => {
-    if (!accessToken || !workspaceId) {
-      return
-    }
-
-    const response = await listWorkspaceTreeDeduped(accessToken, workspaceId)
-    setWorkspaceObjects(response.objects)
-  }, [accessToken, workspaceId])
-
   const loadContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) {
       return
@@ -398,9 +389,8 @@ export function WorkspaceObjectEditorPage() {
     contentLoadRequestRef.current = requestId
 
     try {
-      const [contentResponse, treeResponse, versionsResponse] = await Promise.all([
+      const [contentResponse, versionsResponse] = await Promise.all([
         getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId),
-        listWorkspaceTreeDeduped(accessToken, workspaceId),
         listWorkspaceObjectVersions(accessToken, workspaceId, objectId),
       ])
       if (contentLoadRequestRef.current !== requestId) {
@@ -410,7 +400,6 @@ export function WorkspaceObjectEditorPage() {
       setVersion(contentResponse.version)
       setContent(contentResponse.content)
       setSavedContent(contentResponse.content)
-      setWorkspaceObjects(treeResponse.objects)
       setVersions(versionsResponse.versions)
       setPreviewVersion(null)
       setPreviewContent(null)
@@ -455,10 +444,6 @@ export function WorkspaceObjectEditorPage() {
         return
       }
 
-      if (detail.action === "rename_move" || detail.action === "delete") {
-        void loadWorkspaceTree()
-      }
-
       const affectsCurrentObject =
         detail.objectId === objectId || (Boolean(detail.path) && Boolean(object?.path) && detail.path === object?.path)
       if (!affectsCurrentObject) {
@@ -482,7 +467,7 @@ export function WorkspaceObjectEditorPage() {
     return () => {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, handleWorkspaceObjectsChanged)
     }
-  }, [isDirty, loadContent, loadWorkspaceTree, object?.path, objectId, t, version?.id, workspaceId])
+  }, [isDirty, loadContent, object?.path, objectId, t, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty) {
@@ -679,7 +664,16 @@ export function WorkspaceObjectEditorPage() {
     }
 
     try {
-      const preferredName = getUniqueName(workspaceObjects, object.parent_id, getCopyName(object.name))
+      const generation = contentLoadRequestRef.current
+      const siblings: WorkspaceObject[] = []
+      let cursor: string | undefined
+      do {
+        const page = await listWorkspaceDirectoryDeduped(accessToken, workspaceId, object.path.split("/").slice(0, -1).join("/"), cursor)
+        if (generation !== contentLoadRequestRef.current) return
+        siblings.push(...page.objects)
+        cursor = page.next_cursor ?? undefined
+      } while (cursor)
+      const preferredName = getUniqueName(siblings, object.parent_id, getCopyName(object.name))
       const response = await createWorkspaceFile(accessToken, workspaceId, {
         name: preferredName,
         parent_id: object.parent_id ?? null,
@@ -699,6 +693,7 @@ export function WorkspaceObjectEditorPage() {
         title: t("workspace.feedback.copyCreated"),
         description: response.object.name,
       })
+      if (generation !== contentLoadRequestRef.current) return
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (duplicateError) {
       reportActionError(
@@ -707,7 +702,7 @@ export function WorkspaceObjectEditorPage() {
         t("workspace.feedback.copyFailedTitle"),
       )
     }
-  }, [accessToken, navigate, object, reportActionError, savedContent, t, workspaceId, workspaceObjects])
+  }, [accessToken, navigate, object, reportActionError, savedContent, t, workspaceId])
 
   const renameObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -723,7 +718,6 @@ export function WorkspaceObjectEditorPage() {
     try {
       const response = await renameMoveWorkspaceObject(accessToken, workspaceId, object.id, { name: normalizedName })
       setObject(response.object)
-      await loadWorkspaceTree()
       ignoredWorkspaceEventKeysRef.current.add(`rename_move:${response.object.id}:`)
       dispatchWorkspaceObjectsChanged({
         workspaceId,
@@ -743,7 +737,7 @@ export function WorkspaceObjectEditorPage() {
         t("workspace.feedback.renameFailedTitle"),
       )
     }
-  }, [accessToken, loadWorkspaceTree, object, reportActionError, t, workspaceId])
+  }, [accessToken, object, reportActionError, t, workspaceId])
 
   const moveObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -755,13 +749,13 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
+    const generation = contentLoadRequestRef.current
+    try {
     const normalizedPath = targetPath.trim().replace(/^\/+|\/+$/g, "")
     const targetFolder = normalizedPath
-      ? workspaceObjects.find(
-          (candidate) => candidate.kind === "folder" && candidate.path.toLowerCase() === normalizedPath.toLowerCase()
-        )
-      : null
-    if (normalizedPath && !targetFolder) {
+      ? (await statWorkspacePath(accessToken, workspaceId, normalizedPath)).object : null
+    if (generation !== contentLoadRequestRef.current) return
+    if (normalizedPath && targetFolder?.kind !== "folder") {
       setError(t("workspace.feedback.folderNotFound"))
       notify.error({
         title: t("workspace.feedback.moveFailedTitle"),
@@ -770,12 +764,11 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
-    try {
       const response = await renameMoveWorkspaceObject(accessToken, workspaceId, object.id, {
         parent_id: targetFolder?.id ?? null,
       })
+      if (generation !== contentLoadRequestRef.current) return
       setObject(response.object)
-      await loadWorkspaceTree()
       ignoredWorkspaceEventKeysRef.current.add(`rename_move:${response.object.id}:`)
       dispatchWorkspaceObjectsChanged({
         workspaceId,
@@ -795,7 +788,7 @@ export function WorkspaceObjectEditorPage() {
         t("workspace.feedback.moveFailedTitle"),
       )
     }
-  }, [accessToken, loadWorkspaceTree, object, reportActionError, t, workspaceId, workspaceObjects])
+  }, [accessToken, object, reportActionError, t, workspaceId])
 
   const deleteObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {

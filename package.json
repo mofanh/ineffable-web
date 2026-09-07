@@ -24,7 +24,8 @@
     "check:auth-session": "node --experimental-strip-types scripts/check-auth-session-runtime.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:workspace-directory": "tsx scripts/check-workspace-directory.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

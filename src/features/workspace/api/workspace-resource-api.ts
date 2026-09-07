@@ -1,6 +1,7 @@
 import {
   getWorkspaceObjectContent,
   listWorkspaceTree,
+  listWorkspaceDirectory,
   type WorkspaceObjectContentResponse,
   type WorkspaceTreeResponse,
 } from "@/features/workspace/api/workspace-api"
@@ -75,4 +76,10 @@ export function getWorkspaceObjectContentDeduped(
     accessToken,
     load: () => getWorkspaceObjectContent(accessToken, workspaceId, objectId),
   })
+}
+
+const directoryRequests = new Map<string, InFlightRequest<Awaited<ReturnType<typeof listWorkspaceDirectory>>>>()
+export function listWorkspaceDirectoryDeduped(accessToken: string, workspaceId: string, path = "", cursor?: string) {
+  return reuseInFlightRequest({ requests: directoryRequests, key: JSON.stringify([workspaceId, path, cursor]),
+    accessToken, load: () => listWorkspaceDirectory(accessToken, workspaceId, path, cursor) })
 }

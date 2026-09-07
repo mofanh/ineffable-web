@@ -2,6 +2,7 @@ import type { Workspace, WorkspaceObject } from "@/features/workspace/api/worksp
 
 export type SidebarEntry = {
   id: string
+  more?: { path: string; cursor: string }
   title: string
   kind: "folder" | "markdown" | "html" | "text"
   workspaceId?: string
@@ -38,7 +39,8 @@ function buildObjectEntries(
   workspaceId: string,
   objects: WorkspaceObject[],
   baseDepth = 0,
-  collapsedEntryIds?: Set<string>
+  collapsedEntryIds?: Set<string>,
+  pages?: Record<string, string | null>
 ) {
   const byParent = new Map<string, WorkspaceObject[]>()
 
@@ -60,7 +62,7 @@ function buildObjectEntries(
   }
 
   const entries: SidebarEntry[] = []
-  const visit = (parentKey: string, depth: number) => {
+  const visit = (parentKey: string, depth: number, path = "") => {
     const children = byParent.get(parentKey) ?? []
 
     for (const child of children) {
@@ -75,9 +77,11 @@ function buildObjectEntries(
       })
 
       if (child.kind === "folder" && !collapsedEntryIds?.has(child.id)) {
-        visit(child.id, depth + 1)
+        visit(child.id, depth + 1, child.path)
       }
     }
+    const cursor = pages?.[path]
+    if (cursor) entries.push({ id: `more:${workspaceId}:${path}`, title: "", kind: "text", workspaceId, depth, more: { path, cursor } })
   }
 
   visit("root", baseDepth)
@@ -91,6 +95,7 @@ export function buildWorkspaceEntries(
     includeRoot?: boolean
     rootAccent?: SidebarEntry["accent"]
     collapsedEntryIds?: Set<string>
+    pages?: Record<string, string | null>
   }
 ) {
   const rootId = `workspace:${workspace.id}`
@@ -99,7 +104,8 @@ export function buildWorkspaceEntries(
     workspace.id,
     objects,
     options?.includeRoot ? 1 : 0,
-    options?.collapsedEntryIds
+    options?.collapsedEntryIds,
+    options?.pages
   )
 
   if (!options?.includeRoot) {

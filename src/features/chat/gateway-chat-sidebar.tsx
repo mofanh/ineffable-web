@@ -164,7 +164,7 @@ import {
   isActionablePreInput,
   isPendingInputSuccessorRun,
 } from "@/features/chat/model/pending-input"
-import { listWorkspaceTreeDeduped } from "@/features/workspace/api/workspace-resource-api"
+import { searchWorkspacePaths } from "@/features/workspace/api/workspace-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
@@ -1276,8 +1276,15 @@ export function GatewayChatSidebar({
     let cancelled = false
     Promise.all(
       workspaces.map(async (workspace) => {
-        const tree = await listWorkspaceTreeDeduped(accessToken, workspace.id)
-        return tree.objects
+        const found: { id: string; path: string; name: string; kind: string }[] = []
+        let cursor: string | undefined
+        do {
+          const page = await searchWorkspacePaths(accessToken, workspace.id, "system/agents", ".md", cursor)
+          if (cancelled) return []
+          found.push(...page.matches.map(match => match.object))
+          cursor = page.next_cursor ?? undefined
+        } while (cursor)
+        return found
           .filter(
             (object) =>
               object.kind === "file" &&
