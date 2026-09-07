@@ -267,7 +267,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
   if (!hasEntries && isLoadingInitial) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-7 px-5 py-8 md:px-8" role="status">
+      <div className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-7 px-5 pt-[calc(var(--chat-header-height,0px)+0.5rem)] pb-8 md:px-8" role="status">
         <span className="sr-only">{t("chat.gateway.syncingHistory")}</span>
         {["w-2/5", "w-full", "w-4/5", "w-full"].map((width, index) => (
           <div key={index} className="space-y-3" aria-hidden="true">
