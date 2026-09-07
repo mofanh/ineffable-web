@@ -1,3 +1,4 @@
+import { AutomationRuntimeFields } from "./automation-runtime-fields"
 import * as React from "react"
 import {
   CalendarClock,
@@ -48,6 +49,7 @@ import {
   listAutomations,
   runAutomation,
   updateAutomation,
+  type AutomationRuntimeConfig,
   type Automation,
   type AutomationRun,
 } from "@/lib/api/api-client"
@@ -287,6 +289,7 @@ export function AutomationPage() {
   const [editingAutomation, setEditingAutomation] =
     React.useState<Automation | null>(null)
   const [automationDialogOpen, setAutomationDialogOpen] = React.useState(false)
+  const [runtimeConfig, setRuntimeConfig] = React.useState<AutomationRuntimeConfig | null>(null)
   const [query, setQuery] = React.useState("")
   const [form, setForm] = React.useState({
     name: "",
@@ -399,6 +402,7 @@ export function AutomationPage() {
           : "60"
     const calendarWeekdays = numberArray(automation.trigger_spec?.weekdays)
     const calendarMonthDays = numberArray(automation.trigger_spec?.month_days)
+    setRuntimeConfig(automation.runtime_config)
     setEditingAutomation(automation)
     setForm({
       name: automation.name,
@@ -471,6 +475,7 @@ export function AutomationPage() {
     setError(null)
     try {
       await updateAutomation(accessToken, editingAutomation.id, {
+        ...(runtimeConfig ? { runtime_config: runtimeConfig } : {}),
         name: form.name,
         description: form.description,
         message: form.message,
@@ -712,6 +717,9 @@ export function AutomationPage() {
                   {triggerKindLabel(automation.trigger_kind)}
                 </Badge>
               </div>
+              {automation.runtime_config ? <button type="button" className="mt-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => startEditAutomation(automation)}>
+                {t("automation.runtime.title")} · {automation.runtime_config.model_profile_id} · {t(`chat.composer.capabilityMode.${automation.runtime_config.capability_exposure.mode}`)}
+              </button> : null}
               <p className="mt-4 line-clamp-3 rounded-lg bg-muted/40 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
                 {automation.message}
               </p>
@@ -913,6 +921,7 @@ export function AutomationPage() {
                 required
               />
             </FormField>
+            {runtimeConfig && editingAutomation ? <AutomationRuntimeFields key={editingAutomation.id} accessToken={accessToken} conversationId={editingAutomation.conversation_id} value={runtimeConfig} onChange={setRuntimeConfig} /> : null}
             <FormField label={t("automation.form.triggerType")}>
               <Select
                 value={form.trigger_kind}

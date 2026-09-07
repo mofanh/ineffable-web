@@ -221,7 +221,15 @@ export type CapabilityExposureDraft = {
   capability_exposure_policy: ResolvedCapabilityExposurePolicy
 }
 
+export type AutomationRuntimeConfig = {
+  model_profile_id: string
+  workspace_id: string | null
+  sandbox: { environment_id: string } | null
+  capability_exposure: CapabilityExposureSelection
+}
+
 export type Automation = {
+  runtime_config: AutomationRuntimeConfig | null
   id: string
   user_id: string
   conversation_id: string
@@ -236,6 +244,7 @@ export type Automation = {
 }
 
 export type AutomationRun = {
+  runtime_config?: AutomationRuntimeConfig | null
   id: string
   automation_id: string
   user_id: string
@@ -984,6 +993,7 @@ export function listAutomations(accessToken: string) {
 export function createAutomation(
   accessToken: string,
   payload: {
+    runtime_config: AutomationRuntimeConfig
     conversation_id: string
     name: string
     description?: string | null
@@ -1003,6 +1013,7 @@ export function updateAutomation(
   accessToken: string,
   automationId: string,
   payload: {
+    runtime_config?: AutomationRuntimeConfig
     conversation_id?: string
     name?: string
     description?: string | null
@@ -1140,7 +1151,8 @@ export function getCapabilityExposureDraft(accessToken: string) {
 export function listConversationCapabilityCatalog(
   accessToken: string,
   conversationId: string | null,
-  sandboxEnvironmentId?: string | null
+  sandboxEnvironmentId?: string | null,
+  workspaceId?: string | null
 ) {
   const params = new URLSearchParams()
   if (conversationId) {
@@ -1151,7 +1163,7 @@ export function listConversationCapabilityCatalog(
   }
   return requestApiJson<{ items: CapabilityCatalogEntry[] }>(
     `/gateway/v1/conversations/capability-catalog?${params.toString()}`,
-    { accessToken }
+    { accessToken, workspaceId }
   )
 }
 

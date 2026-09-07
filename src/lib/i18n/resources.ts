@@ -172,6 +172,7 @@ export const resources = {
         },
       },
       automation: {
+        runtime: { title: "运行配置", description: "每次按保存的配置执行；权限和可用性会重新检查。", workspace: "Workspace", none: "不使用", loadFailed: "加载运行配置失败。", unavailable: "{{name}}（当前不可用）" },
         interval: {
           every15Minutes: "每 15 分钟",
           every30Minutes: "每 30 分钟",
@@ -1743,6 +1744,7 @@ export const resources = {
         },
       },
       automation: {
+        runtime: { title: "Runtime configuration", description: "Each run uses the saved choices and rechecks access and availability.", workspace: "Workspace", none: "None", loadFailed: "Failed to load runtime configuration.", unavailable: "{{name}} (unavailable)" },
         interval: {
           every15Minutes: "Every 15 minutes",
           every30Minutes: "Every 30 minutes",
