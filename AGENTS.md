@@ -222,6 +222,7 @@ return (
 - 切换、新建或关闭聊天面板只能中断当前浏览器订阅，不得调用 stop；停止必须来自用户对指定 conversation 的显式操作。
 - conversation 的 live 状态以后端 `current_run.is_live` 为权威，浏览器本地状态只负责即时反馈和恢复加速。
 - SSE/event 恢复游标必须按 `conversationId` 分区保存，终态清理只能删除对应 conversation，不能覆盖或清空其他后台会话。
+- 人工回答或审批的 resume receipt 为 streaming/resuming 时，复用现有 SSE 订阅并使用同一个 conversation cursor；轮询只作连接失败或提前结束的补拉兜底。canonical 用户回答后创建新的 assistant 展示边界，旧连接回调不得写入替代连接或新选择的会话。
 - 会话列表应展示运行中、等待操作、失败和完成未查看状态；后台刷新必须复用 in-flight 请求并保持有界频率。
 - 第一版只对当前会话维持实时展示，后台会话通过 conversation 列表刷新和 event cursor 补拉恢复，不维护无限 SSE 连接。
 
