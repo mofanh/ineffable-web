@@ -3479,7 +3479,7 @@ export function GatewayChatSidebar({
             onEnvelope: (envelope) => {
               if (!isCurrentGuidedSubmission()) return
               if (
-                (envelope.type === "guided" || envelope.type === "queued") &&
+                envelope.type === "guided" &&
                 envelope.message_id
               ) {
                 setEntries((current) =>
@@ -3489,6 +3489,9 @@ export function GatewayChatSidebar({
                     envelope.message_id ?? ""
                   )
                 )
+              }
+              if (envelope.type === "queued") {
+                setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
               }
               if (envelope.type === "queued" && envelope.pending_id != null) {
                 setPreInputQueue((current) => {

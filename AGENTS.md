@@ -436,3 +436,5 @@ npm run build
 ## 输入接纳与进度
 
 普通输入、预输入、引导输入和工具回答都在原用户消息上展示 Gateway 批量投影的 input_progress，实时接纳事件与历史走同一 timeline reducer。发送成功不等于 Agent 已接纳，run 结束也不能反推接纳；同一 run 的旧 epoch/version 与滞后历史不能覆盖已确认接纳。引导输入发送时保留当前 assistant 展示边界，收到真实接纳事件后才结束前一段；所有异步提交与提升回调冻结 conversation 和请求 generation。
+
+尚未消费的普通预输入只在待发送队列展示，开始处理后才出现在 transcript。引导投递若返回 queued，必须移除临时用户气泡并交回待发送队列，不得把排队确认绑定成聊天消息。
