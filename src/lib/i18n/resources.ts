@@ -1,6 +1,13 @@
 export const resources = {
   "zh-CN": {
     translation: {
+      inputProgress: {
+        sending: "正在发送", received: "已接收，等待 Agent 接纳", queued: "排队中", blocked: "排队已暂停：前序任务需要处理", resuming: "回答已接收，正在恢复",
+        processing: "已接纳，正在处理", finished: "已接纳，本次处理已结束", acceptedFailed: "已接纳，执行失败", acceptedCancelled: "已接纳，执行已取消",
+        acceptedAwaiting: "已接纳，等待你的回答", acceptedSuspended: "已接纳，执行已挂起", cancelled: "已从队列移除", unconfirmed: "执行已结束，接纳状态未确认",
+        meaning: "已接纳表示输入已进入 Agent 的处理上下文，不代表你的要求已经完成。",
+      },
+
       agentEvolution: {
         quota: "已用 {{used}} / {{limit}} 个候选，剩余 {{remaining}} 个",
         quotaHint: "按用户和空间统计存储中的候选，不按月重置。归档不释放配额；删除未引用候选才释放。触限仍可试用已有候选或回滚。",
@@ -1562,6 +1569,13 @@ export const resources = {
   },
   "en-US": {
     translation: {
+      inputProgress: {
+        sending: "Sending", received: "Received; awaiting Agent acceptance", queued: "Queued", blocked: "Queue paused: predecessor needs attention", resuming: "Answer received; resuming",
+        processing: "Accepted; processing", finished: "Accepted; execution ended", acceptedFailed: "Accepted; execution failed", acceptedCancelled: "Accepted; execution cancelled",
+        acceptedAwaiting: "Accepted; awaiting your answer", acceptedSuspended: "Accepted; execution suspended", cancelled: "Removed from queue", unconfirmed: "Execution ended; acceptance unconfirmed",
+        meaning: "Accepted means the input entered the Agent context, not that your request has been fulfilled.",
+      },
+
       agentEvolution: {
         quota: "{{used}} / {{limit}} candidates used, {{remaining}} remaining",
         quotaHint: "Stored candidates are counted per owner and workspace, with no monthly reset. Archiving does not release quota; deleting an unreferenced candidate does. Existing trials and rollback remain available at the limit.",

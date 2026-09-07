@@ -1,3 +1,4 @@
+import { inputProgressLabel } from "@/features/chat/model/input-progress"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
@@ -318,6 +319,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             Boolean(answerText)
 
           if (entry.role === "user") {
+            const progressLabel = inputProgressLabel(entry.inputProgress, entry.deliveryStatus)
             return (
               <div
                 key={entry.id}
@@ -327,6 +329,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               >
                 <div className="max-w-[82%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
                   <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                  {progressLabel ? <p data-input-progress={entry.inputProgress?.phase ?? entry.deliveryStatus} className="mt-1 text-xs leading-5 text-muted-foreground" title={t("inputProgress.meaning")}>{t(progressLabel)}</p> : null}
                 </div>
               </div>
             )

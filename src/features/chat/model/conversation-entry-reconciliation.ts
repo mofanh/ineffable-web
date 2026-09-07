@@ -1,3 +1,4 @@
+import { mergeInputProgress, type InputProgress } from "./input-progress.ts"
 import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
 import type { AssistantEntry, ChatEntry } from "../gateway-chat-types.ts"
 
@@ -45,6 +46,7 @@ export function hasCanonicalAssistantHandoff(
 }
 
 export type ConversationTimelineAction =
+  | { type: "input-progress"; progress: InputProgress }
   | { type: "hydrate"; entries: ChatEntry[] }
   | {
       type: "canonical-patch"
@@ -62,6 +64,19 @@ export function reduceConversationTimeline(
   current: ChatEntry[],
   action: ConversationTimelineAction
 ) {
+  if (action.type === "input-progress") {
+    const progress = action.progress
+    return current.map((entry) => entry.role === "user" &&
+      timelineIdentity(entry) === `message:${progress.message_id}`
+      ? { ...entry, inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
+      : entry)
+  }
+  const previousUsers = new Map(current.filter((entry) => entry.role === "user").map((entry) => [timelineIdentity(entry), entry]))
+  action = { ...action, entries: action.entries.map((entry) => {
+    if (entry.role !== "user") return entry
+    const previous = previousUsers.get(timelineIdentity(entry))
+    return previous?.role === "user" ? { ...entry, inputProgress: mergeInputProgress(previous.inputProgress, entry.inputProgress) } : entry
+  }) }
   if (action.type === "hydrate") {
     return reconcileHumanInputAnswers(sortTimeline(action.entries))
   }

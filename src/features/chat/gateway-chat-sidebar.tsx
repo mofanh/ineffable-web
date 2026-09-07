@@ -1,3 +1,4 @@
+import { parseInputProgress } from "@/features/chat/model/input-progress"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
@@ -2221,6 +2222,7 @@ export function GatewayChatSidebar({
           ...entry,
           id: timelineUnitId,
           timelineUnitId,
+          deliveryStatus: "received",
         }
         return next
       }
@@ -2257,7 +2259,7 @@ export function GatewayChatSidebar({
     ])
   }
 
-  function appendUserMessage(content: string, id = createMessageId("user")) {
+  function appendUserMessage(content: string, id = createMessageId("user"), deliveryStatus: "sending" | "received" = "received") {
     if (!content.trim()) {
       return
     }
@@ -2267,6 +2269,7 @@ export function GatewayChatSidebar({
       {
         id,
         role: "user",
+        deliveryStatus,
         content,
       },
     ])
@@ -2380,9 +2383,7 @@ export function GatewayChatSidebar({
   }
 
   function beginGuidedUserTurn(content: string, id = createMessageId("user")) {
-    completeAssistantEntry()
-    assistantEntryIdRef.current = null
-    appendUserMessage(content, id)
+    appendUserMessage(content, id, "sending")
     return id
   }
 
@@ -2666,6 +2667,22 @@ export function GatewayChatSidebar({
     ) {
       void refreshConversations().catch(() => {})
       return
+    }
+
+    if (event.event === "input.accepted") {
+      const progress = parseInputProgress(objectValue(event.metadata)?.input_progress)
+      if (progress && progress.conversation_id === identity.conversationId && progress.run_id === identity.runId) {
+        setEntries((current) => reduceConversationTimeline(current, { type: "input-progress", progress }))
+        if (progress.kind === "guided") {
+          completeAssistantEntry()
+          assistantEntryIdRef.current = null
+        }
+      }
+      void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
+      return
+    }
+    if (event.event.startsWith("pending_input_")) {
+      void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
     }
 
     // ── Pending Input 事件 ──
@@ -3440,6 +3457,8 @@ export function GatewayChatSidebar({
       }
 
       setError(null)
+      const guidedGeneration = humanInputSubmissionGenerationRef.current
+      const isCurrentGuidedSubmission = () => currentConversationIdRef.current === targetConversationId && humanInputSubmissionGenerationRef.current === guidedGeneration
       const optimisticId = createMessageId("guided")
       beginGuidedUserTurn(content, optimisticId)
       try {
@@ -3458,6 +3477,7 @@ export function GatewayChatSidebar({
           },
           {
             onEnvelope: (envelope) => {
+              if (!isCurrentGuidedSubmission()) return
               if (
                 (envelope.type === "guided" || envelope.type === "queued") &&
                 envelope.message_id
@@ -3477,6 +3497,9 @@ export function GatewayChatSidebar({
                   return [...current, { id, content, status: "queued" }]
                 })
               }
+              if (envelope.type === "guided" || envelope.type === "queued") {
+                void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
+              }
               applyEnvelopeEvent(envelope)
             },
           }
@@ -3490,6 +3513,7 @@ export function GatewayChatSidebar({
         }
         return true
       } catch (enqueueError) {
+        if (!isCurrentGuidedSubmission()) return false
         setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
         const message = reportChatError(
           enqueueError,
@@ -3627,6 +3651,7 @@ export function GatewayChatSidebar({
                   return [...prev, { id, content, status: "queued" }]
                 })
               }
+              void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
               return
             }
 
@@ -3858,13 +3883,18 @@ export function GatewayChatSidebar({
 
     const dbId = id.startsWith("db-") ? Number(id.slice(3)) : null
     if (dbId && accessToken && currentConversationId) {
+      const conversationId = currentConversationId
+      const generation = humanInputSubmissionGenerationRef.current
+      const isCurrentPromotion = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
       const guidedEntryId = beginGuidedUserTurn(item.content)
       setPreInputQueue((prev) => prev.filter((queueItem) => queueItem.id !== id))
       void promotePendingInput(
         accessToken,
-        currentConversationId,
+        conversationId,
         dbId
       ).then((response) => {
+        if (!isCurrentPromotion()) return
+        void syncLatestConversationMessagesPage(conversationId).catch(() => {})
         setEntries((current) =>
           bindOptimisticUserMessage(
             current,
@@ -3873,6 +3903,7 @@ export function GatewayChatSidebar({
           )
         )
       }).catch((promoteError) => {
+        if (!isCurrentPromotion()) return
         const message = reportChatError(
           promoteError,
           i18n.t("chat.gateway.promoteFailed"),

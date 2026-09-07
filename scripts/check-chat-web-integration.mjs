@@ -132,6 +132,7 @@ assert.deepEqual(
       ...optimisticGuidedUser,
       id: "message:message-1",
       timelineUnitId: "message:message-1",
+      deliveryStatus: "received",
     },
   ],
   "guided acknowledgement must bind the optimistic bubble to the canonical message id"

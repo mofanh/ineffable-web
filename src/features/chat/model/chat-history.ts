@@ -1,3 +1,4 @@
+import { parseInputProgress } from "./input-progress"
 import { humanInputResponseIdentity, reconcileHumanInputAnswers } from "./human-input-timeline"
 import {
   applyCanonicalMessageToPane,
@@ -579,6 +580,7 @@ export function mapConversationMessagesToEntries(
         entries.push({
           id: message.timeline_unit_id || message.id,
           role: "user",
+          inputProgress: parseInputProgress(message.metadata_json?.input_progress),
           humanInputResponse: humanInputResponseIdentity(message.run_id, message.metadata_json),
           content: message.content,
           timelineSeq: message.timeline_seq,

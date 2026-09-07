@@ -1,3 +1,4 @@
+import type { InputProgress } from "./model/input-progress"
 import type { AgentPaneState } from "@/features/chat/chat-pane-state"
 
 export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "error"
@@ -5,6 +6,8 @@ export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "
 export type UserEntry = {
   id: string
   role: "user"
+  inputProgress?: InputProgress
+  deliveryStatus?: "sending" | "received"
   humanInputResponse?: { runId: string; needId: string }
   content: string
   timelineSeq?: number | null

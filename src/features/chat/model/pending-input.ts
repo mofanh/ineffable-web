@@ -36,7 +36,7 @@ export function bindOptimisticUserMessage(
   }
   return entries.map((entry) =>
     entry.id === optimisticId && entry.role === "user"
-      ? { ...entry, id: canonicalId, timelineUnitId: canonicalId }
+      ? { ...entry, id: canonicalId, timelineUnitId: canonicalId, deliveryStatus: "received" as const }
       : entry
   )
 }

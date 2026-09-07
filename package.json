@@ -10,6 +10,7 @@
     "check:chat-runtime": "node --experimental-strip-types scripts/check-conversation-runtime-status.mjs",
     "check:agent-iteration-handoff": "node --experimental-strip-types scripts/check-agent-iteration-handoff.mjs",
     "check:chat-routing": "node --experimental-strip-types scripts/check-conversation-event-routing.mjs",
+    "check:input-progress": "node --experimental-strip-types scripts/check-input-progress.mjs",
     "check:chat-store": "node --experimental-strip-types scripts/check-chat-runtime-store.mjs",
     "check:chat-architecture": "node --experimental-strip-types scripts/check-chat-runtime-architecture.mjs",
     "check:chat-web-runtime": "node --experimental-strip-types scripts/check-chat-web-runtime.mjs",
