@@ -4,9 +4,14 @@ import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ArrowDownIcon,
+  CircleAlertIcon,
+  CircleHelpIcon,
+  PauseIcon,
+  MessageCircleQuestionIcon,
   BotIcon,
   BoxIcon,
   CheckIcon,
@@ -25,6 +30,48 @@ import { WebNodeList } from "@/features/chat/components/agent-pane"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
+
+const inputStatusIcons = {
+  "inputProgress.sending": Loader2Icon,
+  "inputProgress.received": Clock3Icon,
+  "inputProgress.queued": Clock3Icon,
+  "inputProgress.blocked": PauseIcon,
+  "inputProgress.resuming": Loader2Icon,
+  "inputProgress.processing": Loader2Icon,
+  "inputProgress.finished": CheckIcon,
+  "inputProgress.acceptedFailed": CircleAlertIcon,
+  "inputProgress.acceptedCancelled": XIcon,
+  "inputProgress.acceptedAwaiting": MessageCircleQuestionIcon,
+  "inputProgress.acceptedSuspended": PauseIcon,
+  "inputProgress.cancelled": XIcon,
+  "inputProgress.unconfirmed": CircleHelpIcon,
+}
+
+function InputStatusIcon({ label, phase }: { label: string; phase?: string }) {
+  const { t } = useTranslation()
+  const Icon = inputStatusIcons[label as keyof typeof inputStatusIcons] ?? CircleHelpIcon
+  const spinning = Icon === Loader2Icon
+  return (
+    <div className="mt-0.5 flex justify-end" data-input-progress={phase}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={t(label)}
+            className={cn(
+              "inline-flex size-6 items-center justify-center rounded-md text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              label === "inputProgress.acceptedFailed" && "text-destructive",
+              ["inputProgress.blocked", "inputProgress.acceptedAwaiting", "inputProgress.acceptedSuspended"].includes(label) && "text-amber-600 dark:text-amber-400"
+            )}
+          >
+            <Icon aria-hidden="true" className={cn("size-3.5", spinning && "motion-safe:animate-spin")} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={4}>{t(label)}</TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
 
 type ChatMessageListProps = {
   entries: ChatEntry[]
@@ -329,7 +376,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               >
                 <div className="max-w-[82%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
                   <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
-                  {progressLabel ? <p data-input-progress={entry.inputProgress?.phase ?? entry.deliveryStatus} className="mt-1 text-xs leading-5 text-muted-foreground" title={t("inputProgress.meaning")}>{t(progressLabel)}</p> : null}
+                  {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}
                 </div>
               </div>
             )
