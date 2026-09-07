@@ -1,4 +1,6 @@
 import * as React from "react"
+import type { ChatEntry } from "../src/features/chat/gateway-chat-types"
+import { TooltipProvider } from "../src/components/ui/tooltip"
 import { createRoot } from "react-dom/client"
 
 import { WebNodeList } from "../src/features/chat/components/agent-pane"
@@ -73,6 +75,7 @@ declare global {
       materializedRows: () => number
       hasAbsoluteRows: () => boolean
       settleTerminal: () => Promise<void>
+      inputQueue: (phase: "queued" | "cached" | "consuming" | "hydrate") => Promise<void>
       terminalLayout: () => Array<{ role: string; top: number; bottom: number }>
     }
   }
@@ -93,7 +96,7 @@ function Fixture() {
     resolve: () => void
   } | null>(null)
   const [prependEpoch, setPrependEpoch] = React.useState(0)
-  const [terminalEntries, setTerminalEntries] = React.useState(() => [
+  const [terminalEntries, setTerminalEntries] = React.useState<ChatEntry[]>(() => [
     {
       id: "message:terminal-trigger",
       role: "user" as const,
@@ -175,6 +178,20 @@ function Fixture() {
         return Array.from(
           viewportRef.current?.querySelectorAll<HTMLElement>("[data-web-node-row]") ?? []
         ).some((row) => window.getComputedStyle(row).position === "absolute")
+      },
+      async inputQueue(phase) {
+        const inputs: ChatEntry[] = ["a", "b"].map((id) => ({
+          id: `message:${id}`, timelineUnitId: `message:${id}`, role: "user", content: "继续",
+          inputProgress: { message_id: id, conversation_id: "c", kind: "pre_input", phase: "queued", run_id: "r", run_state: "streaming", execution_epoch: 1, run_version: 1 },
+        }))
+        if (phase === "consuming" && inputs[0].role === "user") {
+          inputs[0].inputProgress = { ...inputs[0].inputProgress!, phase: "received", run_id: "successor" }
+        }
+        setTerminalEntries((current) => reduceConversationTimeline(
+          phase === "cached" ? inputs : current,
+          { type: phase === "hydrate" ? "hydrate" : "canonical-patch", entries: phase === "cached" ? [] : inputs }
+        ))
+        await afterLayout()
       },
       async settleTerminal() {
         setTerminalEntries((current) =>
@@ -261,4 +278,4 @@ function Fixture() {
   )
 }
 
-createRoot(document.getElementById("root")!).render(<Fixture />)
+createRoot(document.getElementById("root")!).render(<TooltipProvider><Fixture /></TooltipProvider>)

@@ -14,6 +14,12 @@ function timelineSequence(entry: ChatEntry) {
   return Number.isSafeInteger(entry.timelineSeq) ? entry.timelineSeq! : null
 }
 
+function visibleTimelineEntries(entries: ChatEntry[]) {
+  return entries.filter((entry) => entry.role !== "user" ||
+    entry.inputProgress?.kind !== "pre_input" ||
+    !["queued", "cancelled"].includes(entry.inputProgress.phase))
+}
+
 function sortTimeline(entries: ChatEntry[]) {
   return entries
     .map((entry, index) => ({ entry, index, seq: timelineSequence(entry) }))
@@ -66,10 +72,10 @@ export function reduceConversationTimeline(
 ) {
   if (action.type === "input-progress") {
     const progress = action.progress
-    return current.map((entry) => entry.role === "user" &&
+    return visibleTimelineEntries(current.map((entry) => entry.role === "user" &&
       timelineIdentity(entry) === `message:${progress.message_id}`
       ? { ...entry, inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
-      : entry)
+      : entry))
   }
   const previousUsers = new Map(current.filter((entry) => entry.role === "user").map((entry) => [timelineIdentity(entry), entry]))
   action = { ...action, entries: action.entries.map((entry) => {
@@ -78,7 +84,7 @@ export function reduceConversationTimeline(
     return previous?.role === "user" ? { ...entry, inputProgress: mergeInputProgress(previous.inputProgress, entry.inputProgress) } : entry
   }) }
   if (action.type === "hydrate") {
-    return reconcileHumanInputAnswers(sortTimeline(action.entries))
+    return reconcileHumanInputAnswers(sortTimeline(visibleTimelineEntries(action.entries)))
   }
 
   const handoff = action.type === "canonical-patch" ? action.handoff : null
@@ -133,5 +139,5 @@ export function reduceConversationTimeline(
     return true
   })
 
-  return reconcileHumanInputAnswers(sortTimeline([...retained, ...incoming]))
+  return reconcileHumanInputAnswers(sortTimeline(visibleTimelineEntries([...retained, ...incoming])))
 }

@@ -71,7 +71,16 @@ try {
     terminalLayout[0].bottom <= terminalLayout[1].top,
     `terminal rows must not overlap (${JSON.stringify(terminalLayout)})`
   )
-  console.log("chat virtualization browser checks passed")
+  const queuedBubbles = page.locator('[data-terminal-chat] [data-chat-entry-role="user"]').filter({ hasText: "继续" })
+  for (const phase of ["queued", "hydrate", "cached"]) {
+    await page.evaluate((phase) => window.chatVirtualizationFixture.inputQueue(phase), phase)
+    assert.equal(await queuedBubbles.count(), 0, `${phase}: two queued inputs must not render as chat bubbles`)
+  }
+  await page.evaluate(() => window.chatVirtualizationFixture.inputQueue("consuming"))
+  assert.equal(await queuedBubbles.count(), 1, "only the consuming input renders")
+  await page.evaluate(() => window.chatVirtualizationFixture.inputQueue("consuming"))
+  assert.equal(await queuedBubbles.count(), 1, "canonical refresh cannot duplicate the consuming input")
+  console.log("chat virtualization and input queue browser checks passed")
 } finally {
   await browser?.close()
   await server.close()
