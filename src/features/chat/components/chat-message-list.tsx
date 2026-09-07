@@ -374,8 +374,10 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 data-chat-entry-role="user"
                 className="flex justify-end"
               >
-                <div className="max-w-[82%] rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
-                  <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                <div className="min-w-0 max-w-[82%]">
+                  <div className="rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
+                    <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                  </div>
                   {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}
                 </div>
               </div>
