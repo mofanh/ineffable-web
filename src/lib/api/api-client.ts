@@ -1088,6 +1088,14 @@ export function createConversation(
   })
 }
 
+export function renameConversation(accessToken: string, conversationId: string, title: string) {
+  return requestApiJson<Conversation>("/gateway/v1/conversations/rename", {
+    method: "POST",
+    accessToken,
+    body: { conversation_id: conversationId, title },
+  })
+}
+
 export function listConversations(
   accessToken: string,
   options?: { limit?: number; offset?: number }

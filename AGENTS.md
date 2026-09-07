@@ -218,6 +218,8 @@ return (
 
 ## 多会话运行状态
 
+- 会话标题编辑复用 Gateway rename 接口，不调用模型；编辑器按 conversation identity 隔离，
+  每次打开/关闭递增请求代次，迟到保存结果不能关闭或覆盖新编辑草稿。
 - `selectedConversationId` 只表示当前查看会话，不能作为唯一活跃 run 的全局状态。
 - 切换、新建或关闭聊天面板只能中断当前浏览器订阅，不得调用 stop；停止必须来自用户对指定 conversation 的显式操作。
 - conversation 的 live 状态以后端 `current_run.is_live` 为权威，浏览器本地状态只负责即时反馈和恢复加速。

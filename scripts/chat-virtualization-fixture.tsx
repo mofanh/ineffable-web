@@ -11,6 +11,7 @@ import { ChatMessageList } from "../src/features/chat/components/chat-message-li
 import { ChatSidebarHeader } from "../src/features/chat/components/chat-sidebar-header"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation"
 import "../src/index.css"
+import { renameConversation } from "../src/lib/api/api-client"
 
 const pane = {
   blockOrder: Array.from({ length: 1_000 }, (_, index) => `row-${index}`),
@@ -93,6 +94,7 @@ function afterLayout() {
 }
 
 function Fixture() {
+  const [conversationTitle, setConversationTitle] = React.useState("Conversation history")
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const terminalViewportRef = React.useRef<HTMLDivElement | null>(null)
   const pendingPrependRef = React.useRef<{
@@ -296,7 +298,11 @@ function Fixture() {
         <ChatSidebarHeader
           bindStatus=""
           selectedConversationId="fixture"
-          selectedConversationTitle="Conversation history"
+          selectedConversationTitle={conversationTitle}
+          onRenameConversation={async (conversationId, title) => {
+            const saved = await renameConversation("fixture-token", conversationId, title)
+            setConversationTitle(saved.title)
+          }}
           conversations={[]}
           onSelectConversation={() => {}}
           onRefreshConversations={() => {}}

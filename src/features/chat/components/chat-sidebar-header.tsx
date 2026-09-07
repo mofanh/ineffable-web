@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ConversationTitleEditor } from "./conversation-title-editor"
 import { useTranslation } from "react-i18next"
 
 import { StatusBadge, type StatusBadgeTone } from "@/components/app/status-badge"
@@ -38,6 +39,7 @@ type ChatSidebarHeaderProps = {
   isFullScreen: boolean
   onFullScreenChange: (isFullScreen: boolean) => void
   onCollapseSidebar: () => void
+  onRenameConversation?: (conversationId: string, title: string) => Promise<void>
 }
 
 type ConversationListItem = {
@@ -159,6 +161,7 @@ export function ChatSidebarHeader({
   isFullScreen,
   onFullScreenChange,
   onCollapseSidebar,
+  onRenameConversation,
 }: ChatSidebarHeaderProps) {
   const { t } = useTranslation()
   const [query, setQuery] = React.useState("")
@@ -332,6 +335,13 @@ export function ChatSidebarHeader({
         </DropdownMenu>
 
         <div className="flex shrink-0 items-center gap-1">
+          {selectedConversationId && onRenameConversation && (
+            <ConversationTitleEditor
+              key={selectedConversationId}
+              title={selectedConversationTitle}
+              onSave={(title) => onRenameConversation(selectedConversationId, title)}
+            />
+          )}
           <HeaderActionButton
             title={t("chat.header.newChat")}
             onClick={handleStartNewChat}

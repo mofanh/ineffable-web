@@ -30,6 +30,50 @@ try {
     `http://127.0.0.1:${address.port}/scripts/chat-virtualization-fixture.html`
   )
   await page.waitForFunction(() => Boolean(window.chatVirtualizationFixture))
+  const renameRequests = []
+  let rejectRename = false
+  let releaseRename
+  let holdRename = false
+  await page.route("**/gateway/v1/conversations/rename", async (route) => {
+    const body = route.request().postDataJSON()
+    renameRequests.push(body)
+    if (holdRename) await new Promise((resolve) => { releaseRename = resolve })
+    await route.fulfill({
+      status: rejectRename ? 500 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(rejectRename ? { error: "title save failed" } : { id: body.conversation_id, title: body.title }),
+    })
+  })
+  const editTitle = page.getByRole("button", { name: "编辑对话标题", exact: true })
+  await editTitle.click()
+  const titleInput = page.getByRole("textbox", { name: "对话标题", exact: true })
+  await titleInput.fill("   ")
+  assert.equal(await page.getByRole("button", { name: "保存", exact: true }).isDisabled(), true)
+  await titleInput.fill("  Renamed history  ")
+  await titleInput.press("Enter")
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
+  assert.deepEqual(renameRequests, [{ conversation_id: "fixture", title: "Renamed history" }])
+  assert.equal(await page.locator('[data-sidebar="header"] button[title="Renamed history"]').count(), 1)
+  rejectRename = true
+  await editTitle.click()
+  await titleInput.fill("Retry title")
+  await titleInput.press("Enter")
+  await page.getByRole("alert").waitFor()
+  assert.equal(await titleInput.inputValue(), "Retry title", "failed save retains the draft")
+  rejectRename = false
+  holdRename = true
+  await titleInput.press("Enter")
+  await page.waitForFunction(() => document.querySelector('input:disabled') !== null)
+  const renameDeadline = Date.now() + 5_000
+  while (!releaseRename && Date.now() < renameDeadline) await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.ok(releaseRename, "rename request must reach the API")
+  await page.getByRole("button", { name: "取消", exact: true }).click()
+  await editTitle.click()
+  await titleInput.fill("New editor draft")
+  releaseRename()
+  await page.locator('[data-sidebar="header"] button[title="Retry title"]').waitFor()
+  assert.equal(await titleInput.inputValue(), "New editor draft", "late save must not close or replace a reopened editor")
+  await page.getByRole("button", { name: "取消", exact: true }).click()
   for (const width of [900, 390]) {
     await page.setViewportSize({ width, height: 700 })
     const layout = await page.locator('[data-terminal-chat]').evaluate((root) => {

@@ -3,6 +3,7 @@ import { parseInputProgress } from "@/features/chat/model/input-progress"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
+import { renameConversation } from "@/lib/api/api-client"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -4219,6 +4220,10 @@ export function GatewayChatSidebar({
         conversations={headerConversations}
         onSelectConversation={selectConversationTarget}
         onRefreshConversations={handleRefreshConversationList}
+        onRenameConversation={accessToken ? async (conversationId, title) => {
+          await renameConversation(accessToken, conversationId, title)
+          await refreshConversations()
+        } : undefined}
         onStartNewChat={startNewChat}
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}
