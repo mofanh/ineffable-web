@@ -1,4 +1,5 @@
 import * as React from "react";
+import { isWriteOutcomeUnknown } from "@/features/admin-management/editor-requests";
 import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
 import { useTranslation } from "react-i18next";
 import {
@@ -86,12 +87,14 @@ export function SystemUserManagementPage() {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const editor = useEditorGuard(currentSessionId);
   const [detailsReady, setDetailsReady] = React.useState(false);
+  const [saveBlocked, setSaveBlocked] = React.useState(false);
   const [editorError, setEditorError] = React.useState("");
   const userBaseline = React.useRef({ role: "user", planId: "" });
   const sessionRef = React.useRef(currentSessionId);
   sessionRef.current = currentSessionId;
   React.useEffect(() => {
     editor.begin();
+    setSaveBlocked(false);
     setDialogOpen(false);
     setEditingUser(null);
     setDetailsReady(false);
@@ -268,6 +271,7 @@ export function SystemUserManagementPage() {
 
   function openEditDialog(user: AdminUser) {
     editor.begin();
+    setSaveBlocked(false);
     const isCurrent = editor.capture();
     setState("idle");
     setEditorError("");
@@ -279,7 +283,7 @@ export function SystemUserManagementPage() {
     void loadUserDetails(user.id).then(details => {
       if (!isCurrent()) return;
       if (!details) { setEditorError(t("system.users.detailLoadFailedTitle")); return; }
-      const planId = getActiveUserPlanId(details.assignments) ?? "";
+      const planId = getActiveUserPlanId(details.assignments, plans) ?? "";
       userBaseline.current = { role: user.role ?? "user", planId };
       setEditingUserPlanId(planId);
       setDetailsReady(true);
@@ -296,10 +300,11 @@ export function SystemUserManagementPage() {
 
   async function saveUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!accessToken || !editingUser || !detailsReady || !editor.startSave()) return;
+    if (!accessToken || !editingUser || !detailsReady || saveBlocked || !editor.startSave()) return;
     const isCurrent = editor.capture();
     const user = editingUser;
     const saved: string[] = [];
+    let assigning = false;
     let pendingSection = t("system.users.role");
     setState("saving");
     setEditorError("");
@@ -313,8 +318,10 @@ export function SystemUserManagementPage() {
       }
       if (editingUserPlanId && editingUserPlanId !== userBaseline.current.planId) {
         pendingSection = t("system.users.assignPlan");
+        assigning = true;
         const result = await assignAdminUserPlan(accessToken, { user_id: user.id, plan_id: editingUserPlanId }, currentSessionId ?? undefined);
         if (!isCurrent()) return;
+        assigning = false;
         userBaseline.current.planId = result.assignment.plan_id;
         saved.push(pendingSection);
         setUserDetailsByUserId(current => {
@@ -333,7 +340,13 @@ export function SystemUserManagementPage() {
       closeEditor(false);
     } catch (error) {
       if (!isCurrent()) return;
-      const reason = normalizeAppError(error, { fallbackMessage: t("system.users.saveFailed") }).message;
+      const appError = normalizeAppError(error, { fallbackMessage: t("system.users.saveFailed") });
+      if (assigning && isWriteOutcomeUnknown(appError)) {
+        setSaveBlocked(true);
+        setEditorError(t("system.adminEditor.outcomeUnknown", { action: t("system.users.assignPlan") }));
+        return;
+      }
+      const reason = appError.message;
       setEditorError(t("system.adminEditor.saveIncomplete", { saved: saved.join("、") || t("system.adminEditor.noneSaved"), pending: pendingSection, reason }));
     } finally {
       if (isCurrent()) { editor.finishSave(); setState("idle"); }
@@ -494,6 +507,7 @@ export function SystemUserManagementPage() {
                                   usage={rowUsage}
                                   workspaceUsage={rowWorkspaceUsage}
                                   user={user}
+                                  plans={plans}
                                 />
                               ) : (
                                 <EmptyState
@@ -540,7 +554,7 @@ export function SystemUserManagementPage() {
               <Button
                 type="submit"
                 form="admin-user-form"
-                disabled={state !== "idle" || !detailsReady}
+                disabled={state !== "idle" || !detailsReady || saveBlocked}
               >
                 <SaveIcon />
                 {t("system.users.save")}
@@ -551,9 +565,10 @@ export function SystemUserManagementPage() {
         onOpenChange={closeEditor}
       >
         {editorError ? <p role="alert" className="mb-4 text-sm text-destructive">{editorError}</p> : null}
+        {saveBlocked && editingUser ? <Button type="button" variant="outline" className="mb-4" onClick={() => { const userId = editingUser.id; closeEditor(false); void loadUserDetails(userId); void userResource.reload(); }}>{t("system.adminEditor.closeAndRefresh")}</Button> : null}
         {editingUser && !detailsReady ? <EmptyState title={editorError ? t("system.users.detailLoadFailedTitle") : t("system.users.detailLoading")} action={editorError ? <Button type="button" onClick={() => openEditDialog(editingUser)}>{t("common.retry")}</Button> : undefined} /> : null}
         {editingUser ? (
-          <fieldset disabled={state === "saving" || !detailsReady} className="min-w-0">
+          <fieldset disabled={state === "saving" || !detailsReady || saveBlocked} className="min-w-0">
           <form
             id="admin-user-form"
             onSubmit={(event) => void saveUser(event)}
@@ -592,7 +607,7 @@ export function SystemUserManagementPage() {
                     className="h-9 rounded-md border bg-background px-2 text-sm"
                   >
                     <option value="" disabled>{t("system.adminEditor.noAssignment")}</option>
-                    {plans.filter(plan => !plan.archived_at || plan.id === editingUserPlanId).map((plan) => (
+                    {plans.filter(plan => (plan.enabled && !plan.archived_at) || plan.id === editingUserPlanId).map((plan) => (
                       <option key={plan.id} value={plan.id}>
                         {plan.display_name}
                       </option>
@@ -609,19 +624,24 @@ export function SystemUserManagementPage() {
   );
 }
 
-function getActiveUserPlanId(assignments?: AdminUserPlanAssignment[]) {
+function getActiveUserPlanId(assignments: AdminUserPlanAssignment[], plans: AdminPlan[]) {
+  const now = Date.now();
+  const enabledPlans = new Set(plans.filter(plan => plan.enabled && !plan.archived_at).map(plan => plan.id));
+  // Gateway returns effective_from DESC, created_at DESC; retain that order.
   return assignments
-    ?.filter((assignment) => assignment.status === "active")
-    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]
-    ?.plan_id;
+    .find(assignment => assignment.status === "active" && enabledPlans.has(assignment.plan_id) &&
+      Date.parse(assignment.effective_from) <= now &&
+      (!assignment.effective_until || Date.parse(assignment.effective_until) > now))?.plan_id;
 }
 
 function UserDetail({
+  plans,
   assignments,
   usage,
   workspaceUsage,
   user,
 }: {
+  plans: AdminPlan[];
   assignments: AdminUserPlanAssignment[];
   usage: AdminUserMonthlyUsage[];
   workspaceUsage: AdminWorkspaceUsage[];
@@ -654,8 +674,8 @@ function UserDetail({
     [usageMetric, usageTimeseriesResource.data],
   );
   const riskItems = React.useMemo(
-    () => buildUserRiskItems(assignments, usage, workspaceUsage),
-    [assignments, usage, workspaceUsage],
+    () => buildUserRiskItems(assignments, usage, workspaceUsage, plans),
+    [assignments, usage, workspaceUsage, plans],
   );
 
   return (
@@ -800,8 +820,9 @@ function buildUserRiskItems(
   assignments: AdminUserPlanAssignment[],
   usage: AdminUserMonthlyUsage[],
   workspaceUsage: AdminWorkspaceUsage[],
+  plans: AdminPlan[],
 ) {
-  const activePlanId = getActiveUserPlanId(assignments);
+  const activePlanId = getActiveUserPlanId(assignments, plans);
   const maxWorkspaceRatio = workspaceUsage.reduce((max, item) => {
     if (item.storage_usage_ratio == null) return max;
     return Math.max(max, item.storage_usage_ratio);

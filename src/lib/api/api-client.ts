@@ -1579,10 +1579,11 @@ export function deleteAdminPlan(accessToken: string, planId: string) {
 export function listAdminPlanModelAccess(
   accessToken: string,
   planId: string,
+  sessionId?: string,
 ) {
   return requestApiJson<{ access: AdminPlanModelAccess[] }>(
     `/gateway/v1/admin/plans/${encodeURIComponent(planId)}/models`,
-    { accessToken },
+    { accessToken, expectedSessionId: sessionId },
   )
 }
 

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { readPlanAccess, isWriteOutcomeUnknown } from "@/features/admin-management/editor-requests";
 import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
 import { useTranslation } from "react-i18next";
 import {
@@ -48,7 +49,6 @@ import {
   listAdminCapabilityFamilies,
   listAdminModelProfiles,
   listAdminPlanInsights,
-  listAdminPlanModelAccess,
   listAdminPlans,
   upsertAdminPlanModelAccess,
   updateAdminPlan,
@@ -114,10 +114,12 @@ export function SystemPlanManagementPage() {
   const [accessDraft, setAccessDraft] = React.useState<AdminPlanModelAccess[] | null>(null);
   const accessBaseline = React.useRef<AdminPlanModelAccess[]>([]);
   const planBaseline = React.useRef<string | null>(null);
+  const [saveBlocked, setSaveBlocked] = React.useState(false);
   const [editorError, setEditorError] = React.useState("");
   const accessReadGeneration = React.useRef(0);
   React.useEffect(() => {
     editor.begin();
+    setSaveBlocked(false);
     setDialogOpen(false);
     setEditingPlan(null);
     setAccessDraft(null);
@@ -137,7 +139,7 @@ export function SystemPlanManagementPage() {
     setAccessDraft(null);
     setEditorError("");
     try {
-      const result = await listAdminPlanModelAccess(accessToken!, planId);
+      const result = await readPlanAccess(accessToken!, currentSessionId, planId);
       if (!isCurrent()) return;
       accessBaseline.current = result.access.map(normalizeAccess);
       setAccessDraft(accessBaseline.current);
@@ -215,7 +217,7 @@ export function SystemPlanManagementPage() {
     let cancelled = false;
     const planId = selectedPlanId;
     const readGeneration = ++accessReadGeneration.current;
-    void listAdminPlanModelAccess(accessToken, selectedPlanId)
+    void readPlanAccess(accessToken, currentSessionId, selectedPlanId)
       .then((result) => {
         if (!cancelled && accessReadGeneration.current === readGeneration) {
           setAccessRowsByPlanId((current) => ({
@@ -240,7 +242,7 @@ export function SystemPlanManagementPage() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, isAdmin, selectedPlanId, t]);
+  }, [accessToken, currentSessionId, isAdmin, selectedPlanId, t]);
 
   const filteredPlans = React.useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -301,6 +303,7 @@ export function SystemPlanManagementPage() {
 
   function openCreateDialog() {
     editor.begin();
+    setSaveBlocked(false);
     setState("idle");
     setEditorError("");
     accessBaseline.current = [];
@@ -313,6 +316,7 @@ export function SystemPlanManagementPage() {
 
   function openEditDialog(plan: AdminPlan) {
     editor.begin();
+    setSaveBlocked(false);
     setState("idle");
     setEditorError("");
     const payload: AdminPlanPayload = {
@@ -355,21 +359,24 @@ export function SystemPlanManagementPage() {
 
   async function savePlan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!accessToken || !editingPlan || !accessDraft || !editor.startSave()) return;
+    if (!accessToken || !editingPlan || !accessDraft || saveBlocked || !editor.startSave()) return;
     const isCurrent = editor.capture();
     const payload = editingPlan;
     let planId = editingPlanId;
     const saved: string[] = [];
+    let creating = false;
     let pendingSection = t("system.plans.form.basic");
     setState("saving");
     setEditorError("");
     accessReadGeneration.current += 1;
     try {
       if (!planId || planBaseline.current !== JSON.stringify(payload)) {
+        creating = !planId;
         const result = planId
           ? await updateAdminPlan(accessToken, planId, payload, currentSessionId ?? undefined)
           : await createAdminPlan(accessToken, payload, currentSessionId ?? undefined);
         if (!isCurrent()) return;
+        creating = false;
         planId = result.plan.id;
         setEditingPlanId(planId);
         planBaseline.current = JSON.stringify(payload);
@@ -399,7 +406,13 @@ export function SystemPlanManagementPage() {
       closeEditor(false);
     } catch (error) {
       if (!isCurrent()) return;
-      const reason = normalizeAppError(error, { fallbackMessage: t("system.plans.saveFailed") }).message;
+      const appError = normalizeAppError(error, { fallbackMessage: t("system.plans.saveFailed") });
+      if (creating && isWriteOutcomeUnknown(appError)) {
+        setSaveBlocked(true);
+        setEditorError(t("system.adminEditor.outcomeUnknown", { action: t("system.plans.add") }));
+        return;
+      }
+      const reason = appError.message;
       setEditorError(t("system.adminEditor.saveIncomplete", { saved: saved.join("、") || t("system.adminEditor.noneSaved"), pending: pendingSection, reason }));
     } finally {
       if (isCurrent()) { editor.finishSave(); setState("idle"); }
@@ -731,7 +744,7 @@ export function SystemPlanManagementPage() {
               <Button
                 type="submit"
                 form="admin-plan-form"
-                disabled={state !== "idle" || !accessDraft}
+                disabled={state !== "idle" || !accessDraft || saveBlocked}
               >
                 <SaveIcon />
                 {t("system.plans.form.save")}
@@ -742,8 +755,9 @@ export function SystemPlanManagementPage() {
         onOpenChange={closeEditor}
       >
         {editorError ? <p role="alert" className="mb-4 text-sm text-destructive">{editorError}</p> : null}
+        {saveBlocked ? <Button type="button" variant="outline" className="mb-4" onClick={() => { closeEditor(false); void planResource.reload(); }}>{t("system.adminEditor.closeAndRefresh")}</Button> : null}
         {editingPlan ? (
-          <fieldset disabled={state === "saving"} className="min-w-0">
+          <fieldset disabled={state === "saving" || saveBlocked} className="min-w-0">
           <PlanForm
             plan={editingPlan}
             capabilityFamilies={capabilityFamilyResource.data ?? []}

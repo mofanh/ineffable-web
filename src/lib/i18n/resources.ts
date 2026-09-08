@@ -829,6 +829,8 @@ export const resources = {
           saveIncomplete: "保存未完成。已保存：{{saved}}。待完成：{{pending}}及后续改动。{{reason}}",
           noneSaved: "本次尚无已确认的改动",
           refreshDetails: "刷新详情",
+          outcomeUnknown: "「{{action}}」的提交结果尚未确认，可能已经生效。已停止直接重试，请关闭并刷新核对结果后再操作。",
+          closeAndRefresh: "关闭并刷新核对",
           noAssignment: "未分配套餐",
         },
         common: {
@@ -2462,6 +2464,8 @@ export const resources = {
           saveIncomplete: "Save incomplete. Saved: {{saved}}. Pending: {{pending}} and remaining changes. {{reason}}",
           noneSaved: "No changes confirmed in this attempt",
           refreshDetails: "Refresh details",
+          outcomeUnknown: "The result of {{action}} is unconfirmed and may already be applied. Direct retry is disabled. Close and refresh to review the result before making further changes.",
+          closeAndRefresh: "Close and refresh",
           noAssignment: "No plan assigned",
         },
         common: {

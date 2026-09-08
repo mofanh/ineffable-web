@@ -10,7 +10,7 @@ try {
   await server.listen()
   const { emptyPlan } = await server.ssrLoadModule("/src/pages/system-management/shared.tsx")
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["plan-cancel", "plan-save", "plan-partial", "plan-create-partial", "plan-load-failure", "plan-stale-load", "plan-session", "user-noop", "user-partial", "user-load-failure", "user-session"]) {
+  for (const scenario of ["plan-cancel", "plan-save", "plan-partial", "plan-create-partial", "plan-load-failure", "plan-stale-load", "plan-session", "user-noop", "user-partial", "user-load-failure", "user-session", "user-unknown", "plan-create-unknown", "user-effective-plan"]) {
     const isUsers = scenario.startsWith("user")
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
     const errors = []
@@ -21,15 +21,22 @@ try {
       localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
     })
     let plans = ["free", "pro"].map(id => ({ ...structuredClone(emptyPlan), id, name: id, display_name: id === "free" ? "Free" : "Pro", archived_at: null }))
+    if (scenario === "user-effective-plan") plans.push({ ...plans[1], id: "disabled", enabled: false })
     const models = ["one", "two"].map(id => ({ id, display_name: `Model ${id}`, upstream_model_name: id, enabled: true, archived_at: null }))
     const user = { id: "user-1", email: "person@example.com", display_name: "Person", role: "user", status: "active", created_at: "2026-09-08T00:00:00Z" }
     let assignments = [{ id: "assignment", plan_id: "free", user_id: user.id, status: "active", effective_from: "2026-09-01T00:00:00Z" }]
+    if (scenario === "user-effective-plan") assignments.push(
+      { ...assignments[0], id: "future", plan_id: "pro", effective_from: "2099-01-01T00:00:00Z" },
+      { ...assignments[0], id: "expired", plan_id: "pro", effective_from: "2026-09-02T00:00:00Z", effective_until: "2026-09-03T00:00:00Z" },
+      { ...assignments[0], id: "disabled", plan_id: "disabled", effective_from: "2026-09-04T00:00:00Z" },
+    )
     const writes = []
     let fail = scenario.includes("partial") || scenario.includes("load-failure")
     let holdAccess = false
     let release
     const releases = []
     let accessRows = []
+    const accessRequests = new Map()
     await page.route("**/gateway/v1/**", async route => {
       const path = new URL(route.request().url()).pathname
       const method = route.request().method()
@@ -44,9 +51,13 @@ try {
       else if (path.endsWith("capability-families")) body = { items: [] }
       else if (path.endsWith("plans/insights")) body = { insights: [] }
       else if (path.endsWith("/plans") && !path.includes("/users/")) {
-        if (write) { const plan = { ...payload, id: "created", archived_at: null }; plans.push(plan); body = { plan } }
+        if (write) {
+          const plan = { ...payload, id: "created", archived_at: null }; plans.push(plan); body = { plan }
+          if (scenario === "plan-create-unknown") { await route.abort("failed"); return }
+        }
         else body = { plans }
       } else if (/admin\/plans\/[^/]+\/models$/.test(path)) {
+        accessRequests.set(path, (accessRequests.get(path) ?? 0) + 1)
         if (holdAccess) await new Promise(resolve => releases.push(resolve))
         if (scenario === "plan-load-failure" && fail) { status = 500; body = { error: "access read failed" } }
         else body = { access: scenario === "plan-stale-load" && path.includes("/free/") ? [{ plan_id: "free", model_profile_id: "one", visible: true, usable: true, input_multiplier: 1, output_multiplier: 1, reasoning_multiplier: 1, cached_input_multiplier: 0.25 }] : accessRows }
@@ -62,8 +73,11 @@ try {
         if (scenario === "user-session") await new Promise(resolve => { release = resolve })
         user.role = payload.role; body = { user } }
       else if (path.endsWith("user-plan-assignments")) {
-        if (fail) { status = 500; body = { error: "assignment failed" } }
-        else { assignments = [{ ...assignments[0], plan_id: payload.plan_id }]; body = { assignment: assignments[0] } }
+        if (fail) { status = 400; body = { error: "assignment failed" } }
+        else {
+          assignments = [{ ...assignments[0], plan_id: payload.plan_id }]; body = { assignment: assignments[0] }
+          if (scenario === "user-unknown") { await route.abort("failed"); return }
+        }
       } else if (path.endsWith("/plans") && path.includes("/users/")) {
         if (scenario === "user-load-failure" && fail) { status = 500; body = { error: "user details failed" } }
         else body = { assignments }
@@ -79,7 +93,7 @@ try {
       assert.equal(await page.getByRole("switch").count(), 0, "expanded details must be read-only")
     }
     if (scenario === "plan-stale-load") holdAccess = true
-    if (scenario === "plan-create-partial") await page.getByRole("button", { name: "Add plan", exact: true }).click()
+    if (scenario.startsWith("plan-create-")) await page.getByRole("button", { name: "Add plan", exact: true }).click()
     else await row.getByRole("button", { name: "Edit", exact: true }).click()
     const dialog = page.getByRole("dialog")
     const save = dialog.getByRole("button", { name: isUsers ? "Save user" : "Save plan", exact: true })
@@ -97,6 +111,7 @@ try {
       holdAccess = false
       await page.getByRole("row").filter({ hasText: "Pro" }).first().getByRole("button", { name: "Edit", exact: true }).click()
       await dialog.getByText("Model one", { exact: true }).waitFor()
+      assert.equal(accessRequests.get("/gateway/v1/admin/plans/pro/models"), 1, "opening a new plan must share the concurrent detail and editor read")
       const response = page.waitForResponse(response => response.url().includes("/free/models"))
       for (const resolve of releases) resolve()
       await response
@@ -104,8 +119,28 @@ try {
       assert.equal(await model("one").getByRole("switch", { name: "Visible", exact: true }).isChecked(), false)
       assert.equal(await dialog.getByLabel("Display name", { exact: true }).inputValue(), "Pro")
       assert.equal(writes.length, 0)
+    } else if (scenario === "user-unknown" || scenario === "plan-create-unknown") {
+      await page.waitForFunction(() => !document.querySelector('[data-slot="app-dialog-footer"] button[type="submit"]').disabled)
+      if (isUsers) await dialog.locator("#admin-user-plan").selectOption("pro")
+      else await dialog.getByLabel("Internal name", { exact: true }).fill("custom")
+      await save.click()
+      await dialog.getByRole("alert").filter({ hasText: "unconfirmed" }).waitFor()
+      assert.equal(await save.isDisabled(), true, "unknown POST outcome must block blind retries")
+      assert.equal(writes.length, 1)
+      await dialog.getByRole("button", { name: "Close and refresh", exact: true }).click()
+      await dialog.waitFor({ state: "hidden" })
+      await page.waitForTimeout(100)
+      if (isUsers) {
+        await row.getByRole("button", { name: "Edit", exact: true }).click()
+        await page.waitForFunction(() => !document.querySelector('[data-slot="app-dialog-footer"] button[type="submit"]').disabled)
+        assert.equal(await dialog.locator("#admin-user-plan").inputValue(), "pro")
+        await save.click()
+        await dialog.waitFor({ state: "hidden" })
+      } else await page.getByRole("row").filter({ hasText: "custom" }).first().waitFor()
+      assert.equal(writes.length, 1, "review must read committed state, never automatically resubmit")
     } else if (isUsers) {
       await page.waitForFunction(() => !document.querySelector('[data-slot="app-dialog-footer"] button[type="submit"]').disabled)
+      if (scenario === "user-effective-plan") assert.equal(await dialog.locator("#admin-user-plan").inputValue(), "free")
       if (scenario === "user-partial" || scenario === "user-session") {
         await dialog.locator("#admin-user-role").selectOption("admin")
         await dialog.locator("#admin-user-plan").selectOption("pro")
@@ -137,8 +172,8 @@ try {
       }
       await save.click()
       await dialog.waitFor({ state: "hidden" })
-      assert.equal(writes.filter(w => w.path.endsWith("users/role")).length, scenario === "user-noop" ? 0 : 1)
-      assert.equal(writes.filter(w => w.path.endsWith("user-plan-assignments")).length, scenario === "user-noop" ? 0 : 2)
+      assert.equal(writes.filter(w => w.path.endsWith("users/role")).length, ["user-noop", "user-effective-plan"].includes(scenario) ? 0 : 1)
+      assert.equal(writes.filter(w => w.path.endsWith("user-plan-assignments")).length, ["user-noop", "user-effective-plan"].includes(scenario) ? 0 : 2)
     } else {
       await dialog.getByText("Model one", { exact: true }).waitFor()
       if (scenario === "plan-create-partial") await dialog.getByLabel("Internal name", { exact: true }).fill("custom")
