@@ -630,19 +630,19 @@ export function logoutUser(accessToken: string, workspaceId?: string | null) {
   })
 }
 
-export function requestPasswordChangeCode(accessToken: string) {
+export function requestPasswordChangeCode(accessToken: string, sessionId: string) {
   return requestApiJson<{ status: "sent"; retry_after_seconds: number }>("/gateway/v1/auth/password/code", {
-    method: "POST", accessToken, body: {},
+    method: "POST", accessToken, expectedSessionId: sessionId, body: {},
   })
 }
 
-export function changeAccountPassword(accessToken: string, payload: {
+export function changeAccountPassword(accessToken: string, sessionId: string, payload: {
   current_password: string
   new_password: string
   email_verification_code: string
 }) {
   return requestApiJson<{ status: "changed" }>("/gateway/v1/auth/password/change", {
-    method: "POST", accessToken, body: payload,
+    method: "POST", accessToken, expectedSessionId: sessionId, body: payload,
   })
 }
 

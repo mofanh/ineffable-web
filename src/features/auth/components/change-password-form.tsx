@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { changeAccountPassword, requestPasswordChangeCode } from "@/lib/api/api-client"
 import { normalizeAppError } from "@/lib/app/api-errors"
 
-export function ChangePasswordForm({ accessToken, email, onChanged }: {
+export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }: {
   accessToken: string
+  sessionId: string
   email: string
   onChanged: () => void
 }) {
@@ -39,7 +40,7 @@ export function ChangePasswordForm({ accessToken, email, onChanged }: {
     setError(null)
     setNotice(null)
     try {
-      const result = await requestPasswordChangeCode(accessToken)
+      const result = await requestPasswordChangeCode(accessToken, sessionId)
       if (!mounted.current) return
       cooldown.current = Date.now() + result.retry_after_seconds * 1000
       setRemaining(result.retry_after_seconds)
@@ -66,7 +67,7 @@ export function ChangePasswordForm({ accessToken, email, onChanged }: {
     busy.current = true
     setSaving(true)
     try {
-      await changeAccountPassword(accessToken, { current_password: current, new_password: next, email_verification_code: code.trim() })
+      await changeAccountPassword(accessToken, sessionId, { current_password: current, new_password: next, email_verification_code: code.trim() })
       if (!mounted.current) return
       setCurrent(""); setNext(""); setConfirmation(""); setCode("")
       setNotice(t("account.password.changed"))

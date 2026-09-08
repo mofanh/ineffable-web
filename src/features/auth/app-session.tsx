@@ -125,6 +125,7 @@ function readStoredNumber(key: string) {
 
 function readStoredAuthSnapshot(): AuthSessionSnapshot {
   return {
+    sessionId: readStorage(STORAGE_KEYS.sessionId) || null,
     accessToken: readStorage(STORAGE_KEYS.accessToken) || null,
     refreshToken: readStorage(STORAGE_KEYS.refreshToken) || null,
     accessExpiresAt: readStoredNumber(STORAGE_KEYS.accessExpiresAt),

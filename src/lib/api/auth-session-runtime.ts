@@ -7,6 +7,7 @@ export type AuthTokenSet = {
 }
 
 export type AuthSessionSnapshot = {
+  sessionId?: string | null
   accessToken: string | null
   refreshToken: string | null
   accessExpiresAt: number | null
@@ -49,6 +50,10 @@ export function getLatestAccessToken(fallback?: string | null) {
   return adapter?.getSnapshot().accessToken || fallback || null
 }
 
+export function getCurrentAuthSessionId() {
+  return adapter?.getSnapshot().sessionId ?? null
+}
+
 export function expireAuthSession() {
   adapter?.onExpired()
 }
@@ -72,6 +77,7 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
   }
 
   const snapshot = currentAdapter.getSnapshot()
+  const isCurrentSession = () => adapter === currentAdapter && currentAdapter.getSnapshot().sessionId === snapshot.sessionId
   if (
     failedAccessToken &&
     snapshot.accessToken &&
@@ -96,6 +102,7 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
   }
 
   const performRefresh = async () => {
+    if (!isCurrentSession()) return null
     const latestSnapshot = currentAdapter.getSnapshot()
     if (
       snapshot.accessToken &&
@@ -122,7 +129,7 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
     }
 
     const tokens = await currentAdapter.refresh(latestSnapshot.refreshToken)
-    if (adapter !== currentAdapter) {
+    if (!isCurrentSession()) {
       return null
     }
     currentAdapter.onRefreshed(tokens)
@@ -133,7 +140,7 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
     currentAdapter.runRefreshExclusive?.(performRefresh) ?? performRefresh()
   )
     .then((refreshedAccessToken) => {
-      if (adapter !== currentAdapter) {
+      if (!isCurrentSession()) {
         return null
       }
       return refreshedAccessToken
@@ -141,7 +148,7 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
     .catch((error: unknown) => {
       const shouldExpire =
         currentAdapter.shouldExpireOnRefreshError?.(error) ?? true
-      if (adapter === currentAdapter && shouldExpire) {
+      if (isCurrentSession() && shouldExpire) {
         currentAdapter.onExpired()
       }
       return null

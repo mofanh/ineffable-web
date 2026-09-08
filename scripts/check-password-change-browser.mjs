@@ -22,13 +22,26 @@ try {
   let sessionReads = 0
   const submissions = []
   let fail = true
+  let failSessions = false
+  let holdPath = null
+  let releaseHeld
+  let heldRequests = 0
   await page.route("**/gateway/v1/**", async (route) => {
     const url = route.request().url()
     let body = {}
     let status = 200
-    if (url.includes("auth/me")) body = { user: { id: "actor", email: "actor@example.com", display_name: "Actor", role: "user", status: "active" }, workspaces: [] }
+    if (holdPath && url.includes(holdPath)) {
+      heldRequests += 1
+      await new Promise((resolve) => { releaseHeld = resolve })
+      await route.fulfill({ status: 401, json: { error: "invalid access token" } })
+      return
+    }
+    if (url.includes("auth/me")) {
+      const actor = route.request().headers().authorization === "Bearer token-b" ? "actor-b" : "actor"
+      body = { user: { id: actor, email: `${actor}@example.com`, display_name: actor, role: "user", status: "active" }, workspaces: [] }
+    }
     else if (url.includes("conversations/list")) body = { conversations: [] }
-    else if (url.includes("auth/sessions")) { sessionReads += 1; body = { sessions: [] } }
+    else if (url.includes("auth/sessions")) { sessionReads += 1; body = failSessions ? { error: "device refresh failed" } : { sessions: [] }; status = failSessions ? 500 : 200 }
     else if (url.includes("password/code")) {
       codeRequests += 1
       assert.deepEqual(route.request().postDataJSON(), {}, "email target must not come from the browser")
@@ -65,12 +78,48 @@ try {
   assert.equal(await next.inputValue(), "new-password-456")
   assert.deepEqual(submissions[0], { current_password: "old-password-123", new_password: "new-password-456", email_verification_code: "123456" })
   fail = false
+  failSessions = true
   const previousReads = sessionReads
   await save.click()
   await page.getByText("Password changed. Other devices have been signed out.", { exact: true }).waitFor()
   for (const field of [current, next, confirm, code]) assert.equal(await field.inputValue(), "")
   assert.equal(await page.evaluate(() => localStorage.getItem("ineffable.auth.access_token")), "test-token")
   assert.ok(sessionReads > previousReads, "device list refreshes after success")
+  await page.getByRole("alert").waitFor()
+  assert.equal(await page.getByText("Password changed. Other devices have been signed out.", { exact: true }).count(), 1, "device refresh failure cannot hide password success")
+  failSessions = false
+  // A late 401 must not replay either sensitive request with account B's token.
+  for (const path of ["password/code", "password/change"]) {
+    await page.evaluate(() => {
+      localStorage.setItem("ineffable.auth.access_token", "test-token")
+      localStorage.setItem("ineffable.auth.session_id", "test-session")
+    })
+    await page.reload()
+    await current.waitFor()
+    holdPath = path
+    releaseHeld = undefined
+    const beforeHeld = heldRequests
+    if (path.endsWith("code")) await page.getByRole("button", { name: "Send code", exact: true }).click()
+    else {
+      await current.fill("old-password-123"); await next.fill("new-password-456"); await confirm.fill("new-password-456"); await code.fill("123456")
+      await save.click()
+    }
+    const deadline = Date.now() + 5_000
+    while (!releaseHeld && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10))
+    assert.ok(releaseHeld)
+    await page.evaluate(() => {
+      localStorage.setItem("ineffable.auth.session_id", "session-b")
+      localStorage.setItem("ineffable.auth.access_token", "token-b")
+      window.dispatchEvent(new StorageEvent("storage", { key: "ineffable.auth.access_token", newValue: "token-b" }))
+    })
+    await page.getByText(/A verification code will be sent to actor-b@example.com/).waitFor()
+    releaseHeld()
+    await page.waitForTimeout(200)
+    assert.equal(heldRequests, beforeHeld + 1, "old request must not be retried for the new account")
+    assert.equal(await current.inputValue(), "", "new account must not inherit old password fields")
+    assert.equal(await page.getByRole("alert").count(), 0, "old response must not surface in new account")
+    holdPath = null
+  }
   assert.deepEqual(errors, [])
   console.log("account password change browser checks passed")
 } finally {

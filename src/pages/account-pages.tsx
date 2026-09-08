@@ -264,13 +264,12 @@ export function AccountPage() {
         </CardContent>
       </Card>
 
-      {accessToken && <ChangePasswordForm
+      {accessToken && currentSessionId && <ChangePasswordForm
         key={`${currentUser.id}:${currentSessionId}`}
         accessToken={accessToken}
+        sessionId={currentSessionId}
         email={currentUser.email}
-        onChanged={() => { void sessionsResource.reload().catch(() => {
-          notify.error({ title: t("account.feedback.loadFailed") });
-        }); }}
+        onChanged={() => { void sessionsResource.reload(); }}
       />}
 
       <Card className="gap-0 py-0">
@@ -284,6 +283,9 @@ export function AccountPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-5 md:p-6">
+          {sessionsResource.error && sessionsResource.data && (
+            <p role="alert" className="mb-3 text-sm text-destructive">{t("account.feedback.loadFailed")}</p>
+          )}
           <DataState
             state={sessionsResource.state}
             error={sessionsResource.error}

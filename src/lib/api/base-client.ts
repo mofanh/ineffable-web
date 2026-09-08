@@ -1,6 +1,7 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
 import {
   expireAuthSession,
+  getCurrentAuthSessionId,
   getLatestAccessToken,
   refreshAuthSession,
 } from "@/lib/api/auth-session-runtime"
@@ -103,11 +104,18 @@ export async function requestApi(
   options?: RequestInit & {
     accessToken?: string | null
     workspaceId?: string | null
+    expectedSessionId?: string
   }
 ) {
-  const { accessToken, workspaceId, headers, ...requestInit } = options ?? {}
-  const performRequest = (token: string | null) =>
-    fetch(toApiUrl(path), {
+  const { accessToken, workspaceId, expectedSessionId, headers, ...requestInit } = options ?? {}
+  const assertSession = () => {
+    if (expectedSessionId !== undefined && getCurrentAuthSessionId() !== expectedSessionId) {
+      throw createApiError("Authentication session changed", 409)
+    }
+  }
+  const performRequest = (token: string | null) => {
+    assertSession()
+    return fetch(toApiUrl(path), {
       ...requestInit,
       headers: {
         ...buildApiHeaders({
@@ -122,9 +130,11 @@ export async function requestApi(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     })
+  }
 
   const initialAccessToken = getLatestAccessToken(accessToken)
   const response = await performRequest(initialAccessToken)
+  assertSession()
   if (
     !accessToken ||
     !(await responseHasExpiredAccessToken(response))
@@ -132,13 +142,17 @@ export async function requestApi(
     return response
   }
 
+  assertSession()
   const refreshedAccessToken = await refreshAuthSession(initialAccessToken)
+  assertSession()
   if (!refreshedAccessToken) {
     return response
   }
 
   const retriedResponse = await performRequest(refreshedAccessToken)
-  if (await responseHasExpiredAccessToken(retriedResponse)) {
+  const retryExpired = await responseHasExpiredAccessToken(retriedResponse)
+  assertSession()
+  if (retryExpired) {
     expireAuthSession()
   }
   return retriedResponse
@@ -151,12 +165,14 @@ export async function requestApiJson<T>(
     accessToken?: string | null
     workspaceId?: string | null
     body?: unknown
+    expectedSessionId?: string
   },
 ) {
   const response = await requestApi(path, {
     method: options?.method ?? "GET",
     accessToken: options?.accessToken,
     workspaceId: options?.workspaceId,
+    expectedSessionId: options?.expectedSessionId,
     headers: options?.body ? { "Content-Type": "application/json" } : undefined,
     body: options?.body ? JSON.stringify(options.body) : undefined,
   })

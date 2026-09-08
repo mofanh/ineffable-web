@@ -147,4 +147,24 @@ assert.equal(
 assert.equal(exclusiveRefreshCalls, 0)
 unregisterExclusive()
 
+for (const rejected of [false, true]) {
+  let current = { sessionId: "session-a", accessToken: "access-a", refreshToken: "refresh-a", accessExpiresAt: now - 1, refreshExpiresAt: now + 60_000 }
+  let settle
+  let applied = 0
+  let expired = 0
+  const unregisterSwitched = registerAuthSessionRuntime({
+    getSnapshot: () => current,
+    refresh: () => new Promise((resolve, reject) => { settle = () => rejected ? reject(new Error("old refresh failed")) : resolve({ access_token: "old-refreshed", refresh_token: "refresh-a", access_expires_at: now + 60_000, refresh_expires_at: now + 60_000, session_id: "session-a" }) }),
+    onRefreshed: () => { applied += 1 },
+    onExpired: () => { expired += 1 },
+  })
+  const pending = refreshAuthSession("access-a")
+  current = { ...current, sessionId: "session-b", accessToken: "access-b", refreshToken: "refresh-b" }
+  settle()
+  assert.equal(await pending, null)
+  assert.equal(applied, 0, "late refresh cannot restore the previous account")
+  assert.equal(expired, 0, "late refresh failure cannot expire the new account")
+  unregisterSwitched()
+}
+
 console.log("auth session runtime checks passed")
