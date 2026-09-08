@@ -1316,6 +1316,7 @@ export const resources = {
         unknown: "未知",
         password: {
           title: "修改密码", description: "验证码将发送至 {{email}}。修改后保留当前登录，其他设备需要重新登录。",
+          security: "账户安全", label: "登录密码", hint: "修改密码需验证绑定邮箱。",
           current: "当前密码", next: "新密码", confirm: "确认新密码", code: "邮箱验证码",
           length: "新密码需要 8–128 个字符。", mismatch: "两次输入的新密码不一致。", same: "新密码不能与当前密码相同。",
           invalidCode: "请输入 6 位数字验证码。", sendCode: "发送验证码", resend: "{{seconds}} 秒后重发",
@@ -2961,6 +2962,7 @@ export const resources = {
         unknown: "Unknown",
         password: {
           title: "Change password", description: "A verification code will be sent to {{email}}. This session stays signed in; other devices must sign in again.",
+          security: "Account security", label: "Login password", hint: "Verify your linked email to change your password.",
           current: "Current password", next: "New password", confirm: "Confirm new password", code: "Email verification code",
           length: "Use 8–128 characters for the new password.", mismatch: "The new passwords do not match.", same: "The new password must differ from the current password.",
           invalidCode: "Enter the 6-digit verification code.", sendCode: "Send code", resend: "Resend in {{seconds}}s",

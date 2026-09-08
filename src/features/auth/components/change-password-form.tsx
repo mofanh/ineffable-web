@@ -1,8 +1,9 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
-import { AsyncButton, FormField } from "@/components/app"
+import { AppDialog, AppDialogFooter, AsyncButton, FormField } from "@/components/app"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { changeAccountPassword, requestPasswordChangeCode } from "@/lib/api/api-client"
 import { normalizeAppError } from "@/lib/app/api-errors"
 
@@ -13,6 +14,9 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
   onChanged: () => void
 }) {
   const { t } = useTranslation()
+  const [open, setOpen] = React.useState(false)
+  const [success, setSuccess] = React.useState(false)
+  const generation = React.useRef(0)
   const [current, setCurrent] = React.useState("")
   const [next, setNext] = React.useState("")
   const [confirmation, setConfirmation] = React.useState("")
@@ -33,9 +37,19 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
     return () => { mounted.current = false; window.clearInterval(timer) }
   }, [])
 
+  function changeOpen(value: boolean) {
+    if (busy.current) return
+    generation.current += 1
+    setCurrent(""); setNext(""); setConfirmation(""); setCode("")
+    setError(null); setNotice(null)
+    if (value) setSuccess(false)
+    setOpen(value)
+  }
+
   async function sendCode() {
     if (codeBusy.current || busy.current || Date.now() < cooldown.current) return
     codeBusy.current = true
+    const requestGeneration = generation.current
     setSending(true)
     setError(null)
     setNotice(null)
@@ -44,9 +58,9 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
       if (!mounted.current) return
       cooldown.current = Date.now() + result.retry_after_seconds * 1000
       setRemaining(result.retry_after_seconds)
-      setNotice(t("account.password.codeSent"))
+      if (requestGeneration === generation.current) setNotice(t("account.password.codeSent"))
     } catch (caught) {
-      if (mounted.current) setError(normalizeAppError(caught, { fallbackMessage: t("account.password.sendFailed") }).message)
+      if (mounted.current && requestGeneration === generation.current) setError(normalizeAppError(caught, { fallbackMessage: t("account.password.sendFailed") }).message)
     } finally {
       codeBusy.current = false
       if (mounted.current) setSending(false)
@@ -69,8 +83,9 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
     try {
       await changeAccountPassword(accessToken, sessionId, { current_password: current, new_password: next, email_verification_code: code.trim() })
       if (!mounted.current) return
-      setCurrent(""); setNext(""); setConfirmation(""); setCode("")
-      setNotice(t("account.password.changed"))
+      busy.current = false
+      changeOpen(false)
+      setSuccess(true)
       onChanged()
     } catch (caught) {
       if (mounted.current) setError(normalizeAppError(caught, { fallbackMessage: t("account.password.failed") }).message)
@@ -80,13 +95,28 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
     }
   }
 
-  return <Card>
+  return <><Card>
     <CardHeader>
-      <CardTitle>{t("account.password.title")}</CardTitle>
-      <CardDescription>{t("account.password.description", { email })}</CardDescription>
+      <CardTitle>{t("account.password.security")}</CardTitle>
     </CardHeader>
     <CardContent>
-      <form className="max-w-lg space-y-4" onSubmit={(event) => void submit(event)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t("account.password.label")}</p>
+          <p className="text-sm text-muted-foreground">{t("account.password.hint")}</p>
+        </div>
+        <Button type="button" variant="outline" onClick={() => changeOpen(true)}>{t("account.password.title")}</Button>
+      </div>
+      {success && <p role="status" className="mt-3 text-sm text-muted-foreground">{t("account.password.changed")}</p>}
+    </CardContent>
+  </Card>
+    <AppDialog open={open} onOpenChange={changeOpen} title={t("account.password.title")} description={t("account.password.description", { email })} maxWidth="lg" footer={
+      <AppDialogFooter>
+        <Button type="button" variant="outline" disabled={saving} onClick={() => changeOpen(false)}>{t("common.cancel")}</Button>
+        <AsyncButton type="submit" form={`${id}-form`} isLoading={saving} disabled={sending}>{t("account.password.save")}</AsyncButton>
+      </AppDialogFooter>
+    }>
+      <form id={`${id}-form`} className="space-y-4" onSubmit={(event) => void submit(event)}>
         <FormField htmlFor={`${id}-current`} label={t("account.password.current")}>
           <Input id={`${id}-current`} type="password" autoComplete="current-password" required value={current} disabled={saving} onChange={(event) => setCurrent(event.target.value)} />
         </FormField>
@@ -104,8 +134,7 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
         </FormField>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
-        <AsyncButton type="submit" isLoading={saving} disabled={sending}>{t("account.password.save")}</AsyncButton>
       </form>
-    </CardContent>
-  </Card>
+    </AppDialog>
+  </>
 }
