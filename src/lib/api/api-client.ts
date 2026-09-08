@@ -630,6 +630,22 @@ export function logoutUser(accessToken: string, workspaceId?: string | null) {
   })
 }
 
+export function requestPasswordChangeCode(accessToken: string) {
+  return requestApiJson<{ status: "sent"; retry_after_seconds: number }>("/gateway/v1/auth/password/code", {
+    method: "POST", accessToken, body: {},
+  })
+}
+
+export function changeAccountPassword(accessToken: string, payload: {
+  current_password: string
+  new_password: string
+  email_verification_code: string
+}) {
+  return requestApiJson<{ status: "changed" }>("/gateway/v1/auth/password/change", {
+    method: "POST", accessToken, body: payload,
+  })
+}
+
 export function fetchAuthSessions(accessToken: string, workspaceId?: string | null) {
   return requestApiJson<{ sessions: UserSessionRecord[] }>("/gateway/v1/auth/sessions", {
     accessToken,

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
 import { useTranslation } from "react-i18next";
 import {
   BadgeCheckIcon,
@@ -262,6 +263,15 @@ export function AccountPage() {
           </AppFieldGrid>
         </CardContent>
       </Card>
+
+      {accessToken && <ChangePasswordForm
+        key={`${currentUser.id}:${currentSessionId}`}
+        accessToken={accessToken}
+        email={currentUser.email}
+        onChanged={() => { void sessionsResource.reload().catch(() => {
+          notify.error({ title: t("account.feedback.loadFailed") });
+        }); }}
+      />}
 
       <Card className="gap-0 py-0">
         <CardHeader className="border-b px-5 py-5 md:px-6">

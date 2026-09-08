@@ -1314,6 +1314,14 @@ export const resources = {
       },
       account: {
         unknown: "未知",
+        password: {
+          title: "修改密码", description: "验证码将发送至 {{email}}。修改后保留当前登录，其他设备需要重新登录。",
+          current: "当前密码", next: "新密码", confirm: "确认新密码", code: "邮箱验证码",
+          length: "新密码需要 8–128 个字符。", mismatch: "两次输入的新密码不一致。", same: "新密码不能与当前密码相同。",
+          invalidCode: "请输入 6 位数字验证码。", sendCode: "发送验证码", resend: "{{seconds}} 秒后重发",
+          codeSent: "验证码已发送，有效期 10 分钟。", sendFailed: "发送验证码失败，请稍后重试。",
+          save: "修改密码", changed: "密码已修改，其他设备的登录已退出。", failed: "修改密码失败，请检查当前密码与验证码后重试。",
+        },
         unknownBrowser: "未知浏览器",
         unknownSystem: "未知系统",
         unknownClient: "未知客户端",
@@ -2951,6 +2959,14 @@ export const resources = {
       },
       account: {
         unknown: "Unknown",
+        password: {
+          title: "Change password", description: "A verification code will be sent to {{email}}. This session stays signed in; other devices must sign in again.",
+          current: "Current password", next: "New password", confirm: "Confirm new password", code: "Email verification code",
+          length: "Use 8–128 characters for the new password.", mismatch: "The new passwords do not match.", same: "The new password must differ from the current password.",
+          invalidCode: "Enter the 6-digit verification code.", sendCode: "Send code", resend: "Resend in {{seconds}}s",
+          codeSent: "Code sent. It expires in 10 minutes.", sendFailed: "Could not send the code. Please retry later.",
+          save: "Change password", changed: "Password changed. Other devices have been signed out.", failed: "Could not change the password. Check your current password and verification code.",
+        },
         unknownBrowser: "Unknown browser",
         unknownSystem: "Unknown system",
         unknownClient: "Unknown client",

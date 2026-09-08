@@ -24,6 +24,7 @@
     "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",
     "check:responsive-layout": "node --experimental-strip-types scripts/check-responsive-layout.mjs",
     "check:auth-session": "node --experimental-strip-types scripts/check-auth-session-runtime.mjs",
+    "check:password-change": "node scripts/check-password-change-browser.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
