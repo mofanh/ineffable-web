@@ -825,6 +825,12 @@ export const resources = {
         },
       },
       system: {
+        adminEditor: {
+          saveIncomplete: "保存未完成。已保存：{{saved}}。待完成：{{pending}}及后续改动。{{reason}}",
+          noneSaved: "本次尚无已确认的改动",
+          refreshDetails: "刷新详情",
+          noAssignment: "未分配套餐",
+        },
         common: {
           eyebrow: "系统管理",
           loading: "正在加载",
@@ -1008,7 +1014,7 @@ export const resources = {
           pressureEmptyDescription:
             "产生用户分配、usage 或 workspace storage 后，这里会展示套餐压力。",
           listTitle: "套餐列表",
-          listDescription: "主视图保持单列表格，模型权限配置通过行内展开维护。",
+          listDescription: "展开查看使用情况和模型权限；点击编辑统一修改套餐配置。",
           search: "搜索套餐...",
           add: "新增套餐",
           columns: {
@@ -1034,7 +1040,8 @@ export const resources = {
           emptyDescription: "新增套餐后会出现在这里。",
           editTitle: "编辑套餐",
           addTitle: "新增套餐",
-          dialogDescription: "套餐保存后可在权限区配置可见和可用模型。",
+          dialogDescription: "在此集中编辑套餐配置和模型权限，点击保存后生效。",
+          editor: { modelAccess: "模型权限", draftNotice: "开关仅修改当前草稿，保存后才会生效；取消不会提交改动。" },
           chart: { users: "用户", credits: "点数", storage: "存储 GB" },
           access: {
             loading: "正在加载套餐权限",
@@ -2451,6 +2458,12 @@ export const resources = {
         },
       },
       system: {
+        adminEditor: {
+          saveIncomplete: "Save incomplete. Saved: {{saved}}. Pending: {{pending}} and remaining changes. {{reason}}",
+          noneSaved: "No changes confirmed in this attempt",
+          refreshDetails: "Refresh details",
+          noAssignment: "No plan assigned",
+        },
         common: {
           eyebrow: "System management",
           loading: "Loading",
@@ -2644,7 +2657,7 @@ export const resources = {
             "Data will appear after users receive plans and generate usage or workspace storage.",
           listTitle: "Plan list",
           listDescription:
-            "The primary view stays a single table; expand a row to maintain model access.",
+            "Expand to view usage and model access; use Edit to change plan settings.",
           search: "Search plans...",
           add: "Add plan",
           columns: {
@@ -2671,12 +2684,13 @@ export const resources = {
           editTitle: "Edit plan",
           addTitle: "Add plan",
           dialogDescription:
-            "After saving a plan, configure visible and usable models in its access section.",
+            "Edit plan settings and model access here. Changes take effect when you save.",
+          editor: { modelAccess: "Model access", draftNotice: "Switches update this draft only. Save to apply changes, or cancel to discard them." },
           chart: { users: "Users", credits: "Credits", storage: "Storage GB" },
           access: {
             loading: "Loading plan access",
             loadingDescription:
-              "Maintain model visibility and availability after access data loads.",
+              "Model visibility and availability will appear after access data loads.",
             assignedUsers: "Assigned users",
             activeAssignments: "active assignments",
             monthlyCredits: "Credits this month",
@@ -2684,7 +2698,7 @@ export const resources = {
             noCreditLimit: "No credit limit",
             noStorageLimit: "No storage limit",
             notice:
-              "Invisible models automatically become unavailable. Configuring plan: {{plan}}",
+              "Invisible models are also unavailable. Plan: {{plan}}",
             visible: "Visible",
             usable: "Usable",
             grant: "Grant",

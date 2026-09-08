@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
 import { useTranslation } from "react-i18next";
 import {
   BotIcon,
@@ -109,6 +110,43 @@ export function SystemPlanManagementPage() {
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState("");
   const isAdmin = currentUser?.role === "admin";
+  const editor = useEditorGuard(currentSessionId);
+  const [accessDraft, setAccessDraft] = React.useState<AdminPlanModelAccess[] | null>(null);
+  const accessBaseline = React.useRef<AdminPlanModelAccess[]>([]);
+  const planBaseline = React.useRef<string | null>(null);
+  const [editorError, setEditorError] = React.useState("");
+  const accessReadGeneration = React.useRef(0);
+  React.useEffect(() => {
+    editor.begin();
+    setDialogOpen(false);
+    setEditingPlan(null);
+    setAccessDraft(null);
+    setEditorError("");
+    setState("idle");
+  }, [currentSessionId, editor]);
+
+  function closeEditor(open: boolean) {
+    if (open || !editor.close()) return;
+    setDialogOpen(false);
+    setEditingPlan(null);
+    setAccessDraft(null);
+    setEditorError("");
+  }
+  async function loadEditorAccess(planId: string) {
+    const isCurrent = editor.capture();
+    setAccessDraft(null);
+    setEditorError("");
+    try {
+      const result = await listAdminPlanModelAccess(accessToken!, planId);
+      if (!isCurrent()) return;
+      accessBaseline.current = result.access.map(normalizeAccess);
+      setAccessDraft(accessBaseline.current);
+      setAccessRowsByPlanId(current => ({ ...current, [planId]: accessBaseline.current }));
+    } catch (error) {
+      if (isCurrent()) setEditorError(normalizeAppError(error, { fallbackMessage: t("system.plans.accessLoadFailedTitle") }).message);
+    }
+  }
+
 
   const loadPlans = React.useCallback(async () => {
     if (!accessToken || !isAdmin) {
@@ -176,9 +214,10 @@ export function SystemPlanManagementPage() {
 
     let cancelled = false;
     const planId = selectedPlanId;
+    const readGeneration = ++accessReadGeneration.current;
     void listAdminPlanModelAccess(accessToken, selectedPlanId)
       .then((result) => {
-        if (!cancelled) {
+        if (!cancelled && accessReadGeneration.current === readGeneration) {
           setAccessRowsByPlanId((current) => ({
             ...current,
             [planId]: result.access.map(normalizeAccess),
@@ -186,7 +225,7 @@ export function SystemPlanManagementPage() {
         }
       })
       .catch((loadError) => {
-        if (!cancelled) {
+        if (!cancelled && accessReadGeneration.current === readGeneration) {
           const appError = normalizeAppError(loadError, {
             fallbackMessage: t("system.plans.loadFailed"),
           });
@@ -261,13 +300,22 @@ export function SystemPlanManagementPage() {
   );
 
   function openCreateDialog() {
-    setEditingPlan({ ...emptyPlan });
+    editor.begin();
+    setState("idle");
+    setEditorError("");
+    accessBaseline.current = [];
+    planBaseline.current = null;
+    setAccessDraft([]);
+    setEditingPlan(structuredClone(emptyPlan));
     setEditingPlanId(null);
     setDialogOpen(true);
   }
 
   function openEditDialog(plan: AdminPlan) {
-    setEditingPlan({
+    editor.begin();
+    setState("idle");
+    setEditorError("");
+    const payload: AdminPlanPayload = {
       name: plan.name,
       display_name: plan.display_name,
       monthly_credit_limit: plan.monthly_credit_limit ?? null,
@@ -289,7 +337,10 @@ export function SystemPlanManagementPage() {
         allowed_families: [...plan.capability_exposure_policy.allowed_families],
       },
       enabled: plan.enabled,
-    });
+    };
+    setEditingPlan(payload);
+    planBaseline.current = JSON.stringify(payload);
+    void loadEditorAccess(plan.id);
     setEditingPlanId(plan.id);
     setSelectedPlanId(plan.id);
     setDialogOpen(true);
@@ -304,44 +355,54 @@ export function SystemPlanManagementPage() {
 
   async function savePlan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!accessToken || !editingPlan) return;
+    if (!accessToken || !editingPlan || !accessDraft || !editor.startSave()) return;
+    const isCurrent = editor.capture();
+    const payload = editingPlan;
+    let planId = editingPlanId;
+    const saved: string[] = [];
+    let pendingSection = t("system.plans.form.basic");
     setState("saving");
-    setError("");
+    setEditorError("");
+    accessReadGeneration.current += 1;
     try {
-      const result = editingPlanId
-        ? await updateAdminPlan(accessToken, editingPlanId, editingPlan)
-        : await createAdminPlan(accessToken, editingPlan);
-      planResource.setData((current) => ({
-        models: current?.models ?? [],
-        plans: [
-          result.plan,
-          ...(current?.plans ?? []).filter(
-            (item) => item.id !== result.plan.id,
-          ),
-        ],
-        insights: current?.insights ?? [],
-      }));
-      invalidateApiResourceCache(["system-users", currentSessionId]);
-      setSelectedPlanId(result.plan.id);
-      setMessage(
-        t("system.plans.savedMessage", { name: result.plan.display_name }),
-      );
-      notify.success({
-        title: t("system.plans.saved"),
-        description: result.plan.display_name,
-      });
-      setDialogOpen(false);
-    } catch (saveError) {
-      const appError = normalizeAppError(saveError, {
-        fallbackMessage: t("system.plans.saveFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.plans.saveFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
+      if (!planId || planBaseline.current !== JSON.stringify(payload)) {
+        const result = planId
+          ? await updateAdminPlan(accessToken, planId, payload, currentSessionId ?? undefined)
+          : await createAdminPlan(accessToken, payload, currentSessionId ?? undefined);
+        if (!isCurrent()) return;
+        planId = result.plan.id;
+        setEditingPlanId(planId);
+        planBaseline.current = JSON.stringify(payload);
+        saved.push(pendingSection);
+        planResource.setData(current => ({ models: current?.models ?? [], plans: [result.plan, ...(current?.plans ?? []).filter(item => item.id !== result.plan.id)], insights: current?.insights ?? [] }));
+        invalidateApiResourceCache(["system-users", currentSessionId]);
+      }
+      for (const draft of accessDraft) {
+        const next = { ...draft, plan_id: planId! };
+        const previous = accessBaseline.current.find(row => row.model_profile_id === next.model_profile_id);
+        if (previous && JSON.stringify(previous) === JSON.stringify(next)) continue;
+        if (!previous && !next.visible && !next.usable) continue;
+        pendingSection = `${t("system.plans.editor.modelAccess")} · ${models.find(model => model.id === next.model_profile_id)?.display_name ?? next.model_profile_id}`;
+        const result = await upsertAdminPlanModelAccess(accessToken, next, currentSessionId ?? undefined);
+        if (!isCurrent()) return;
+        const normalized = normalizeAccess(result.access);
+        accessBaseline.current = [...accessBaseline.current.filter(row => row.model_profile_id !== normalized.model_profile_id), normalized];
+        setAccessDraft(current => current?.map(row => row.model_profile_id === normalized.model_profile_id ? normalized : row) ?? null);
+        setAccessRowsByPlanId(current => ({ ...current, [planId!]: [...(current[planId!] ?? []).filter(row => row.model_profile_id !== normalized.model_profile_id), normalized] }));
+        saved.push(pendingSection);
+      }
+      setSelectedPlanId(planId!);
+      setMessage(t("system.plans.savedMessage", { name: payload.display_name }));
+      notify.success({ title: t("system.plans.saved"), description: payload.display_name });
+      editor.finishSave();
       setState("idle");
+      closeEditor(false);
+    } catch (error) {
+      if (!isCurrent()) return;
+      const reason = normalizeAppError(error, { fallbackMessage: t("system.plans.saveFailed") }).message;
+      setEditorError(t("system.adminEditor.saveIncomplete", { saved: saved.join("、") || t("system.adminEditor.noneSaved"), pending: pendingSection, reason }));
+    } finally {
+      if (isCurrent()) { editor.finishSave(); setState("idle"); }
     }
   }
 
@@ -386,47 +447,6 @@ export function SystemPlanManagementPage() {
       setError(appError.message);
       notify.error({
         title: t("system.plans.deleteFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
-      setState("idle");
-    }
-  }
-
-  async function saveAccess(modelId: string, next: AdminPlanModelAccess) {
-    if (!accessToken) return;
-    const payload = normalizeAccess(next);
-    setState("saving");
-    setError("");
-    try {
-      const result = await upsertAdminPlanModelAccess(accessToken, payload);
-      const normalized = normalizeAccess(result.access);
-      setAccessRowsByPlanId((current) => ({
-        ...current,
-        [payload.plan_id]: [
-          normalized,
-          ...(current[payload.plan_id] ?? []).filter(
-            (item) => item.model_profile_id !== modelId,
-          ),
-        ],
-      }));
-      setMessage(
-        t("system.plans.accessSavedMessage", {
-          plan: payload.plan_id,
-          model: modelId,
-        }),
-      );
-      notify.success({
-        title: t("system.plans.accessSaved"),
-        description: `${payload.plan_id} / ${modelId}`,
-      });
-    } catch (saveError) {
-      const appError = normalizeAppError(saveError, {
-        fallbackMessage: t("system.plans.saveFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.plans.accessSaveFailedTitle"),
         description: appError.message,
       });
     } finally {
@@ -668,8 +688,6 @@ export function SystemPlanManagementPage() {
                                 insight={insight}
                                 plan={plan}
                                 planId={plan.id}
-                                state={state}
-                                onSaveAccess={saveAccess}
                               />
                             </AppExpandablePanel>
                           </td>
@@ -698,20 +716,22 @@ export function SystemPlanManagementPage() {
             : t("system.plans.addTitle")
         }
         description={t("system.plans.dialogDescription")}
+        maxWidth="3xl"
         footer={
           editingPlan ? (
             <AppDialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                disabled={state === "saving"}
+                onClick={() => closeEditor(false)}
               >
                 {t("system.plans.form.cancel")}
               </Button>
               <Button
                 type="submit"
                 form="admin-plan-form"
-                disabled={state !== "idle"}
+                disabled={state !== "idle" || !accessDraft}
               >
                 <SaveIcon />
                 {t("system.plans.form.save")}
@@ -719,9 +739,11 @@ export function SystemPlanManagementPage() {
             </AppDialogFooter>
           ) : undefined
         }
-        onOpenChange={setDialogOpen}
+        onOpenChange={closeEditor}
       >
+        {editorError ? <p role="alert" className="mb-4 text-sm text-destructive">{editorError}</p> : null}
         {editingPlan ? (
+          <fieldset disabled={state === "saving"} className="min-w-0">
           <PlanForm
             plan={editingPlan}
             capabilityFamilies={capabilityFamilyResource.data ?? []}
@@ -730,7 +752,13 @@ export function SystemPlanManagementPage() {
             onCapabilityFamiliesRetry={() => void capabilityFamilyResource.reload()}
             onChange={setEditingPlan}
             onSubmit={savePlan}
-          />
+          >
+            <AppDisclosureSection title={t("system.plans.editor.modelAccess")} description={t("system.plans.editor.draftNotice")}>
+              {accessDraft ? <ModelAccessFields models={activeModels} rows={accessDraft} planId={editingPlanId ?? ""} onChange={next => setAccessDraft(current => [...(current ?? []).filter(row => row.model_profile_id !== next.model_profile_id), next])} /> :
+                <EmptyState title={editorError ? t("system.plans.accessLoadFailedTitle") : t("system.plans.access.loading")} action={editorError ? <Button type="button" variant="outline" onClick={() => void loadEditorAccess(editingPlanId!)}>{t("common.retry")}</Button> : undefined} />}
+            </AppDisclosureSection>
+          </PlanForm>
+          </fieldset>
         ) : null}
       </AppDialog>
     </SystemPageShell>
@@ -827,16 +855,12 @@ function PlanAccessPanel({
   insight,
   plan,
   planId,
-  state,
-  onSaveAccess,
 }: {
   activeModels: AdminModelProfile[];
   accessRows?: AdminPlanModelAccess[];
   insight?: PlanInsight;
   plan: AdminPlan;
   planId: string;
-  state: LoadState;
-  onSaveAccess: (modelId: string, next: AdminPlanModelAccess) => Promise<void>;
 }) {
   const { t } = useTranslation();
   if (!accessRows) {
@@ -884,56 +908,7 @@ function PlanAccessPanel({
       <div className="text-sm text-muted-foreground">
         {t("system.plans.access.notice", { plan: planId })}
       </div>
-      {activeModels.map((model) => {
-        const existing = accessRows.find(
-          (item) => item.model_profile_id === model.id,
-        );
-        const access = normalizeAccess(
-          existing ?? modelAccessFor(planId, model.id),
-        );
-
-        return (
-          <div
-            key={model.id}
-            className="grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto_auto_auto]"
-          >
-            <div>
-              <div className="font-medium">{model.display_name}</div>
-              <div className="text-sm text-muted-foreground">
-                {model.id} / {model.upstream_model_name}
-              </div>
-            </div>
-            <ToggleField
-              label={t("system.plans.access.visible")}
-              checked={access.visible}
-              onCheckedChange={(checked) =>
-                void onSaveAccess(model.id, {
-                  ...access,
-                  visible: checked,
-                  usable: checked ? access.usable : false,
-                })
-              }
-            />
-            <ToggleField
-              label={t("system.plans.access.usable")}
-              checked={access.usable}
-              disabled={!access.visible}
-              onCheckedChange={(checked) =>
-                void onSaveAccess(model.id, { ...access, usable: checked })
-              }
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void onSaveAccess(model.id, access)}
-              disabled={state !== "idle"}
-            >
-              <CheckIcon />
-              {t("system.plans.access.grant")}
-            </Button>
-          </div>
-        );
-      })}
+      <ModelAccessFields models={activeModels} rows={accessRows} planId={planId} />
       {activeModels.length === 0 ? (
         <EmptyState
           title={t("system.plans.access.noModels")}
@@ -964,7 +939,32 @@ function InsightItem({
   );
 }
 
+function ModelAccessFields({ models, rows, planId, onChange }: {
+  models: AdminModelProfile[];
+  rows: AdminPlanModelAccess[];
+  planId: string;
+  onChange?: (next: AdminPlanModelAccess) => void;
+}) {
+  const { t } = useTranslation();
+  return <div className="grid gap-3">{models.map(model => {
+    const access = rows.find(row => row.model_profile_id === model.id) ?? { ...modelAccessFor(planId, model.id), visible: false, usable: false };
+    return <div key={model.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+      <span className="font-medium">{model.display_name}</span>
+      <div className="flex gap-4">
+        {onChange ? <>
+          <ToggleField label={t("system.plans.access.visible")} checked={access.visible} onCheckedChange={visible => onChange(normalizeAccess({ ...access, visible }))} />
+          <ToggleField label={t("system.plans.access.usable")} checked={access.usable} disabled={!access.visible} onCheckedChange={usable => onChange({ ...access, usable })} />
+        </> : <>
+          <span className="text-sm text-muted-foreground">{t("system.plans.access.visible")}: {t(access.visible ? "system.common.status.enabled" : "system.common.status.disabled")}</span>
+          <span className="text-sm text-muted-foreground">{t("system.plans.access.usable")}: {t(access.usable ? "system.common.status.enabled" : "system.common.status.disabled")}</span>
+        </>}
+      </div>
+    </div>;
+  })}</div>;
+}
+
 function PlanForm({
+  children,
   plan,
   capabilityFamilies,
   capabilityFamiliesState,
@@ -973,6 +973,7 @@ function PlanForm({
   onChange,
   onSubmit,
 }: {
+  children?: React.ReactNode;
   plan: AdminPlanPayload;
   capabilityFamilies: AdminCapabilityFamilyCatalogEntry[];
   capabilityFamiliesState: ApiResourceState;
@@ -1054,8 +1055,9 @@ function PlanForm({
     >
       <AppDisclosureSection title={t("system.plans.form.basic")}>
         <AppFieldGrid columns={1}>
-          <FormField label={t("system.plans.form.internalName")}>
+          <FormField label={t("system.plans.form.internalName")} htmlFor="plan-internal-name">
             <Input
+              id="plan-internal-name"
               value={plan.name}
               onChange={(event) =>
                 onChange((current) =>
@@ -1064,8 +1066,9 @@ function PlanForm({
               }
             />
           </FormField>
-          <FormField label={t("system.plans.form.displayName")}>
+          <FormField label={t("system.plans.form.displayName")} htmlFor="plan-display-name">
             <Input
+              id="plan-display-name"
               value={plan.display_name}
               onChange={(event) =>
                 onChange((current) =>
@@ -1087,6 +1090,7 @@ function PlanForm({
           />
         </AppFieldGrid>
       </AppDisclosureSection>
+      {children}
       <AppDisclosureSection
         title={t("system.plans.form.capabilityExposure")}
         description={t("system.plans.form.capabilityExposureDescription")}

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
 import { useTranslation } from "react-i18next";
 import {
   ChevronDownIcon,
@@ -83,7 +84,26 @@ export function SystemUserManagementPage() {
   );
   const [editingUserPlanId, setEditingUserPlanId] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const editingUserIdRef = React.useRef("");
+  const editor = useEditorGuard(currentSessionId);
+  const [detailsReady, setDetailsReady] = React.useState(false);
+  const [editorError, setEditorError] = React.useState("");
+  const userBaseline = React.useRef({ role: "user", planId: "" });
+  const sessionRef = React.useRef(currentSessionId);
+  sessionRef.current = currentSessionId;
+  React.useEffect(() => {
+    editor.begin();
+    setDialogOpen(false);
+    setEditingUser(null);
+    setDetailsReady(false);
+    setEditorError("");
+    setState("idle");
+  }, [currentSessionId, editor]);
+  function closeEditor(open: boolean) {
+    if (open || !editor.close()) return;
+    setDialogOpen(false);
+    setEditingUser(null);
+    setEditorError("");
+  }
   const userDetailsPromisesRef = React.useRef(
     new Map<string, Promise<UserDetails | null>>(),
   );
@@ -130,15 +150,6 @@ export function SystemUserManagementPage() {
     [userResource.data?.workspaceUsage],
   );
 
-  React.useEffect(() => {
-    if (!plans.length) return;
-    setEditingUserPlanId((current) =>
-      plans.some((plan) => plan.id === current)
-        ? current
-        : (plans[0]?.id ?? ""),
-    );
-  }, [plans]);
-
   const loadUserDetails = React.useCallback(
     (userId: string) => {
       if (!accessToken || !isAdmin || !userId) return Promise.resolve(null);
@@ -156,12 +167,14 @@ export function SystemUserManagementPage() {
             assignments: planResult.assignments,
             usage: usageResult.usage,
           };
+          if (sessionRef.current !== currentSessionId) return null;
           setUserDetailsByUserId((current) => ({
             ...current,
             [userId]: details,
           }));
           return details;
         } catch (loadError) {
+          if (sessionRef.current !== currentSessionId) return null;
           const appError = normalizeAppError(loadError, {
             fallbackMessage: t("system.users.loadFailed"),
           });
@@ -180,7 +193,7 @@ export function SystemUserManagementPage() {
       );
       return promise;
     },
-    [accessToken, isAdmin, t],
+    [accessToken, currentSessionId, isAdmin, t],
   );
 
   const filteredUsers = React.useMemo(() => {
@@ -254,21 +267,22 @@ export function SystemUserManagementPage() {
   }, [t, userDetailsByUserId, users, workspaceUsage]);
 
   function openEditDialog(user: AdminUser) {
-    const cachedDetails = userDetailsByUserId[user.id];
-    editingUserIdRef.current = user.id;
+    editor.begin();
+    const isCurrent = editor.capture();
+    setState("idle");
+    setEditorError("");
+    setDetailsReady(false);
     setEditingUser(user);
     setEditingRole(user.role === "admin" ? "admin" : "user");
-    setEditingUserPlanId(
-      getActiveUserPlanId(cachedDetails?.assignments) ?? plans[0]?.id ?? "",
-    );
+    setEditingUserPlanId("");
     setDialogOpen(true);
-
-    void loadUserDetails(user.id).then((details) => {
-      if (!details) return;
-      if (editingUserIdRef.current !== user.id) return;
-      setEditingUserPlanId(
-        getActiveUserPlanId(details.assignments) ?? plans[0]?.id ?? "",
-      );
+    void loadUserDetails(user.id).then(details => {
+      if (!isCurrent()) return;
+      if (!details) { setEditorError(t("system.users.detailLoadFailedTitle")); return; }
+      const planId = getActiveUserPlanId(details.assignments) ?? "";
+      userBaseline.current = { role: user.role ?? "user", planId };
+      setEditingUserPlanId(planId);
+      setDetailsReady(true);
     });
   }
 
@@ -282,66 +296,47 @@ export function SystemUserManagementPage() {
 
   async function saveUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!accessToken || !editingUser) return;
+    if (!accessToken || !editingUser || !detailsReady || !editor.startSave()) return;
+    const isCurrent = editor.capture();
+    const user = editingUser;
+    const saved: string[] = [];
+    let pendingSection = t("system.users.role");
     setState("saving");
-    setError("");
+    setEditorError("");
     try {
-      const roleResult = await setAdminUserRole(accessToken, {
-        user_id: editingUser.id,
-        role: editingRole,
-      });
-      userResource.setData((current) => ({
-        users: (current?.users ?? []).map((item) =>
-          item.id === editingUser.id ? roleResult.user : item,
-        ),
-        plans: current?.plans ?? [],
-        workspaceUsage: current?.workspaceUsage ?? [],
-      }));
-
-      if (editingUserPlanId) {
-        const planResult = await assignAdminUserPlan(accessToken, {
-          user_id: editingUser.id,
-          plan_id: editingUserPlanId,
-        });
-        setUserDetailsByUserId((current) => {
-          const details = current[editingUser.id] ?? {
-            assignments: [],
-            usage: [],
-          };
-          return {
-            ...current,
-            [editingUser.id]: {
-              ...details,
-              assignments: [
-                planResult.assignment,
-                ...details.assignments.filter(
-                  (item) => item.id !== planResult.assignment.id,
-                ),
-              ],
-            },
-          };
+      if (editingRole !== userBaseline.current.role) {
+        const result = await setAdminUserRole(accessToken, { user_id: user.id, role: editingRole }, currentSessionId ?? undefined);
+        if (!isCurrent()) return;
+        userBaseline.current.role = result.user.role ?? "user";
+        saved.push(pendingSection);
+        userResource.setData(current => ({ users: (current?.users ?? []).map(item => item.id === user.id ? result.user : item), plans: current?.plans ?? [], workspaceUsage: current?.workspaceUsage ?? [] }));
+      }
+      if (editingUserPlanId && editingUserPlanId !== userBaseline.current.planId) {
+        pendingSection = t("system.users.assignPlan");
+        const result = await assignAdminUserPlan(accessToken, { user_id: user.id, plan_id: editingUserPlanId }, currentSessionId ?? undefined);
+        if (!isCurrent()) return;
+        userBaseline.current.planId = result.assignment.plan_id;
+        saved.push(pendingSection);
+        setUserDetailsByUserId(current => {
+          const details = current[user.id] ?? { assignments: [], usage: [] };
+          return { ...current, [user.id]: { ...details, assignments: [result.assignment, ...details.assignments.filter(item => item.id !== result.assignment.id)] } };
         });
       }
-
-      setMessage(
-        t("system.users.savedMessage", { email: roleResult.user.email }),
-      );
-      notify.success({
-        title: t("system.users.saved"),
-        description: roleResult.user.email,
-      });
-      setDialogOpen(false);
-    } catch (saveError) {
-      const appError = normalizeAppError(saveError, {
-        fallbackMessage: t("system.users.saveFailed"),
-      });
-      setError(appError.message);
-      notify.error({
-        title: t("system.users.saveFailedTitle"),
-        description: appError.message,
-      });
-    } finally {
+      pendingSection = t("system.adminEditor.refreshDetails");
+      const refreshed = await listAdminUserPlanAssignments(accessToken, user.id);
+      if (!isCurrent()) return;
+      setUserDetailsByUserId(current => ({ ...current, [user.id]: { assignments: refreshed.assignments, usage: current[user.id]?.usage ?? [] } }));
+      setMessage(t("system.users.savedMessage", { email: user.email }));
+      notify.success({ title: t("system.users.saved"), description: user.email });
+      editor.finishSave();
       setState("idle");
+      closeEditor(false);
+    } catch (error) {
+      if (!isCurrent()) return;
+      const reason = normalizeAppError(error, { fallbackMessage: t("system.users.saveFailed") }).message;
+      setEditorError(t("system.adminEditor.saveIncomplete", { saved: saved.join("、") || t("system.adminEditor.noneSaved"), pending: pendingSection, reason }));
+    } finally {
+      if (isCurrent()) { editor.finishSave(); setState("idle"); }
     }
   }
 
@@ -537,14 +532,15 @@ export function SystemUserManagementPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                disabled={state === "saving"}
+                onClick={() => closeEditor(false)}
               >
                 {t("system.users.cancel")}
               </Button>
               <Button
                 type="submit"
                 form="admin-user-form"
-                disabled={state !== "idle"}
+                disabled={state !== "idle" || !detailsReady}
               >
                 <SaveIcon />
                 {t("system.users.save")}
@@ -552,9 +548,12 @@ export function SystemUserManagementPage() {
             </AppDialogFooter>
           ) : undefined
         }
-        onOpenChange={setDialogOpen}
+        onOpenChange={closeEditor}
       >
+        {editorError ? <p role="alert" className="mb-4 text-sm text-destructive">{editorError}</p> : null}
+        {editingUser && !detailsReady ? <EmptyState title={editorError ? t("system.users.detailLoadFailedTitle") : t("system.users.detailLoading")} action={editorError ? <Button type="button" onClick={() => openEditDialog(editingUser)}>{t("common.retry")}</Button> : undefined} /> : null}
         {editingUser ? (
+          <fieldset disabled={state === "saving" || !detailsReady} className="min-w-0">
           <form
             id="admin-user-form"
             onSubmit={(event) => void saveUser(event)}
@@ -565,8 +564,9 @@ export function SystemUserManagementPage() {
                 <FormField label={t("system.users.user")}>
                   <Input value={editingUser.email} readOnly />
                 </FormField>
-                <FormField label={t("system.users.role")}>
+                <FormField label={t("system.users.role")} htmlFor="admin-user-role">
                   <select
+                    id="admin-user-role"
                     value={editingRole}
                     disabled={state !== "idle"}
                     onChange={(event) =>
@@ -582,15 +582,17 @@ export function SystemUserManagementPage() {
                     <option value="admin">{t("system.users.admin")}</option>
                   </select>
                 </FormField>
-                <FormField label={t("system.users.assignPlan")}>
+                <FormField label={t("system.users.assignPlan")} htmlFor="admin-user-plan">
                   <select
+                    id="admin-user-plan"
                     value={editingUserPlanId}
                     onChange={(event) =>
                       setEditingUserPlanId(event.target.value)
                     }
                     className="h-9 rounded-md border bg-background px-2 text-sm"
                   >
-                    {plans.map((plan) => (
+                    <option value="" disabled>{t("system.adminEditor.noAssignment")}</option>
+                    {plans.filter(plan => !plan.archived_at || plan.id === editingUserPlanId).map((plan) => (
                       <option key={plan.id} value={plan.id}>
                         {plan.display_name}
                       </option>
@@ -600,6 +602,7 @@ export function SystemUserManagementPage() {
               </AppFieldGrid>
             </AppDisclosureSection>
           </form>
+          </fieldset>
         ) : null}
       </AppDialog>
     </SystemPageShell>

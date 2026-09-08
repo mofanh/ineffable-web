@@ -1538,10 +1538,13 @@ export function upsertAdminLlmSecret(
   )
 }
 
-export function createAdminPlan(accessToken: string, payload: AdminPlanPayload) {
+export function createAdminPlan(accessToken: string, payload: AdminPlanPayload,
+  sessionId?: string,
+) {
   return requestApiJson<{ plan: AdminPlan }>("/gateway/v1/admin/plans", {
     method: "POST",
     accessToken,
+    expectedSessionId: sessionId,
     body: payload,
   })
 }
@@ -1550,12 +1553,14 @@ export function updateAdminPlan(
   accessToken: string,
   planId: string,
   payload: AdminPlanPayload,
+  sessionId?: string,
 ) {
   return requestApiJson<{ plan: AdminPlan }>(
     `/gateway/v1/admin/plans/${encodeURIComponent(planId)}`,
     {
       method: "PUT",
       accessToken,
+      expectedSessionId: sessionId,
       body: payload,
     },
   )
@@ -1584,12 +1589,14 @@ export function listAdminPlanModelAccess(
 export function upsertAdminPlanModelAccess(
   accessToken: string,
   payload: AdminPlanModelAccessPayload,
+  sessionId?: string,
 ) {
   return requestApiJson<{ access: AdminPlanModelAccess }>(
     "/gateway/v1/admin/plan-model-access",
     {
       method: "PUT",
       accessToken,
+      expectedSessionId: sessionId,
       body: payload,
     },
   )
@@ -1609,10 +1616,12 @@ export function listAdminUsers(accessToken: string, limit = 100, offset = 0) {
 export function setAdminUserRole(
   accessToken: string,
   payload: { user_id: string; role: "user" | "admin" },
+  sessionId?: string,
 ) {
   return requestApiJson<{ user: AdminUser }>("/gateway/v1/admin/users/role", {
     method: "PUT",
     accessToken,
+    expectedSessionId: sessionId,
     body: payload,
   })
 }
@@ -1635,12 +1644,14 @@ export function assignAdminUserPlan(
     status?: string
     effective_until?: string | null
   },
+  sessionId?: string,
 ) {
   return requestApiJson<{ assignment: AdminUserPlanAssignment }>(
     "/gateway/v1/admin/user-plan-assignments",
     {
       method: "POST",
       accessToken,
+      expectedSessionId: sessionId,
       body: {
         status: "active",
         effective_until: null,
