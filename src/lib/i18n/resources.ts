@@ -574,6 +574,9 @@ export const resources = {
           sandboxSearch: "搜索 Sandbox 环境",
           noMatchingSandboxes: "没有匹配的 Sandbox 环境",
           noSandboxDescription: "本轮不提供命令或文件执行环境",
+          sandboxDeliveryPending: "结果待确认（{{count}} 条）",
+          sandboxDeliveryRetrying: "结果回传尚未成功，正在重试（{{count}} 条）。新任务可能需要等待。",
+          sandboxDeliveryUnknown: "暂时无法确认 Sandbox 结果回传状态，请检查远端运行状况。",
           sandboxStatus: {
             created: "已创建",
             bound: "已绑定",
@@ -2190,6 +2193,9 @@ export const resources = {
           sandboxSearch: "Search Sandbox environments",
           noMatchingSandboxes: "No matching Sandbox environments",
           noSandboxDescription: "Do not provide a command or file runtime this turn",
+          sandboxDeliveryPending: "Awaiting result confirmation ({{count}})",
+          sandboxDeliveryRetrying: "Result delivery is retrying ({{count}} pending). New tasks may need to wait.",
+          sandboxDeliveryUnknown: "Sandbox result delivery status is unavailable. Check the remote daemon.",
           sandboxStatus: {
             created: "Created",
             bound: "Bound",

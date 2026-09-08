@@ -1,3 +1,4 @@
+import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
@@ -404,7 +405,7 @@ export function GatewayChatSidebar({
     string | null
   >(null)
   const [sandboxOptions, setSandboxOptions] = React.useState<
-    { environmentId: string; label: string; status: string }[]
+    { environmentId: string; label: string; status: string; resultDelivery?: SandboxResultDeliveryHealth | null }[]
   >([])
   const [isRefreshingSandboxOptions, setIsRefreshingSandboxOptions] =
     React.useState(false)
@@ -550,7 +551,7 @@ export function GatewayChatSidebar({
   const modelProfilesRef = React.useRef<ModelProfile[]>([])
   const modelProfilesLoadedRef = React.useRef(false)
   const sandboxOptionsRef = React.useRef<
-    { environmentId: string; label: string; status: string }[]
+    { environmentId: string; label: string; status: string; resultDelivery?: SandboxResultDeliveryHealth | null }[]
   >([])
   const sandboxOptionsLoadedRef = React.useRef(false)
   const sandboxOptionsInFlightRef = React.useRef<{
@@ -1245,6 +1246,7 @@ export function GatewayChatSidebar({
               providersById.get(environment.provider_id)
             ),
             status: environment.status,
+            resultDelivery: providersById.get(environment.provider_id)?.result_delivery,
           }))
 
         sandboxOptionsRef.current = nextOptions
@@ -1406,6 +1408,13 @@ export function GatewayChatSidebar({
     (conversation) => conversation.current_run?.is_live
   )
   const isPageActive = usePageActive()
+
+  React.useEffect(() => {
+    if (!accessToken || !isPageActive || !selectedSandboxEnvironmentId) return
+    const timer = window.setInterval(() => { void refreshSandboxOptions() }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [accessToken, isPageActive, selectedSandboxEnvironmentId, refreshSandboxOptions])
+
 
   React.useEffect(() => {
     if (

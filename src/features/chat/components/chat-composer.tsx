@@ -1,3 +1,6 @@
+import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
+import { Notice } from "@/components/app/notice"
+import { sandboxDeliveryPresentation } from "@/features/chat/model/sandbox-delivery-presentation"
 import { CapabilityExposurePicker } from "@/features/chat/components/capability-exposure-picker"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
@@ -74,7 +77,7 @@ type ChatComposerProps = {
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
   selectedModelProfileId: string
-  sandboxOptions: { environmentId: string; label: string; status: string }[]
+  sandboxOptions: { environmentId: string; label: string; status: string; resultDelivery?: SandboxResultDeliveryHealth | null }[]
   isRefreshingSandboxOptions: boolean
   selectedSandboxEnvironmentId: string
   capabilityExposureSelection: CapabilityExposureSelection | null
@@ -191,6 +194,7 @@ export function ChatComposer({
         label: option.label,
         searchText: option.status,
         supportingContent: (
+          <div className="space-y-1">
           <StatusBadge
             status={option.status}
             label={t(`chat.composer.sandboxStatus.${option.status}`, {
@@ -198,6 +202,8 @@ export function ChatComposer({
             })}
             className="px-1.5 py-0 text-[10px]"
           />
+          {sandboxDeliveryPresentation(option.resultDelivery) ? <span className="block text-xs text-muted-foreground">{t(sandboxDeliveryPresentation(option.resultDelivery)!.key, { count: option.resultDelivery?.pending_results ?? 0 })}</span> : null}
+          </div>
         ),
       })),
     ],
@@ -296,6 +302,8 @@ export function ChatComposer({
     window.setTimeout(() => setIsAgentMenuOpen(false), 120)
   }
 
+  const delivery = sandboxDeliveryPresentation(sandboxOptions.find((option) => option.environmentId === selectedSandboxEnvironmentId)?.resultDelivery)
+
   return (
     <SidebarFooter
       className={cn(
@@ -303,6 +311,7 @@ export function ChatComposer({
         isFullScreen && "mx-auto max-w-[780px] px-5 md:px-2"
       )}
     >
+      {delivery ? <Notice tone="warning" className="mb-2">{t(delivery.key, { count: delivery.count })}</Notice> : null}
       {preInputQueue.length > 0 ? (
         <div className="mb-1.5 space-y-1.5">
           <div className="flex min-h-6 items-center justify-between gap-2 px-1 text-[11px] font-medium text-muted-foreground">

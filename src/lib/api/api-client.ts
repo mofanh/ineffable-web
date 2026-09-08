@@ -385,6 +385,13 @@ export type SandboxEnvironmentStatus =
   | "error"
   | "revoked"
 
+export type SandboxResultDeliveryHealth = {
+  pending_results: number
+  oldest_pending_seconds: number
+  inspection_failed: boolean
+  scan_truncated?: boolean
+}
+
 export type SandboxProviderStatusView = {
   provider_id: string
   provider_type: "local_daemon" | "cloud_runtime"
@@ -395,6 +402,7 @@ export type SandboxProviderStatusView = {
   environment_id?: string | null
   bound_project_id?: string | null
   last_seen_at?: string | null
+  result_delivery?: SandboxResultDeliveryHealth | null
 }
 
 export type SandboxEnvironmentView = {
