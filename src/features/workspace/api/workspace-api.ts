@@ -6,6 +6,7 @@ export {
   createWorkspaceFolder,
   deleteWorkspaceObject,
   getWorkspaceObjectContent,
+  getLatestWorkspaceFile,
   getWorkspaceObjectVersionContent,
   getWorkspaceUsage,
   inviteWorkspaceMember,

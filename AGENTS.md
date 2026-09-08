@@ -459,3 +459,9 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 ## 自动化配置
 
 自动化保存模型、Workspace、Sandbox 和能力 mode/custom；编辑界面复用聊天的运行选择器，按明确 Workspace/Sandbox scope 读取同一个后端能力目录。不得从 localStorage 回填任务执行配置，也不得因目录缺失而静默更换已绑定模型或删减 custom 选择。
+
+## Workspace 删除后的导航
+
+- 删除成功统一发 `workspace-objects-changed`；当前编辑页判断精确对象或父目录范围后切换，侧栏不独立猜测下一文件。
+- Gateway `latest-file` 从仍存在的文件中按同目录优先、`updated_at` 与稳定 ID 倒序返回一个候选；空结果进入当前空间文件空状态，不跳到自动任务。
+- 切换使用 replace 移除已删除地址；候选查询及文件加载都按路由和请求 generation 拒绝旧响应。未删除的其他文件不触发当前页导航。

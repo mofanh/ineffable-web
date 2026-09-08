@@ -839,6 +839,14 @@ export function searchWorkspacePaths(accessToken: string, workspaceId: string, p
     `/gateway/v1/workspaces/${workspaceId}/search?${params}`, { accessToken, workspaceId })
 }
 
+export function getLatestWorkspaceFile(accessToken: string, workspaceId: string, excludedId: string, preferredParentId?: string | null) {
+  const query = new URLSearchParams({ excluded_id: excludedId })
+  if (preferredParentId) query.set("preferred_parent_id", preferredParentId)
+  return requestApiJson<{ object: WorkspaceObject | null }>(
+    `/gateway/v1/workspaces/${workspaceId}/latest-file?${query}`, { accessToken, workspaceId }
+  )
+}
+
 export function listWorkspaceDirectory(accessToken: string, workspaceId: string, path = "", cursor?: string) {
   const query = new URLSearchParams({ path, limit: "100" })
   if (cursor) query.set("cursor", cursor)

@@ -72,6 +72,7 @@ import {
   type WorkspaceTreeMap,
 } from "@/features/workspace/model/workspace-tree"
 import {
+  dispatchWorkspaceObjectsChanged,
   WORKSPACE_OBJECTS_CHANGED_EVENT,
   type WorkspaceObjectsChangedEvent,
 } from "@/lib/workspace-events"
@@ -1379,10 +1380,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }
 
           await deleteWorkspaceObject(accessToken, item.workspaceId, item.object.id)
-          setSelectedEntryId(item.workspaceId)
-          await refreshWorkspaceTrees({
-            workspaceIds: [item.workspaceId],
-            showLoading: false,
+          dispatchWorkspaceObjectsChanged({
+            workspaceId: item.workspaceId,
+            objectId: item.object.id,
+            path: item.object.path,
+            action: "delete",
+            source: "user",
           })
           notify.success({ title: t("workspace.sidebarFeedback.deleted") })
         }

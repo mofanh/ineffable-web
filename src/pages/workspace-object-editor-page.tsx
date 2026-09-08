@@ -21,7 +21,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
 import { useAppHeader } from "@/app/shell/app-header-context"
-import { AppDialog } from "@/components/app"
+import { AppDialog, EmptyState } from "@/components/app"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -40,6 +40,7 @@ import {
   createWorkspaceFile,
   deleteWorkspaceObject,
   getWorkspaceObjectVersionContent,
+  getLatestWorkspaceFile,
   listWorkspaceObjectVersions,
   renameMoveWorkspaceObject,
   restoreWorkspaceObjectVersion,
@@ -63,7 +64,6 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
-import { defaultPath } from "@/routes/navigation"
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n"
 
 const markdownIt = new MarkdownIt({
@@ -379,11 +379,34 @@ export function WorkspaceObjectEditorPage() {
     setVersions(response.versions)
   }, [accessToken, objectId, workspaceId])
 
+  const openRemainingFile = React.useCallback(async (preferredParentId?: string | null) => {
+    if (!accessToken || !workspaceId || !objectId) return
+    const route = `${workspaceId}:${objectId}`
+    const requestId = ++contentLoadRequestRef.current
+    setObject(null)
+    setVersion(null)
+    setIsEditing(false)
+    setIsHistoryOpen(false)
+    setError(null)
+    setIsLoading(true)
+    const isCurrent = () => currentObjectRouteRef.current === route && contentLoadRequestRef.current === requestId
+    try {
+      const { object: next } = await getLatestWorkspaceFile(accessToken, workspaceId, objectId, preferredParentId)
+      if (!isCurrent()) return
+      navigate(next ? `/workspace/${workspaceId}/objects/${next.id}` : `/workspace/${workspaceId}/objects`, { replace: true })
+    } catch (replacementError) {
+      if (isCurrent()) reportActionError(replacementError, t("workspace.feedback.loadFailed"), t("workspace.feedback.loadFailedTitle"))
+    } finally {
+      if (isCurrent()) setIsLoading(false)
+    }
+  }, [accessToken, navigate, objectId, reportActionError, t, workspaceId])
+
   const loadContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) {
       return
     }
 
+    const route = `${workspaceId}:${objectId}`
     setIsLoading(true)
     setError(null)
     setSaveState("idle")
@@ -395,7 +418,7 @@ export function WorkspaceObjectEditorPage() {
         getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId),
         listWorkspaceObjectVersions(accessToken, workspaceId, objectId),
       ])
-      if (contentLoadRequestRef.current !== requestId) {
+      if (contentLoadRequestRef.current !== requestId || currentObjectRouteRef.current !== route) {
         return
       }
       setObject(contentResponse.object)
@@ -406,23 +429,32 @@ export function WorkspaceObjectEditorPage() {
       setPreviewVersion(null)
       setPreviewContent(null)
     } catch (loadError) {
-      if (contentLoadRequestRef.current !== requestId) {
+      if (contentLoadRequestRef.current !== requestId || currentObjectRouteRef.current !== route) {
         return
       }
+      if (normalizeAppError(loadError).kind === "not_found") {
+        await openRemainingFile()
+        return
+      }
+      setObject(null)
       reportActionError(
         loadError,
         t("workspace.feedback.loadFailed"),
         t("workspace.feedback.loadFailedTitle"),
       )
     } finally {
-      if (contentLoadRequestRef.current === requestId) {
+      if (contentLoadRequestRef.current === requestId && currentObjectRouteRef.current === route) {
         setIsLoading(false)
       }
     }
-  }, [accessToken, objectId, reportActionError, t, workspaceId])
+  }, [accessToken, objectId, openRemainingFile, reportActionError, t, workspaceId])
 
   React.useEffect(() => {
+    setObject(null)
+    setIsEditing(false)
+    setIsHistoryOpen(false)
     void loadContent()
+    return () => { contentLoadRequestRef.current += 1 }
   }, [loadContent])
 
   React.useEffect(() => {
@@ -447,8 +479,14 @@ export function WorkspaceObjectEditorPage() {
       }
 
       const affectsCurrentObject =
-        detail.objectId === objectId || (Boolean(detail.path) && Boolean(object?.path) && detail.path === object?.path)
+        detail.objectId === objectId || (Boolean(detail.path) && Boolean(object?.path) && detail.path === object?.path) ||
+        (detail.action === "delete" && Boolean(detail.path) && Boolean(object?.path.startsWith(`${detail.path}/`)))
       if (!affectsCurrentObject) {
+        return
+      }
+
+      if (detail.action === "delete") {
+        void openRemainingFile(object?.parent_id)
         return
       }
 
@@ -469,7 +507,7 @@ export function WorkspaceObjectEditorPage() {
     return () => {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, handleWorkspaceObjectsChanged)
     }
-  }, [isDirty, loadContent, object?.path, objectId, t, version?.id, workspaceId])
+  }, [isDirty, loadContent, object?.path, object?.parent_id, objectId, openRemainingFile, t, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty) {
@@ -801,6 +839,7 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
+    const route = `${workspaceId}:${object.id}`
     const confirmed = await confirm({
       title: t("workspace.feedback.deleteTitle", { name: object.name }),
       description: t("workspace.feedback.deleteDescription"),
@@ -813,7 +852,6 @@ export function WorkspaceObjectEditorPage() {
 
     try {
       await deleteWorkspaceObject(accessToken, workspaceId, object.id)
-      ignoredWorkspaceEventKeysRef.current.add(`delete:${object.id}:`)
       dispatchWorkspaceObjectsChanged({
         workspaceId,
         objectId: object.id,
@@ -821,15 +859,15 @@ export function WorkspaceObjectEditorPage() {
         action: "delete",
         source: "user",
       })
-      navigate(defaultPath)
     } catch (deleteError) {
+      if (currentObjectRouteRef.current !== route) return
       reportActionError(
         deleteError,
         t("workspace.feedback.deleteFailed"),
         t("workspace.feedback.deleteFailedTitle"),
       )
     }
-  }, [accessToken, navigate, object, reportActionError, t, workspaceId])
+  }, [accessToken, object, reportActionError, t, workspaceId])
 
   const copyLink = React.useCallback(async () => {
     if (!workspaceId || !object) {
@@ -878,7 +916,7 @@ export function WorkspaceObjectEditorPage() {
           })}
         </div>
       ),
-      trailing: (
+      trailing: object && !isLoading ? (
         <div className="flex shrink-0 items-center gap-1.5">
           <span
             className={cn(
@@ -1020,7 +1058,7 @@ export function WorkspaceObjectEditorPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      ),
+      ) : null,
     })
 
     return () => {
@@ -1040,7 +1078,7 @@ export function WorkspaceObjectEditorPage() {
     isLoading,
     isSaving,
     moveObject,
-    object?.updated_by_actor_id,
+    object,
     objectId,
     openNewTab,
     renameObject,
@@ -1098,6 +1136,12 @@ export function WorkspaceObjectEditorPage() {
           <div className="flex h-full min-h-[520px] items-center justify-center text-sm text-muted-foreground">
             {t("workspace.preview.loadingFile")}
           </div>
+        ) : !object ? (
+          <EmptyState
+            className="m-6"
+            title={t("workspace.preview.selectFile")}
+            action={<Button variant="outline" onClick={() => void loadContent()}>{t("workspace.actions.reload")}</Button>}
+          />
         ) : isEditing ? (
           <React.Suspense
             fallback={

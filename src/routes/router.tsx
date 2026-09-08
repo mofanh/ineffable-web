@@ -194,7 +194,7 @@ export const router = createBrowserRouter([
         element,
       })),
       {
-        path: "workspace/:workspaceId/objects/:objectId",
+        path: "workspace/:workspaceId/objects/:objectId?",
         element: <WorkspaceObjectEditorPage />,
       },
       {
