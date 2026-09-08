@@ -9,7 +9,7 @@ let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "empty", "stale", "failure"]) {
+  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "empty", "stale", "failure", "loading-folder"]) {
     const page = await browser.newPage()
     const errors = []
     page.on("pageerror", e => errors.push(e.message))
@@ -21,6 +21,7 @@ try {
     let latestReads = 0
     let deleted = scenario === "missing"
     let release
+    let releaseContent
     const file = id => ({ id, workspace_id: "w", parent_id: "folder", kind: "file", name: `${id}.txt`, path: `notes/${id}.txt`, mime_type: "text/plain", updated_at: "2026-09-08T00:00:00Z", current_version_id: `v-${id}` })
     await page.route("**/gateway/v1/**", async route => {
       const url = new URL(route.request().url())
@@ -31,25 +32,32 @@ try {
       else if (url.pathname.endsWith("latest-file")) {
         latestReads++
         assert.equal(url.searchParams.get("excluded_id"), "a")
-        if (scenario !== "missing") assert.equal(url.searchParams.get("preferred_parent_id"), "folder")
+        assert.equal(url.searchParams.has("preferred_parent_id"), false, "the server resolves the predecessor directory")
         if (scenario === "stale") await new Promise(resolve => { release = resolve })
-        status = scenario === "failure" ? 500 : 200
-        body = scenario === "failure" ? { error: "lookup unavailable" } : { object: scenario === "empty" ? null : file(scenario === "stale" ? "c" : "b") }
+        status = scenario === "failure" && latestReads === 1 ? 500 : 200
+        body = status === 500 ? { error: "lookup unavailable" } : { object: scenario === "empty" ? null : file(scenario === "stale" ? "c" : "b") }
       } else if (route.request().method() === "DELETE") { deleted = true; body = { object: file("a") } }
       else if (url.pathname.includes("workspace-objects/")) {
         const id = url.pathname.split("workspace-objects/")[1].split("/")[0]
         if (id === "a" && deleted) { status = 404; body = { error: "object not found" } }
         else body = url.pathname.endsWith("versions") ? { versions: [] } : { object: file(id), content: `Content ${id.toUpperCase()}`, version: { id: `v-${id}`, version_no: 1 } }
       }
+      if (scenario === "loading-folder" && url.pathname.endsWith("/a/content")) {
+        await new Promise(resolve => { releaseContent = resolve })
+      }
       await route.fulfill({ status, json: body })
     })
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/workspace-delete-fixture.html`)
-    if (scenario !== "missing") await page.getByText("Content A", { exact: true }).waitFor()
+    if (scenario === "loading-folder") {
+      while (!releaseContent) await new Promise(resolve => setTimeout(resolve, 10))
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: "folder", path: "notes", action: "delete" } })))
+      releaseContent()
+    } else if (scenario !== "missing") await page.getByText("Content A", { exact: true }).waitFor()
     if (scenario === "editor") {
       await page.getByRole("button", { name: "File actions" }).click()
       await page.getByRole("menuitem", { name: "Delete file" }).click()
       await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click()
-    } else if (scenario !== "missing") {
+    } else if (scenario !== "missing" && scenario !== "loading-folder") {
       await page.evaluate(({ scenario }) => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: scenario === "unrelated" ? "other" : scenario === "folder" ? "folder" : "a", path: scenario === "folder" ? "notes" : scenario === "unrelated" ? "notes/other.txt" : "notes/a.txt", action: "delete", source: "user" } })), { scenario })
     }
     if (scenario === "stale") {
@@ -68,6 +76,10 @@ try {
       await page.getByText("lookup unavailable", { exact: true }).waitFor()
       assert.equal(await page.getByText("Content A", { exact: true }).count(), 0)
       assert.equal(await page.getByRole("button", { name: "Edit file", exact: true }).count(), 0)
+      deleted = true
+      await page.getByRole("button", { name: "Reload", exact: true }).click()
+      await page.getByText("Content B", { exact: true }).waitFor()
+      assert.equal(latestReads, 2)
     } else if (scenario === "unrelated") {
       assert.equal(latestReads, 0)
       assert.equal(await page.getByText("Content A", { exact: true }).count(), 1)

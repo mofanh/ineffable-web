@@ -379,7 +379,7 @@ export function WorkspaceObjectEditorPage() {
     setVersions(response.versions)
   }, [accessToken, objectId, workspaceId])
 
-  const openRemainingFile = React.useCallback(async (preferredParentId?: string | null) => {
+  const openRemainingFile = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) return
     const route = `${workspaceId}:${objectId}`
     const requestId = ++contentLoadRequestRef.current
@@ -391,7 +391,7 @@ export function WorkspaceObjectEditorPage() {
     setIsLoading(true)
     const isCurrent = () => currentObjectRouteRef.current === route && contentLoadRequestRef.current === requestId
     try {
-      const { object: next } = await getLatestWorkspaceFile(accessToken, workspaceId, objectId, preferredParentId)
+      const { object: next } = await getLatestWorkspaceFile(accessToken, workspaceId, objectId)
       if (!isCurrent()) return
       navigate(next ? `/workspace/${workspaceId}/objects/${next.id}` : `/workspace/${workspaceId}/objects`, { replace: true })
     } catch (replacementError) {
@@ -413,12 +413,24 @@ export function WorkspaceObjectEditorPage() {
     const requestId = contentLoadRequestRef.current + 1
     contentLoadRequestRef.current = requestId
 
+    // A parent deletion can arrive before the first response reveals this file's path.
+    const deletions: WorkspaceObjectsChangedEvent["detail"][] = []
+    const observeDeletion = (event: Event) => {
+      const detail = (event as WorkspaceObjectsChangedEvent).detail
+      if (detail?.workspaceId === workspaceId && detail.action === "delete") deletions.push(detail)
+    }
+    window.addEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
     try {
       const [contentResponse, versionsResponse] = await Promise.all([
         getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId),
         listWorkspaceObjectVersions(accessToken, workspaceId, objectId),
       ])
       if (contentLoadRequestRef.current !== requestId || currentObjectRouteRef.current !== route) {
+        return
+      }
+      if (deletions.some(detail => detail.objectId === contentResponse.object.id ||
+        (detail.path && (contentResponse.object.path === detail.path || contentResponse.object.path.startsWith(`${detail.path}/`))))) {
+        await openRemainingFile()
         return
       }
       setObject(contentResponse.object)
@@ -443,6 +455,7 @@ export function WorkspaceObjectEditorPage() {
         t("workspace.feedback.loadFailedTitle"),
       )
     } finally {
+      window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
       if (contentLoadRequestRef.current === requestId && currentObjectRouteRef.current === route) {
         setIsLoading(false)
       }
@@ -486,7 +499,7 @@ export function WorkspaceObjectEditorPage() {
       }
 
       if (detail.action === "delete") {
-        void openRemainingFile(object?.parent_id)
+        void openRemainingFile()
         return
       }
 
@@ -507,7 +520,7 @@ export function WorkspaceObjectEditorPage() {
     return () => {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, handleWorkspaceObjectsChanged)
     }
-  }, [isDirty, loadContent, object?.path, object?.parent_id, objectId, openRemainingFile, t, version?.id, workspaceId])
+  }, [isDirty, loadContent, object?.path, objectId, openRemainingFile, t, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty) {

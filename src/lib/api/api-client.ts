@@ -839,9 +839,8 @@ export function searchWorkspacePaths(accessToken: string, workspaceId: string, p
     `/gateway/v1/workspaces/${workspaceId}/search?${params}`, { accessToken, workspaceId })
 }
 
-export function getLatestWorkspaceFile(accessToken: string, workspaceId: string, excludedId: string, preferredParentId?: string | null) {
+export function getLatestWorkspaceFile(accessToken: string, workspaceId: string, excludedId: string) {
   const query = new URLSearchParams({ excluded_id: excludedId })
-  if (preferredParentId) query.set("preferred_parent_id", preferredParentId)
   return requestApiJson<{ object: WorkspaceObject | null }>(
     `/gateway/v1/workspaces/${workspaceId}/latest-file?${query}`, { accessToken, workspaceId }
   )
