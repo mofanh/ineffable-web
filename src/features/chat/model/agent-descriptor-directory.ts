@@ -6,14 +6,31 @@ type SearchPage = {
   next_cursor?: string | null
 }
 
+/** One budget survives authentication/catalog generations in a mounted picker. */
+export class AgentDescriptorSearchBudget {
+  private active = 0
+  private waiters: (() => void)[] = []
+
+  async run<T>(search: () => Promise<T>): Promise<T> {
+    if (this.active >= 4) await new Promise<void>(resolve => this.waiters.push(resolve))
+    else this.active++
+    try {
+      return await search()
+    } finally {
+      const next = this.waiters.shift()
+      if (next) next()
+      else this.active--
+    }
+  }
+}
+
 /** Instance-scoped to authentication and the workspace catalog. Missing optional
  * folders are cached briefly, but transport/permission failures remain failures. */
 export class AgentDescriptorDirectory {
   private cache = new Map<string, { expires: number; value: AgentDescriptorOption[] }>()
   private flights = new Map<string, Promise<AgentDescriptorOption[]>>()
 
-  private activeSearches = 0
-  private searchWaiters: (() => void)[] = []
+  private budget: AgentDescriptorSearchBudget
 
   private search: (workspaceId: string, cursor?: string) => Promise<SearchPage>
   private isMissing: (error: unknown) => boolean
@@ -23,10 +40,12 @@ export class AgentDescriptorDirectory {
     search: (workspaceId: string, cursor?: string) => Promise<SearchPage>,
     isMissing: (error: unknown) => boolean,
     now: () => number = Date.now,
+    budget = new AgentDescriptorSearchBudget(),
   ) {
     this.search = search
     this.isMissing = isMissing
     this.now = now
+    this.budget = budget
   }
 
   invalidate(workspaceId: string) {
@@ -63,28 +82,13 @@ export class AgentDescriptorDirectory {
     return flight
   }
 
-  private async searchPage(workspaceId: string, cursor?: string) {
-    if (this.activeSearches >= 4) {
-      await new Promise<void>(resolve => this.searchWaiters.push(resolve))
-    } else {
-      this.activeSearches++
-    }
-    try {
-      return await this.search(workspaceId, cursor)
-    } finally {
-      const next = this.searchWaiters.shift()
-      if (next) next() // Transfer the occupied slot to the next request.
-      else this.activeSearches--
-    }
-  }
-
   private async searchAll(workspace: Workspace) {
     const options: AgentDescriptorOption[] = []
     let cursor: string | undefined
     do {
       let page: SearchPage
       try {
-        page = await this.searchPage(workspace.id, cursor)
+        page = await this.budget.run(() => this.search(workspace.id, cursor))
       } catch (error) {
         if (this.isMissing(error)) return []
         throw error

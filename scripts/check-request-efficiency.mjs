@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import ts from "typescript"
 import { ConversationPageLoader } from "../src/features/chat/model/conversation-page-loader.ts"
-import { AgentDescriptorDirectory } from "../src/features/chat/model/agent-descriptor-directory.ts"
+import { AgentDescriptorDirectory, AgentDescriptorSearchBudget } from "../src/features/chat/model/agent-descriptor-directory.ts"
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const loader = new ConversationPageLoader()
 let calls = 0
@@ -47,7 +47,7 @@ const scope = {
   streamStatusRef: { current: "idle" }, conversationSeqRef: { current: new Map() }, hydratedConversationIdRef: { current: null },
 }
 scope.syncLatestConversationMessagesPage = callback("syncLatestConversationMessagesPage", scope)
-void scope.syncLatestConversationMessagesPage("a")
+void scope.syncLatestConversationMessagesPage("a", null, "coalesce")
 void callback("syncConversationIfBehind", scope)("a")
 assert.deepEqual({ messages, details }, { messages: 1, details: 1 })
 
@@ -72,7 +72,7 @@ const projectionScope = {
   setHydratedConversationId() {}, setOlderMessagesError() {}, setError() {},
 }
 const sync = callback("syncLatestConversationMessagesPage", projectionScope)
-const initial = sync("a"), terminal = sync("a", { runId: "run", messageSeqEnd: 2 }), ordinary = sync("a")
+const initial = sync("a", null, "coalesce"), terminal = sync("a", { runId: "run", messageSeqEnd: 2 }), ordinary = sync("a", null, "coalesce")
 beforeTerminal.resolve({ messages: [{ id: "old" }], next_seq: 1 })
 await initial
 for (let i = 0; i < 5; i++) await Promise.resolve()
@@ -80,6 +80,41 @@ assert.equal(pageReads, 2)
 afterTerminal.resolve({ messages: [{ id: "canonical" }], next_seq: 2 })
 assert.equal(await terminal, true); await ordinary
 assert.deepEqual(visibleEntries, [{ id: "canonical" }], "confirmed terminal data must reach the latest projection")
+
+// All explicit post-transition refreshes require a new snapshot, even without
+// a terminal watermark (AwaitingHuman, failure, resume, queue mutations).
+function declaredFunction(name, scope) {
+  let expression
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) expression = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast); assert.ok(expression, name)
+  const code = ts.transpile(expression, { target: ts.ScriptTarget.ES2022 })
+  return new Function("scope", `with(scope) { ${code}; return ${name} }`)(scope)
+}
+const preQuestion = deferred(), canonicalQuestion = deferred()
+let questionReads = 0, awaitingRefresh
+const waitingScope = {
+  ...projectionScope, latestPageLoader: new ConversationPageLoader(), messageProjectionRequestRef: { current: 0 },
+  getConversationMessages: () => (++questionReads === 1 ? preQuestion.promise : canonicalQuestion.promise),
+  humanInputSubmissionGenerationRef: { current: 0 }, activeRunIdRef: { current: "run" },
+  terminalEventSeenRef: { current: false }, recoveryRequestIdRef: { current: 0 },
+  recoveryInFlightRef: { current: false }, assistantEntryIdRef: { current: null },
+  clearRecoveryTimer() {}, clearConversationResumeState() {}, completeAssistantEntry() {},
+  updateStreamStatus() {}, refreshConversations: async () => {},
+}
+const syncWaiting = callback("syncLatestConversationMessagesPage", waitingScope)
+waitingScope.syncLatestConversationMessagesPage = (...args) => { awaitingRefresh = syncWaiting(...args); return awaitingRefresh }
+const initialQuestion = syncWaiting("a", null, "coalesce")
+declaredFunction("markAwaitingHuman", waitingScope)("run")
+preQuestion.resolve({ messages: [{ id: "pre-question" }], next_seq: 3 })
+await initialQuestion
+for (let i = 0; i < 5; i++) await Promise.resolve()
+assert.equal(questionReads, 2, "AwaitingHuman must fetch after its canonical commit")
+canonicalQuestion.resolve({ messages: [{ id: "question" }], next_seq: 4 })
+await awaitingRefresh
+assert.deepEqual(visibleEntries, [{ id: "question" }])
 
 let clock = 0, searches = 0, fail = false
 const missing = Error("missing")
@@ -110,14 +145,18 @@ assert.equal((await changing.load(spaces))[0].label, "new")
 // Repeated mutation invalidations share a directory-wide concurrency budget.
 let active = 0, peak = 0
 const outstanding = []
-const bounded = new AgentDescriptorDirectory(async () => {
+const budget = new AgentDescriptorSearchBudget()
+const searchBounded = async () => {
   active++; peak = Math.max(peak, active)
   const pending = deferred(); outstanding.push(pending)
   try { return await pending.promise } finally { active-- }
-}, () => false)
+}
+const bounded = new AgentDescriptorDirectory(searchBounded, () => false, Date.now, budget)
 const four = ["a", "b", "c", "d"].map(id => ({ id, name: id }))
 const batches = [bounded.load(four)]
 for (let i = 0; i < 3; i++) { bounded.invalidate("a"); batches.push(bounded.load(four)) }
+const replacement = new AgentDescriptorDirectory(searchBounded, () => false, Date.now, budget)
+batches.push(replacement.load(four))
 assert.equal(active, 4)
 let settled = false
 const done = Promise.all(batches).then(() => { settled = true })

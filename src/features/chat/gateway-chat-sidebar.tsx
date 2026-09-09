@@ -1826,7 +1826,8 @@ export function GatewayChatSidebar({
   const syncLatestConversationMessagesPage = React.useCallback(
     async (
       conversationId: string,
-      handoff?: CanonicalAssistantHandoff | null
+      handoff?: CanonicalAssistantHandoff | null,
+      freshness: "fresh" | "coalesce" = "fresh"
     ) => {
       if (!accessToken) {
         setEntries([])
@@ -1855,7 +1856,7 @@ export function GatewayChatSidebar({
             }),
             getConversation(accessToken, conversationId).catch(() => null),
           ]),
-          Boolean(handoff)
+          Boolean(handoff) || freshness === "fresh"
         )
         const latestEntries = mapConversationMessagesToEntries(response.messages)
         const latestRuntimeSelection =
@@ -2033,7 +2034,7 @@ export function GatewayChatSidebar({
       return
     }
 
-    void syncLatestConversationMessagesPage(currentConversationId).catch((loadError) => {
+    void syncLatestConversationMessagesPage(currentConversationId, null, "coalesce").catch((loadError) => {
       setEntries([])
       setError(
         reportChatError(
@@ -3041,7 +3042,7 @@ export function GatewayChatSidebar({
       try {
         const hasCursor = conversationSeqRef.current.has(conversationId)
         if (hydratedConversationIdRef.current !== conversationId || !hasCursor) {
-          await syncLatestConversationMessagesPage(conversationId)
+          await syncLatestConversationMessagesPage(conversationId, null, "coalesce")
           return
         }
 

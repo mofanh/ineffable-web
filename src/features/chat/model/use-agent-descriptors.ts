@@ -2,10 +2,11 @@ import * as React from "react"
 import { searchWorkspacePaths } from "@/features/workspace/api/workspace-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { WORKSPACE_OBJECTS_CHANGED_EVENT, type WorkspaceObjectsChangedEvent } from "@/lib/workspace-events"
-import { AgentDescriptorDirectory } from "./agent-descriptor-directory"
+import { AgentDescriptorDirectory, AgentDescriptorSearchBudget } from "./agent-descriptor-directory"
 import type { AgentDescriptorOption } from "../components/chat-composer"
 
 export function useAgentDescriptors(accessToken: string | null | undefined, workspaces: { id: string; name: string }[]) {
+  const [budget] = React.useState(() => new AgentDescriptorSearchBudget())
   const [open, setOpen] = React.useState(false)
   const [revision, refresh] = React.useReducer(value => value + 1, 0)
   const workspaceKey = JSON.stringify(workspaces.map(({ id, name }) => ({ id, name })).sort((a, b) => a.id.localeCompare(b.id)))
@@ -14,8 +15,9 @@ export function useAgentDescriptors(accessToken: string | null | undefined, work
     directory: new AgentDescriptorDirectory(
       (id, cursor) => searchWorkspacePaths(accessToken!, id, "system/agents", ".md", cursor),
       error => normalizeAppError(error).kind === "not_found",
+      Date.now, budget,
     ),
-  }), [accessToken, workspaceKey])
+  }), [accessToken, workspaceKey, budget])
   const [result, setResult] = React.useState<{
     directory: AgentDescriptorDirectory; catalog: typeof catalog;
     options: AgentDescriptorOption[]; loading: boolean; error: string | null
