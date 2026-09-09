@@ -51,6 +51,36 @@ void scope.syncLatestConversationMessagesPage("a")
 void callback("syncConversationIfBehind", scope)("a")
 assert.deepEqual({ messages, details }, { messages: 1, details: 1 })
 
+// A handoff barrier must own the snapshot used by later ordinary projections.
+const beforeTerminal = deferred(), afterTerminal = deferred()
+let pageReads = 0, visibleEntries = [{ id: "old" }]
+const projectionScope = {
+  ...scope, latestPageLoader: new ConversationPageLoader(),
+  messageProjectionRequestRef: { current: 0 },
+  getConversationMessages: () => (++pageReads === 1 ? beforeTerminal.promise : afterTerminal.promise),
+  getConversation: async () => ({}),
+  mapConversationMessagesToEntries: messages => messages,
+  findLatestConversationRuntimeSelection: () => null,
+  hasCanonicalAssistantHandoff: entries => entries.some(entry => entry.id === "canonical"),
+  setConversationLastSeq() {},
+  shouldApplyConversationProjection: ({ conversationId, selectedConversationId, requestId, latestRequestId }) => conversationId === selectedConversationId && requestId === latestRequestId,
+  capabilityExposureSelectionRef: { current: null }, setCapabilityExposureSelection() {}, setCapabilityExposurePolicy() {},
+  hydratedConversationIdRef: { current: "a" }, entriesRef: { current: visibleEntries },
+  setEntries: update => { visibleEntries = update(visibleEntries) },
+  reduceCurrentTimeline: (_current, action) => action.entries,
+  displayedConversationIdRef: { current: "a" }, setDisplayedConversationId() {},
+  setHydratedConversationId() {}, setOlderMessagesError() {}, setError() {},
+}
+const sync = callback("syncLatestConversationMessagesPage", projectionScope)
+const initial = sync("a"), terminal = sync("a", { runId: "run", messageSeqEnd: 2 }), ordinary = sync("a")
+beforeTerminal.resolve({ messages: [{ id: "old" }], next_seq: 1 })
+await initial
+for (let i = 0; i < 5; i++) await Promise.resolve()
+assert.equal(pageReads, 2)
+afterTerminal.resolve({ messages: [{ id: "canonical" }], next_seq: 2 })
+assert.equal(await terminal, true); await ordinary
+assert.deepEqual(visibleEntries, [{ id: "canonical" }], "confirmed terminal data must reach the latest projection")
+
 let clock = 0, searches = 0, fail = false
 const missing = Error("missing")
 const directory = new AgentDescriptorDirectory(async () => {
@@ -77,4 +107,24 @@ changing.invalidate("a")
 assert.equal((await changing.load(spaces))[0].label, "new")
 stale.resolve({ matches: [] }); await staleLoad
 assert.equal((await changing.load(spaces))[0].label, "new")
+// Repeated mutation invalidations share a directory-wide concurrency budget.
+let active = 0, peak = 0
+const outstanding = []
+const bounded = new AgentDescriptorDirectory(async () => {
+  active++; peak = Math.max(peak, active)
+  const pending = deferred(); outstanding.push(pending)
+  try { return await pending.promise } finally { active-- }
+}, () => false)
+const four = ["a", "b", "c", "d"].map(id => ({ id, name: id }))
+const batches = [bounded.load(four)]
+for (let i = 0; i < 3; i++) { bounded.invalidate("a"); batches.push(bounded.load(four)) }
+assert.equal(active, 4)
+let settled = false
+const done = Promise.all(batches).then(() => { settled = true })
+while (!settled) {
+  outstanding.splice(0).forEach(item => item.resolve({ matches: [] }))
+  await new Promise(resolve => setImmediate(resolve))
+}
+await done
+assert.equal(peak, 4); assert.equal(active, 0)
 console.log("Request efficiency checks passed: production callbacks, handoff freshness, auth isolation, retry, lazy/negative cache and invalidation")

@@ -12,6 +12,9 @@ export class AgentDescriptorDirectory {
   private cache = new Map<string, { expires: number; value: AgentDescriptorOption[] }>()
   private flights = new Map<string, Promise<AgentDescriptorOption[]>>()
 
+  private activeSearches = 0
+  private searchWaiters: (() => void)[] = []
+
   private search: (workspaceId: string, cursor?: string) => Promise<SearchPage>
   private isMissing: (error: unknown) => boolean
   private now: () => number
@@ -60,13 +63,28 @@ export class AgentDescriptorDirectory {
     return flight
   }
 
+  private async searchPage(workspaceId: string, cursor?: string) {
+    if (this.activeSearches >= 4) {
+      await new Promise<void>(resolve => this.searchWaiters.push(resolve))
+    } else {
+      this.activeSearches++
+    }
+    try {
+      return await this.search(workspaceId, cursor)
+    } finally {
+      const next = this.searchWaiters.shift()
+      if (next) next() // Transfer the occupied slot to the next request.
+      else this.activeSearches--
+    }
+  }
+
   private async searchAll(workspace: Workspace) {
     const options: AgentDescriptorOption[] = []
     let cursor: string | undefined
     do {
       let page: SearchPage
       try {
-        page = await this.search(workspace.id, cursor)
+        page = await this.searchPage(workspace.id, cursor)
       } catch (error) {
         if (this.isMissing(error)) return []
         throw error

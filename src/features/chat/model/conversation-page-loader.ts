@@ -5,13 +5,10 @@ export class ConversationPageLoader<T> {
 
   async load(key: string, read: () => Promise<T>, fresh = false): Promise<T> {
     const previous = this.flights.get(key)
-    if (previous) {
-      if (!fresh) return previous
-      await previous.catch(() => undefined)
-    }
-    const joined = this.flights.get(key)
-    if (joined) return joined
-    const flight = read()
+    if (previous && !fresh) return previous
+    // Publish the freshness barrier immediately. Later ordinary callers must
+    // join the fresh snapshot, not steal projection ownership with older data.
+    const flight = previous ? previous.catch(() => undefined).then(read) : read()
     this.flights.set(key, flight)
     try {
       return await flight
