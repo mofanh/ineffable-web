@@ -21,6 +21,8 @@
     "check:admin-usage-timeseries": "tsx scripts/check-admin-usage-timeseries.mjs",
     "check:automation-runtime": "node scripts/check-automation-runtime-browser.mjs",
     "check:chat-browser": "node scripts/check-chat-virtualization-browser.mjs",
+    "check:request-efficiency": "tsx scripts/check-request-efficiency.mjs",
+    "check:request-efficiency-browser": "node scripts/check-request-efficiency-browser.mjs",
     "check:sandbox-delivery-browser": "node scripts/check-sandbox-delivery-browser.mjs",
     "check:sandbox-delivery": "node --experimental-strip-types scripts/check-sandbox-delivery.mjs",
     "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",

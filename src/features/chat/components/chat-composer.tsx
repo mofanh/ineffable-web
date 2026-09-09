@@ -73,6 +73,10 @@ type ChatComposerProps = {
   blockedPreInputRunStatus: string | null
   pendingQueueAction: "idle" | "resuming" | "clearing"
   preInputQueue: PreInputQueueItem[]
+  agentDescriptorsLoading?: boolean
+  agentDescriptorsError?: string | null
+  onAgentMenuOpenChange?: (open: boolean) => void
+  onAgentDescriptorsRetry?: () => void
   agentDescriptorOptions: AgentDescriptorOption[]
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
@@ -118,6 +122,10 @@ export function ChatComposer({
   pendingQueueAction,
   preInputQueue,
   agentDescriptorOptions,
+  agentDescriptorsLoading = false,
+  agentDescriptorsError,
+  onAgentMenuOpenChange,
+  onAgentDescriptorsRetry,
   modelOptions,
   isModelCatalogLoaded,
   selectedModelProfileId,
@@ -254,6 +262,10 @@ export function ChatComposer({
     [filteredAgentOptions]
   )
   const shouldShowAgentMenu = isAgentMenuOpen && Boolean(agentTrigger)
+  React.useEffect(() => {
+    onAgentMenuOpenChange?.(shouldShowAgentMenu)
+    return () => onAgentMenuOpenChange?.(false)
+  }, [shouldShowAgentMenu, onAgentMenuOpenChange])
   const hasAgentFiles = agentDescriptorOptions.length > 0
   const hasFilteredAgentFiles = filteredAgentOptions.length > 0
   const agentMenuHint = hasAgentFiles
@@ -443,7 +455,14 @@ export function ChatComposer({
               </div>
 
               <div className="max-h-64 overflow-y-auto">
-                {hasFilteredAgentFiles ? (
+                {agentDescriptorsLoading ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground" role="status">{t("common.loading")}</div>
+                ) : agentDescriptorsError ? (
+                  <div className="px-3 py-4 text-sm" role="alert">
+                    <p>{agentDescriptorsError}</p>
+                    <Button variant="ghost" size="sm" onMouseDown={handleAgentOptionMouseDown} onClick={onAgentDescriptorsRetry}>{t("common.retry")}</Button>
+                  </div>
+                ) : hasFilteredAgentFiles ? (
                   groupedAgentOptions.map((group) => (
                     <div key={group.workspaceId} className="py-1">
                       <div className="px-2 py-1 text-[11px] font-medium uppercase text-muted-foreground">

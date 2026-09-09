@@ -239,6 +239,9 @@ return (
 
 ## Agent Run 前端运行时
 
+- 首屏与页面激活补拉共享同登录态、会话的在途最新页请求；canonical handoff 等旧快照结束后重新读取，仍按原会话与请求 generation 投影，不缓存完成后的历史页。
+- Agent 文件选择器只在打开 @ 菜单时搜索 system/agents，目录查询最多四个并发；成功与缺失目录短缓存按认证和空间目录隔离。文件变化失效对应空间，其他错误明确展示并可重试，不能伪装成没有文件。
+
 - `runtime/conversation-run-reducer.ts` 只根据 canonical lifecycle event 更新业务状态；
   transport EOF、断线和重连只能更新 connection state，不能生成 completed/failed。
 - `ChatRuntimeStore` 按 conversation 隔离 run、cursor、terminal 与连接状态；所有 live/replay

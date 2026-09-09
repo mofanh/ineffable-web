@@ -1,3 +1,5 @@
+import { useAgentDescriptors } from "@/features/chat/model/use-agent-descriptors"
+import { ConversationPageLoader } from "@/features/chat/model/conversation-page-loader"
 import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
@@ -21,7 +23,6 @@ import { AgentPlanPanel } from "@/features/chat/components/agent-plan-panel"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import {
   ChatComposer,
-  type AgentDescriptorOption,
   type ModelProfileOption,
   type PreInputQueueItem,
 } from "@/features/chat/components/chat-composer"
@@ -167,7 +168,6 @@ import {
   isActionablePreInput,
   isPendingInputSuccessorRun,
 } from "@/features/chat/model/pending-input"
-import { searchWorkspacePaths } from "@/features/workspace/api/workspace-api"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
@@ -447,9 +447,7 @@ export function GatewayChatSidebar({
   const [trialVerdictBusy, setTrialVerdictBusy] = React.useState<
     "accept" | "rollback" | null
   >(null)
-  const [agentDescriptorOptions, setAgentDescriptorOptions] = React.useState<
-    AgentDescriptorOption[]
-  >([])
+  const agentDescriptors = useAgentDescriptors(accessToken, workspaces)
 
   const reportChatError = React.useCallback(
     (
@@ -1290,56 +1288,6 @@ export function GatewayChatSidebar({
     }
   }, [refreshSandboxOptions])
 
-  React.useEffect(() => {
-    if (!accessToken || !workspaces.length) {
-      setAgentDescriptorOptions([])
-      return
-    }
-
-    let cancelled = false
-    Promise.allSettled(
-      workspaces.map(async (workspace) => {
-        const found: { id: string; path: string; name: string; kind: string }[] = []
-        let cursor: string | undefined
-        do {
-          const page = await searchWorkspacePaths(accessToken, workspace.id, "system/agents", ".md", cursor)
-          if (cancelled) return []
-          found.push(...page.matches.map(match => match.object))
-          cursor = page.next_cursor ?? undefined
-        } while (cursor)
-        return found
-          .filter(
-            (object) =>
-              object.kind === "file" &&
-              object.path.startsWith("system/agents/") &&
-              object.path.endsWith(".md") &&
-              !object.path.includes("..") &&
-              !object.path.includes("\\")
-          )
-          .map((object) => ({
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-            path: object.path,
-            label: object.name || object.path,
-          }))
-      })
-    )
-      .then((groups) => {
-        if (!cancelled) {
-          setAgentDescriptorOptions(groups.flatMap(group => group.status === "fulfilled" ? group.value : []))
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAgentDescriptorOptions([])
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken, workspaces])
-
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
     if (!currentConversationId || !accessToken) {
@@ -1870,6 +1818,11 @@ export function GatewayChatSidebar({
     [accessToken, setConversationLastSeq]
   )
 
+  const [latestPageLoader] = React.useState(() => new ConversationPageLoader<[
+    Awaited<ReturnType<typeof getConversationMessages>>,
+    Awaited<ReturnType<typeof getConversation>> | null,
+  ]>())
+
   const syncLatestConversationMessagesPage = React.useCallback(
     async (
       conversationId: string,
@@ -1894,12 +1847,16 @@ export function GatewayChatSidebar({
       }
 
       try {
-        const [response, conversationDetail] = await Promise.all([
-          getConversationMessages(accessToken, conversationId, {
-            limit: CONVERSATION_MESSAGES_PAGE_LIMIT,
-          }),
-          getConversation(accessToken, conversationId).catch(() => null),
-        ])
+        const [response, conversationDetail] = await latestPageLoader.load(
+          JSON.stringify([accessToken, conversationId]),
+          () => Promise.all([
+            getConversationMessages(accessToken, conversationId, {
+              limit: CONVERSATION_MESSAGES_PAGE_LIMIT,
+            }),
+            getConversation(accessToken, conversationId).catch(() => null),
+          ]),
+          Boolean(handoff)
+        )
         const latestEntries = mapConversationMessagesToEntries(response.messages)
         const latestRuntimeSelection =
           findLatestConversationRuntimeSelection(response.messages)
@@ -2026,7 +1983,7 @@ export function GatewayChatSidebar({
         }
       }
     },
-    [accessToken, setConversationLastSeq, reduceCurrentTimeline]
+    [accessToken, setConversationLastSeq, reduceCurrentTimeline, latestPageLoader]
   )
 
   React.useEffect(() => {
@@ -4290,7 +4247,11 @@ export function GatewayChatSidebar({
         blockedPreInputRunStatus={blockedPreInputRunStatus}
         pendingQueueAction={pendingQueueAction}
         preInputQueue={preInputQueue}
-        agentDescriptorOptions={agentDescriptorOptions}
+        agentDescriptorOptions={agentDescriptors.options}
+        agentDescriptorsLoading={agentDescriptors.loading}
+        agentDescriptorsError={agentDescriptors.error}
+        onAgentMenuOpenChange={agentDescriptors.setOpen}
+        onAgentDescriptorsRetry={agentDescriptors.refresh}
         modelOptions={modelOptions}
         isModelCatalogLoaded={isModelCatalogLoaded}
         selectedModelProfileId={selectedModelProfileId}
