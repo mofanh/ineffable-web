@@ -27,12 +27,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Chat runtime gates
-        run: |
-          npm run check:chat-architecture
-          npm run check:chat-web-runtime
-          npm run check:chat-web-integration
-          npm run check:chat-browser
+      - name: Chat architecture
+        run: npm run check:chat-architecture
+
+      - name: Chat web runtime
+        run: npm run check:chat-web-runtime
+
+      - name: Chat web integration
+        run: npm run check:chat-web-integration
+
+      - name: Chat browser
+        run: npm run check:chat-browser
 
       - name: Lint
         run: npm run lint

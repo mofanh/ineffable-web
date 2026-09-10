@@ -25,7 +25,11 @@ try {
   const address = server.httpServer?.address()
   assert.ok(address && typeof address === "object")
   browser = await chromium.launch({ executablePath, headless: true })
-  const page = await browser.newPage({ viewport: { width: 900, height: 700 } })
+  // Role locators below assert Chinese labels; do not inherit the runner's locale.
+  const page = await browser.newPage({
+    viewport: { width: 900, height: 700 },
+    locale: "zh-CN",
+  })
   await page.goto(
     `http://127.0.0.1:${address.port}/scripts/chat-virtualization-fixture.html`
   )
