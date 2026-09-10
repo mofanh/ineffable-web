@@ -222,7 +222,9 @@ export function SystemPageShell({
         empty={false}
         onRetry={onRefresh}
       >
-        {children}
+        <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+          {children}
+        </div>
       </DataState>
     </AppMetricPage>
   );
