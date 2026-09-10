@@ -2634,3 +2634,13 @@ for (const [code, pattern] of [["rate_limited", /限流|rate limited/], ["captch
 assert.equal(parseWebToolResult(JSON.stringify({kind:"web_search",schema_version:1,error:"x",retry_after_seconds:-1})).retryAfter,null)
 assert.equal(parseWebToolResult(JSON.stringify({kind:"web_search",schema_version:1,error:"x",retry_after_seconds:999999})).retryAfter,null)
 console.log("web search failure and cooldown rendering checks passed")
+
+{
+  let tree
+  const output = JSON.stringify({kind:"web_fetch",schema_version:1,error:"Web request deadline exceeded",code:"timeout"})
+  await act(async () => { tree = TestRenderer.create(renderSpecializedTool({tool:{id:"fetch-timeout",name:"alias",input:"{}",output,status:"failed"},canRespondToUserInput:false})) })
+  const rendered = JSON.stringify(tree.toJSON())
+  assert.match(rendered, /网络请求响应超时|web request timed out/)
+  assert.doesNotMatch(rendered, /搜索来源|search source/)
+  await act(async () => { tree.unmount() })
+}
