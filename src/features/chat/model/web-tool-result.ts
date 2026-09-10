@@ -12,12 +12,25 @@ export function safeWebSourceUrl(value: unknown): string | null {
 export function parseWebToolResult(output: string) {
   const value = parseLeadingJsonObject(output)
   if (value?.schema_version !== 1 || (value.kind !== "web_search" && value.kind !== "web_fetch")) return null
-  if (typeof value.error === "string") return { kind: value.kind, error: value.error } as const
+  const warnings = Array.isArray(value.warnings) ? value.warnings.slice(0, 20).flatMap((item: unknown) => {
+    if (!item || typeof item !== "object") return []
+    const row = item as Record<string, unknown>
+    return typeof row.source === "string" && typeof row.code === "string"
+      ? [{ source: row.source.slice(0, 80), code: row.code }] : []
+  }) : []
+  if (typeof value.error === "string") return {
+    kind: value.kind, error: value.error,
+    code: typeof value.code === "string" ? value.code : "",
+    retryAfter: typeof value.retry_after_seconds === "number" && Number.isFinite(value.retry_after_seconds)
+      && value.retry_after_seconds > 0 && value.retry_after_seconds <= 3600 ? Math.ceil(value.retry_after_seconds) : null,
+    warnings,
+  } as const
   if (value.content_origin !== "untrusted_external") return null
   if (value.kind === "web_search" && Array.isArray(value.results)) {
     return {
       kind: "web_search" as const,
       partial: value.partial === true,
+      warnings,
       truncated: value.truncated === true,
       results: value.results.slice(0, 20).flatMap((item: unknown) => {
         if (!item || typeof item !== "object") return []

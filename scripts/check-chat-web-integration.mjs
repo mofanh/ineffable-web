@@ -2619,3 +2619,18 @@ assert.equal(webTree.root.findAllByType("script").length, 0)
 await act(async () => { webTree.unmount() })
 assert.equal(renderSpecializedTool({tool:{id:"unknown",name:"web_search",output:"unknown payload",status:"succeeded"},canRespondToUserInput:false}),null)
 console.log("web search and page result rendering checks passed")
+
+for (const [code, pattern] of [["rate_limited", /限流|rate limited/], ["captcha", /验证码|CAPTCHA/]]) {
+  const output = JSON.stringify({kind:"web_search",schema_version:1,error:"generic upstream",code,retry_after_seconds:30,warnings:[{source:"google cse",code}]})
+  assert.equal(parseWebToolResult(output).retryAfter, 30)
+  let tree
+  await act(async () => { tree = TestRenderer.create(renderSpecializedTool({tool:{id:code,name:"alias",input:"{}",output,status:"failed"},canRespondToUserInput:false})) })
+  assert.match(JSON.stringify(tree.toJSON()), pattern)
+  await act(async () => { tree.root.findByType(ToolCallShell).findByType("button").props.onClick({defaultPrevented:false}) })
+  assert.match(JSON.stringify(tree.toJSON()), /30/)
+  assert.match(JSON.stringify(tree.toJSON()), /google cse/)
+  await act(async () => { tree.unmount() })
+}
+assert.equal(parseWebToolResult(JSON.stringify({kind:"web_search",schema_version:1,error:"x",retry_after_seconds:-1})).retryAfter,null)
+assert.equal(parseWebToolResult(JSON.stringify({kind:"web_search",schema_version:1,error:"x",retry_after_seconds:999999})).retryAfter,null)
+console.log("web search failure and cooldown rendering checks passed")
