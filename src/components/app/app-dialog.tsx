@@ -33,7 +33,7 @@ export function AppDialog({
         <DialogPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs" />
         <DialogPrimitive.Content
           className={cn(
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-border p-0 shadow-lg duration-100 outline-none",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 bg-background fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] sm:max-h-[85dvh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-border p-0 shadow-lg duration-100 outline-none",
             footer
               ? "grid-rows-[auto_minmax(0,1fr)_auto]"
               : "grid-rows-[auto_minmax(0,1fr)]",
@@ -44,7 +44,7 @@ export function AppDialog({
             maxWidth === "6xl" && "max-w-6xl"
           )}
         >
-          <div className="border-border border-b px-5 py-4 pr-12">
+          <div className="min-w-0 wrap-anywhere border-border border-b px-4 py-4 pr-12 sm:px-5 sm:pr-12">
             <DialogPrimitive.Title className="text-base font-medium">
               {title}
             </DialogPrimitive.Title>
@@ -54,7 +54,7 @@ export function AppDialog({
               </DialogPrimitive.Description>
             ) : null}
           </div>
-          <div className="min-h-0 overscroll-contain overflow-y-auto p-5">
+          <div className="min-h-0 min-w-0 overscroll-contain overflow-y-auto p-4 sm:p-5">
             {children}
           </div>
           {footer}
@@ -86,7 +86,7 @@ export function AppDialogFooter({
     <div
       data-slot="app-dialog-footer"
       className={cn(
-        "bg-background border-border flex min-h-14 shrink-0 items-center justify-end gap-2 border-t px-5 py-2",
+        "bg-background border-border flex min-h-14 shrink-0 flex-wrap items-center justify-end gap-2 border-t px-5 py-2",
         className
       )}
     >

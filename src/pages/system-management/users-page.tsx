@@ -384,17 +384,17 @@ export function SystemUserManagementPage() {
         />
         <div className="grid gap-3">
           {filteredUsers.length > 0 ? (
-            <DataTableShell>
+            <DataTableShell tableClassName="min-w-0">
               <DataTableHeader>
                 <tr>
-                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-12 px-2 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">
                     {t("system.users.columns.user")}
                   </th>
                   <th className="hidden w-20 px-4 py-3 @xl/table:table-cell">
                     {t("system.users.columns.role")}
                   </th>
-                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">
+                  <th className="hidden w-20 px-3 py-3 @sm/table:table-cell sm:w-24 sm:px-4">
                     {t("system.users.columns.status")}
                   </th>
                   <th className="hidden w-28 px-4 py-3 @3xl/table:table-cell">
@@ -423,7 +423,7 @@ export function SystemUserManagementPage() {
                   return (
                     <React.Fragment key={user.id}>
                       <tr className="hover:bg-muted/20">
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="px-2 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -447,6 +447,12 @@ export function SystemUserManagementPage() {
                           <div className="mt-1 truncate text-xs text-muted-foreground">
                             {user.email}
                           </div>
+                          <div className="mt-2 @sm/table:hidden">
+                            <StatusBadge
+                              status={user.status}
+                              label={systemStatusLabel(user.status)}
+                            />
+                          </div>
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">
                           <StatusBadge
@@ -454,7 +460,7 @@ export function SystemUserManagementPage() {
                             label={systemStatusLabel(user.role ?? "user")}
                           />
                         </td>
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="hidden px-3 py-3 @sm/table:table-cell sm:px-4">
                           <StatusBadge
                             status={user.status}
                             label={systemStatusLabel(user.status)}
@@ -487,6 +493,7 @@ export function SystemUserManagementPage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={t("system.users.edit")}
                               onClick={() => openEditDialog(user)}
                             >
                               <Edit3Icon />

@@ -17,13 +17,13 @@ export function AppDisclosureSection({
   const [open, setOpen] = React.useState(defaultOpen)
 
   return (
-    <section className="rounded-md border border-border bg-background">
+    <section className="min-w-0 rounded-md border border-border bg-background">
       <button
         type="button"
         className="flex w-full items-start justify-between gap-4 px-4 py-3 text-left"
         onClick={() => setOpen((current) => !current)}
       >
-        <span>
+        <span className="min-w-0 wrap-anywhere">
           <span className="block text-sm font-medium">{title}</span>
           {description ? (
             <span className="mt-1 block text-xs leading-5 text-muted-foreground">
@@ -38,7 +38,7 @@ export function AppDisclosureSection({
           )}
         />
       </button>
-      {open ? <div className="border-t border-border p-4">{children}</div> : null}
+      {open ? <div className="min-w-0 border-t border-border p-3 sm:p-4">{children}</div> : null}
     </section>
   )
 }

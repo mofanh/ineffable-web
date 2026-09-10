@@ -519,10 +519,10 @@ export function SystemPlanManagementPage() {
         />
         <div className="grid gap-3">
           {filteredPlans.length > 0 ? (
-            <DataTableShell>
+            <DataTableShell tableClassName="min-w-0">
               <DataTableHeader>
                 <tr>
-                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-12 px-2 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">
                     {t("system.plans.columns.plan")}
                   </th>
@@ -538,7 +538,7 @@ export function SystemPlanManagementPage() {
                   <th className="hidden w-32 px-4 py-3 @5xl/table:table-cell">
                     {t("system.plans.columns.pressure")}
                   </th>
-                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">
+                  <th className="hidden w-20 px-3 py-3 @sm/table:table-cell sm:w-24 sm:px-4">
                     {t("system.plans.columns.status")}
                   </th>
                   <th className="w-24 px-3 py-3 text-right sm:w-40 sm:px-4">
@@ -557,7 +557,7 @@ export function SystemPlanManagementPage() {
                   return (
                     <React.Fragment key={plan.id}>
                       <tr className="hover:bg-muted/20">
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="px-2 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -581,6 +581,24 @@ export function SystemPlanManagementPage() {
                           </div>
                           <div className="mt-1 truncate text-xs text-muted-foreground">
                             {plan.id} / {plan.name}
+                          </div>
+                          <div className="mt-2 @sm/table:hidden">
+                            <StatusBadge
+                              status={
+                                plan.archived_at
+                                  ? "archived"
+                                  : plan.enabled
+                                    ? "enabled"
+                                    : "disabled"
+                              }
+                              label={systemStatusLabel(
+                                plan.archived_at
+                                  ? "archived"
+                                  : plan.enabled
+                                    ? "enabled"
+                                    : "disabled",
+                              )}
+                            />
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 @xl/table:table-cell">
@@ -640,7 +658,7 @@ export function SystemPlanManagementPage() {
                             })}
                           </div>
                         </td>
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="hidden px-3 py-3 @sm/table:table-cell sm:px-4">
                           <StatusBadge
                             status={
                               plan.archived_at
@@ -664,6 +682,7 @@ export function SystemPlanManagementPage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={t("system.plans.edit")}
                               onClick={() => openEditDialog(plan)}
                               disabled={Boolean(plan.archived_at)}
                             >
@@ -676,6 +695,7 @@ export function SystemPlanManagementPage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={t("system.plans.delete")}
                               onClick={() => void deletePlan(plan)}
                               disabled={
                                 state !== "idle" ||
@@ -964,7 +984,7 @@ function ModelAccessFields({ models, rows, planId, onChange }: {
     const access = rows.find(row => row.model_profile_id === model.id) ?? { ...modelAccessFor(planId, model.id), visible: false, usable: false };
     return <div key={model.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
       <span className="font-medium">{model.display_name}</span>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
         {onChange ? <>
           <ToggleField label={t("system.plans.access.visible")} checked={access.visible} onCheckedChange={visible => onChange(normalizeAccess({ ...access, visible }))} />
           <ToggleField label={t("system.plans.access.usable")} checked={access.usable} disabled={!access.visible} onCheckedChange={usable => onChange({ ...access, usable })} />

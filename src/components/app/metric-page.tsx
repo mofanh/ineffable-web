@@ -43,7 +43,7 @@ export function AppMetricPage({
   }, [headerActions, setHeaderContent])
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <section className="space-y-2">
         <p className="text-muted-foreground text-xs font-semibold tracking-[0.18em] uppercase">
           {eyebrow}
@@ -54,7 +54,7 @@ export function AppMetricPage({
         </p>
       </section>
 
-      <section className="grid grid-cols-3 gap-2 sm:gap-4">
+      <section className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
         {metrics.map((metric) => (
           <MetricPanel key={metric.label} metric={metric} />
         ))}
@@ -68,8 +68,8 @@ export function AppMetricPage({
 function MetricPanel({ metric }: { metric: AppMetricCard }) {
   const Icon = metric.icon
   return (
-    <Card className="border-border/80 bg-muted/40 shadow-none transition-colors hover:bg-muted/60">
-      <CardContent className="p-3 sm:p-5">
+    <Card className="min-w-0 border-border/80 bg-muted/40 py-0 sm:py-4 shadow-none transition-colors hover:bg-muted/60">
+      <CardContent className="grid grid-cols-2 items-center gap-x-3 p-3 sm:block sm:p-5">
         <div className="text-muted-foreground flex items-start justify-between gap-1 text-[10px] font-semibold tracking-wide uppercase sm:text-xs sm:tracking-wider">
           <span>{metric.label}</span>
           <Icon
@@ -82,10 +82,10 @@ function MetricPanel({ metric }: { metric: AppMetricCard }) {
             )}
           />
         </div>
-        <p className="mt-2 text-2xl font-semibold sm:mt-3 sm:text-3xl">
+        <p className="wrap-anywhere text-right text-2xl sm:text-left font-semibold sm:mt-3 sm:text-3xl">
           {metric.value}
         </p>
-        <p className="text-muted-foreground mt-1 text-[11px] leading-4 sm:text-xs">
+        <p className="text-muted-foreground col-span-2 mt-1 wrap-anywhere text-[11px] leading-4 sm:text-xs">
           {metric.detail}
         </p>
       </CardContent>
@@ -110,7 +110,7 @@ export function AppSectionCard({
 }) {
   return (
     <Card className={cn("border-border/80 bg-muted/35 shadow-none", className)}>
-      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/70">
+      <CardHeader className="flex flex-col items-start justify-between gap-4 border-b border-border/70 sm:flex-row">
         <div className="flex min-w-0 items-start gap-3">
           {Icon ? (
             <div className="bg-background flex size-9 shrink-0 items-center justify-center rounded-md border border-border">

@@ -551,10 +551,10 @@ export function SystemModelManagementPage() {
         />
         <div className="grid gap-3">
           {filteredModels.length > 0 ? (
-            <DataTableShell>
+            <DataTableShell tableClassName="min-w-0">
               <DataTableHeader>
                 <tr>
-                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-12 px-2 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">
                     {t("system.models.columns.model")}
                   </th>
@@ -564,7 +564,7 @@ export function SystemModelManagementPage() {
                   <th className="hidden w-1/4 px-4 py-3 @3xl/table:table-cell">
                     {t("system.models.columns.capability")}
                   </th>
-                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">
+                  <th className="hidden w-20 px-3 py-3 @sm/table:table-cell sm:w-24 sm:px-4">
                     {t("system.models.columns.status")}
                   </th>
                   <th className="hidden w-20 px-4 py-3 @xl/table:table-cell">
@@ -581,7 +581,7 @@ export function SystemModelManagementPage() {
                   return (
                     <React.Fragment key={model.id}>
                       <tr className="align-top hover:bg-muted/20">
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="px-2 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -604,6 +604,24 @@ export function SystemModelManagementPage() {
                           </div>
                           <div className="mt-1 truncate text-xs text-muted-foreground">
                             {model.id}
+                          </div>
+                          <div className="mt-2 @sm/table:hidden">
+                            <StatusBadge
+                              status={
+                                model.archived_at
+                                  ? "archived"
+                                  : model.enabled
+                                    ? "enabled"
+                                    : "disabled"
+                              }
+                              label={systemStatusLabel(
+                                model.archived_at
+                                  ? "archived"
+                                  : model.enabled
+                                    ? "enabled"
+                                    : "disabled",
+                              )}
+                            />
                           </div>
                         </td>
                         <td className="hidden px-4 py-3 @4xl/table:table-cell">
@@ -638,7 +656,7 @@ export function SystemModelManagementPage() {
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="hidden px-3 py-3 @sm/table:table-cell sm:px-4">
                           <StatusBadge
                             status={
                               model.archived_at
@@ -665,6 +683,7 @@ export function SystemModelManagementPage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={t("system.models.edit")}
                               onClick={() => openEditDialog(model)}
                               disabled={Boolean(model.archived_at)}
                             >
@@ -677,6 +696,7 @@ export function SystemModelManagementPage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={t("system.models.delete")}
                               onClick={() => void deleteModel(model)}
                               disabled={
                                 state !== "idle" || Boolean(model.archived_at)

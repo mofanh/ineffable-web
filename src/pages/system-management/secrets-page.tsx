@@ -283,10 +283,10 @@ export function SystemSecretManagementPage() {
         />
         <div className="grid gap-3">
           {filteredSecrets.length > 0 ? (
-            <DataTableShell>
+            <DataTableShell tableClassName="min-w-0">
               <DataTableHeader>
                 <tr>
-                  <th className="w-12 px-3 py-3 sm:px-4" />
+                  <th className="w-12 px-2 py-3 sm:px-4" />
                   <th className="w-auto px-3 py-3 sm:px-4">
                     {t("system.secrets.columns.ref")}
                   </th>
@@ -299,7 +299,7 @@ export function SystemSecretManagementPage() {
                   <th className="hidden w-28 px-4 py-3 @xl/table:table-cell">
                     {t("system.secrets.columns.saved")}
                   </th>
-                  <th className="w-20 px-3 py-3 sm:w-24 sm:px-4">
+                  <th className="hidden w-20 px-3 py-3 @sm/table:table-cell sm:w-24 sm:px-4">
                     {t("system.secrets.columns.status")}
                   </th>
                   <th className="w-16 px-3 py-3 text-right sm:w-24 sm:px-4">
@@ -316,7 +316,7 @@ export function SystemSecretManagementPage() {
                   return (
                     <React.Fragment key={secret.secret_ref}>
                       <tr className="hover:bg-muted/20">
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="px-2 py-3 sm:px-4">
                           <Button
                             type="button"
                             variant="ghost"
@@ -342,6 +342,12 @@ export function SystemSecretManagementPage() {
                           <div className="mt-1 truncate text-xs text-muted-foreground">
                             {t("system.secrets.hidden")}
                           </div>
+                          <div className="mt-2 @sm/table:hidden">
+                            <StatusBadge
+                              status={secret.status}
+                              label={systemStatusLabel(secret.status)}
+                            />
+                          </div>
                         </td>
                         <td className="hidden px-4 py-3 @2xl/table:table-cell">
                           {insight?.provider ?? "-"}
@@ -359,7 +365,7 @@ export function SystemSecretManagementPage() {
                             )}
                           />
                         </td>
-                        <td className="px-3 py-3 sm:px-4">
+                        <td className="hidden px-3 py-3 @sm/table:table-cell sm:px-4">
                           <StatusBadge
                             status={secret.status}
                             label={systemStatusLabel(secret.status)}
@@ -371,6 +377,7 @@ export function SystemSecretManagementPage() {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={t("system.secrets.edit")}
                               onClick={() => openEditDialog(secret)}
                             >
                               <Edit3Icon />
