@@ -1,3 +1,5 @@
+import { WebToolCard } from "./web-tool-card"
+import { parseWebToolResult, type WebToolResult } from "@/features/chat/model/web-tool-result"
 import * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -306,9 +308,12 @@ export type ToolRendererProps = {
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
 }
 
-type ToolRenderer = (props: ToolRendererProps) => React.ReactNode
+type ToolRenderer = (props: ToolRendererProps, webResult?: WebToolResult) => React.ReactNode
 
 const TOOL_RENDERERS: Record<string, ToolRenderer> = {
+  web_result: ({ tool }, result) => {
+    return result ? <WebToolCard tool={tool} result={result} /> : null
+  },
   request_user_input: ({
     tool,
     canRespondToUserInput,
@@ -323,5 +328,7 @@ const TOOL_RENDERERS: Record<string, ToolRenderer> = {
 }
 
 export function renderSpecializedTool(props: ToolRendererProps) {
-  return TOOL_RENDERERS[props.tool.name]?.(props) ?? null
+  const webResult = parseWebToolResult(props.tool.output)
+  const key = webResult ? "web_result" : props.tool.name === "request_user_input" ? "request_user_input" : ""
+  return TOOL_RENDERERS[key]?.(props, webResult ?? undefined) ?? null
 }

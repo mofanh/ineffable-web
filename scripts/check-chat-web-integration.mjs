@@ -1,3 +1,5 @@
+import { ToolCallShell } from "../src/features/chat/components/tool-call-shell.tsx"
+import { parseWebToolResult, safeWebSourceUrl } from "../src/features/chat/model/web-tool-result.ts"
 import { ConversationWindowCache } from "../src/features/chat/model/conversation-window-cache.ts"
 import { matchesConversationOperation } from "../src/features/chat/model/conversation-operation-identity.ts"
 import { bindAssistantToHumanBoundary } from "../src/features/chat/model/human-input-timeline.ts"
@@ -2587,3 +2589,33 @@ console.log("chat web integration checks passed")
   assert.deepEqual(cache.get("other").entries, [c], "late cleanup cannot change selected other conversation")
   assert.deepEqual(reduceConversationTimeline(cache.get("A").entries, {type:"canonical-patch",entries:[b]}).map((entry)=>entry.id), [b.id])
 }
+
+// Web results use the same renderer for live and persisted output, selected by schema.
+assert.equal(safeWebSourceUrl("javascript:alert(1)"), null)
+assert.equal(safeWebSourceUrl("https://user:secret@example.com/"), null)
+assert.equal(parseWebToolResult('{"kind":"web_search","schema_version":2}'), null)
+const webOutput = JSON.stringify({ kind: "web_search", schema_version: 1, content_origin: "untrusted_external", partial: true, results: [
+  { title: "Official source", url: "https://example.com/", snippet: "<script>not executable</script>" },
+  { title: "Unsafe", url: "javascript:alert(1)", snippet: "hidden" },
+] })
+const webResult = parseWebToolResult(webOutput)
+assert.equal(webResult.results.length, 1)
+assert.equal(webResult.partial, true)
+let webTree
+await act(async () => {
+  webTree = TestRenderer.create(renderSpecializedTool({ tool: {
+    id: "web-result", name: "provider_alias", input: "{}", output: webOutput, status: "succeeded",
+  }, canRespondToUserInput: false }))
+})
+assert.match(JSON.stringify(webTree.toJSON()), /部分结果|Partial results/)
+assert.equal(webTree.root.findAllByType("a").length, 0, "collapsed web results defer source content")
+const shell = webTree.root.findByType(ToolCallShell)
+await act(async () => { shell.findByType("button").props.onClick({ defaultPrevented: false }) })
+const sourceLinks = webTree.root.findAllByType("a")
+assert.equal(sourceLinks.length, 1)
+assert.equal(sourceLinks[0].props.href, "https://example.com/")
+assert.equal(sourceLinks[0].props.rel, "noopener noreferrer")
+assert.equal(webTree.root.findAllByType("script").length, 0)
+await act(async () => { webTree.unmount() })
+assert.equal(renderSpecializedTool({tool:{id:"unknown",name:"web_search",output:"unknown payload",status:"succeeded"},canRespondToUserInput:false}),null)
+console.log("web search and page result rendering checks passed")

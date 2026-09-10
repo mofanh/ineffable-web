@@ -642,6 +642,10 @@ export const resources = {
           currentVersion: "当前版本",
           moreArtifacts: "另外 {{count}} 个产物",
           input: "输入",
+          web: {
+            search: "网络搜索", fetch: "读取网页", partial: "部分结果", partialHint: "部分搜索来源未能返回，结果可能不完整。",
+            sources: "{{count}} 个来源", empty: "没有找到搜索结果", window: "当前展示网页的一部分，Agent 可继续读取。", truncated: "内容达到长度限制，已截断。",
+          },
           userInputTitle: "需要你的选择",
           recommended: "推荐",
           otherOption: "其他",
@@ -2261,6 +2265,10 @@ export const resources = {
           currentVersion: "current",
           moreArtifacts: "{{count}} more artifacts",
           input: "Input",
+          web: {
+            search: "Web search", fetch: "Read webpage", partial: "Partial results", partialHint: "Some search sources did not respond; results may be incomplete.",
+            sources: "{{count}} sources", empty: "No search results found", window: "This is a page excerpt; the agent can continue reading.", truncated: "Content was truncated at the length limit.",
+          },
           userInputTitle: "Your input is needed",
           recommended: "Recommended",
           otherOption: "Other",
