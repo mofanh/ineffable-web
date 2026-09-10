@@ -483,3 +483,4 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 - 展开内容使用可换行的长文本；检查内部 scrollWidth，不能仅靠页面无溢出来判断适配成功。
 - 图标操作隐藏可见文字时必须保留 aria-label；弹窗正文滚动，标题、关闭和底部操作保持可达。
 - 运行 `npm run check:admin-mobile` 验证中英文、320/390/768/1200px 与横屏尺寸，以及长名称、展开和编辑状态；行为仍由 `check:admin-editor` 覆盖。
+- 趋势图回归必须包含实际时序数据与长模型名提示框，不能只测空态。固定高度的响应式折线图取消默认 aspect-video，并允许容器收缩；同时检查图表和 tooltip 的视口边界。

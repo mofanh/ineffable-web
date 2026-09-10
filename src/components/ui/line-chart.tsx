@@ -74,7 +74,7 @@ export function LineChartPanel({
   return (
     <ChartContainer
       config={config}
-      className={cn("w-full", className)}
+      className={cn("min-w-0 w-full aspect-auto", className)}
       style={{ height }}
     >
       <LineChart
@@ -99,12 +99,13 @@ export function LineChartPanel({
           content={
             <ChartTooltipContent
               indicator="line"
+              className="max-w-[min(20rem,calc(100vw-4rem))]"
               formatter={(value, name) => (
-                <div className="flex min-w-36 items-center justify-between gap-4">
-                  <span className="text-muted-foreground">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <span className="min-w-0 wrap-anywhere text-muted-foreground">
                     {config[String(name)]?.label ?? String(name)}
                   </span>
-                  <span className="font-mono font-medium text-foreground">
+                  <span className="shrink-0 font-mono font-medium text-foreground">
                     {valueFormatter(Number(value))}
                   </span>
                 </div>

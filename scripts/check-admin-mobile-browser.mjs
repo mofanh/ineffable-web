@@ -38,12 +38,14 @@ try {
       else if (/plans\/[^/]+\/models$/.test(path)) body = {access:[]}
       else if (path.endsWith("capability-families")) body = {items:[]}
       else if (path.endsWith("insights")) body = {insights:[]}
+      else if (path.endsWith("/usage/timeseries")) body = {range:"7d",granularity:"day",has_data:true,points:Array.from({length:7}, (_, i) => ({model_profile_id:"model",user_id:"user",bucket_start:`2026-09-0${i+1}T00:00:00Z`,request_count:100+i,failed_request_count:2,raw_total_tokens:100000+i*200,charged_credits:300+i,average_latency_ms:1234}))}
       else if (path.includes("/usage")) body = {usage:[],points:[],totals:{},has_data:false}
       await route.fulfill({json:body})
     })
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/admin-editor-fixture.html?page=${section}&language=${language}`)
     const row = page.getByRole("row").filter({hasText:longName}).first()
     await row.waitFor()
+    await page.waitForLoadState("networkidle")
     const table = row.locator("xpath=ancestor::table")
     const widths = await table.evaluate(el => ({table:el.getBoundingClientRect().width,container:el.parentElement.clientWidth,document:document.documentElement.scrollWidth,viewport:innerWidth}))
     if (measure) console.log(language, section, width, widths)
@@ -51,6 +53,18 @@ try {
       assert.ok(widths.document <= width + 1, `${section}: page overflow`)
       assert.ok(await page.locator('[data-slot="card"]').evaluateAll(cards => cards.every(card => card.scrollWidth <= card.clientWidth + 1)), `${section}: card content clipped`)
       assert.ok(widths.table <= widths.container + 1, `${section}: table overflow`)
+    }
+    if (!measure && section === "models") {
+      const chart = page.locator('[data-slot="chart"]').first()
+      await chart.locator('.recharts-line-curve').first().waitFor()
+      assert.ok(await chart.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= innerWidth), "model trend exceeds viewport")
+      const surface = chart.locator('svg.recharts-surface')
+      const bounds = await surface.boundingBox()
+      await surface.hover({position:{x:bounds.width * 0.6,y:80}})
+      const tooltip = chart.locator('.recharts-tooltip-wrapper').filter({hasText:longName})
+      await tooltip.waitFor({state:"visible"})
+      assert.ok(await tooltip.evaluate(el => {const r=el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1 && el.scrollWidth <= el.clientWidth + 1}), "model tooltip exceeds viewport")
+      await page.mouse.move(0,0)
     }
     if (process.env.ADMIN_MOBILE_SCREENSHOT_DIR && width === 390) {
       mkdirSync(process.env.ADMIN_MOBILE_SCREENSHOT_DIR,{recursive:true})

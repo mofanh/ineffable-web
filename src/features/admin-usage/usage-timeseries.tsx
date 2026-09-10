@@ -68,7 +68,7 @@ export function UsageTimeseriesPanel({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="grid gap-4">
+    <div className="min-w-0 grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Select
