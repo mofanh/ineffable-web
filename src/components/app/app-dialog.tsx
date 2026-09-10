@@ -54,7 +54,7 @@ export function AppDialog({
               </DialogPrimitive.Description>
             ) : null}
           </div>
-          <div className="min-h-0 min-w-0 overscroll-contain overflow-y-auto p-4 sm:p-5">
+          <div data-slot="app-dialog-body" className="min-h-0 min-w-0 overscroll-contain overflow-y-auto p-4 sm:p-5">
             {children}
           </div>
           {footer}

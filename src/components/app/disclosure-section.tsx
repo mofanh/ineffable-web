@@ -20,6 +20,7 @@ export function AppDisclosureSection({
     <section className="min-w-0 rounded-md border border-border bg-background">
       <button
         type="button"
+        aria-expanded={open}
         className="flex w-full items-start justify-between gap-4 px-4 py-3 text-left"
         onClick={() => setOpen((current) => !current)}
       >

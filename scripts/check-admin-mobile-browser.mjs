@@ -21,7 +21,7 @@ try {
       localStorage.setItem("ineffable.auth.session_id", "test-session")
       localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
     })
-    const longName = "Long-name-for-mobile-layout-".repeat(4)
+    const longName = "LongNameForMobileLayout".repeat(4)
     const plan = { ...structuredClone(emptyPlan), id: "pro", name: "pro", display_name: longName, archived_at: null }
     const model = { ...structuredClone(emptyModel), id: "model", display_name: longName, upstream_model_name: longName, archived_at: null }
     const user = { id: "user", email: `${"longemail".repeat(12)}@example.com`, display_name: longName, role: "user", status: "active", created_at: "2026-09-08T00:00:00Z" }
@@ -61,10 +61,13 @@ try {
     await edit.click()
     const dialog = page.getByRole("dialog")
     await dialog.waitFor()
+    await page.waitForLoadState("networkidle")
+    for (const disclosure of await dialog.locator('button[aria-expanded="false"]').all()) await disclosure.click()
     await dialog.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)))
     const dimensions = await dialog.evaluate(el => ({width:el.clientWidth,scrollWidth:el.scrollWidth,left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right,top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}))
     if (measure) console.log(language, section, width, "dialog", dimensions)
     if (!measure) {
+      assert.ok(await dialog.locator('[data-slot="app-dialog-body"]').evaluate(el => el.scrollWidth <= el.clientWidth + 1), `${section}: dialog body overflow`)
       assert.ok(dimensions.scrollWidth <= dimensions.width + 1, `${section}: dialog content overflow`)
       assert.ok(dimensions.left >= 0 && dimensions.right <= width + 1)
       assert.ok(dimensions.top >= 0 && dimensions.bottom <= height + 1, `${section}: dialog outside viewport`)
@@ -78,6 +81,7 @@ try {
     await dialog.getByRole("button",{name:/^(Close|关闭)$/}).click()
     await row.getByRole("button",{name:/expand|展开/i}).click()
     await row.locator("xpath=following-sibling::tr[1]").waitFor()
+    await page.waitForLoadState("networkidle")
     if (!measure) assert.ok(await table.evaluate(el => el.parentElement.scrollWidth <= el.parentElement.clientWidth + 1), `${section}: expanded content overflow`)
     if (!measure) assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${section}: expanded page overflow`)
     assert.deepEqual(errors,[])

@@ -983,7 +983,7 @@ function ModelAccessFields({ models, rows, planId, onChange }: {
   return <div className="grid gap-3">{models.map(model => {
     const access = rows.find(row => row.model_profile_id === model.id) ?? { ...modelAccessFor(planId, model.id), visible: false, usable: false };
     return <div key={model.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-      <span className="font-medium">{model.display_name}</span>
+      <span className="min-w-0 wrap-anywhere font-medium">{model.display_name}</span>
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {onChange ? <>
           <ToggleField label={t("system.plans.access.visible")} checked={access.visible} onCheckedChange={visible => onChange(normalizeAccess({ ...access, visible }))} />
