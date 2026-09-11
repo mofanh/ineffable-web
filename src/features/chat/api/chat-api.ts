@@ -1,4 +1,7 @@
 export {
+  getRunObservations,
+  type RunObservationPage,
+  type RunObservation,
   approveSandboxApproval,
   admitAgentDefinition,
   createConversation,

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
+  ListTreeIcon,
   ArrowDownIcon,
   CircleAlertIcon,
   CircleHelpIcon,
@@ -74,6 +75,7 @@ function InputStatusIcon({ label, phase }: { label: string; phase?: string }) {
 }
 
 type ChatMessageListProps = {
+  onInspectRun?: (runId: string) => void
   entries: ChatEntry[]
   modelDisplayNames?: Record<string, string>
   sandboxDisplayNames?: Record<string, string>
@@ -224,6 +226,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onSubmitUserInput,
   isFullScreen,
   trialVerdict,
+  onInspectRun,
 }: ChatMessageListProps) {
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
@@ -514,6 +517,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   </div>
                 ) : null}
 
+                {!showAnswerFooter && entry.runId && onInspectRun && <div className="pt-1"><Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => onInspectRun(entry.runId!)}><ListTreeIcon className="size-4" />{t("trajectory.open")}</Button></div>}
                 {showAnswerFooter ? (
                   <div
                     className="flex min-w-0 items-center gap-2 overflow-x-auto pt-1 text-muted-foreground"
@@ -521,6 +525,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     data-agent-trial-verdict={showTrialVerdict || undefined}
                   >
                     <div className="flex shrink-0 items-center gap-1">
+                      {entry.runId && onInspectRun && <Button type="button" size="icon-sm" variant="ghost" className="rounded-full" aria-label={t("trajectory.open")} title={t("trajectory.open")} onClick={() => onInspectRun(entry.runId!)}><ListTreeIcon className="size-4" /></Button>}
                       <Button
                         type="button"
                         size="icon-sm"

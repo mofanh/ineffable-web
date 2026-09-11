@@ -1,3 +1,4 @@
+import { RunObservationPanel } from "@/features/chat/components/run-observation-panel"
 import { useAgentDescriptors } from "@/features/chat/model/use-agent-descriptors"
 import { ConversationPageLoader } from "@/features/chat/model/conversation-page-loader"
 import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
@@ -438,6 +439,8 @@ export function GatewayChatSidebar({
   const capabilityExposureSaveChainRef = React.useRef<Promise<void>>(
     Promise.resolve()
   )
+  const [inspectedRun, setInspectedRun] = React.useState<{ conversationId: string; runId: string } | null>(null)
+  if (inspectedRun && inspectedRun.conversationId !== currentConversationId) setInspectedRun(null)
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
   const [agentIterationRequested, setAgentIterationRequestedState] = React.useState(false)
   const [agentIterationConversationId, setAgentIterationConversationId] =
@@ -4196,6 +4199,9 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
+          onInspectRun={agentEvolution?.conversation_id === currentConversationId && agentEvolution.policy.allow_definition_recomposition ? (runId) => {
+            if (currentConversationId) setInspectedRun({ conversationId: currentConversationId, runId })
+          } : undefined}
           entries={renderedEntries}
           modelDisplayNames={modelDisplayNames}
           sandboxDisplayNames={sandboxDisplayNames}
@@ -4232,6 +4238,10 @@ export function GatewayChatSidebar({
           }
         />
       </SidebarContent>
+
+      {accessToken && inspectedRun && inspectedRun.conversationId === currentConversationId && agentEvolution?.conversation_id === currentConversationId && agentEvolution.policy.allow_definition_recomposition && (
+        <RunObservationPanel accessToken={accessToken} conversationId={inspectedRun.conversationId} runId={inspectedRun.runId} onClose={() => setInspectedRun(null)} />
+      )}
 
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 

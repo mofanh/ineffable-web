@@ -35,7 +35,8 @@
     "check:admin-mobile": "node scripts/check-admin-mobile-browser.mjs",
     "check:admin-editor": "node scripts/check-admin-editor-browser.mjs",
     "check:workspace-delete": "node scripts/check-workspace-delete-browser.mjs",
-    "check:workspace-directory": "tsx scripts/check-workspace-directory.mjs"
+    "check:workspace-directory": "tsx scripts/check-workspace-directory.mjs",
+    "check:run-observations": "node scripts/check-run-observations-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

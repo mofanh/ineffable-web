@@ -2161,7 +2161,7 @@ export type AgentEvolutionProjection = {
   effective_mode: AgentIterationMode
   unavailable_reason?: string | null
   definition_usage: number
-  policy: { max_definitions: number }
+  policy: { max_definitions: number; allow_definition_recomposition?: boolean }
   definitions: Array<{
     archived: boolean
     metadata_version: number
@@ -2577,4 +2577,63 @@ export function createAgentCandidate(accessToken: string, payload: {
   conversation_id: string; workspace_id?: string; parent_fingerprint?: string; display_name?: string; composition: unknown;
 }) {
   return requestApiJson<{ fingerprint: string }>("/gateway/v1/plugins/agent-evolution/candidates", { method: "POST", accessToken, body: payload })
+}
+
+export type RunObservation = {
+  seq: number
+  execution_epoch: number
+  request_id: string
+  stage: "prepared" | "dispatch" | "settled"
+  attempt: number
+  created_at: string
+  data: {
+    turn?: number
+    total_items?: number
+    truncated?: boolean
+    items?: { id: string; kind: string; scope: string; content_hash: string; bytes: number }[]
+    wire_hash?: string
+    wire_bytes?: number
+    message_count?: number
+    tools?: string[]
+    total_tools?: number
+    tool_schema_hashes?: string[]
+    diff?: { available: boolean; added?: number; removed?: number; changed?: number; unchanged?: number }
+    record?: {
+      status: string
+      model?: string
+      latency_ms: number
+      usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+      usage_source: string
+      error_code?: string
+    }
+  }
+}
+export type RunObservationPage = {
+  conversation_id: string
+  run_id: string
+  execution_epoch: number
+  status: string
+  coverage: "partial" | "not_recorded" | "expired"
+  definition_fingerprint: string | null
+  started_at: string | null
+  completed_at: string | null
+  watermark?: number | null
+  model_attempt_count?: number | null
+  tool_count?: number | null
+  wall_time_ms?: number | null
+  records: RunObservation[]
+  next_cursor: string | null
+}
+const runObservationRequests = new Map<string, Promise<RunObservationPage>>()
+export function getRunObservations(accessToken: string, conversationId: string, runId: string, cursor?: string, summary = false) {
+  const query = new URLSearchParams({ conversation_id: conversationId, run_id: runId, limit: "40" })
+  if (summary) query.set("summary", "true")
+  if (cursor) query.set("cursor", cursor)
+  const key = JSON.stringify([accessToken, query.toString()])
+  const existing = runObservationRequests.get(key)
+  if (existing) return existing
+  const promise = requestApiJson<RunObservationPage>(`/gateway/v1/conversations/run-observations?${query}`, { accessToken })
+    .finally(() => { if (runObservationRequests.get(key) === promise) runObservationRequests.delete(key) })
+  runObservationRequests.set(key, promise)
+  return promise
 }
