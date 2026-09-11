@@ -38,7 +38,7 @@ try {
         if (holdBody) await new Promise(resolve => { releaseBody = resolve })
         const offset=Number(url.searchParams.get("item_offset") ?? 0)
         const bodies={input:"current instruction",output:"model answer",tools:"command finished",compaction:"summary text",wire:"wire messages"}
-        const item={id:`item:${offset}`,kind:section==="tools"?"ToolResult":"User",source:section==="tools"?"tool_call:call-1":"workspace/rules",body:bodies[section],content_hash:"current",bytes:30,truncated:false,redacted:false}
+        const item={id:`item:${offset}`,kind:section==="tools"?"ToolResult":"User",source:section==="tools"?"tool_call:call-1":"workspace/rules",body:bodies[section],content_hash:"current",bytes:30,truncated:false,redacted:false,comparable:offset===0}
         await route.fulfill({status:failure || 200,json:failure?{error:"observation_forbidden"}:{request_id:url.searchParams.get("request_id"),execution_epoch:1,section,attempt:0,coverage:"partial",items:[item],total_items:3,truncated:false,partial:false,first_content_ms:125,duration_ms:300,
           next_item_offset:section==="input" && offset===0?2:null,previous:section==="input"?{request_id:"previous:request",truncated:false,items:[{...item,body:"before instruction",content_hash:"previous"}]}:null}})
         return
@@ -70,6 +70,9 @@ try {
     await page.getByText("before instruction",{exact:true}).waitFor()
     await page.locator("[data-observation-detail]").getByRole("button",{name:zh?"下一页":"Next page",exact:true}).click()
     await page.locator('[data-detail-item="item:2"]').waitFor()
+    await page.getByText(zh?"对照前次内容":"Compare previous content",{exact:true}).click()
+    await page.getByText(zh?"缺少同源身份或前次记录不完整，无法可靠比较。":"A stable source identity or complete preceding record is missing; reliable comparison is unavailable.",{exact:true}).waitFor()
+    assert.equal(await page.getByText("before instruction",{exact:true}).count(),0,"anonymous history must not show a positional predecessor")
     await page.getByRole("button",{name:zh?"模型输出":"Model output",exact:true}).click()
     await page.getByText("model answer",{exact:true}).waitFor()
     await page.getByText("125 ms",{exact:true}).waitFor()

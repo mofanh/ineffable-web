@@ -2642,7 +2642,7 @@ export function getRunObservations(accessToken: string, conversationId: string, 
 
 export type RunObservationDetailItem = {
   id: string; kind: string; source: string; content_hash: string; bytes: number
-  body: string; truncated: boolean; redacted: boolean; restricted?: boolean; status?: string | null; duration_ms?: number | null
+  body: string; truncated: boolean; redacted: boolean; restricted?: boolean; comparable?: boolean; status?: string | null; duration_ms?: number | null
 }
 export type RunObservationDetail = {
   request_id: string; execution_epoch: number; section: string; attempt: number
@@ -2650,7 +2650,7 @@ export type RunObservationDetail = {
   total_items?: number; truncated?: boolean; partial?: boolean
   first_content_ms?: number | null; duration_ms?: number | null
   next_item_offset: number | null
-  previous?: {request_id: string; truncated: boolean; items: RunObservationDetailItem[]} | null
+  previous?: {request_id: string; truncated: boolean; comparison_incomplete?: boolean; items: RunObservationDetailItem[]} | null
 }
 export type RunObservationDetailQuery = {
   request_id: string; execution_epoch: number; section: string; attempt: number; item_offset: number

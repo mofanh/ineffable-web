@@ -2,7 +2,7 @@ export const resources = {
   "zh-CN": {
     translation: {
       trajectory: {
-"restrictedBody": "此来源正文仅向会话创建者开放。", "showContent": "查看内容", "hideContent": "收起内容", "lazyBodyHint": "正文按需读取；旧记录可能没有内容快照。", "bodyTruncated": "正文已截断", "redacted": "敏感字段已隐藏", "emptyBody": "内容为空", "oldBodyHint": "当时未保存的内容不会从当前文件或配置重建。", "snapshotHint": "这是当时采集的内容快照，不代表最终持久化的对话结果。", "partialOutput": "部分输出", "partialOutputHint": "这次输出未完整结束，仅供排查，不用于恢复执行。", "detailTruncated": "快照达到容量限制，部分内容或条目未保留。", "firstContent": "首个内容块等待", "firstContentHint": "从逻辑模型调用开始计时，包含连接、重试和调用内采集开销；失败时不推断。", "compactionSourceHint": "来源是本次压缩实际输入的消息；tokens_before_estimate 为估算值。", "compareContent": "对照前次内容", "addedContent": "前次快照没有这一项。", "sameContent": "可见内容相同。", "previousContent": "前次内容", "noDetailItems": "当前没有已记录的内容条目。", "contentSections": "内容分类", "sections": {"input": "输入上下文", "wire": "实际请求", "output": "模型输出", "tools": "工具结果", "compaction": "压缩来源"},
+"expiredBodyHint": "该内容已超过保留期限，不会从当前文件重建。", "restrictedBody": "此来源正文仅向会话创建者开放。", "showContent": "查看内容", "hideContent": "收起内容", "lazyBodyHint": "正文按需读取；旧记录可能没有内容快照。", "bodyTruncated": "正文已截断", "redacted": "敏感字段已隐藏", "emptyBody": "内容为空", "oldBodyHint": "内容可能未采集或已清理；缺少保留证据时无法区分，也不会从当前文件重建。", "snapshotHint": "这是当时采集的内容快照，不代表最终持久化的对话结果。", "partialOutput": "部分输出", "partialOutputHint": "这次输出未完整结束，仅供排查，不用于恢复执行。", "detailTruncated": "快照达到容量限制，部分内容或条目未保留。", "firstContent": "首个内容块等待", "firstContentHint": "从逻辑模型调用开始计时，包含连接、重试和调用内采集开销；失败时不推断。", "compactionSourceHint": "这里保存的是压缩服务收到的历史（可能包含保留尾部），不代表每条都用于摘要；tokens_before_estimate 为估算值。", "compareContent": "对照前次内容", "addedContent": "前次快照没有这一项。", "sameContent": "可见内容相同。", "previousContent": "前次内容", "noDetailItems": "当前没有已记录的内容条目。", "contentSections": "内容分类", "sections": {"input": "输入上下文", "wire": "实际请求", "output": "模型输出", "tools": "工具结果", "compaction": "压缩来源"},
 
   "identity": "运行标识",
   "statuses": {
@@ -46,7 +46,7 @@ export const resources = {
 ,
         "newRecords": "有新的运行记录，点击刷新查看",
         "diff": "与前次请求比较", "diffHint": "按请求内位置与内容摘要比较；内容相同不代表命中服务商缓存。",
-        "diffUnavailable": "前次清单缺失或被截断，无法完整比较。", "added": "新增", "removed": "移除", "changed": "变化", "unchanged": "相同",
+        "diffUnavailable": "缺少同源身份或前次记录不完整，无法可靠比较。", "added": "新增", "removed": "移除", "changed": "变化", "unchanged": "相同",
         "modelAttempts": "最近执行段 · 模型尝试", "toolCount": "最近执行段 · 工具调用", "wireToolHint": "名称与 schema 摘要来自实际请求；提供者来源未记录。",
         "title": "运行详情",
         "open": "查看运行详情",
@@ -1696,7 +1696,7 @@ export const resources = {
   "en-US": {
     translation: {
       trajectory: {
-"restrictedBody": "This source content is available only to the conversation creator.", "showContent": "View content", "hideContent": "Hide content", "lazyBodyHint": "Content is loaded on demand. Older records may have no snapshot.", "bodyTruncated": "Content truncated", "redacted": "Sensitive fields hidden", "emptyBody": "Empty content", "oldBodyHint": "Missing historical content is never reconstructed from current files or settings.", "snapshotHint": "This is a captured snapshot, not proof of a canonically committed conversation result.", "partialOutput": "Partial output", "partialOutputHint": "This output did not finish completely. It is diagnostic only and cannot resume execution.", "detailTruncated": "The snapshot reached its capacity limit. Some content or items were not retained.", "firstContent": "Wait for first content", "firstContentHint": "Measured from the logical model call, including connection, retries and in-call capture. Not inferred after failure.", "compactionSourceHint": "Sources are the actual messages passed to compaction. tokens_before_estimate is estimated.", "compareContent": "Compare previous content", "addedContent": "This item is absent from the previous snapshot.", "sameContent": "Visible content is unchanged.", "previousContent": "Previous content", "noDetailItems": "No content items have been recorded here.", "contentSections": "Content sections", "sections": {"input": "Input context", "wire": "Wire request", "output": "Model output", "tools": "Tool results", "compaction": "Compaction sources"},
+"expiredBodyHint": "This content exceeded its retention period and will not be reconstructed from current files.", "restrictedBody": "This source content is available only to the conversation creator.", "showContent": "View content", "hideContent": "Hide content", "lazyBodyHint": "Content is loaded on demand. Older records may have no snapshot.", "bodyTruncated": "Content truncated", "redacted": "Sensitive fields hidden", "emptyBody": "Empty content", "oldBodyHint": "Content may never have been captured or may have been purged. Without retained evidence, these cannot be distinguished; current files are not used to reconstruct it.", "snapshotHint": "This is a captured snapshot, not proof of a canonically committed conversation result.", "partialOutput": "Partial output", "partialOutputHint": "This output did not finish completely. It is diagnostic only and cannot resume execution.", "detailTruncated": "The snapshot reached its capacity limit. Some content or items were not retained.", "firstContent": "Wait for first content", "firstContentHint": "Measured from the logical model call, including connection, retries and in-call capture. Not inferred after failure.", "compactionSourceHint": "This is the history passed to the compaction service, possibly including the retained tail. Not every item was necessarily summarized. tokens_before_estimate is estimated.", "compareContent": "Compare previous content", "addedContent": "This item is absent from the previous snapshot.", "sameContent": "Visible content is unchanged.", "previousContent": "Previous content", "noDetailItems": "No content items have been recorded here.", "contentSections": "Content sections", "sections": {"input": "Input context", "wire": "Wire request", "output": "Model output", "tools": "Tool results", "compaction": "Compaction sources"},
 
   "identity": "Run identity",
   "statuses": {
@@ -1740,7 +1740,7 @@ export const resources = {
 ,
         "newRecords": "New run records are available. Refresh to view.",
         "diff": "Compared with previous request", "diffHint": "Compared by request position and content digest. Identical content does not establish a provider cache hit.",
-        "diffUnavailable": "The previous manifest is missing or truncated; a complete comparison is unavailable.", "added": "Added", "removed": "Removed", "changed": "Changed", "unchanged": "Unchanged",
+        "diffUnavailable": "A stable source identity or complete preceding record is missing; reliable comparison is unavailable.", "added": "Added", "removed": "Removed", "changed": "Changed", "unchanged": "Unchanged",
         "modelAttempts": "Latest segment · Model attempts", "toolCount": "Latest segment · Tool calls", "wireToolHint": "Names and schema digests come from the wire request. Provider provenance was not recorded.",
         "title": "Run details",
         "open": "View run details",

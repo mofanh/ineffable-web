@@ -28,7 +28,7 @@ function DetailPage(props:Props & {section:string; offset:number; onOffset:(offs
   return <div className="space-y-3" data-observation-detail={section}>
     <DataState state={resource.error?"error":resource.state} error={resource.error} onRetry={()=>void resource.reload()}>
       {page && <div className="space-y-4">
-        {page.coverage!=="partial" ? <Notice title={t(`trajectory.${page.coverage}`)}>{t("trajectory.oldBodyHint")}</Notice> : <>
+        {page.coverage!=="partial" ? <Notice title={t(`trajectory.${page.coverage}`)}>{t(page.coverage==="expired"?"trajectory.expiredBodyHint":"trajectory.oldBodyHint")}</Notice> : <>
           <p className="text-xs text-muted-foreground">{t("trajectory.snapshotHint")}</p>
           {page.partial && <Notice title={t("trajectory.partialOutput")}>{t("trajectory.partialOutputHint")}</Notice>}
           {page.truncated && <p className="text-xs text-muted-foreground">{t("trajectory.detailTruncated")}</p>}
@@ -42,7 +42,7 @@ function DetailPage(props:Props & {section:string; offset:number; onOffset:(offs
               <p className="break-all text-xs text-muted-foreground">{item.source}</p>
               <Body item={item}/>
               {section==="input" && <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">{t("trajectory.compareContent")}</summary>
-                {item.restricted || before?.restricted ? <p className="mt-2 text-muted-foreground">{t("trajectory.restrictedBody")}</p> : !page.previous ? <p className="mt-2 text-muted-foreground">{t("trajectory.diffUnavailable")}</p> : !before ? <p className="mt-2 text-muted-foreground">{t(page.previous.truncated?"trajectory.diffUnavailable":"trajectory.addedContent")}</p> : !changed ? <p className="mt-2 text-muted-foreground">{t("trajectory.sameContent")}</p> : <div className="mt-3 space-y-2"><p className="break-all text-muted-foreground">{t("trajectory.previousContent")} · {page.previous.request_id}</p><Body item={before}/><p className="text-muted-foreground">{t("trajectory.diffHint")}</p></div>}
+                {item.restricted || before?.restricted ? <p className="mt-2 text-muted-foreground">{t("trajectory.restrictedBody")}</p> : !item.comparable || !page.previous ? <p className="mt-2 text-muted-foreground">{t("trajectory.diffUnavailable")}</p> : !before ? <p className="mt-2 text-muted-foreground">{t((page.previous.truncated || page.previous.comparison_incomplete)?"trajectory.diffUnavailable":"trajectory.addedContent")}</p> : !changed ? <p className="mt-2 text-muted-foreground">{t("trajectory.sameContent")}</p> : <div className="mt-3 space-y-2"><p className="break-all text-muted-foreground">{t("trajectory.previousContent")} · {page.previous.request_id}</p><Body item={before}/><p className="text-muted-foreground">{t("trajectory.diffHint")}</p></div>}
               </details>}
             </section>
           })}
