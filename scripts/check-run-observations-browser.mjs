@@ -56,13 +56,16 @@ try {
     assert.equal(await page.locator("[data-observation-seq='1']").count(), 0)
     await refresh().click()
     await page.locator("[data-observation-seq='1']").waitFor()
+    // Revalidate authorization even after the run has completed.
+    await page.clock.install()
     failure = 403
-    await refresh().click()
+    await page.clock.runFor(10_100)
     await page.getByRole("alert").waitFor()
     assert.equal(await page.locator("[data-observation-seq]").count(), 0, "revocation must clear previous records")
     failure = 0
     await page.getByRole("button", { name: zh ? "重试" : "Retry", exact: true }).click()
     await page.locator("[data-observation-seq='1']").waitFor()
+    await page.clock.resume()
     coverage = "expired"
     await refresh().click()
     await page.getByText(zh ? "记录已过期" : "Records have expired", { exact: true }).waitFor()

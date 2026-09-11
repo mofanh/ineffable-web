@@ -79,13 +79,12 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
   const [cursors, setCursors] = React.useState<(string | undefined)[]>([undefined])
   const cursor = cursors[cursors.length - 1]
   const load = React.useCallback(() => getRunObservations(accessToken, conversationId, runId, cursor), [accessToken, conversationId, runId, cursor])
-  const resource = useApiResource({ load, errorMessage: t("trajectory.unavailable") })
-  const [newRecords, setNewRecords] = React.useState(false)
   const [accessError, setAccessError] = React.useState<AppError | null>(null)
+  const resource = useApiResource({ load, enabled: !accessError, errorMessage: t("trajectory.unavailable") })
+  const [newRecords, setNewRecords] = React.useState(false)
   const page = resource.data
-  const running = ["streaming", "queued", "resuming"].includes(page?.status ?? "")
   React.useEffect(() => {
-    if (!running) return
+    if (accessError) return
     let cancelled = false
     let inFlight = false
     const timer = window.setInterval(() => {
@@ -95,7 +94,6 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
         .then(summary => {
           if (cancelled) return
           setNewRecords((summary.watermark ?? 0) > (page?.watermark ?? 0) || summary.status !== page?.status)
-          setAccessError(null)
         })
         .catch(error => {
           if (cancelled) return
@@ -105,16 +103,17 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
         .finally(() => { inFlight = false })
     }, 10_000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [accessToken, conversationId, runId, running, page?.watermark, page?.status])
+  }, [accessToken, conversationId, runId, accessError, page?.watermark, page?.status])
+  const retry = () => { if (accessError) setAccessError(null); else void resource.reload() }
   const busy = resource.state === "loading" || resource.state === "refreshing"
   return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 sm:px-6" data-run-observation-panel data-run-id={runId}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
       <Badge variant="outline">{t("trajectory.notEvaluated")}</Badge>
-      <Button size="sm" variant="ghost" onClick={() => { setNewRecords(false); setAccessError(null); if (cursors.length > 1) setCursors([undefined]); else void resource.reload() }} disabled={busy}><RefreshCwIcon className="size-4" />{t("trajectory.refresh")}</Button>
+      <Button size="sm" variant="ghost" onClick={() => { setNewRecords(false); setAccessError(null); if (cursors.length > 1) setCursors([undefined]); else retry() }} disabled={busy}><RefreshCwIcon className="size-4" />{t("trajectory.refresh")}</Button>
     </div>
     <p className="mb-5 text-sm text-muted-foreground">{t("trajectory.notEvaluatedHint")}</p>
     {newRecords && <p className="mb-4 text-sm text-muted-foreground" role="status">{t("trajectory.newRecords")}</p>}
-    <DataState state={accessError || resource.error ? "error" : resource.state} error={accessError || resource.error} onRetry={() => void resource.reload()}>
+    <DataState state={accessError || resource.error ? "error" : resource.state} error={accessError || resource.error} onRetry={retry}>
       {page && <div className="space-y-5">
         <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted/40 p-3">
           {[[t("trajectory.modelAttempts"), page.model_attempt_count], [t("trajectory.toolCount"), page.tool_count], [t("trajectory.duration"), page.wall_time_ms == null ? null : `${(page.wall_time_ms / 1000).toFixed(1)} s`]].map(([label, value]) => <div className="min-w-0" key={String(label)}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-base font-medium">{value ?? t("trajectory.unknown")}</p></div>)}

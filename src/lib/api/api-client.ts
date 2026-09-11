@@ -2618,6 +2618,7 @@ export type RunObservationPage = {
   started_at: string | null
   completed_at: string | null
   watermark?: number | null
+  count_scope?: "latest_execution_segment"
   model_attempt_count?: number | null
   tool_count?: number | null
   wall_time_ms?: number | null
