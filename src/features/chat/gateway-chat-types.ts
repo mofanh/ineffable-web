@@ -69,6 +69,7 @@ export type CapabilityExposureSummary = {
 }
 
 export type AssistantEntry = {
+  eventCoverage?: number
   humanInputBoundarySeq?: number
 
   id: string

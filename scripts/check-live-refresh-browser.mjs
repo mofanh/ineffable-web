@@ -6,6 +6,9 @@ import { chromium } from "playwright-core"
 const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
 assert.ok(executablePath)
 const cursors = []
+const streams = new Set()
+let holdHistory = false
+let releaseHistory = null
 const streamEvent = (seq, content) => ({type: "event", event: {seq, event: "model.text.delta", content, stream: "chat", phase: "model", run_id: "refresh-run", metadata: {conversation_id: "refresh-conversation", scope: "main", execution_epoch: 1, replayed: true}}})
 const oldWait = streamEvent(2, "")
 oldWait.event.event = "run.awaiting_human"
@@ -31,8 +34,9 @@ const server = await createServer({
       for (const event of replay) {
         if (event.event.seq > cursor) res.write(`data: ${JSON.stringify(event)}\n\n`)
       }
+      streams.add(res)
       const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 1000)
-      res.on("close", () => clearInterval(heartbeat))
+      res.on("close", () => { streams.delete(res); clearInterval(heartbeat) })
     })
   }, resolveId(id) {
     if (id === "@/features/auth/app-session" || id.endsWith("/src/features/auth/app-session")) return resolve("scripts/live-refresh-session-fixture.ts")
@@ -55,7 +59,10 @@ try {
       return route.continue()
     }
     let body = {items: [], profiles: [], environments: [], pending_inputs: [], events: [], next_seq: 11000}
-    if (url.pathname.endsWith("/messages")) body = {messages: history, next_seq: coverage, page: {has_older: false, before: null}}
+    if (url.pathname.endsWith("/messages")) {
+      body = {messages: history, next_seq: coverage, page: {has_older: false, before: null}}
+      if (holdHistory) await new Promise(resolve => { releaseHistory = resolve })
+    }
     if (failStream && url.pathname.endsWith("/events")) {
       const after = Number(url.searchParams.get("after_seq") ?? 0)
       if (after === 0) body = {events: Array.from({length: 200}, (_, i) => {
@@ -91,6 +98,24 @@ try {
   await page.getByText("BEFORE_TOOL", {exact: true}).waitFor()
   await page.getByText(/AFTER_TOOL\s*REFRESH_SUFFIX/).waitFor({timeout:15000})
   assert.equal(await page.getByText("BEFORE_TOOL", {exact: true}).count(), 1)
+  // A late history response cannot replace live content beyond its coverage.
+  holdHistory = true
+  const accepted = streamEvent(11001, "")
+  accepted.event.event = "input.accepted"
+  accepted.event.metadata.execution_epoch = 2
+  accepted.event.metadata.replayed = false
+  for (const stream of streams) stream.write(`data: ${JSON.stringify(accepted)}\n\n`)
+  const deadline = Date.now() + 5000
+  while (!releaseHistory && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.ok(releaseHistory, "live input acceptance requests history reconciliation")
+  const tail = streamEvent(11002, " COVERAGE_TAIL")
+  tail.event.metadata.execution_epoch = 2
+  for (const stream of streams) stream.write(`data: ${JSON.stringify(tail)}\n\n`)
+  await page.getByText(/COVERAGE_TAIL/).waitFor()
+  holdHistory = false
+  releaseHistory()
+  await page.waitForTimeout(250)
+  assert.equal(await page.getByText(/COVERAGE_TAIL/).count(), 1, "late canonical prefix must not erase a newer suffix")
   // When SSE is unavailable, scanning another run must still advance the HTTP cursor.
   failStream = true
   history = []

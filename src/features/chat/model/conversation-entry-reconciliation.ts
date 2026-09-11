@@ -124,13 +124,21 @@ export function reduceConversationTimeline(
   const handoffConfirmed = handoff
     ? hasCanonicalAssistantHandoff(action.entries, handoff)
     : true
-  const candidates =
+  const projectedCandidates =
     handoff && !handoffConfirmed
       ? action.entries.filter(
           (entry) =>
             entry.role !== "assistant" || entry.runId !== handoff.runId
         )
       : action.entries
+  const candidates = projectedCandidates.filter((incoming) => {
+    if (action.type !== "canonical-patch" || incoming.role !== "assistant" ||
+        (handoff && handoffConfirmed)) return true
+    return !current.some((entry) => entry.role === "assistant" &&
+      (timelineIdentity(entry) === timelineIdentity(incoming) ||
+        (isLocalAssistantEntry(entry) && entry.runId === incoming.runId)) &&
+      (entry.eventCoverage ?? 0) > (incoming.eventCoverage ?? 0))
+  })
   const localBoundaries = new Map(current.flatMap((entry) =>
     isLocalAssistantEntry(entry) && entry.humanInputBoundarySeq != null
       ? [[timelineIdentity(entry), entry.humanInputBoundarySeq] as const] : []

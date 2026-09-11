@@ -73,7 +73,8 @@ export function projectConversationOutputEvent(
   event: GatewayChatStreamEvent,
   runId: string | null
 ): AssistantEntry {
-  const current = entry ?? createAssistantEntry("streaming", runId)
+  const base = entry ?? createAssistantEntry("streaming", runId)
+  const current = { ...base, eventCoverage: Math.max(base.eventCoverage ?? 0, event.seq ?? 0) }
   if (!isSubScope(event)) {
     return {
       ...current,

@@ -1864,7 +1864,9 @@ export function GatewayChatSidebar({
           ]),
           Boolean(handoff) || freshness === "fresh"
         )
-        const latestEntries = mapConversationMessagesToEntries(response.messages)
+        const latestEntries = mapConversationMessagesToEntries(response.messages).map((entry) =>
+          entry.role === "assistant" ? { ...entry, eventCoverage: response.next_seq ?? 0 } : entry
+        )
         const latestRuntimeSelection =
           findLatestConversationRuntimeSelection(response.messages)
         const handoffConfirmed = handoff
@@ -2674,10 +2676,12 @@ export function GatewayChatSidebar({
           type: "input-progress", progress, content: event.content ?? undefined,
         }))
       }
-      void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
+      if (event.metadata?.replayed !== true) {
+        void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
+      }
       return
     }
-    if (event.event.startsWith("pending_input_")) {
+    if (event.event.startsWith("pending_input_") && event.metadata?.replayed !== true) {
       void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
     }
 
