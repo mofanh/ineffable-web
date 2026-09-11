@@ -522,9 +522,8 @@ export function applyMessageToPane(pane: AgentPaneState, content: string) {
 }
 
 /**
- * Apply a canonical history snapshot after the history projector has already
- * reduced cumulative snapshots to deltas within each scope. Unlike a live
- * fallback snapshot, a new canonical segment must not be suppressed merely
+ * Apply an independent canonical history segment. Unlike a live fallback
+ * snapshot, a new canonical segment must not be suppressed merely
  * because an earlier segment in the same assistant pane emitted text deltas.
  */
 export function applyCanonicalMessageToPane(

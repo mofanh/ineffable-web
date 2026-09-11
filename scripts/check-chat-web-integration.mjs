@@ -2130,7 +2130,7 @@ const cumulativeHistory = mapConversationMessagesToEntries([
     run_id: runId,
     role: "assistant",
     message_type: "output",
-    content: "AB",
+    content: "B",
     metadata_json: {},
     created_at: "2026-08-22T00:00:01Z",
     updated_at: "2026-08-22T00:00:01Z",
@@ -2141,7 +2141,7 @@ assert.ok(cumulativeHistory[0].role === "assistant")
 assert.deepEqual(
   semanticPane(finalizePane(cumulativeLive.pane)),
   semanticPane(cumulativeHistory[0].pane),
-  "cumulative terminal snapshot must append only the suffix around a Plugin node"
+  "independent terminal segment must follow the Plugin segment"
 )
 
 const partialMarkdownTable = [

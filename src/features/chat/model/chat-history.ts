@@ -44,7 +44,7 @@ import { canonicalMessagesToGatewayEvents } from "@/features/chat/model/canonica
 
 // History replay invariants:
 // 1. Replay must rebuild the same structural blocks the live SSE path produced.
-// 2. Only assistant output snapshots may be compacted during replay.
+// 2. Distinct output segments must be preserved by their message identity.
 // 3. Structural records such as tool_call/tool_result must be preserved verbatim so
 //    tool blocks and their ordering survive the post-stream resync path.
 
@@ -278,80 +278,16 @@ function hasRenderableConversationMessageContent(
   )
 }
 
-function compactAssistantHistoryMessages(messages: ConversationMessageRecord[]) {
-  const lastAssistantIndexByScope = new Map<string, number>()
-
-  const isDeclaredPluginView = (message: ConversationMessageRecord) =>
-    Boolean(
-      message.metadata_json &&
-        typeof message.metadata_json === "object" &&
-        message.metadata_json.web_view !== undefined
-    )
-
-  messages.forEach((message, index) => {
-    const isAssistantOutput =
-      !isDeclaredPluginView(message) &&
-      (message.message_type === "output" ||
-        (message.role === "assistant" && message.message_type !== "tool_call"))
-    if (!isAssistantOutput) {
-      return
-    }
-
-    const metadata =
-      message.metadata_json && typeof message.metadata_json === "object"
-        ? message.metadata_json
-        : null
-    const scope =
-      metadata && typeof metadata.scope === "string" && metadata.scope.trim()
-        ? metadata.scope.trim()
-        : "main"
-    const subagentId =
-      metadata && typeof metadata.subagent_id === "string" && metadata.subagent_id.trim()
-        ? metadata.subagent_id.trim()
-        : ""
-    const scopeKey = `${scope}::${subagentId}`
-
-    lastAssistantIndexByScope.set(scopeKey, index)
-  })
-
-  return messages.filter((message, index) => {
-    const isAssistantOutput =
-      !isDeclaredPluginView(message) &&
-      (message.message_type === "output" ||
-        (message.role === "assistant" && message.message_type !== "tool_call"))
-    if (!isAssistantOutput) {
-      return true
-    }
-
-    const metadata =
-      message.metadata_json && typeof message.metadata_json === "object"
-        ? message.metadata_json
-        : null
-    const scope =
-      metadata && typeof metadata.scope === "string" && metadata.scope.trim()
-        ? metadata.scope.trim()
-        : "main"
-    const subagentId =
-      metadata && typeof metadata.subagent_id === "string" && metadata.subagent_id.trim()
-        ? metadata.subagent_id.trim()
-        : ""
-    const scopeKey = `${scope}::${subagentId}`
-
-    return lastAssistantIndexByScope.get(scopeKey) === index
-  })
-}
-
 function buildAssistantEntryFromMessages(
   messages: ConversationMessageRecord[]
 ): AssistantEntry {
-  const compactedMessages = compactAssistantHistoryMessages(messages)
-  const first = compactedMessages[0] ?? messages[0]
+  const first = messages[0] ?? messages[0]
   const runId =
-    compactedMessages.find((message) => message.run_id)?.run_id ??
+    messages.find((message) => message.run_id)?.run_id ??
     messages.find((message) => message.run_id)?.run_id ??
     null
   const definitionFingerprint =
-    compactedMessages.find((message) => message.definition_fingerprint)
+    messages.find((message) => message.definition_fingerprint)
       ?.definition_fingerprint ??
     messages.find((message) => message.definition_fingerprint)
       ?.definition_fingerprint ??
@@ -401,10 +337,10 @@ function buildAssistantEntryFromMessages(
   let pane = createEmptyAgentPane()
   const subagents: Record<string, SubagentView> = {}
   const subagentOrder: string[] = []
-  const snapshotContentByScope = new Map<string, string>()
+
 
   const historyEvents = canonicalMessagesToGatewayEvents(
-    compactedMessages.map((message) => ({
+    messages.map((message) => ({
       role: message.role,
       messageType: message.message_type,
       content: message.content,
@@ -428,37 +364,9 @@ function buildAssistantEntryFromMessages(
     }
   )
 
-  historyEvents.forEach((sourceEvent) => {
-    let event = sourceEvent
-
-    if (event.event === "assistant.snapshot") {
-      const metadata =
-        event.metadata && typeof event.metadata === "object"
-          ? event.metadata
-          : null
-      const scope =
-        metadata && typeof metadata.scope === "string" && metadata.scope.trim()
-          ? metadata.scope.trim()
-          : "main"
-      const subagentId =
-        metadata &&
-        typeof metadata.subagent_id === "string" &&
-        metadata.subagent_id.trim()
-          ? metadata.subagent_id.trim()
-          : ""
-      const scopeKey = `${scope}::${subagentId}`
-      const snapshotContent = event.content ?? ""
-      const previousSnapshot = snapshotContentByScope.get(scopeKey) ?? ""
-      snapshotContentByScope.set(scopeKey, snapshotContent)
-      if (previousSnapshot && snapshotContent.startsWith(previousSnapshot)) {
-        event = {
-          ...event,
-          event: "model.text.delta",
-          content: snapshotContent.slice(previousSnapshot.length),
-        }
-      }
-    }
-
+  historyEvents.forEach((event) => {
+    // Each canonical/projected message is an independent segment. Never collapse
+    // different identities by scope or infer cumulative content from a prefix.
     if (isSubScope(event)) {
       const subagentId = getSubagentId(event) || `subagent-${event.seq}`
       const subagentName = getSubagentName(event)

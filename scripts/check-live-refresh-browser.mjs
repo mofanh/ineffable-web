@@ -6,7 +6,19 @@ import { chromium } from "playwright-core"
 const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
 assert.ok(executablePath)
 const cursors = []
-const streamEvent = (seq, content) => ({type: "event", event: {seq, event: "model.text.delta", content, stream: "chat", phase: "model", run_id: "refresh-run", metadata: {conversation_id: "refresh-conversation", scope: "main", execution_epoch: 1}}})
+const streamEvent = (seq, content) => ({type: "event", event: {seq, event: "model.text.delta", content, stream: "chat", phase: "model", run_id: "refresh-run", metadata: {conversation_id: "refresh-conversation", scope: "main", execution_epoch: 1, replayed: true}}})
+const oldWait = streamEvent(2, "")
+oldWait.event.event = "run.awaiting_human"
+oldWait.event.metadata.pending_need = {kind: "user_input", need_id: "answered-need", questions: [{id: "q", question: "Old question", options: []}]}
+const resumed = streamEvent(3, "")
+resumed.event.event = "run.resumed"
+resumed.event.metadata.execution_epoch = 2
+const suffix = streamEvent(11000, "REFRESH_SUFFIX")
+suffix.event.metadata.execution_epoch = 2
+const replay = [streamEvent(1, "REFRESH_PREFIX "), oldWait, resumed, suffix]
+let failStream = false
+let history = []
+let coverage = 0
 const server = await createServer({
   root: process.cwd(), logLevel: "error", optimizeDeps: {entries: ["scripts/live-refresh-fixture.html"]},
   plugins: [{ name: "refresh-session-fixture", enforce: "pre", configureServer(server) {
@@ -16,7 +28,7 @@ const server = await createServer({
       const cursor = Number(url.searchParams.get("after_seq") ?? 0)
       cursors.push(cursor)
       res.writeHead(200, {"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
-      for (const event of [streamEvent(1, "REFRESH_PREFIX "), streamEvent(11000, "REFRESH_SUFFIX")]) {
+      for (const event of replay) {
         if (event.event.seq > cursor) res.write(`data: ${JSON.stringify(event)}\n\n`)
       }
       const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 1000)
@@ -39,10 +51,20 @@ try {
   await page.route("**/gateway/**", async route => {
     const url = new URL(route.request().url())
     if (url.pathname.endsWith("/subscribe")) {
+      if (failStream) return route.fulfill({status: 503, body: "temporarily unavailable"})
       return route.continue()
     }
     let body = {items: [], profiles: [], environments: [], pending_inputs: [], events: [], next_seq: 11000}
-    if (url.pathname.endsWith("/messages")) body = {messages: [], next_seq: 0, page: {has_older: false, before: null}}
+    if (url.pathname.endsWith("/messages")) body = {messages: history, next_seq: coverage, page: {has_older: false, before: null}}
+    if (failStream && url.pathname.endsWith("/events")) {
+      const after = Number(url.searchParams.get("after_seq") ?? 0)
+      if (after === 0) body = {events: Array.from({length: 200}, (_, i) => {
+        const e = streamEvent(i + 1, "OLD_RUN")
+        e.event.run_id = "older-run"
+        return e
+      }), next_seq: 200}
+      else if (after < 11000) body = {events: [streamEvent(201, "REFRESH_PREFIX "), suffix], next_seq: 11000}
+    }
     if (url.pathname.endsWith("/get")) body = conversation
     if (url.pathname.endsWith("/observations/access")) body = {allowed: false}
     await route.fulfill({contentType:"application/json",body:JSON.stringify(body)})
@@ -55,6 +77,27 @@ try {
   await page.getByText("REFRESH_PREFIX REFRESH_SUFFIX", {exact: true}).waitFor({timeout: 15000})
   assert.equal(cursors[before], 0, "reload must replay omitted history despite the saved transport cursor")
   assert.equal(await page.getByText("REFRESH_PREFIX REFRESH_SUFFIX", {exact: true}).count(), 1)
+  // The real history mapper must preserve independent output around tools.
+  const message = (id, type, content, metadata = {}) => ({id, conversation_id: conversation.id, run_id: run.id,
+    role: type === "tool_result" ? "tool" : "assistant", message_type: type, content,
+    metadata_json: {scope: "main", ...metadata}, created_at: "2026-09-11T00:00:00Z", updated_at: "2026-09-11T00:00:00Z",
+    timeline_seq: 1, timeline_unit_id: "run:refresh-run:anchor:1"})
+  history = [message("a", "output", "BEFORE_TOOL"),
+    message("tool", "tool_call", "", {tool_call_id: "call", tool_name: "read_file", full_arguments: "{}"}),
+    message("result", "tool_result", "ok", {tool_call_id: "call", tool_name: "read_file", status: "succeeded"}),
+    message("b", "output", "AFTER_TOOL ")]
+  coverage = 10
+  await page.reload()
+  await page.getByText("BEFORE_TOOL", {exact: true}).waitFor()
+  await page.getByText(/AFTER_TOOL\s*REFRESH_SUFFIX/).waitFor({timeout:15000})
+  assert.equal(await page.getByText("BEFORE_TOOL", {exact: true}).count(), 1)
+  // When SSE is unavailable, scanning another run must still advance the HTTP cursor.
+  failStream = true
+  history = []
+  coverage = 0
+  await page.reload()
+  await page.getByText("REFRESH_PREFIX REFRESH_SUFFIX", {exact: true}).waitFor({timeout: 15000})
+  assert.equal(await page.getByText("OLD_RUN", {exact: true}).count(), 0)
   assert.deepEqual(errors, [])
   console.log("live run refresh browser checks passed")
 } finally { await browser?.close(); await server.close() }

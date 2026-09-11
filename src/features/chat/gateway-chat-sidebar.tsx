@@ -36,6 +36,7 @@ import {
   getEventFingerprint,
   hasAssistantEntryContent,
   isSubScope,
+  isToolEvent,
 } from "@/features/chat/gateway-chat-helpers"
 import type {
   AssistantEntry,
@@ -2721,6 +2722,14 @@ export function GatewayChatSidebar({
       return
     }
 
+    // Replay lifecycle still enters the runtime reducer, but old questions must
+    // not terminate this observer or reopen an already answered blocking need.
+    if (event.metadata?.replayed === true &&
+        (approvalNeedFromEvent(event) || userInputNeedFromEvent(event))) {
+      if (isToolEvent(event.event)) applyMainEvent(event)
+      return
+    }
+
     const approvalEntry = approvalNeedFromEvent(event)
     if (approvalEntry) {
       upsertApprovalEntry(approvalEntry)
@@ -2849,6 +2858,15 @@ export function GatewayChatSidebar({
         if (!isCurrent()) return
         for (const envelope of response.events) {
           if (!isCurrent()) break
+          if (envelope.type === "event") {
+            const identity = getConversationEventIdentity(envelope.event)
+            if (identity?.conversationId === conversationId && expected.runId &&
+                identity.runId !== expected.runId) {
+              // Scanning history advances even when another run is not projected.
+              setConversationLastSeq(conversationId, envelope.event.seq)
+              continue
+            }
+          }
           applyEnvelopeEvent(envelope)
           // This synchronous batch may itself observe a newer canonical epoch.
           expected.executionEpoch = runtimeStoreRef.current.get(conversationId).executionEpoch
