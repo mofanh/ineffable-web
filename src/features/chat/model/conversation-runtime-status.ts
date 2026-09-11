@@ -22,8 +22,7 @@ export type ConversationRunObservation = {
 
 export function getLiveRunResumeCursor(
   backendLiveRunId: string | null,
-  pendingRunId: string | null | undefined,
-  pendingAfterSeq: number | null | undefined
+  coveredAfterSeq: number | null | undefined
 ) {
   if (!backendLiveRunId) {
     return null
@@ -31,8 +30,8 @@ export function getLiveRunResumeCursor(
 
   return {
     runId: backendLiveRunId,
-    afterSeq:
-      pendingRunId === backendLiveRunId ? (pendingAfterSeq ?? null) : null,
+    // A saved transport cursor does not prove that its UI projection survived.
+    afterSeq: coveredAfterSeq ?? 0,
   }
 }
 

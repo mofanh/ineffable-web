@@ -1938,6 +1938,12 @@ export function GatewayChatSidebar({
           (hydratedConversationIdRef.current !== conversationId ||
             entriesRef.current.length === 0) &&
           !(handoff && !handoffConfirmed && entriesRef.current.length > 0)
+        if (shouldReplaceTranscript) {
+          // Replacing the projection also replaces its coverage. A previously
+          // observed transport cursor must not skip content absent from this page.
+          conversationSeqRef.current.set(conversationId, response.next_seq ?? 0)
+          runtimeStoreRef.current.dispatch(conversationId, { type: "reset" })
+        }
         setEntries((current) => {
           if (shouldReplaceTranscript) {
             return reduceCurrentTimeline(current, {
@@ -3135,8 +3141,7 @@ export function GatewayChatSidebar({
     const liveRunId = selectedLiveRun?.id ?? null
     const resumeCursor = getLiveRunResumeCursor(
       liveRunId,
-      pendingMatches?.runId,
-      pendingMatches?.afterSeq
+      conversationSeqRef.current.get(currentConversationId)
     )
 
     if (

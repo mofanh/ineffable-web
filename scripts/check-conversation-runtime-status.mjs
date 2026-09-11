@@ -168,19 +168,11 @@ assert.equal(
   "completed_unread"
 )
 assert.equal(getConversationRuntimeStatus(completedA, false), null)
-assert.deepEqual(getLiveRunResumeCursor("run-a", "run-a", 12), {
-  runId: "run-a",
-  afterSeq: 12,
-})
-assert.deepEqual(getLiveRunResumeCursor("run-a", null, 12), {
-  runId: "run-a",
-  afterSeq: null,
-})
-assert.deepEqual(getLiveRunResumeCursor("run-a", "run-stale", 12), {
-  runId: "run-a",
-  afterSeq: null,
-})
-assert.equal(getLiveRunResumeCursor(null, "run-stale", 12), null)
+// A refreshed page can cover less than a persisted transport cursor.
+assert.deepEqual(getLiveRunResumeCursor("run-a", 0), { runId: "run-a", afterSeq: 0 })
+assert.deepEqual(getLiveRunResumeCursor("run-a", 12), { runId: "run-a", afterSeq: 12 })
+assert.deepEqual(getLiveRunResumeCursor("run-a", null), { runId: "run-a", afterSeq: 0 })
+assert.equal(getLiveRunResumeCursor(null, 12), null)
 
 const selectionRef = { current: "conversation-old" }
 let selectedConversationId = "conversation-old"
