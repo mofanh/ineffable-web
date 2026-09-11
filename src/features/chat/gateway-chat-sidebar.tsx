@@ -1,3 +1,4 @@
+import { useRunObservationAccess } from "@/features/chat/use-run-observation-access"
 import { RunObservationPanel } from "@/features/chat/components/run-observation-panel"
 import { useAgentDescriptors } from "@/features/chat/model/use-agent-descriptors"
 import { ConversationPageLoader } from "@/features/chat/model/conversation-page-loader"
@@ -439,6 +440,7 @@ export function GatewayChatSidebar({
   const capabilityExposureSaveChainRef = React.useRef<Promise<void>>(
     Promise.resolve()
   )
+  const canInspectRun = useRunObservationAccess(accessToken,currentConversationId)
   const [inspectedRun, setInspectedRun] = React.useState<{ conversationId: string; runId: string } | null>(null)
   if (inspectedRun && inspectedRun.conversationId !== currentConversationId) setInspectedRun(null)
   const [agentEvolution, setAgentEvolution] = React.useState<AgentEvolutionProjection | null>(null)
@@ -4199,7 +4201,7 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
-          onInspectRun={agentEvolution?.conversation_id === currentConversationId && agentEvolution.policy.allow_definition_recomposition ? (runId) => {
+          onInspectRun={canInspectRun ? (runId) => {
             if (currentConversationId) setInspectedRun({ conversationId: currentConversationId, runId })
           } : undefined}
           entries={renderedEntries}
@@ -4239,7 +4241,7 @@ export function GatewayChatSidebar({
         />
       </SidebarContent>
 
-      {accessToken && inspectedRun && inspectedRun.conversationId === currentConversationId && agentEvolution?.conversation_id === currentConversationId && agentEvolution.policy.allow_definition_recomposition && (
+      {accessToken && inspectedRun && inspectedRun.conversationId === currentConversationId && canInspectRun && (
         <RunObservationPanel accessToken={accessToken} conversationId={inspectedRun.conversationId} runId={inspectedRun.runId} onClose={() => setInspectedRun(null)} />
       )}
 

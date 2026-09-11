@@ -2,6 +2,7 @@ export const resources = {
   "zh-CN": {
     translation: {
       trajectory: {
+"restrictedBody": "此来源正文仅向会话创建者开放。", "showContent": "查看内容", "hideContent": "收起内容", "lazyBodyHint": "正文按需读取；旧记录可能没有内容快照。", "bodyTruncated": "正文已截断", "redacted": "敏感字段已隐藏", "emptyBody": "内容为空", "oldBodyHint": "当时未保存的内容不会从当前文件或配置重建。", "snapshotHint": "这是当时采集的内容快照，不代表最终持久化的对话结果。", "partialOutput": "部分输出", "partialOutputHint": "这次输出未完整结束，仅供排查，不用于恢复执行。", "detailTruncated": "快照达到容量限制，部分内容或条目未保留。", "firstContent": "首个内容块等待", "firstContentHint": "从逻辑模型调用开始计时，包含连接、重试和调用内采集开销；失败时不推断。", "compactionSourceHint": "来源是本次压缩实际输入的消息；tokens_before_estimate 为估算值。", "compareContent": "对照前次内容", "addedContent": "前次快照没有这一项。", "sameContent": "可见内容相同。", "previousContent": "前次内容", "noDetailItems": "当前没有已记录的内容条目。", "contentSections": "内容分类", "sections": {"input": "输入上下文", "wire": "实际请求", "output": "模型输出", "tools": "工具结果", "compaction": "压缩来源"},
 
   "identity": "运行标识",
   "statuses": {
@@ -13,7 +14,7 @@ export const resources = {
     "streaming": "进行中",
     "resuming": "恢复中",
     "queued": "排队中",
-    "succeeded": "已返回"
+    "succeeded": "已返回", "timed_out": "超时", "denied": "未获授权", "not_started": "未开始", "outcome_unknown": "结果未知"
   },
   "sources": {
     "provider": "服务商返回",
@@ -21,6 +22,7 @@ export const resources = {
     "unavailable": "未提供"
   },
   "kinds": {
+    "WireMessage": "实际请求消息", "ToolSchema": "工具定义", "ToolResult": "工具结果", "ToolCall": "工具调用", "Reasoning": "思考内容", "CompactionSource": "压缩来源",
     "SystemPolicy": "系统指令",
     "ToolCatalog": "工具目录",
     "SkillCatalog": "技能目录",
@@ -50,7 +52,7 @@ export const resources = {
         "open": "查看运行详情",
         "description": "查看本次运行的上下文清单与模型尝试，帮助判断下一步如何改进。",
         "partial": "记录不完整",
-        "partialHint": "只保存请求元数据；原文、缺失阶段和未返回的用量不会补写或推算。",
+        "partialHint": "只展示已记录的请求与内容快照；缺失阶段和用量不会补写或推算。",
         "not_recorded": "这次运行没有可用记录",
         "expired": "记录已过期",
         "unavailable": "无法加载运行记录",
@@ -1694,6 +1696,7 @@ export const resources = {
   "en-US": {
     translation: {
       trajectory: {
+"restrictedBody": "This source content is available only to the conversation creator.", "showContent": "View content", "hideContent": "Hide content", "lazyBodyHint": "Content is loaded on demand. Older records may have no snapshot.", "bodyTruncated": "Content truncated", "redacted": "Sensitive fields hidden", "emptyBody": "Empty content", "oldBodyHint": "Missing historical content is never reconstructed from current files or settings.", "snapshotHint": "This is a captured snapshot, not proof of a canonically committed conversation result.", "partialOutput": "Partial output", "partialOutputHint": "This output did not finish completely. It is diagnostic only and cannot resume execution.", "detailTruncated": "The snapshot reached its capacity limit. Some content or items were not retained.", "firstContent": "Wait for first content", "firstContentHint": "Measured from the logical model call, including connection, retries and in-call capture. Not inferred after failure.", "compactionSourceHint": "Sources are the actual messages passed to compaction. tokens_before_estimate is estimated.", "compareContent": "Compare previous content", "addedContent": "This item is absent from the previous snapshot.", "sameContent": "Visible content is unchanged.", "previousContent": "Previous content", "noDetailItems": "No content items have been recorded here.", "contentSections": "Content sections", "sections": {"input": "Input context", "wire": "Wire request", "output": "Model output", "tools": "Tool results", "compaction": "Compaction sources"},
 
   "identity": "Run identity",
   "statuses": {
@@ -1705,7 +1708,7 @@ export const resources = {
     "streaming": "Running",
     "resuming": "Resuming",
     "queued": "Queued",
-    "succeeded": "Returned"
+    "succeeded": "Returned", "timed_out": "Timed out", "denied": "Denied", "not_started": "Not started", "outcome_unknown": "Outcome unknown"
   },
   "sources": {
     "provider": "Provider-reported",
@@ -1713,6 +1716,7 @@ export const resources = {
     "unavailable": "Unavailable"
   },
   "kinds": {
+    "WireMessage": "Wire message", "ToolSchema": "Tool schema", "ToolResult": "Tool result", "ToolCall": "Tool call", "Reasoning": "Reasoning", "CompactionSource": "Compaction source",
     "SystemPolicy": "System instructions",
     "ToolCatalog": "Tool catalog",
     "SkillCatalog": "Skill catalog",
@@ -1742,7 +1746,7 @@ export const resources = {
         "open": "View run details",
         "description": "Inspect context manifests and model attempts to inform the next improvement.",
         "partial": "Incomplete records",
-        "partialHint": "Only request metadata is stored. Missing bodies, stages and usage are not reconstructed or estimated.",
+        "partialHint": "Only recorded requests and content snapshots are shown. Missing stages and usage are not reconstructed or estimated.",
         "not_recorded": "No records are available for this run",
         "expired": "Records have expired",
         "unavailable": "Unable to load run records",

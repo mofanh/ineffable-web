@@ -2618,6 +2618,7 @@ export type RunObservationPage = {
   started_at: string | null
   completed_at: string | null
   watermark?: number | null
+  detail_watermark?: number | null
   count_scope?: "latest_execution_segment"
   model_attempt_count?: number | null
   tool_count?: number | null
@@ -2636,5 +2637,43 @@ export function getRunObservations(accessToken: string, conversationId: string, 
   const promise = requestApiJson<RunObservationPage>(`/gateway/v1/conversations/run-observations?${query}`, { accessToken })
     .finally(() => { if (runObservationRequests.get(key) === promise) runObservationRequests.delete(key) })
   runObservationRequests.set(key, promise)
+  return promise
+}
+
+export type RunObservationDetailItem = {
+  id: string; kind: string; source: string; content_hash: string; bytes: number
+  body: string; truncated: boolean; redacted: boolean; restricted?: boolean; status?: string | null; duration_ms?: number | null
+}
+export type RunObservationDetail = {
+  request_id: string; execution_epoch: number; section: string; attempt: number
+  coverage: "partial" | "not_recorded" | "expired"; items: RunObservationDetailItem[]
+  total_items?: number; truncated?: boolean; partial?: boolean
+  first_content_ms?: number | null; duration_ms?: number | null
+  next_item_offset: number | null
+  previous?: {request_id: string; truncated: boolean; items: RunObservationDetailItem[]} | null
+}
+export type RunObservationDetailQuery = {
+  request_id: string; execution_epoch: number; section: string; attempt: number; item_offset: number
+}
+const observationDetailRequests = new Map<string, Promise<RunObservationDetail>>()
+export function getRunObservationDetail(accessToken: string, conversationId: string, runId: string, selection: RunObservationDetailQuery) {
+  const query = new URLSearchParams({ conversation_id: conversationId, run_id: runId, ...Object.fromEntries(Object.entries(selection).map(([key,value]) => [key,String(value)])) })
+  const key = JSON.stringify([accessToken,query.toString()])
+  const existing = observationDetailRequests.get(key)
+  if (existing) return existing
+  const promise = requestApiJson<RunObservationDetail>(`/gateway/v1/conversations/run-observations?${query}`,{accessToken})
+    .finally(() => { if (observationDetailRequests.get(key)===promise) observationDetailRequests.delete(key) })
+  observationDetailRequests.set(key,promise)
+  return promise
+}
+const observationAccessRequests = new Map<string, Promise<{conversation_id: string; allowed: boolean}>>()
+export function getRunObservationAccess(accessToken: string, conversationId: string) {
+  const key=JSON.stringify([accessToken,conversationId])
+  const existing=observationAccessRequests.get(key)
+  if (existing) return existing
+  const query=new URLSearchParams({conversation_id:conversationId})
+  const promise=requestApiJson<{conversation_id: string; allowed: boolean}>(`/gateway/v1/conversations/run-observations/access?${query}`,{accessToken})
+    .finally(()=>{if(observationAccessRequests.get(key)===promise) observationAccessRequests.delete(key)})
+  observationAccessRequests.set(key,promise)
   return promise
 }

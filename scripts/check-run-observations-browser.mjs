@@ -24,12 +24,25 @@ try {
     let coverage = "partial"
     let hold = false
     let release
+    let holdBody = false
+    let releaseBody
     const requests = []
+    await page.route("**/gateway/v1/conversations/run-observations/access?**", route=>route.fulfill({json:{conversation_id:new URL(route.request().url()).searchParams.get("conversation_id"),allowed:true}}))
     await page.route("**/gateway/v1/conversations/run-observations?**", async route => {
       const url = new URL(route.request().url())
       requests.push(url)
       if (hold && url.searchParams.get("run_id") === "run-a") await new Promise(resolve => { release = resolve })
       const run = url.searchParams.get("run_id")
+      const section=url.searchParams.get("section")
+      if (section) {
+        if (holdBody) await new Promise(resolve => { releaseBody = resolve })
+        const offset=Number(url.searchParams.get("item_offset") ?? 0)
+        const bodies={input:"current instruction",output:"model answer",tools:"command finished",compaction:"summary text",wire:"wire messages"}
+        const item={id:`item:${offset}`,kind:section==="tools"?"ToolResult":"User",source:section==="tools"?"tool_call:call-1":"workspace/rules",body:bodies[section],content_hash:"current",bytes:30,truncated:false,redacted:false}
+        await route.fulfill({status:failure || 200,json:failure?{error:"observation_forbidden"}:{request_id:url.searchParams.get("request_id"),execution_epoch:1,section,attempt:0,coverage:"partial",items:[item],total_items:3,truncated:false,partial:false,first_content_ms:125,duration_ms:300,
+          next_item_offset:section==="input" && offset===0?2:null,previous:section==="input"?{request_id:"previous:request",truncated:false,items:[{...item,body:"before instruction",content_hash:"previous"}]}:null}})
+        return
+      }
       const cursor = url.searchParams.get("cursor")
       const current = { ...structuredClone(record), seq: cursor ? 2 : 1, request_id: run + ":main:model:" + (cursor ? 2 : 1) }
       await route.fulfill({ status: failure || 200, json: failure ? {error: "observation_forbidden"} : {
@@ -50,12 +63,52 @@ try {
     }))
     assert.ok(bounds.left >= 0 && bounds.right <= width + 1, JSON.stringify(bounds))
     assert.deepEqual(bounds.overflow, [], "expanded metadata must wrap inside the panel")
+    assert.equal(requests.filter(url=>url.searchParams.has("section")).length,0,"metadata expansion must not fetch bodies")
+    await page.getByRole("button",{name:zh?"查看内容":"View content",exact:true}).click()
+    await page.getByText("current instruction",{exact:true}).waitFor()
+    await page.getByText(zh?"对照前次内容":"Compare previous content",{exact:true}).click()
+    await page.getByText("before instruction",{exact:true}).waitFor()
+    await page.locator("[data-observation-detail]").getByRole("button",{name:zh?"下一页":"Next page",exact:true}).click()
+    await page.locator('[data-detail-item="item:2"]').waitFor()
+    await page.getByRole("button",{name:zh?"模型输出":"Model output",exact:true}).click()
+    await page.getByText("model answer",{exact:true}).waitFor()
+    await page.getByText("125 ms",{exact:true}).waitFor()
+    await page.getByRole("button",{name:zh?"工具结果":"Tool results",exact:true}).click()
+    await page.getByText("command finished",{exact:true}).waitFor()
+    await page.getByText("tool_call:call-1",{exact:true}).waitFor()
+    await page.getByRole("button",{name:zh?"压缩来源":"Compaction sources",exact:true}).click()
+    await page.getByText("summary text",{exact:true}).waitFor()
+    const detailOverflow=await page.getByRole("dialog").evaluate(el=>[...el.querySelectorAll("*")].filter(node=>node.clientWidth>0 && node.scrollWidth>node.clientWidth+1 && getComputedStyle(node).overflowX==="visible").map(node=>node.tagName))
+    assert.deepEqual(detailOverflow,[],"expanded content must stay inside mobile sheet")
+    if (language==="zh-CN") await page.screenshot({path:`/tmp/trajectory-content-${width}.png`})
+    await page.getByRole("button",{name:zh?"收起内容":"Hide content",exact:true}).click()
     if (language === "zh-CN") await page.screenshot({ path: `/tmp/trajectory-integrated-${width}.png` })
     await page.getByRole("button", { name: zh ? "下一页" : "Next page", exact: true }).click()
     await page.locator("[data-observation-seq='2']").waitFor()
     assert.equal(await page.locator("[data-observation-seq='1']").count(), 0)
     await refresh().click()
     await page.locator("[data-observation-seq='1']").waitFor()
+    // A detail-only denial clears the whole panel, including already loaded bodies.
+    await page.locator("[data-observation-seq='1'] > summary").click()
+    failure = 403
+    await page.getByRole("button", {name:zh?"查看内容":"View content",exact:true}).click()
+    await page.getByRole("alert").waitFor()
+    assert.equal(await page.locator("[data-observation-seq]").count(),0)
+    failure = 0
+    await page.getByRole("button", {name:zh?"重试":"Retry",exact:true}).click()
+    await page.locator("[data-observation-seq='1']").waitFor()
+    // A delayed content page may finish after its section was unmounted.
+    await page.locator("[data-observation-seq='1'] > summary").click()
+    holdBody = true
+    await page.getByRole("button", {name:zh?"查看内容":"View content",exact:true}).click()
+    await page.waitForTimeout(100)
+    assert.ok(releaseBody)
+    holdBody = false
+    await page.getByRole("button", {name:zh?"模型输出":"Model output",exact:true}).click()
+    await page.getByText("model answer",{exact:true}).waitFor()
+    releaseBody()
+    await page.waitForTimeout(100)
+    assert.equal(await page.getByText("current instruction",{exact:true}).count(),0,"late input body must not replace output section")
     // Revalidate authorization even after the run has completed.
     await page.clock.install()
     failure = 403

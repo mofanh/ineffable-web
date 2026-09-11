@@ -1,3 +1,4 @@
+import { RunObservationDetail } from "./run-observation-detail"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { ArrowLeftIcon, ChevronRightIcon, RefreshCwIcon, XIcon } from "lucide-react"
@@ -12,7 +13,8 @@ import { useApiResource } from "@/lib/app/use-api-resource"
 
 type Props = { accessToken: string; conversationId: string; runId: string; onClose: () => void }
 
-function RecordDetails({ record }: { record: RunObservation }) {
+function RecordDetails({ record, accessToken, conversationId, runId, onAccessDenied }: { record: RunObservation; accessToken: string; conversationId: string; runId: string; onAccessDenied: (error: AppError) => void }) {
+  const [showContent,setShowContent] = React.useState(false)
   const { t } = useTranslation()
   const data = record.data
   const result = data.record
@@ -61,7 +63,7 @@ function RecordDetails({ record }: { record: RunObservation }) {
       </div>}
       {data.items && <div className="space-y-2">
         <h3 className="font-medium">{t("trajectory.context")} · {data.total_items} {t("trajectory.items")}</h3>
-        <p className="text-xs text-muted-foreground">{t("trajectory.bodyUnavailable")}</p>
+        <p className="text-xs text-muted-foreground">{t("trajectory.lazyBodyHint")}</p>
         {data.truncated && <p className="text-xs text-muted-foreground">{t("trajectory.truncated")}</p>}
         {data.items.map((item, index) => <details key={index} className="rounded-lg bg-muted/40 p-3">
           <summary className="cursor-pointer break-all">{index + 1}. {t(`trajectory.kinds.${item.kind}`, { defaultValue: item.kind })} · {item.bytes.toLocaleString()} {t("trajectory.bytes")}</summary>
@@ -70,6 +72,8 @@ function RecordDetails({ record }: { record: RunObservation }) {
           </div>
         </details>)}
       </div>}
+      {record.stage!=="settled" && <Button size="sm" variant="outline" onClick={()=>setShowContent(value=>!value)}>{t(showContent?"trajectory.hideContent":"trajectory.showContent")}</Button>}
+      {showContent && <RunObservationDetail accessToken={accessToken} conversationId={conversationId} runId={runId} requestId={record.request_id} epoch={record.execution_epoch} attempt={record.stage==="dispatch"?record.attempt:0} onAccessDenied={onAccessDenied}/>}
     </div>
   </details>
 }
@@ -93,7 +97,7 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
       void getRunObservations(accessToken, conversationId, runId, undefined, true)
         .then(summary => {
           if (cancelled) return
-          setNewRecords((summary.watermark ?? 0) > (page?.watermark ?? 0) || summary.status !== page?.status)
+          setNewRecords((summary.watermark ?? 0) > (page?.watermark ?? 0) || (summary.detail_watermark ?? 0) > (page?.detail_watermark ?? 0) || summary.status !== page?.status)
         })
         .catch(error => {
           if (cancelled) return
@@ -103,7 +107,7 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
         .finally(() => { inFlight = false })
     }, 10_000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [accessToken, conversationId, runId, accessError, page?.watermark, page?.status])
+  }, [accessToken, conversationId, runId, accessError, page?.watermark, page?.detail_watermark, page?.status])
   const retry = () => { if (accessError) setAccessError(null); else void resource.reload() }
   const busy = resource.state === "loading" || resource.state === "refreshing"
   return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 sm:px-6" data-run-observation-panel data-run-id={runId}>
@@ -125,7 +129,7 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
           <dt className="text-muted-foreground">{t("trajectory.fingerprint")}</dt><dd className="break-all font-mono text-xs">{page.definition_fingerprint ?? t("trajectory.unknown")}</dd>
         </dl></details>
         <Notice title={t(`trajectory.${page.coverage}`)}>{t("trajectory.partialHint")}</Notice>
-        <div className="space-y-3">{page.records.map(record => <RecordDetails key={record.seq} record={record} />)}</div>
+        <div className="space-y-3">{page.records.map(record => <RecordDetails key={record.seq} record={record} accessToken={accessToken} conversationId={conversationId} runId={runId} onAccessDenied={setAccessError} />)}</div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="outline" size="sm" disabled={busy || cursors.length === 1} onClick={() => setCursors(current => current.slice(0, -1))}>{t("trajectory.previous")}</Button>
           <span className="text-xs text-muted-foreground">{t("trajectory.page", { page: cursors.length })}</span>

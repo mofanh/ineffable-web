@@ -1,5 +1,9 @@
 export {
   getRunObservations,
+  getRunObservationDetail,
+  getRunObservationAccess,
+  type RunObservationDetailItem,
+  type RunObservationDetail,
   type RunObservationPage,
   type RunObservation,
   approveSandboxApproval,

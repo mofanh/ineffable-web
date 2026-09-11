@@ -489,4 +489,4 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 
 运行详情入口位于带 run identity 的 assistant 操作区（包括无正文、失败和流式状态），复用 Sheet、DataState、Notice、Button、Badge；不建立另一套聊天 reducer。入口权限来自会话创建者套餐的 AgentEvolutionProjection.policy.allow_definition_recomposition，会话 requested 不控制用户查看。工具查询还需会话迭代有效。
 
-面板按 conversation/run 和登录凭据隔离，切换会话关闭旧选择；HTTP 403/404 后不展示旧详情。观察页最多 40 条，request 内来源引用不当作 canonical message_seq。进行中的可见面板每 10 秒只查 summary，有新记录提示刷新，不替换滚动位置；关闭或隐藏标签页暂停查询。原文未记录、比较缺失、记录过期和未评价必须明确，不拿字节数假装 token、不把 dispatch 当作 provider 已接收。运行 npm run check:run-observations 验证中英文移动/桌面和迟到响应。
+面板按 conversation/run 和登录凭据隔离，切换会话关闭旧选择；HTTP 403/404 后不展示旧详情。观察页最多 40 条，request 内来源引用不当作 canonical message_seq。所有状态的可见面板每 10 秒只查 summary，有新记录提示刷新，不替换滚动位置；关闭或隐藏标签页暂停查询。正文从独立有界快照按需读取，清单展开不自动加载正文；input/wire/output/tools/compaction 共用同一授权 API，使用最小查看权益投影，不依赖迭代管理准入。创建者以外参与者的受限来源由服务端隐藏，403/404 清除正文和清单，切换分类/页码后旧响应不得覆盖新页。原文未记录、比较缺失、记录过期和未评价必须明确，不拿字节数假装 token、不把 dispatch 当作 provider 已接收。运行 npm run check:run-observations 验证中英文移动/桌面和迟到响应。
