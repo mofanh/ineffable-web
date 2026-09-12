@@ -592,7 +592,14 @@ export function buildToolView(
   getToolId: (event: GatewayChatStreamEvent) => string,
   getToolName: (event: GatewayChatStreamEvent) => string
 ) {
-  const toolId = getToolId(event)
+  let toolId = getToolId(event)
+  // A stream resumed midway through an existing call only carries its protocol
+  // ID. Join that unfinished canonical occurrence; never join a settled peer.
+  if (!getMetadataValue(event.metadata, "transcript_occurrence_id") && !pane.tools[toolId]) {
+    const active = Object.values(pane.tools).filter(tool => tool.protocolId === toolId &&
+      ["pending", "running", "waiting"].includes(tool.status))
+    if (active.length === 1) toolId = active[0].id
+  }
   const existing =
     pane.tools[toolId] ??
     ({

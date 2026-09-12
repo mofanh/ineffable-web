@@ -260,14 +260,11 @@ export function canonicalMessagesToGatewayEvents(
         const explicitOccurrence = normalizedCalls.length === 1
           ? metadataString(baseMetadata, "transcript_occurrence_id")
           : null
-        // Live events only know the protocol call id. Keep the first persisted
-        // occurrence on that same identity so history/resume reconciliation
-        // updates the live card instead of creating a second one. A repeated
-        // protocol id needs the persisted occurrence identity to remain distinct.
-        const occurrence = occurrenceCount === 0
+        // The persisted occurrence is global to the run, independent of page
+        // boundaries. Protocol IDs remain available separately for live events.
+        const occurrence = explicitOccurrence ?? (occurrenceCount === 0
           ? call.id
-          : explicitOccurrence ??
-            `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:${callIndex}`
+          : `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:${callIndex}`)
         const queue = pendingOccurrences.get(call.id) ?? []
         queue.push(occurrence)
         pendingOccurrences.set(call.id, queue)

@@ -884,8 +884,8 @@ assert.equal(
 assert.equal(
   reconciledProductionHistory.find((item) => item.event === "tool.call.completed")
     .metadata.transcript_occurrence_id,
-  "ask-1",
-  "the first persisted occurrence must reuse the live protocol identity"
+  "ask-1#1",
+  "persisted occurrence identity must not depend on the page boundary"
 )
 assert.equal(
   reconciledProductionHistory.some((item) => item.content?.startsWith("tool=")),
@@ -941,8 +941,8 @@ const repeatedProtocolId = canonicalMessagesToGatewayEvents([1, 2].map((occurren
 })
 assert.deepEqual(
   repeatedProtocolId.map((item) => item.metadata.transcript_occurrence_id),
-  ["reused-call", "reused-call#2"],
-  "only a genuinely repeated protocol id may allocate a second UI identity"
+  ["reused-call#1", "reused-call#2"],
+  "persisted occurrence identities remain distinct across pages"
 )
 
 const expandedParallelHistory = canonicalMessagesToGatewayEvents(["parallel-1", "parallel-2"].map(

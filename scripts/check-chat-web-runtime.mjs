@@ -1,3 +1,4 @@
+import { buildToolView } from "../src/features/chat/chat-pane-state.ts"
 import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history.ts"
 import assert from "node:assert/strict"
 
@@ -590,5 +591,27 @@ const handoffText = handedOff[0].pane.blockOrder.map(id => handedOff[0].pane.blo
 assert.equal(handoffText, "prefixtail", "a tail-window handoff preserves previously loaded older identities")
 const repeatPage = reduceConversationTimeline(handedOff, {type: "prepend-history", entries: whole})
 assert.equal(repeatPage[0].pane, handedOff[0].pane, "repeated loaded identities never reproject the pane")
+
+const toolOccurrencePage = occurrence => mapConversationMessagesToEntries([
+  {...historyRecord(`call-${occurrence}`, occurrence * 2, ""), message_type: "tool_call",
+    metadata_json: {tool_call_id: "reused", tool_name: "read_file", transcript_occurrence_id: `reused#${occurrence}`, full_arguments: `{"part":${occurrence}}`}},
+  {...historyRecord(`result-${occurrence}`, occurrence * 2 + 1, `result-${occurrence}`), message_type: "tool_result", role: "tool",
+    metadata_json: {tool_call_id: "reused", tool_name: "read_file", transcript_occurrence_id: `reused#${occurrence}`, status: "succeeded"}},
+])
+const newerToolPage = toolOccurrencePage(2)
+const olderToolPage = toolOccurrencePage(1)
+const toolPages = reduceConversationTimeline(newerToolPage, {type: "prepend-history", entries: olderToolPage})
+assert.deepEqual(Object.keys(toolPages[0].pane.tools), ["reused#1", "reused#2"])
+assert.equal(toolPages[0].pane.tools["reused#1"].output, "result-1")
+assert.equal(toolPages[0].pane.tools["reused#2"].output, "result-2")
+assert.equal(toolPages[0].pane.blockOrder.length, 2)
+assert.equal(reduceConversationTimeline(toolPages, {type: "prepend-history", entries: olderToolPage})[0].pane, toolPages[0].pane)
+const awaitingResult = {...toolPages[0].pane, tools: {...toolPages[0].pane.tools,
+  "reused#2": {...toolPages[0].pane.tools["reused#2"], status: "running", output: ""}}}
+const resumedTool = buildToolView(awaitingResult,
+  {event: "tool.result", content: "resumed-result", metadata: {tool_call_id: "reused", status: "succeeded"}},
+  () => "reused", () => "read_file")
+assert.equal(resumedTool.toolId, "reused#2", "a resumed result joins the unfinished persisted occurrence")
+assert.equal(resumedTool.tool.output, "resumed-result")
 
 console.log("chat web runtime checks passed")
