@@ -1,3 +1,4 @@
+import { prependAssistantHistory } from "./chat-history.ts"
 import { mergeInputProgress, type InputProgress } from "./input-progress.ts"
 import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
 import type { AssistantEntry, ChatEntry } from "../gateway-chat-types.ts"
@@ -148,6 +149,32 @@ export function reduceConversationTimeline(
     return boundary == null || entry.role !== "assistant" ||
       (entry.canonicalMessageSeqEnd ?? -1) > boundary
   })
+  if (action.type === "prepend-history") {
+    const existing = new Map(current.map(entry => [timelineIdentity(entry), entry]))
+    for (let index = 0; index < incoming.length; index++) {
+      const older = incoming[index]
+      const live = existing.get(timelineIdentity(older))
+      if (older.role === "assistant" && live?.role === "assistant") {
+        incoming[index] = prependAssistantHistory(live, older)
+      }
+    }
+  }
+  if (action.type === "canonical-patch") {
+    const existing = new Map(current.map(entry => [timelineIdentity(entry), entry]))
+    for (let index = 0; index < incoming.length; index++) {
+      const next = incoming[index]
+      const previous = existing.get(timelineIdentity(next))
+      if (next.role !== "assistant" || previous?.role !== "assistant" || !next.historyMessages?.length) continue
+      const nextIds = new Set(next.historyMessages.map(message => message.id))
+      const overlap = previous.historyMessages?.findIndex(message => nextIds.has(message.id)) ?? -1
+      const firstSequence = Math.min(...next.historyMessages.map(message => message.canonical_seq ?? Infinity))
+      const prefix = overlap >= 0
+        ? previous.historyMessages!.slice(0, overlap)
+        : previous.historyMessages?.filter(message => message.canonical_seq != null &&
+            Number.isFinite(firstSequence) && message.canonical_seq < firstSequence) ?? []
+      incoming[index] = prependAssistantHistory(next, { ...previous, historyMessages: prefix })
+    }
+  }
   const incomingIdentities = new Set(incoming.map(timelineIdentity))
   const incomingAssistantRunIds = new Set(
     incoming.flatMap((entry) =>

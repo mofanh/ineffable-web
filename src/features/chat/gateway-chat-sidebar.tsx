@@ -1610,7 +1610,7 @@ export function GatewayChatSidebar({
   React.useLayoutEffect(() => {
     const metrics = pendingOlderLoadMetricsRef.current
     const viewport = scrollViewportRef.current
-    if (!metrics || !viewport) {
+    if (!metrics || !viewport || isLoadingOlderEntries) {
       return
     }
 
@@ -1618,7 +1618,7 @@ export function GatewayChatSidebar({
     viewport.scrollTop = metrics.scrollTop + Math.max(0, addedHeight)
     pendingOlderLoadMetricsRef.current = null
     setIsLoadingOlderEntries(false)
-  }, [renderedEntryCount])
+  }, [renderedEntryCount, entries, isLoadingOlderEntries])
 
   const clearRecoveryTimer = React.useCallback(() => {
     if (recoveryTimerRef.current != null) {
@@ -1763,7 +1763,6 @@ export function GatewayChatSidebar({
         setRenderedEntryLimit((current) => current + olderEntries.length)
         setOlderMessagesCursor(response.page?.before ?? null)
         setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
-        setConversationLastSeq(currentConversationId, response.next_seq ?? 0)
         setOlderMessagesError(null)
         setError(null)
       })
@@ -1795,7 +1794,6 @@ export function GatewayChatSidebar({
     hasOlderEntries,
     olderMessagesCursor,
     reportChatError,
-    setConversationLastSeq,
     visibleEntries.length,
     reduceCurrentTimeline,
   ])

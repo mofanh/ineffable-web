@@ -1,3 +1,4 @@
+import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history.ts"
 import assert from "node:assert/strict"
 
 import {
@@ -574,5 +575,20 @@ assert.equal(
   null,
   "an unmeasurable optional snapshot must be skipped"
 )
+
+const historyRecord = (id, seq, content) => ({
+  id, conversation_id: "pagination", run_id: "same-run", role: "assistant",
+  message_type: "output", content, metadata_json: {}, canonical_seq: seq,
+  timeline_seq: 1, timeline_unit_id: "run:same-run:anchor:1", created_at: "2026-09-12T00:00:00Z",
+})
+const oldRecord = historyRecord("prefix", 1, "prefix")
+const tailRecord = historyRecord("tail", 2, "tail")
+const whole = mapConversationMessagesToEntries([oldRecord, tailRecord])
+const tailPage = mapConversationMessagesToEntries([tailRecord])
+const handedOff = reduceConversationTimeline(whole, {type: "canonical-patch", entries: tailPage})
+const handoffText = handedOff[0].pane.blockOrder.map(id => handedOff[0].pane.blocks[id].content).join("")
+assert.equal(handoffText, "prefixtail", "a tail-window handoff preserves previously loaded older identities")
+const repeatPage = reduceConversationTimeline(handedOff, {type: "prepend-history", entries: whole})
+assert.equal(repeatPage[0].pane, handedOff[0].pane, "repeated loaded identities never reproject the pane")
 
 console.log("chat web runtime checks passed")

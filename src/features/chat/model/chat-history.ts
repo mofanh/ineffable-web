@@ -281,14 +281,11 @@ function hasRenderableConversationMessageContent(
 function buildAssistantEntryFromMessages(
   messages: ConversationMessageRecord[]
 ): AssistantEntry {
-  const first = messages[0] ?? messages[0]
+  const first = messages[0]
   const runId =
-    messages.find((message) => message.run_id)?.run_id ??
     messages.find((message) => message.run_id)?.run_id ??
     null
   const definitionFingerprint =
-    messages.find((message) => message.definition_fingerprint)
-      ?.definition_fingerprint ??
     messages.find((message) => message.definition_fingerprint)
       ?.definition_fingerprint ??
     null
@@ -443,6 +440,7 @@ function buildAssistantEntryFromMessages(
     capabilityExposure,
     createdAt,
     canonicalMessageSeqEnd,
+    historyMessages: messages,
     timelineSeq,
     timelineUnitId,
     status: "done",
@@ -450,6 +448,32 @@ function buildAssistantEntryFromMessages(
     subagentOrder,
     subagents: finalizedSubagents,
   }
+}
+
+/** Prepend only unseen message identities; preserve the current live pane tail. */
+export function prependAssistantHistory(current: AssistantEntry, older: AssistantEntry): AssistantEntry {
+  const loaded = new Set(current.historyMessages?.map(message => message.id))
+  const missing = older.historyMessages?.filter(message => !loaded.has(message.id)) ?? []
+  if (!missing.length) return current
+  const prefix = buildAssistantEntryFromMessages(missing)
+  const prependPane = (before: AgentPaneState, after: AgentPaneState): AgentPaneState => {
+    const prefixOrder = before.blockOrder.filter(id => {
+      const block = before.blocks[id]
+      return block.type !== "tool" || !after.tools[block.toolId]
+    })
+    return { ...after, blockOrder: [...prefixOrder, ...after.blockOrder],
+      blocks: { ...before.blocks, ...after.blocks }, tools: { ...before.tools, ...after.tools } }
+  }
+  const subagentOrder = [...new Set([...prefix.subagentOrder, ...current.subagentOrder])]
+  const subagents = { ...current.subagents }
+  for (const id of prefix.subagentOrder) {
+    const existing = current.subagents[id]
+    subagents[id] = existing
+      ? { ...existing, ...prependPane(prefix.subagents[id], existing) }
+      : prefix.subagents[id]
+  }
+  return { ...current, pane: prependPane(prefix.pane, current.pane), subagentOrder, subagents,
+    historyMessages: [...missing, ...(current.historyMessages ?? [])] }
 }
 
 export function mapConversationMessagesToEntries(

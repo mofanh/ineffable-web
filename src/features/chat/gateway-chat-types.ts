@@ -69,6 +69,7 @@ export type CapabilityExposureSummary = {
 }
 
 export type AssistantEntry = {
+  historyMessages?: import("./api/chat-api").ConversationMessageRecord[]
   eventCoverage?: number
   humanInputBoundarySeq?: number
 

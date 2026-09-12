@@ -22,6 +22,8 @@ const replay = [streamEvent(1, "REFRESH_PREFIX "), oldWait, resumed, suffix]
 let failStream = false
 let history = []
 let coverage = 0
+let olderHistory = []
+let olderReads = 0
 const server = await createServer({
   root: process.cwd(), logLevel: "error", optimizeDeps: {entries: ["scripts/live-refresh-fixture.html"]},
   plugins: [{ name: "refresh-session-fixture", enforce: "pre", configureServer(server) {
@@ -60,7 +62,11 @@ try {
     }
     let body = {items: [], profiles: [], environments: [], pending_inputs: [], events: [], next_seq: 11000}
     if (url.pathname.endsWith("/messages")) {
-      body = {messages: history, next_seq: coverage, page: {has_older: false, before: null}}
+      body = {messages: history, next_seq: coverage, page: {has_older: olderHistory.length > 0, before: olderHistory.length ? "older-page" : null}}
+      if (url.searchParams.has("before")) {
+        olderReads++
+        body = {...body, messages: olderHistory, next_seq: 99999}
+      }
       if (holdHistory) await new Promise(resolve => { releaseHistory = resolve })
     }
     if (failStream && url.pathname.endsWith("/events")) {
@@ -93,6 +99,7 @@ try {
     message("tool", "tool_call", "", {tool_call_id: "call", tool_name: "read_file", full_arguments: "{}"}),
     message("result", "tool_result", "ok", {tool_call_id: "call", tool_name: "read_file", status: "succeeded"}),
     message("b", "output", "AFTER_TOOL ")]
+  olderHistory = [message("older", "output", "EARLIER_OUTPUT"), history[0]]
   coverage = 10
   await page.reload()
   await page.getByText("BEFORE_TOOL", {exact: true}).waitFor()
@@ -116,6 +123,23 @@ try {
   releaseHistory()
   await page.waitForTimeout(250)
   assert.equal(await page.getByText(/COVERAGE_TAIL/).count(), 1, "late canonical prefix must not erase a newer suffix")
+  // A page overlaps the hydrated prefix while the same answer has a live tail.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const response = page.waitForResponse(response => response.url().includes("before=older-page"))
+    await page.getByRole("button", {name: "更早消息", exact: true}).click()
+    await response
+    await page.getByText("EARLIER_OUTPUT", {exact: true}).waitFor()
+    assert.equal(olderReads, attempt)
+    assert.equal(await page.getByText("EARLIER_OUTPUT", {exact: true}).count(), 1)
+    assert.equal(await page.getByText("BEFORE_TOOL", {exact: true}).count(), 1)
+    assert.equal(await page.getByText(/AFTER_TOOL.*REFRESH_SUFFIX.*COVERAGE_TAIL/).count(), 1)
+  }
+  const subsequent = streamEvent(11003, " AFTER_PAGINATION")
+  subsequent.event.metadata.execution_epoch = 2
+  for (const stream of streams) stream.write(`data: ${JSON.stringify(subsequent)}\n\n`)
+  await page.getByText(/AFTER_PAGINATION/).waitFor()
+  assert.equal(await page.getByText("EARLIER_OUTPUT", {exact: true}).count(), 1)
+  olderHistory = []
   // When SSE is unavailable, scanning another run must still advance the HTTP cursor.
   failStream = true
   history = []
