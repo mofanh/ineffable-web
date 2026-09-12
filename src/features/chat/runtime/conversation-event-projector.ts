@@ -1,3 +1,5 @@
+import { canonicalMessagesToGatewayEvents } from "../model/canonical-message-event"
+import { updateAssistantSegment, transcriptSegment } from "../model/assistant-segments"
 import {
   applyMessageToPane,
   applyReasoningDeltaToPane,
@@ -68,7 +70,7 @@ function projectToolEvent(
   return projectDeclaredWebNode(upsertToolInPane(pane, toolId, tool), event)
 }
 
-export function projectConversationOutputEvent(
+function projectConversationOutputFragment(
   entry: AssistantEntry | undefined,
   event: GatewayChatStreamEvent,
   runId: string | null
@@ -121,16 +123,60 @@ export function projectConversationOutputEvent(
   }
 }
 
+export function projectConversationOutputEvent(
+  entry: AssistantEntry | undefined,
+  event: GatewayChatStreamEvent,
+  runId: string | null
+): AssistantEntry {
+  const identity = transcriptSegment(event.metadata)
+  if (!identity && !entry?.segments) return projectConversationOutputFragment(entry, event, runId)
+  const base = entry ?? createAssistantEntry("streaming", runId)
+  const key = identity?.id ?? "unattributed"
+  const previous = base.segments?.[key]
+  if (identity && event.metadata?.canonical_reconciliation === true) {
+    const sequence = Number(event.metadata.canonical_message_seq)
+    if (Number.isSafeInteger(sequence) && sequence <= (previous?.canonicalMessageSeqEnd ?? -1) && !previous?.canonicalDraft) return base
+    let draft = previous?.canonicalDraft ?? createAssistantEntry("streaming", runId)
+    const firstForMessage = sequence !== draft.canonicalMessageSeqEnd
+    const metadata = { ...event.metadata }
+    if (event.event === "tool.call.completed") {
+      metadata.transcript_occurrence_id = getToolCallId(event)
+      if (!firstForMessage) {
+        metadata.reasoning_content = ""
+        metadata.canonical_message = { ...(metadata.canonical_message as Record<string, unknown>), content: "", reasoning_content: "" }
+      }
+    }
+    const converted = canonicalMessagesToGatewayEvents([{
+      role: event.role, messageType: event.event === "tool.result" ? "tool_result" : event.event === "tool.call.completed" ? "tool_call" : "output",
+      content: event.content ?? "", metadata, runId, reasoningContent: firstForMessage && typeof metadata.reasoning_content === "string" ? metadata.reasoning_content : null,
+    }], { stream: "history", phase: "history", defaultRunId: runId })
+    for (const projected of converted) draft = projectConversationOutputFragment(draft, projected, runId)
+    draft = { ...draft, segmentIdentity: identity, canonicalMessageSeqEnd: sequence, eventCoverage: event.seq }
+    if (event.metadata.transcript_segment_complete === true) {
+      draft.pane = finalizePane(draft.pane)
+      return updateAssistantSegment(base, key, draft)
+    }
+    return { ...base, eventCoverage: Math.max(base.eventCoverage ?? 0, event.seq ?? 0),
+      segments: { ...(base.segments ?? (base.pane.blockOrder.length || base.subagentOrder.length ? { legacy: { ...base, segments: undefined } } : {})), [key]: { ...(previous ?? createAssistantEntry("streaming", runId)), segmentIdentity: identity, canonicalDraft: draft } } }
+  }
+  const fragment = projectConversationOutputFragment(previous, event, runId)
+  fragment.segmentIdentity = identity ?? undefined
+  return updateAssistantSegment(base, key, fragment)
+}
+
 export function projectConversationUserInputNeed(
   entry: AssistantEntry | undefined,
   event: GatewayChatStreamEvent,
   need: UserInputNeed
 ): AssistantEntry {
+  const resolvedToolId = isToolEvent(event.event)
+    ? buildToolView(entry?.pane ?? createAssistantEntry("streaming", need.runId).pane, event, getToolCallId, getToolName).toolId
+    : null
   const projected = isToolEvent(event.event)
     ? projectConversationOutputEvent(entry, event, need.runId)
     : entry ?? createAssistantEntry("streaming", need.runId)
   const projectedToolId = isToolEvent(event.event)
-    ? getToolCallId(event)
+    ? resolvedToolId!
     : Object.values(projected.pane.tools).find(
         (tool) =>
           tool.needId === need.needId ||
@@ -139,7 +185,7 @@ export function projectConversationUserInputNeed(
       )?.id ?? need.needId
   const existing = projected.pane.tools[projectedToolId]
 
-  return {
+  const result: AssistantEntry = {
     ...projected,
     runId: projected.runId ?? need.runId,
     pane: upsertToolInPane(projected.pane, projectedToolId, {
@@ -155,4 +201,11 @@ export function projectConversationUserInputNeed(
       responseMessageId: existing?.responseMessageId,
     }),
   }
+  const key = transcriptSegment(event.metadata)?.id ?? "unattributed"
+  const fragment = projected.segments?.[key]
+  if (fragment) {
+    return updateAssistantSegment(projected, key, { ...fragment,
+      pane: upsertToolInPane(fragment.pane, projectedToolId, result.pane.tools[projectedToolId]) })
+  }
+  return result
 }

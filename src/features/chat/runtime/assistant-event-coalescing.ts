@@ -17,6 +17,9 @@ function visualEventLane(event: GatewayChatStreamEvent) {
     event.scope ?? stringValue(metadata?.scope),
     stringValue(metadata?.subagent_id),
     stringValue(metadata?.tool_call_id),
+    stringValue(objectValue(metadata?.transcript_segment)?.id),
+    String(metadata?.execution_epoch ?? ""),
+    event.run_id,
   ].join(":")
 }
 

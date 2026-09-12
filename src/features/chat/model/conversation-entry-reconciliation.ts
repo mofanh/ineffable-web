@@ -1,3 +1,4 @@
+import { mergeAssistantSegments } from "./assistant-segments"
 import { prependAssistantHistory } from "./chat-history.ts"
 import { mergeInputProgress, type InputProgress } from "./input-progress.ts"
 import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
@@ -163,8 +164,16 @@ export function reduceConversationTimeline(
     const existing = new Map(current.map(entry => [timelineIdentity(entry), entry]))
     for (let index = 0; index < incoming.length; index++) {
       const next = incoming[index]
-      const previous = existing.get(timelineIdentity(next))
-      if (next.role !== "assistant" || previous?.role !== "assistant" || !next.historyMessages?.length) continue
+      if (next.role !== "assistant") continue
+      const previous = existing.get(timelineIdentity(next)) ?? current.find(entry =>
+        isLocalAssistantEntry(entry) && entry.runId === next.runId &&
+        (!entry.timelineUnitId || entry.timelineUnitId === next.timelineUnitId))
+      if (next.role !== "assistant" || previous?.role !== "assistant") continue
+      if (previous.segments || next.segments) {
+        incoming[index] = mergeAssistantSegments(previous, next)
+        continue
+      }
+      if (!next.historyMessages?.length) continue
       const nextIds = new Set(next.historyMessages.map(message => message.id))
       const overlap = previous.historyMessages?.findIndex(message => nextIds.has(message.id)) ?? -1
       const firstSequence = Math.min(...next.historyMessages.map(message => message.canonical_seq ?? Infinity))

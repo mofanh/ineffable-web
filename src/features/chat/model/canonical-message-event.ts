@@ -1,3 +1,4 @@
+import { transcriptSegment } from "./assistant-segments"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 
 export type CanonicalRenderableMessage = {
@@ -262,7 +263,10 @@ export function canonicalMessagesToGatewayEvents(
           : null
         // The persisted occurrence is global to the run, independent of page
         // boundaries. Protocol IDs remain available separately for live events.
-        const occurrence = explicitOccurrence ?? (occurrenceCount === 0
+        const segment = transcriptSegment(baseMetadata)
+        const source = metadataString(baseMetadata, "canonical_source_message_id")
+        const occurrence = (segment ? `${segment.id}:tool:${call.id}` : null) ?? explicitOccurrence ??
+          (source ? `message:${source}:tool:${callIndex}` : null) ?? (occurrenceCount === 0
           ? call.id
           : `${runId ?? conversationId ?? "conversation"}:${context.stream}:${messageIndex}:${callIndex}`)
         const queue = pendingOccurrences.get(call.id) ?? []

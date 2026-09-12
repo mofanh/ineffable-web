@@ -140,6 +140,55 @@ try {
   await page.getByText(/AFTER_PAGINATION/).waitFor()
   assert.equal(await page.getByText("EARLIER_OUTPUT", {exact: true}).count(), 1)
   olderHistory = []
+  // Real Sidebar terminal handoff: a tail page must not erase 60 live segments.
+  const savedReplay = replay.splice(0)
+  history = []
+  coverage = 0
+  const beforeSegments = cursors.length
+  await page.reload()
+  const subscriptionDeadline = Date.now() + 10000
+  while (cursors.length === beforeSegments && Date.now() < subscriptionDeadline) await new Promise(resolve => setTimeout(resolve, 10))
+  assert.ok(cursors.length > beforeSegments, "reload must establish its stream before fixture events are emitted")
+  const segmentIdentity = turn => ({id: `refresh-run:2:${turn}`, turn, execution_epoch: 2})
+  const segmentEvent = (seq, turn, kind, content, metadata = {}) => {
+    const value = streamEvent(seq, content)
+    value.event.event = kind
+    Object.assign(value.event.metadata, {execution_epoch: 2, transcript_segment: segmentIdentity(turn)}, metadata)
+    return value
+  }
+  const send = value => { for (const stream of streams) stream.write(`data: ${JSON.stringify(value)}\n\n`) }
+  for (let turn = 0; turn < 60; turn++) {
+    if (turn === 10) continue // Entire process segment lost; canonical replay must fill it.
+    send(segmentEvent(20000 + turn * 3, turn, "model.text.delta", `LIVE_SEG_${turn}`))
+    send(segmentEvent(20001 + turn * 3, turn, "tool.call.completed", "", {tool_call_id:"reused",tool_name:"read_file",full_arguments:"{}"}))
+    send(segmentEvent(20002 + turn * 3, turn, "tool.result", `RESULT_${turn}`, {tool_call_id:"reused",tool_name:"read_file",status:"succeeded"}))
+  }
+  await page.getByText("LIVE_SEG_59", {exact:true}).waitFor()
+  send(segmentEvent(23000, 10, "assistant.snapshot", "CANON_SEG_10", {canonical_reconciliation:true,canonical_message_seq:21,transcript_segment_complete:true}))
+  // AgentPane intentionally renders only its latest 80 nodes until expanded.
+  await page.getByRole("button", {name:"更早消息",exact:true}).click()
+  await page.getByText("CANON_SEG_10", {exact:true}).waitFor()
+  history = [58,59].flatMap(turn => [
+    {...message(`call-${turn}`,"tool_call",`CANON_SEG_${turn}`, {transcript_segment:segmentIdentity(turn),tool_calls:[{id:"reused",name:"read_file",input:{}}]}),canonical_seq:turn*2+1},
+    {...message(`result-${turn}`,"tool_result",`RESULT_${turn}`, {transcript_segment:segmentIdentity(turn),tool_call_id:"reused",tool_name:"read_file",status:"succeeded"}),canonical_seq:turn*2+2},
+  ])
+  coverage = 24000
+  run.status = "completed"
+  run.is_live = false
+  run.is_streaming = false
+  const terminal = segmentEvent(24000,59,"run.completed","",{canonical_message_seq_end:120})
+  send(terminal)
+  await page.getByText("CANON_SEG_59", {exact:true}).waitFor()
+  const earlierNodes = page.getByRole("button", {name:"更早消息",exact:true})
+  if (await earlierNodes.count()) await earlierNodes.click()
+  assert.equal(await page.getByText("LIVE_SEG_0", {exact:true}).count(),1)
+  assert.equal(await page.getByText("LIVE_SEG_57", {exact:true}).count(),1)
+  assert.equal(await page.getByText("LIVE_SEG_59", {exact:true}).count(),0)
+  assert.equal(await page.getByText("CANON_SEG_10", {exact:true}).count(),1)
+  run.status = "streaming"
+  run.is_live = true
+  run.is_streaming = true
+  replay.push(...savedReplay)
   // When SSE is unavailable, scanning another run must still advance the HTTP cursor.
   failStream = true
   history = []

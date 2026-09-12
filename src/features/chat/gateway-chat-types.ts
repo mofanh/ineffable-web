@@ -69,6 +69,9 @@ export type CapabilityExposureSummary = {
 }
 
 export type AssistantEntry = {
+  segmentIdentity?: import("./model/assistant-segments").TranscriptSegment
+  segments?: Record<string, AssistantEntry>
+  canonicalDraft?: AssistantEntry
   historyMessages?: import("./api/chat-api").ConversationMessageRecord[]
   eventCoverage?: number
   humanInputBoundarySeq?: number

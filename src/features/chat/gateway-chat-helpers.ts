@@ -1,3 +1,4 @@
+import { transcriptSegment } from "./model/assistant-segments"
 import {
   createEmptyAgentPane,
   hasAgentPaneContent,
@@ -50,6 +51,9 @@ function firstToolCall(metadata: Record<string, unknown> | null | undefined) {
 }
 
 export function getToolCallId(event: GatewayChatStreamEvent) {
+  const segment = transcriptSegment(event.metadata)
+  const protocol = getMetadataValue(event.metadata, "tool_call_id")
+  if (segment && protocol) return `${segment.id}:tool:${protocol}`
   const occurrence = getMetadataValue(event.metadata, "transcript_occurrence_id")
   if (occurrence) {
     return occurrence

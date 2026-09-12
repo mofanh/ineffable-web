@@ -134,6 +134,7 @@ export function measureConversationWindow(
     }
 
     bytes += boundedValueBytes(entry.historyMessages, byteStop - bytes)
+    bytes += boundedValueBytes(entry.segments, byteStop - bytes)
     const main = paneMeasure(entry.pane, nodeStop - nodes, byteStop - bytes)
     nodes += main.nodes
     bytes += main.bytes

@@ -1,3 +1,4 @@
+import { mergeAssistantSegments, transcriptSegment } from "./assistant-segments"
 import { parseInputProgress } from "./input-progress"
 import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryForRun } from "./human-input-timeline"
 import {
@@ -279,8 +280,26 @@ function hasRenderableConversationMessageContent(
 }
 
 function buildAssistantEntryFromMessages(
-  messages: ConversationMessageRecord[]
+  messages: ConversationMessageRecord[],
+  buildSegments = true
 ): AssistantEntry {
+  if (buildSegments && messages.some(message => transcriptSegment(message.metadata_json))) {
+    const groups = new Map<string, ConversationMessageRecord[]>()
+    for (const message of messages) {
+      const key = transcriptSegment(message.metadata_json)?.id ?? "legacy"
+      const group = groups.get(key) ?? []
+      group.push(message)
+      groups.set(key, group)
+    }
+    const shell = buildAssistantEntryFromMessages(messages, false)
+    shell.segments = {}
+    for (const [key, group] of groups) {
+      const fragment = buildAssistantEntryFromMessages(group, false)
+      fragment.segmentIdentity = transcriptSegment(group[0].metadata_json) ?? undefined
+      shell.segments[key] = fragment
+    }
+    return mergeAssistantSegments({ ...shell, segments: {} }, shell)
+  }
   const first = messages[0]
   const runId =
     messages.find((message) => message.run_id)?.run_id ??
@@ -452,6 +471,7 @@ function buildAssistantEntryFromMessages(
 
 /** Prepend only unseen message identities; preserve the current live pane tail. */
 export function prependAssistantHistory(current: AssistantEntry, older: AssistantEntry): AssistantEntry {
+  if (current.segments || older.segments) return mergeAssistantSegments(current, { ...older, status: current.status, eventCoverage: current.eventCoverage }, false)
   const loaded = new Set(current.historyMessages?.map(message => message.id))
   const missing = older.historyMessages?.filter(message => !loaded.has(message.id)) ?? []
   if (!missing.length) return current
