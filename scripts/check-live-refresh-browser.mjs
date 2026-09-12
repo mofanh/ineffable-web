@@ -22,6 +22,8 @@ const replay = [streamEvent(1, "REFRESH_PREFIX "), oldWait, resumed, suffix]
 let failStream = false
 let history = []
 let coverage = 0
+let failOldLoad = false
+let rejectOldLoad = null
 let olderHistory = []
 let olderReads = 0
 const server = await createServer({
@@ -62,6 +64,14 @@ try {
     }
     let body = {items: [], profiles: [], environments: [], pending_inputs: [], events: [], next_seq: 11000}
     if (url.pathname.endsWith("/messages")) {
+      if (url.searchParams.get("conversation_id") === "other-conversation") {
+        return route.fulfill({contentType:"application/json",body:JSON.stringify({messages:[{id:"b-user",conversation_id:"other-conversation",role:"user",message_type:"input",content:"CONVERSATION_B_CONTENT",created_at:"2026-09-12T00:00:00Z",updated_at:"2026-09-12T00:00:00Z",metadata_json:{}}],next_seq:0,page:{has_older:false,before:null}})})
+      }
+      if (failOldLoad) {
+        failOldLoad=false
+        await new Promise(resolve => { rejectOldLoad=resolve })
+        return route.fulfill({status:500,contentType:"application/json",body:JSON.stringify({error:"STALE_A_LOAD_FAILED"})})
+      }
       body = {messages: history, next_seq: coverage, page: {has_older: olderHistory.length > 0, before: olderHistory.length ? "older-page" : null}}
       if (url.searchParams.has("before")) {
         olderReads++
@@ -78,7 +88,7 @@ try {
       }), next_seq: 200}
       else if (after < 11000) body = {events: [streamEvent(201, "REFRESH_PREFIX "), suffix], next_seq: 11000}
     }
-    if (url.pathname.endsWith("/get")) body = conversation
+    if (url.pathname.endsWith("/get")) body = url.searchParams.get("conversation_id") === "other-conversation" ? {id:"other-conversation",title:"Other",current_run:null} : conversation
     if (url.pathname.endsWith("/observations/access")) body = {allowed: false}
     await route.fulfill({contentType:"application/json",body:JSON.stringify(body)})
   })
@@ -196,6 +206,20 @@ try {
   await page.reload()
   await page.getByText("REFRESH_PREFIX REFRESH_SUFFIX", {exact: true}).waitFor({timeout: 15000})
   assert.equal(await page.getByText("OLD_RUN", {exact: true}).count(), 0)
+  const select = id => page.evaluate(id => window.dispatchEvent(new CustomEvent("fixture:select",{detail:id})),id)
+  await select("other-conversation")
+  await page.getByText("CONVERSATION_B_CONTENT",{exact:true}).waitFor()
+  failOldLoad=true
+  await select("refresh-conversation")
+  const pendingDeadline=Date.now()+5000
+  while (!rejectOldLoad && Date.now()<pendingDeadline) await new Promise(resolve=>setTimeout(resolve,10))
+  assert.ok(rejectOldLoad)
+  await select("other-conversation")
+  await page.getByText("CONVERSATION_B_CONTENT",{exact:true}).waitFor()
+  rejectOldLoad()
+  await page.waitForTimeout(300)
+  assert.equal(await page.getByText("CONVERSATION_B_CONTENT",{exact:true}).count(),1)
+  assert.equal(await page.getByText(/STALE_A_LOAD_FAILED/).count(),0)
   assert.deepEqual(errors, [])
   console.log("live run refresh browser checks passed")
 } finally { await browser?.close(); await server.close() }

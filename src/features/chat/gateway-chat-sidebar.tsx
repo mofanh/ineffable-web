@@ -1981,6 +1981,8 @@ export function GatewayChatSidebar({
         ) {
           hydratedConversationIdRef.current = null
           setHydratedConversationId(null)
+          setError(reportChatError(error, i18n.t("chat.gateway.loadConversationFailed"),
+            i18n.t("chat.gateway.loadConversationFailedTitle"), { toast: false }))
         }
         throw error
       } finally {
@@ -1996,7 +1998,7 @@ export function GatewayChatSidebar({
         }
       }
     },
-    [accessToken, setConversationLastSeq, reduceCurrentTimeline, latestPageLoader]
+    [accessToken, setConversationLastSeq, reduceCurrentTimeline, latestPageLoader, reportChatError]
   )
 
   React.useEffect(() => {
@@ -2046,19 +2048,9 @@ export function GatewayChatSidebar({
       return
     }
 
-    void syncLatestConversationMessagesPage(currentConversationId, null, "coalesce").catch((loadError) => {
-      setEntries([])
-      setError(
-        reportChatError(
-          loadError,
-          i18n.t("chat.gateway.loadConversationFailed"),
-          i18n.t("chat.gateway.loadConversationFailedTitle"),
-          {
-          toast: false,
-          }
-        )
-      )
-    })
+    // The request owner reports only current-generation failures. Keep cached
+    // content visible and consume this effect's already-reported rejection.
+    void syncLatestConversationMessagesPage(currentConversationId, null, "coalesce").catch(() => {})
   }, [
     assistantVisualScheduler,
     applyConversationWindow,

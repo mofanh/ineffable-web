@@ -586,6 +586,13 @@ export function finalizePane(pane: AgentPaneState, fallback?: string) {
   }
 }
 
+/** A blocking need is attached by its result fact, never a reused protocol ID. */
+export function findUserInputTool(pane: AgentPaneState, needId: string, runId: string | null) {
+  const matches = Object.values(pane.tools).filter(tool => tool.needId === needId &&
+    (!runId || !tool.runId || tool.runId === runId) && !tool.responseMessageId)
+  return matches.length === 1 ? matches[0] : undefined
+}
+
 export function buildToolView(
   pane: AgentPaneState,
   event: GatewayChatStreamEvent,
@@ -639,6 +646,11 @@ export function buildToolView(
   } else if (event.event === "tool.result") {
     nextTool.status = statusFromToolResult(event)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")
+    let need = event.metadata?.blocking_need as {kind?: unknown; need_id?: unknown} | undefined
+    if (!need && event.content) {
+      try { need = JSON.parse(event.content)?.blocking_need } catch { /* Plain tool output. */ }
+    }
+    if (need?.kind === "user_input" && typeof need.need_id === "string") nextTool.needId = need.need_id
   }
 
   return { toolId, tool: nextTool }

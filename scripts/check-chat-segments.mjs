@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { projectConversationOutputEvent, projectConversationUserInputNeed } from "../src/features/chat/runtime/conversation-event-projector.ts"
-import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history.ts"
+import { mapConversationMessagesToEntries, reconcilePendingUserInput } from "../src/features/chat/model/chat-history.ts"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 import { mergeAssistantDeltaEvents } from "../src/features/chat/runtime/assistant-event-coalescing.ts"
 const segment = turn => ({id:`run:1:${turn}`, turn, execution_epoch:1})
@@ -76,3 +76,23 @@ const parallel = ["a","b"].map((id,index)=>({...record(200,"tool_call","",401,{
 const parallelEntry=mapConversationMessagesToEntries(parallel).find(e=>e.role==="assistant")
 assert.equal(body(parallelEntry),"parallel-body")
 assert.equal(Object.keys(parallelEntry.pane.tools).length,2)
+
+// A reused protocol ID never transfers a blocking need to an earlier tool.
+let reusedQuestion
+const needFact={kind:"user_input",need_id:"reused",questions:[{id:"q",question:"Pick",options:[]}]}
+for (const turn of [300,301]) {
+ const metadata={tool_call_id:"reused",tool_name:turn===300?"exec_command":"request_user_input",full_arguments:turn===300?'{"command":"ls"}':'{"questions":[]}',status:"succeeded"}
+ reusedQuestion=projectConversationOutputEvent(reusedQuestion,event(turn,"tool.call.completed","",metadata),"run")
+ reusedQuestion=projectConversationOutputEvent(reusedQuestion,event(turn,"tool.result","done",{...metadata,...(turn===301?{blocking_need:needFact}:{})}),"run")
+}
+const activeNeed={needId:"reused",questions:needFact.questions,runId:"run",sessionKey:null}
+const lifeEvent={...event(301,"run.awaiting_human","",{pending_need:needFact}),metadata:{pending_need:needFact}}
+const withNeed=projectConversationUserInputNeed(reusedQuestion,lifeEvent,activeNeed)
+const restoredNeed=reconcilePendingUserInput([reusedQuestion],activeNeed)[0]
+for (const entry of [withNeed,restoredNeed]) {
+ assert.equal(entry.pane.tools[`${segment(300).id}:tool:reused`].name,"exec_command")
+ assert.equal(entry.pane.tools[`${segment(300).id}:tool:reused`].status,"succeeded")
+ assert.equal(entry.pane.tools[`${segment(301).id}:tool:reused`].status,"waiting")
+ assert.equal(entry.segments[segment(301).id].pane.tools[`${segment(301).id}:tool:reused`].status,"waiting")
+ assert.equal(Object.keys(entry.pane.tools).length,2)
+}

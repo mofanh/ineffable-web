@@ -1,11 +1,12 @@
 import { canonicalMessagesToGatewayEvents } from "../model/canonical-message-event"
-import { updateAssistantSegment, transcriptSegment } from "../model/assistant-segments"
+import { updateAssistantSegment, updateUserInputTool, transcriptSegment } from "../model/assistant-segments"
 import {
   applyMessageToPane,
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
   appendUpdateToPane,
   buildToolView,
+  findUserInputTool,
   finalizePane,
   resumeTrailingThinkBlock,
   upsertToolInPane,
@@ -177,12 +178,7 @@ export function projectConversationUserInputNeed(
     : entry ?? createAssistantEntry("streaming", need.runId)
   const projectedToolId = isToolEvent(event.event)
     ? resolvedToolId!
-    : Object.values(projected.pane.tools).find(
-        (tool) =>
-          tool.needId === need.needId ||
-          tool.protocolId === need.needId ||
-          tool.id === need.needId
-      )?.id ?? need.needId
+    : findUserInputTool(projected.pane, need.needId, need.runId)?.id ?? `need:${need.runId}:${need.needId}`
   const existing = projected.pane.tools[projectedToolId]
 
   const result: AssistantEntry = {
@@ -201,11 +197,5 @@ export function projectConversationUserInputNeed(
       responseMessageId: existing?.responseMessageId,
     }),
   }
-  const key = transcriptSegment(event.metadata)?.id ?? "unattributed"
-  const fragment = projected.segments?.[key]
-  if (fragment) {
-    return updateAssistantSegment(projected, key, { ...fragment,
-      pane: upsertToolInPane(fragment.pane, projectedToolId, result.pane.tools[projectedToolId]) })
-  }
-  return result
+  return updateUserInputTool(projected, result.pane.tools[projectedToolId])
 }

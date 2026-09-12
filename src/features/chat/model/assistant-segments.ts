@@ -1,5 +1,5 @@
 import type { AssistantEntry } from "../gateway-chat-types"
-import { createEmptyAgentPane, type AgentPaneState } from "../chat-pane-state"
+import { createEmptyAgentPane, upsertToolInPane, type ToolCallView, type AgentPaneState } from "../chat-pane-state"
 
 export type TranscriptSegment = { id: string; turn: number; execution_epoch: number }
 
@@ -92,4 +92,10 @@ export function updateAssistantSegment(base: AssistantEntry, key: string, fragme
     status: fragment.status, eventCoverage: Math.max(base.eventCoverage ?? 0, fragment.eventCoverage ?? 0),
     pane: fragment.pane === previous?.pane ? base.pane : replacePaneSegment(base.pane, previous?.pane, fragment.pane),
     subagents, subagentOrder: [...new Set([...base.subagentOrder, ...fragment.subagentOrder])] }
+}
+
+export function updateUserInputTool(entry: AssistantEntry, tool: ToolCallView): AssistantEntry {
+  const owner = Object.entries(entry.segments ?? {}).find(([, segment]) => segment.pane.tools[tool.id])
+  return owner ? updateAssistantSegment(entry, owner[0], { ...owner[1], pane: upsertToolInPane(owner[1].pane, tool.id, tool) })
+    : { ...entry, pane: upsertToolInPane(entry.pane, tool.id, tool) }
 }

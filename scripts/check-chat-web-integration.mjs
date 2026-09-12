@@ -1343,7 +1343,7 @@ assert.equal(
   "a current pending need must not reactivate an older run with the same need id"
 )
 assert.equal(
-  sameNeedIdAcrossRuns[1].pane.tools["tool-user-input"].runId,
+  Object.values(sameNeedIdAcrossRuns[1].pane.tools).find(tool => tool.needId === "tool-user-input").runId,
   runId,
   "pending need identity is the run id and need id pair"
 )

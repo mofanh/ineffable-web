@@ -1,4 +1,4 @@
-import { mergeAssistantSegments, transcriptSegment } from "./assistant-segments"
+import { mergeAssistantSegments, transcriptSegment, updateUserInputTool } from "./assistant-segments"
 import { parseInputProgress } from "./input-progress"
 import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryForRun } from "./human-input-timeline"
 import {
@@ -8,6 +8,7 @@ import {
   applyTextDeltaToPane,
   appendUpdateToPane,
   buildToolView,
+  findUserInputTool,
   createEmptyAgentPane,
   finalizePane,
   type AgentPaneState,
@@ -596,14 +597,10 @@ export function reconcilePendingUserInput(
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
     if (entry.role === "assistant" && entry.runId === need.runId) {
-      targetIndex = index
-      const matchingTool = Object.values(entry.pane.tools).find(
-        (tool) =>
-          tool.needId === need.needId ||
-          tool.protocolId === need.needId ||
-          tool.id === need.needId
-      )
+      if (targetIndex < 0) targetIndex = index
+      const matchingTool = findUserInputTool(entry.pane, need.needId, need.runId)
       if (matchingTool) {
+        targetIndex = index
         targetToolId = matchingTool.id
         break
       }
@@ -615,7 +612,7 @@ export function reconcilePendingUserInput(
     candidate?.role === "assistant"
       ? candidate
       : createAssistantEntry("done", need.runId)
-  const toolId = targetToolId ?? need.needId
+  const toolId = targetToolId ?? `need:${need.runId}:${need.needId}`
   const existing = current.pane.tools[toolId]
   const nextEntry: AssistantEntry = {
     ...current,
@@ -635,9 +632,9 @@ export function reconcilePendingUserInput(
   }
 
   if (targetIndex < 0) {
-    return [...entries, nextEntry]
+    return [...entries, updateUserInputTool(nextEntry, nextEntry.pane.tools[toolId])]
   }
   const next = [...entries]
-  next[targetIndex] = nextEntry
+  next[targetIndex] = updateUserInputTool(nextEntry, nextEntry.pane.tools[toolId])
   return next
 }
