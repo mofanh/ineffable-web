@@ -67,3 +67,12 @@ needEntry=projectConversationOutputEvent(needEntry,event(2,"model.text.delta","a
 assert.equal(Object.values(needEntry.pane.tools)[0].needId,"ask","next segment cannot discard need projection")
 assert.equal(mergeAssistantDeltaEvents(event(1,"model.text.delta","a"),event(2,"model.text.delta","b")),null)
 console.log("chat segment handoff checks passed")
+
+// Expanded production canonical calls repeat metadata, not the assistant body.
+const parallel = ["a","b"].map((id,index)=>({...record(200,"tool_call","",401,{
+  canonical_message_seq:401,transcript_occurrence_id:id,tool_call_id:id,tool_name:"read_file",
+  canonical_message:{content:"parallel-body",tool_calls:[{id:"a",name:"read_file",input:{}},{id:"b",name:"read_file",input:{}}]},
+}),id:`expanded-${index}`}))
+const parallelEntry=mapConversationMessagesToEntries(parallel).find(e=>e.role==="assistant")
+assert.equal(body(parallelEntry),"parallel-body")
+assert.equal(Object.keys(parallelEntry.pane.tools).length,2)

@@ -161,6 +161,7 @@ export function canonicalMessagesToGatewayEvents(
   const pendingOccurrences = new Map<string, string[]>()
   const occurrenceCounts = new Map<string, number>()
   const seenReasoningIdentities = new Set<string>()
+  const seenBodyIdentities = new Set<string>()
   let seq = context.startSeq ?? 1
 
   messages.forEach((message, messageIndex) => {
@@ -237,7 +238,11 @@ export function canonicalMessagesToGatewayEvents(
       const assistantBody = occurrenceExpanded
         ? (typeof canonicalBody === "string" ? canonicalBody : "")
         : message.content
-      if (assistantBody.trim()) {
+      const bodyIdentity = baseMetadata.canonical_message_seq != null
+        ? `${runId}:message:${baseMetadata.canonical_message_seq}`
+        : metadataString(baseMetadata, "canonical_source_message_id")
+      if (assistantBody.trim() && (!bodyIdentity || !seenBodyIdentities.has(bodyIdentity))) {
+        if (bodyIdentity) seenBodyIdentities.add(bodyIdentity)
         pushEvent("assistant.snapshot", "assistant",
           stripInlineThinkBlocks(assistantBody), { ...baseMetadata })
       }
