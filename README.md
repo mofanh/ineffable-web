@@ -42,3 +42,12 @@ VITE_GATEWAY_API_BASE_URL=http://localhost:8080
 - 旧 CLI 直连运行时接口
 
 如后续恢复相关功能，建议按新 feature 单独设计并接入，不回退到旧接口平铺方案。
+
+### Workspace upload proxy
+
+`nginx.conf` allows a 40 MiB request body under `/gateway/`, including multipart
+encoding overhead around the backend's 32 MiB file limit. The host reverse proxy
+must allow at least this request size too. Rebuild the frontend image after changing
+this configuration; editing only a running container is not persistent. Sandbox
+`exports/upload` uses Provider credentials and a bound single-use upload grant,
+not the user's login token. Preserve request headers through both proxy layers.
