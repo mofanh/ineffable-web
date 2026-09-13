@@ -18,6 +18,8 @@ export type ToolCallStatus =
   | "cancelled"
 
 export type ToolCallView = {
+  settlementStatus?: string
+  operation?: { executionIdentity?: string; status: string; replayable: boolean }
   images?: ImageReference[]
   id: string
   protocolId?: string
@@ -647,6 +649,12 @@ export function buildToolView(
       getMetadataValue(event.metadata, "full_arguments") || nextTool.input || event.content || ""
   } else if (event.event === "tool.result") {
     nextTool.status = statusFromToolResult(event)
+    nextTool.settlementStatus = getMetadataValue(event.metadata, "settlement_status") || existing.settlementStatus
+    const operation = event.metadata?.tool_operation
+    if (operation && typeof operation === "object" && !Array.isArray(operation)) {
+      const value = operation as Record<string, unknown>
+      if (typeof value.status === "string") nextTool.operation = { status: value.status, replayable: value.replayable === true, executionIdentity: typeof value.execution_identity === "string" ? value.execution_identity : undefined }
+    }
     if (event.metadata?.images !== undefined) nextTool.images = imageReferences(event.metadata.images)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")
     let need = event.metadata?.blocking_need as {kind?: unknown; need_id?: unknown} | undefined

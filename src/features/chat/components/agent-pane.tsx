@@ -950,6 +950,9 @@ const ToolNodeRenderer: WebNodeRenderer<ToolWebNodePayload | null> = ({
         (node.payload.tool.needId ?? node.payload.tool.protocolId) === context.activeHumanNeedId}
       onSubmitUserInput={context.onSubmitUserInput}
     />
+    {node.payload.tool.settlementStatus === "outcome_unknown" ? <p className="break-words text-xs text-amber-700 dark:text-amber-400">
+      {i18n.t("images.unknownOperation")}{node.payload.tool.operation?.executionIdentity ? <code className="ml-1 select-all">{node.payload.tool.operation.executionIdentity}</code> : null}
+    </p> : null}
     <ImageGallery images={node.payload.tool.images ?? []} accessToken={context.accessToken} onReference={context.onImageReference} />
     </div>
   ) : null

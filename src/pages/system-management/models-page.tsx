@@ -1,3 +1,4 @@
+import { ImageModelFields } from "./image-model-fields";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -1139,6 +1140,7 @@ function ModelForm({
         </AppFieldGrid>
       </AppDisclosureSection>
 
+      <ImageModelFields model={model} onChange={onChange} />
       <AppDisclosureSection title={t("system.models.form.capabilities")}>
         <AppFieldGrid columns={4}>
           <ToggleField

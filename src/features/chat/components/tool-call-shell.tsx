@@ -162,7 +162,7 @@ export function ToolCallShell({
                 tool.status === "running" && "animate-pulse"
               )}
             />
-            {statusLabel ?? toolStatusLabel(tool.status)}
+            {statusLabel ?? (tool.settlementStatus === "outcome_unknown" ? i18n.t("trajectory.statuses.outcome_unknown") : toolStatusLabel(tool.status))}
             <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
           </span>
         </button>
