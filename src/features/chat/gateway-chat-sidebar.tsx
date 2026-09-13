@@ -386,6 +386,7 @@ export function GatewayChatSidebar({
   const { toggleSidebar } = useSidebar()
   const {
     accessToken,
+    currentSessionId,
     currentWorkspace,
     workspaces,
     conversations,
@@ -396,7 +397,7 @@ export function GatewayChatSidebar({
     renameConversation,
   } = useAppSession()
 
-  const imageDraft = useImageAttachments(`${accessToken}:${currentConversationId ?? "new"}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id)
+  const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? "new"}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
@@ -3574,7 +3575,7 @@ export function GatewayChatSidebar({
       try {
         const createdConversation = await createConversation(buildConversationTitle(content))
         targetConversationId = createdConversation.id
-        imageDraft.moveTo(`${accessToken}:${targetConversationId}:${currentWorkspace?.id}`)
+        imageDraft.moveTo(`${currentSessionId}:${targetConversationId}:${currentWorkspace?.id}`)
         skipNextConversationSyncRef.current = targetConversationId
         clearConversation()
         setIsSubmittingInput(true)

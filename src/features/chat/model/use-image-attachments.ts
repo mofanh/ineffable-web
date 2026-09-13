@@ -5,23 +5,32 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 
 export type ImageDraft = { id: string; file?: File; image?: ImageReference; status: "uploading" | "ready" | "error"; error?: string }
 
-export function useImageAttachments(scope: string, accessToken: string | null, workspaceId?: string) {
+export function useImageAttachments(scope: string, accessToken: string | null, workspaceId?: string, ownerId = "session") {
   const { t } = useTranslation()
-  const drafts = React.useRef(new Map<string, ImageDraft[]>())
-  const aliases = React.useRef(new Map<string, string>())
+  const drafts = React.useRef(new Map<string, { items: ImageDraft[] }>())
+  const owner = React.useRef(ownerId)
   const [, rerender] = React.useReducer((value: number) => value + 1, 0)
   const controllers = React.useRef(new Map<string, AbortController>())
   React.useEffect(() => {
     const requests = controllers.current
     return () => { for (const controller of requests.values()) controller.abort(); requests.clear() }
   }, [])
-  function resolvedScope() { return aliases.current.get(scope) ?? scope }
-  const items = drafts.current.get(scope) ?? []
+  React.useEffect(() => {
+    if (owner.current === ownerId) return
+    owner.current = ownerId
+    for (const controller of controllers.current.values()) controller.abort()
+    controllers.current.clear()
+    drafts.current.clear()
+    rerender()
+  }, [ownerId])
+  // Async callbacks retain this exact draft object. Moving it never aliases the
+  // reusable New Chat key, so a later New Chat gets a different generation.
+  let draft = drafts.current.get(scope)
+  if (!draft) { draft = { items: [] }; drafts.current.set(scope, draft) }
+  const capturedDraft = draft
+  const items = capturedDraft.items
   function update(action: (items: ImageDraft[]) => ImageDraft[]) {
-    const key = resolvedScope()
-    const next = action(drafts.current.get(key) ?? [])
-    if (next.length) drafts.current.set(key, next)
-    else drafts.current.delete(key)
+    capturedDraft.items = action(capturedDraft.items)
     rerender()
   }
   async function upload(item: ImageDraft) {
@@ -40,10 +49,10 @@ export function useImageAttachments(scope: string, accessToken: string | null, w
     } finally { controllers.current.delete(item.id) }
   }
   function addFiles(files: File[]) {
-    const retainedFiles = [...drafts.current.values()].reduce((count, items) => count + items.filter((item) => item.file).length, 0)
-    const next = files.slice(0, Math.max(0, Math.min(4 - retainedFiles, 4 - (drafts.current.get(resolvedScope())?.length ?? 0)))).map((file): ImageDraft => ({
+    const retainedFiles = [...drafts.current.values()].reduce((count, items) => count + items.items.filter((item) => item.file).length, 0)
+    const next = files.slice(0, Math.max(0, Math.min(4 - retainedFiles, 4 - capturedDraft.items.length))).map((file): ImageDraft => ({
       id: crypto.randomUUID(), file,
-      status: ["image/png", "image/jpeg", "image/webp"].includes(file.type) && file.size <= 10 * 1024 * 1024 ? "uploading" : "error",
+      status: ["image/png", "image/jpeg", "image/webp"].includes(file.type) && file.size > 0 && file.size <= 10 * 1024 * 1024 ? "uploading" : "error",
       error: t("images.limits"),
     }))
     update((items) => [...items, ...next].slice(0, 4))
@@ -55,12 +64,12 @@ export function useImageAttachments(scope: string, accessToken: string | null, w
     enabled: Boolean(accessToken && workspaceId), addFiles, retry: upload,
     remove: (id: string) => { controllers.current.get(id)?.abort(); controllers.current.delete(id); update((items) => items.filter((item) => item.id !== id)) },
     moveTo: (nextScope: string) => {
-      const key = resolvedScope()
-      const current = drafts.current.get(key)
-      if (!current) return
-      drafts.current.delete(key)
-      drafts.current.set(nextScope, current)
-      aliases.current.set(scope, nextScope)
+      if (drafts.current.get(scope) === capturedDraft) drafts.current.delete(scope)
+      const existing = drafts.current.get(nextScope)
+      if (existing && existing !== capturedDraft && existing.items.length) {
+        capturedDraft.items = [...capturedDraft.items, ...existing.items].slice(0, 4)
+      }
+      drafts.current.set(nextScope, capturedDraft)
       rerender()
     },
     clear: (ids: string[]) => update((items) => items.filter((item) => !ids.includes(item.id))),

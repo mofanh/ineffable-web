@@ -953,6 +953,7 @@ const ToolNodeRenderer: WebNodeRenderer<ToolWebNodePayload | null> = ({
     {node.payload.tool.settlementStatus === "outcome_unknown" ? <p className="break-words text-xs text-amber-700 dark:text-amber-400">
       {i18n.t("images.unknownOperation")}{node.payload.tool.operation?.executionIdentity ? <code className="ml-1 select-all">{node.payload.tool.operation.executionIdentity}</code> : null}
     </p> : null}
+    {node.payload.tool.operation?.status === "save_pending" ? <p className="break-words text-xs text-amber-700 dark:text-amber-400">{i18n.t("images.savePending")}<code className="ml-1 select-all">{node.payload.tool.operation.executionIdentity}</code></p> : null}
     {node.payload.tool.operation?.model ? <p className="text-xs text-muted-foreground" title={node.payload.tool.operation.model.profileId}>{i18n.t("images.actualModel")}: {node.payload.tool.operation.model.displayName || node.payload.tool.operation.model.profileId}</p> : null}
     <ImageGallery images={node.payload.tool.images ?? []} accessToken={context.accessToken} onReference={context.onImageReference} />
     </div>

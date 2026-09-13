@@ -17,7 +17,7 @@ try {
   let release
   let uploads = 0
   await page.route("**/gateway/v1/workspaces/*/images", async (route) => {
-    assert.equal(route.request().headers().authorization, "Bearer image-fixture-token")
+    assert.ok(["Bearer image-fixture-token", "Bearer refreshed-fixture-token"].includes(route.request().headers().authorization))
     uploads++
     await new Promise((resolve) => { release = resolve })
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ image }) })
@@ -41,6 +41,19 @@ try {
   await page.locator("img").first().waitFor()
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "mobile attachments must not overflow")
   assert.equal(uploads, 1, "switching or creating conversations never re-uploads")
+  await page.getByRole("button", {name:"new",exact:true}).click()
+  assert.equal(await page.locator('[data-count]').textContent(), "0")
+  release = undefined
+  await page.locator('input[type="file"]').setInputFiles({name:"second.png",mimeType:"image/png",buffer:png})
+  await page.getByRole("button", {name:"refresh-token",exact:true}).click()
+  await page.waitForTimeout(100)
+  assert.ok(release)
+  release()
+  await page.waitForFunction(() => document.querySelector('[data-count]').textContent === "1")
+  await page.getByRole("button", {name:"old",exact:true}).click()
+  assert.equal(await page.locator('[data-count]').textContent(), "1", "new draft must not append to the previous conversation")
+  await page.getByRole("button", {name:"new",exact:true}).click()
+  assert.equal(await page.locator('[data-count]').textContent(), "1", "refreshed token must keep the current draft")
   assert.deepEqual(errors, [])
   console.log("image upload, conversation isolation, migration and mobile checks passed")
 } finally { await browser?.close(); await server.close() }
