@@ -628,3 +628,10 @@ console.log("chat web runtime checks passed")
   const duplicate = buildToolView({ tools: { "image-call": result.tool } }, event, () => "image-call", () => "read_image")
   assert.deepEqual(duplicate.tool.images, [image], "replayed image results replace by identity, never append duplicate assets")
 }
+
+{
+  const operation = {execution_identity: "paid-image", status: "unknown", replayable: false, model: {profile_id: "vision-route", display_name: "Actual visual model"}}
+  const result = buildToolView({tools:{}}, {event: "tool.result", content: "unknown", metadata:{tool_call_id:"image",settlement_status:"outcome_unknown",tool_operation:operation}}, () => "image", () => "generate_image")
+  assert.equal(result.tool.settlementStatus, "outcome_unknown")
+  assert.deepEqual(result.tool.operation, {executionIdentity: "paid-image", status:"unknown", replayable:false, model:{profileId:"vision-route",displayName:"Actual visual model"}})
+}

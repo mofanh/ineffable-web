@@ -1,6 +1,7 @@
 import type {
   CapabilityCatalogEntry,
   CapabilityExposureKey,
+  CapabilityExposureSelection,
 } from "@/lib/api/api-client"
 
 export function capabilityKeysEqual(
@@ -58,4 +59,10 @@ export function updateSelectedCapabilityKeys(
       : [...current, entry.key]
   }
   return current.filter((candidate) => !capabilityKeysEqual(candidate, entry.key))
+}
+
+export function canAnalyzeImageInput(entries: CapabilityCatalogEntry[], selection: CapabilityExposureSelection | null | undefined) {
+  return entries.some(entry => entry.key.provider_id === "gateway-workspace" && entry.name === "analyze_image" &&
+    (selection?.mode !== "custom" || selection.custom?.capabilities.some(key => capabilityKeysEqual(key, entry.key)) ||
+      selection.custom?.families.some(family => entry.family === family || entry.family?.startsWith(`${family}.`))))
 }

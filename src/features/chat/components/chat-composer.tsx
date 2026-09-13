@@ -60,6 +60,7 @@ export type ModelProfileOption = {
   displayName: string
   supportsReasoning: boolean
   supportsVision?: boolean
+  supportsAuxiliaryVision?: boolean
   supportsToolCalls: boolean
 }
 
@@ -442,7 +443,8 @@ export function ChatComposer({
         }}
       >
         {imageAttachments}
-        {imageCount > 0 && !modelOptions.find((model) => model.id === selectedModelProfileId)?.supportsVision ? <Notice tone="warning">{t("images.visionRequired")}</Notice> : null}
+        {imageCount > 0 && modelOptions.some(model => model.id === selectedModelProfileId && !model.supportsVision && model.supportsAuxiliaryVision) ? <Notice>{t("images.auxiliaryHint")}</Notice> : null}
+        {imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)) ? <Notice tone="warning">{t("images.visionRequired")}</Notice> : null}
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
         {shouldShowAgentMenu ? (
@@ -649,7 +651,7 @@ export function ChatComposer({
                   "size-10 rounded-full bg-foreground text-background transition-[color,background-color,transform] hover:bg-foreground/85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground",
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
-                disabled={(!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.find((model) => model.id === selectedModelProfileId)?.supportsVision)}
+                disabled={(!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)))}
                 title={
                   isSubmittingInput
                     ? t("chat.composer.submitting")

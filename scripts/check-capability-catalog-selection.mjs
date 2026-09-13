@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 
 import {
   capabilityCatalogFamilies,
+  canAnalyzeImageInput,
   filterCapabilityCatalog,
   groupCapabilityCatalog,
   updateSelectedCapabilityKeys,
@@ -54,3 +55,11 @@ assert.deepEqual(selected, largeCatalog.map((entry) => entry.key))
 assert.equal(updateSelectedCapabilityKeys(selected, largeCatalog[79], false).length, 79)
 
 console.log("capability catalog selection checks passed")
+
+const analysisEntry = { ...entries[0], key: { provider_id: "gateway-workspace", capability_id: "analyze_image" }, name: "analyze_image" }
+assert.equal(canAnalyzeImageInput([analysisEntry], {mode: "smart"}), true)
+assert.equal(canAnalyzeImageInput([], {mode: "smart"}), false)
+assert.equal(canAnalyzeImageInput([analysisEntry], {mode: "custom", custom: {capabilities: [], families: []}}), false)
+assert.equal(canAnalyzeImageInput([analysisEntry], {mode: "custom", custom: {capabilities: [analysisEntry.key], families: []}}), true)
+assert.equal(canAnalyzeImageInput([analysisEntry], {mode: "custom", custom: {capabilities: [], families: ["workspace"]}}), true)
+assert.equal(canAnalyzeImageInput([{...analysisEntry,key:entries[0].key}], {mode: "smart"}), false)

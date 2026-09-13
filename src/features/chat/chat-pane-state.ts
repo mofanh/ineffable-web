@@ -19,7 +19,7 @@ export type ToolCallStatus =
 
 export type ToolCallView = {
   settlementStatus?: string
-  operation?: { executionIdentity?: string; status: string; replayable: boolean }
+  operation?: { model?: { profileId: string; displayName: string }; executionIdentity?: string; status: string; replayable: boolean }
   images?: ImageReference[]
   id: string
   protocolId?: string
@@ -654,6 +654,10 @@ export function buildToolView(
     if (operation && typeof operation === "object" && !Array.isArray(operation)) {
       const value = operation as Record<string, unknown>
       if (typeof value.status === "string") nextTool.operation = { status: value.status, replayable: value.replayable === true, executionIdentity: typeof value.execution_identity === "string" ? value.execution_identity : undefined }
+      if (nextTool.operation && value.model && typeof value.model === "object") {
+        const model = value.model as Record<string, unknown>
+        if (typeof model.profile_id === "string" && typeof model.display_name === "string") nextTool.operation.model = { profileId: model.profile_id, displayName: model.display_name }
+      }
     }
     if (event.metadata?.images !== undefined) nextTool.images = imageReferences(event.metadata.images)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")

@@ -1,3 +1,4 @@
+import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
 import { WorkspaceImagePicker } from "@/features/chat/components/workspace-image-picker"
 import { useImageAttachments } from "@/features/chat/model/use-image-attachments"
 import { ImageAttachments } from "@/features/chat/components/image-attachments"
@@ -1014,7 +1015,7 @@ export function GatewayChatSidebar({
     const requestId = ++capabilityCatalogRequestRef.current
     if (
       !accessToken ||
-      capabilityExposureSelection?.mode !== "custom"
+      (capabilityExposureSelection?.mode !== "custom" && imageDraft.items.length === 0)
     ) {
       setCapabilityCatalog([])
       setCapabilityCatalogStatus("idle")
@@ -1052,6 +1053,7 @@ export function GatewayChatSidebar({
     accessToken,
     capabilityExposureSelection?.mode,
     capabilityCatalogRevision,
+    imageDraft.items.length,
     currentConversationId,
     selectedSandboxEnvironmentId,
     currentWorkspace?.id,
@@ -1437,16 +1439,18 @@ export function GatewayChatSidebar({
       }),
     [selectedConversation]
   )
+  const auxiliaryVisionAvailable = capabilityCatalogStatus === "ready" && canAnalyzeImageInput(capabilityCatalog, capabilityExposureSelection)
   const modelOptions = React.useMemo<ModelProfileOption[]>(
     () =>
       modelProfiles.map((profile) => ({
         id: profile.id,
         displayName: profile.display_name || profile.id,
         supportsVision: profile.supports_vision,
+        supportsAuxiliaryVision: auxiliaryVisionAvailable,
         supportsReasoning: profile.supports_reasoning,
         supportsToolCalls: profile.supports_tool_calls,
       })),
-    [modelProfiles]
+    [modelProfiles, auxiliaryVisionAvailable]
   )
   const modelDisplayNames = React.useMemo(
     () =>
@@ -3832,7 +3836,7 @@ export function GatewayChatSidebar({
 
     const submittedImages = imageDraft.images
     const submittedImageIds = imageDraft.items.map((item) => item.id)
-    if (submittedImages.length && !modelProfiles.find((model) => model.id === selectedModelProfileId)?.supports_vision) { setError(i18n.t("images.visionRequired")); return }
+    if (submittedImages.length && !modelProfiles.find((model) => model.id === selectedModelProfileId)?.supports_vision && !auxiliaryVisionAvailable) { setError(i18n.t("images.visionRequired")); return }
     const submittedComposer = composer
     await sendContentToApi(content, undefined, (acceptedConversationId) => {
       if (currentConversationIdRef.current === acceptedConversationId) setComposer((current) => (current === submittedComposer ? "" : current))
