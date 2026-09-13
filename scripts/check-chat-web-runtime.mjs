@@ -615,3 +615,16 @@ assert.equal(resumedTool.toolId, "reused#2", "a resumed result joins the unfinis
 assert.equal(resumedTool.tool.output, "resumed-result")
 
 console.log("chat web runtime checks passed")
+
+// Image identity is shared by real-time tools and canonical history, including image-only input.
+{
+  const image = { workspace_id: "00000000-0000-0000-0000-000000000001", object_id: "00000000-0000-0000-0000-000000000002", version_id: "00000000-0000-0000-0000-000000000003", mime_type: "image/png", width: 2, height: 3, size_bytes: 100 }
+  const entries = mapConversationMessagesToEntries([{ id: "image-user", conversation_id: "images", role: "user", message_type: "input", content: "", metadata_json: { images: [image] }, created_at: "2026-09-13T00:00:00Z", message_seq: 1, timeline_seq: 1 }])
+  assert.equal(entries.length, 1)
+  assert.deepEqual(entries[0].images, [image])
+  const event = { event: "tool.result", content: "saved", metadata: { images: [image], settlement_status: "succeeded", tool_call_id: "image-call" } }
+  const result = buildToolView({ tools: {} }, event, () => "image-call", () => "read_image")
+  assert.deepEqual(result.tool.images, [image])
+  const duplicate = buildToolView({ tools: { "image-call": result.tool } }, event, () => "image-call", () => "read_image")
+  assert.deepEqual(duplicate.tool.images, [image], "replayed image results replace by identity, never append duplicate assets")
+}

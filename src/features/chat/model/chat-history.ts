@@ -1,3 +1,4 @@
+import { imageReferences } from "@/lib/image-reference"
 import { mergeAssistantSegments, transcriptSegment, updateUserInputTool } from "./assistant-segments"
 import { parseInputProgress } from "./input-progress"
 import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryForRun } from "./human-input-timeline"
@@ -268,7 +269,7 @@ function hasRenderableConversationMessageContent(
   ) {
     return true
   }
-  if (message.content.trim()) {
+  if (message.content.trim() || imageReferences(message.metadata_json?.images).length > 0) {
     return true
   }
 
@@ -537,6 +538,7 @@ export function mapConversationMessagesToEntries(
         entries.push({
           id: message.timeline_unit_id || message.id,
           role: "user",
+          images: imageReferences(message.metadata_json?.images),
           inputProgress: parseInputProgress(message.metadata_json?.input_progress),
           humanInputResponse: humanInputResponseIdentity(message.run_id, message.metadata_json),
           content: message.content,

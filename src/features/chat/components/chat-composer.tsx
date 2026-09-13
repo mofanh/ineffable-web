@@ -59,10 +59,15 @@ export type ModelProfileOption = {
   id: string
   displayName: string
   supportsReasoning: boolean
+  supportsVision?: boolean
   supportsToolCalls: boolean
 }
 
 type ChatComposerProps = {
+  imageAttachments?: React.ReactNode
+  imageCount?: number
+  imagesReady?: boolean
+  onImageFiles?: (files: File[]) => void
   isFullScreen: boolean
   composer: string
   error: string | null
@@ -111,6 +116,7 @@ type ChatComposerProps = {
 }
 
 export function ChatComposer({
+  imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
   isFullScreen,
   composer,
   error,
@@ -426,12 +432,17 @@ export function ChatComposer({
       ) : null}
 
       <form
+        onDragOver={(event) => { if (onImageFiles && event.dataTransfer.types.includes("Files")) event.preventDefault() }}
+        onDrop={(event) => { if (onImageFiles && event.dataTransfer.files.length) { event.preventDefault(); onImageFiles(Array.from(event.dataTransfer.files)) } }}
+        onPaste={(event) => { const files = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/")); if (onImageFiles && files.length) { event.preventDefault(); onImageFiles(files) } }}
         className="space-y-1.5"
         onSubmit={(event) => {
           event.preventDefault()
           onSend()
         }}
       >
+        {imageAttachments}
+        {imageCount > 0 && !modelOptions.find((model) => model.id === selectedModelProfileId)?.supportsVision ? <Notice tone="warning">{t("images.visionRequired")}</Notice> : null}
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
         {shouldShowAgentMenu ? (
@@ -638,7 +649,7 @@ export function ChatComposer({
                   "size-10 rounded-full bg-foreground text-background transition-[color,background-color,transform] hover:bg-foreground/85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground",
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
-                disabled={!composer.trim() || isSubmittingInput}
+                disabled={(!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.find((model) => model.id === selectedModelProfileId)?.supportsVision)}
                 title={
                   isSubmittingInput
                     ? t("chat.composer.submitting")

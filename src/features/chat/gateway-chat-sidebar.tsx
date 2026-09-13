@@ -1,3 +1,7 @@
+import { WorkspaceImagePicker } from "@/features/chat/components/workspace-image-picker"
+import { useImageAttachments } from "@/features/chat/model/use-image-attachments"
+import { ImageAttachments } from "@/features/chat/components/image-attachments"
+import type { ImageReference } from "@/lib/api/images"
 import { useRunObservationAccess } from "@/features/chat/use-run-observation-access"
 import { RunObservationPanel } from "@/features/chat/components/run-observation-panel"
 import { useAgentDescriptors } from "@/features/chat/model/use-agent-descriptors"
@@ -391,6 +395,7 @@ export function GatewayChatSidebar({
     renameConversation,
   } = useAppSession()
 
+  const imageDraft = useImageAttachments(`${accessToken}:${currentConversationId ?? "new"}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id)
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
@@ -1019,7 +1024,9 @@ export function GatewayChatSidebar({
     void listConversationCapabilityCatalog(
       accessToken,
       currentConversationId,
-      selectedSandboxEnvironmentId || null
+      selectedSandboxEnvironmentId || null,
+      currentWorkspace?.id,
+      selectedModelProfileId || null
     )
       .then((response) => {
         if (
@@ -1047,6 +1054,8 @@ export function GatewayChatSidebar({
     capabilityCatalogRevision,
     currentConversationId,
     selectedSandboxEnvironmentId,
+    currentWorkspace?.id,
+    selectedModelProfileId,
   ])
 
   React.useEffect(() => {
@@ -1433,6 +1442,7 @@ export function GatewayChatSidebar({
       modelProfiles.map((profile) => ({
         id: profile.id,
         displayName: profile.display_name || profile.id,
+        supportsVision: profile.supports_vision,
         supportsReasoning: profile.supports_reasoning,
         supportsToolCalls: profile.supports_tool_calls,
       })),
@@ -2238,8 +2248,8 @@ export function GatewayChatSidebar({
     ])
   }
 
-  function appendUserMessage(content: string, id = createMessageId("user"), deliveryStatus: "sending" | "received" = "received") {
-    if (!content.trim()) {
+  function appendUserMessage(content: string, id = createMessageId("user"), deliveryStatus: "sending" | "received" = "received", images: ImageReference[] = []) {
+    if (!content.trim() && images.length === 0) {
       return
     }
 
@@ -2248,6 +2258,7 @@ export function GatewayChatSidebar({
       {
         id,
         role: "user",
+        images,
         deliveryStatus,
         content,
       },
@@ -3428,9 +3439,10 @@ export function GatewayChatSidebar({
   async function sendContentToApi(
     content: string,
     mode?: "guided",
-    onAccepted?: () => void
+    onAccepted?: (conversationId: string) => void,
+    images: ImageReference[] = []
   ) {
-    if (!accessToken || !content.trim()) {
+    if (!accessToken || (!content.trim() && images.length === 0)) {
       return
     }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
@@ -3477,6 +3489,7 @@ export function GatewayChatSidebar({
           {
             conversation_id: targetConversationId,
             content,
+            images,
             stream: false,
             channel: "web",
             input_mode: mode,
@@ -3557,6 +3570,7 @@ export function GatewayChatSidebar({
       try {
         const createdConversation = await createConversation(buildConversationTitle(content))
         targetConversationId = createdConversation.id
+        imageDraft.moveTo(`${accessToken}:${targetConversationId}:${currentWorkspace?.id}`)
         skipNextConversationSyncRef.current = targetConversationId
         clearConversation()
         setIsSubmittingInput(true)
@@ -3634,7 +3648,7 @@ export function GatewayChatSidebar({
         }
       }
       setIsSubmittingInput(false)
-      onAccepted?.()
+      onAccepted?.(targetConversationId)
       reconcileAgentIterationHandoff(
         targetConversationId,
         submissionAgentEvolutionWorkspaceId
@@ -3647,6 +3661,7 @@ export function GatewayChatSidebar({
         {
           conversation_id: targetConversationId,
           content,
+          images,
           stream: true,
           channel: "web",
           input_mode: mode, // 仅引导模式显式传递；其他情况由后端根据活跃状态自动决定
@@ -3700,7 +3715,7 @@ export function GatewayChatSidebar({
             if (!userMessageCommitted) {
               userMessageCommitted = true
               if (currentConversationIdRef.current === targetConversationId) {
-                appendUserMessage(content)
+                appendUserMessage(content, undefined, "received", images)
                 ensureAssistantEntry({
                   modelProfileId: submissionModelProfileId,
                   sandboxEnvironmentId: selectedSandboxEnvironmentId,
@@ -3811,14 +3826,18 @@ export function GatewayChatSidebar({
 
   async function handleSend() {
     const content = composer.trim()
-    if (!content || !accessToken || isSubmittingInput) {
+    if ((!content && imageDraft.images.length === 0) || !imageDraft.ready || !accessToken || isSubmittingInput) {
       return
     }
 
+    const submittedImages = imageDraft.images
+    const submittedImageIds = imageDraft.items.map((item) => item.id)
+    if (submittedImages.length && !modelProfiles.find((model) => model.id === selectedModelProfileId)?.supports_vision) { setError(i18n.t("images.visionRequired")); return }
     const submittedComposer = composer
-    await sendContentToApi(content, undefined, () => {
-      setComposer((current) => (current === submittedComposer ? "" : current))
-    })
+    await sendContentToApi(content, undefined, (acceptedConversationId) => {
+      if (currentConversationIdRef.current === acceptedConversationId) setComposer((current) => (current === submittedComposer ? "" : current))
+      imageDraft.clear(submittedImageIds)
+    }, submittedImages)
   }
 
   function handleSandboxEnvironmentChange(value: string) {
@@ -4218,6 +4237,8 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
+          accessToken={accessToken}
+          onImageReference={imageDraft.addReference}
           onInspectRun={canInspectRun ? (runId) => {
             if (currentConversationId) setInspectedRun({ conversationId: currentConversationId, runId })
           } : undefined}
@@ -4265,6 +4286,10 @@ export function GatewayChatSidebar({
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 
       <ChatComposer
+        imageCount={imageDraft.items.length}
+        imagesReady={imageDraft.ready}
+        onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}
+        imageAttachments={<><ImageAttachments items={imageDraft.items} enabled={imageDraft.enabled} accessToken={accessToken} onFiles={imageDraft.addFiles} onRemove={imageDraft.remove} onRetry={(item) => { void imageDraft.retry(item) }} />{accessToken && currentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${currentWorkspace.id}`} accessToken={accessToken} workspaceId={currentWorkspace.id} disabled={imageDraft.items.length >= 4} onSelect={imageDraft.addReference} /> : null}</>}
         isFullScreen={isFullScreen}
         composer={composer}
         error={error}

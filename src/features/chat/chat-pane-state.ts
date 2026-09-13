@@ -1,3 +1,4 @@
+import { imageReferences, type ImageReference } from "@/lib/image-reference"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import type { WebNodeView } from "@/features/chat/web-node"
 
@@ -17,6 +18,7 @@ export type ToolCallStatus =
   | "cancelled"
 
 export type ToolCallView = {
+  images?: ImageReference[]
   id: string
   protocolId?: string
   needId?: string
@@ -645,6 +647,7 @@ export function buildToolView(
       getMetadataValue(event.metadata, "full_arguments") || nextTool.input || event.content || ""
   } else if (event.event === "tool.result") {
     nextTool.status = statusFromToolResult(event)
+    if (event.metadata?.images !== undefined) nextTool.images = imageReferences(event.metadata.images)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")
     let need = event.metadata?.blocking_need as {kind?: unknown; need_id?: unknown} | undefined
     if (!need && event.content) {

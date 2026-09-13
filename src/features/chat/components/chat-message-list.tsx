@@ -1,3 +1,5 @@
+import { ImageGallery } from "@/components/app/image-gallery"
+import type { ImageReference } from "@/lib/api/images"
 import { inputProgressLabel, isWaitingGuidedInput } from "@/features/chat/model/input-progress"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
@@ -75,6 +77,8 @@ function InputStatusIcon({ label, phase }: { label: string; phase?: string }) {
 }
 
 type ChatMessageListProps = {
+  accessToken?: string | null
+  onImageReference?: (image: ImageReference) => void
   onInspectRun?: (runId: string) => void
   entries: ChatEntry[]
   modelDisplayNames?: Record<string, string>
@@ -205,6 +209,7 @@ function usePrefersReducedMotion() {
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
+  accessToken, onImageReference,
   entries,
   modelDisplayNames = {},
   sandboxDisplayNames = {},
@@ -382,6 +387,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   <div data-input-waiting={isWaitingGuidedInput(entry) || undefined}
                     className={cn("rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground transition-opacity", isWaitingGuidedInput(entry) && "opacity-50")}>
 
+                    <ImageGallery images={entry.images ?? []} accessToken={accessToken} onReference={onImageReference} />
                     <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
                   </div>
                   {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}
@@ -499,6 +505,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             >
               <div className="w-full min-w-0 space-y-5 pb-1 text-foreground">
                 <WebNodeList
+                      accessToken={accessToken} onImageReference={onImageReference}
                   pane={entry.pane}
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}

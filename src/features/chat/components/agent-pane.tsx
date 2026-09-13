@@ -1,3 +1,5 @@
+import { ImageGallery } from "@/components/app/image-gallery"
+import type { ImageReference } from "@/lib/image-reference"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import MarkdownIt from "markdown-it"
@@ -941,12 +943,15 @@ const ToolNodeRenderer: WebNodeRenderer<ToolWebNodePayload | null> = ({
   context,
 }) =>
   node.payload ? (
+    <div className="space-y-2">
     <ToolCallCard
       tool={node.payload.tool}
       canRespondToUserInput={node.payload.canRespondToUserInput && Boolean(context.activeHumanNeedId) &&
         (node.payload.tool.needId ?? node.payload.tool.protocolId) === context.activeHumanNeedId}
       onSubmitUserInput={context.onSubmitUserInput}
     />
+    <ImageGallery images={node.payload.tool.images ?? []} accessToken={context.accessToken} onReference={context.onImageReference} />
+    </div>
   ) : null
 
 const FallbackNodeRenderer: WebNodeRenderer = ({ node }) => (
@@ -1060,6 +1065,7 @@ const WebNodeItem = React.memo(function WebNodeItem({
 })
 
 export const WebNodeList = React.memo(function WebNodeList({
+  accessToken, onImageReference,
   pane,
   isStreaming = false,
   prefersReducedMotion = false,
@@ -1069,6 +1075,8 @@ export const WebNodeList = React.memo(function WebNodeList({
   subagentOrder = [],
   subagents = {},
 }: {
+  accessToken?: string | null
+  onImageReference?: (image: ImageReference) => void
   pane: AgentPaneState
   isStreaming?: boolean
   prefersReducedMotion?: boolean
@@ -1090,8 +1098,8 @@ export const WebNodeList = React.memo(function WebNodeList({
     [canRespondToUserInput, isStreaming, pane, projectionCache, subagentOrder, subagents]
   )
   const context = React.useMemo(
-    () => ({ prefersReducedMotion, onSubmitUserInput, activeHumanNeedId }),
-    [onSubmitUserInput, prefersReducedMotion, activeHumanNeedId]
+    () => ({ prefersReducedMotion, onSubmitUserInput, activeHumanNeedId, accessToken, onImageReference }),
+    [onSubmitUserInput, prefersReducedMotion, activeHumanNeedId, accessToken, onImageReference]
   )
   const rootRef = React.useRef<HTMLDivElement | null>(null)
   const [visibleNodeCount, setVisibleNodeCount] = React.useState(

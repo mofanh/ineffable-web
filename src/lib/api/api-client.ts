@@ -1200,9 +1200,11 @@ export function listConversationCapabilityCatalog(
   accessToken: string,
   conversationId: string | null,
   sandboxEnvironmentId?: string | null,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  modelProfileId?: string | null
 ) {
   const params = new URLSearchParams()
+  if (modelProfileId) params.set("model_profile_id", modelProfileId)
   if (conversationId) {
     params.set("conversation_id", conversationId)
   }
@@ -2092,6 +2094,7 @@ export async function streamConversationSend(
   accessToken: string,
   payload: {
     conversation_id: string
+    images?: import("./images").ImageReference[]
     content: string
     stream?: boolean
     channel?: string

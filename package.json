@@ -36,7 +36,8 @@
     "check:admin-editor": "node scripts/check-admin-editor-browser.mjs",
     "check:workspace-delete": "node scripts/check-workspace-delete-browser.mjs",
     "check:workspace-directory": "tsx scripts/check-workspace-directory.mjs",
-    "check:run-observations": "node scripts/check-run-observations-browser.mjs"
+    "check:run-observations": "node scripts/check-run-observations-browser.mjs",
+    "check:images": "node scripts/check-image-capabilities-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

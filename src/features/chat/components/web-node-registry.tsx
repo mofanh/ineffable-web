@@ -1,3 +1,4 @@
+import type { ImageReference } from "@/lib/image-reference"
 import * as React from "react"
 
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
@@ -8,6 +9,8 @@ import {
 } from "@/features/chat/web-node"
 
 export type WebNodeRenderContext = {
+  accessToken?: string | null
+  onImageReference?: (image: ImageReference) => void
   prefersReducedMotion: boolean
   activeHumanNeedId?: string | null
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
