@@ -63,6 +63,15 @@ export function useImageAttachments(scope: string, accessToken: string | null, w
     ready: items.every((item) => item.status === "ready"),
     enabled: Boolean(accessToken && workspaceId), addFiles, retry: upload,
     remove: (id: string) => { controllers.current.get(id)?.abort(); controllers.current.delete(id); update((items) => items.filter((item) => item.id !== id)) },
+    detach: () => {
+      // A submitted send retains the captured ready references. An abandoned
+      // new draft must not keep raw uploads in the hook's retained-file budget.
+      if (drafts.current.get(scope) === capturedDraft) drafts.current.delete(scope)
+      for (const item of capturedDraft.items) {
+        controllers.current.get(item.id)?.abort()
+        controllers.current.delete(item.id)
+      }
+    },
     moveTo: (nextScope: string) => {
       if (drafts.current.get(scope) === capturedDraft) drafts.current.delete(scope)
       const existing = drafts.current.get(nextScope)

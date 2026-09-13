@@ -39,6 +39,9 @@ jobs:
       - name: Chat browser
         run: npm run check:chat-browser
 
+      - name: Image attachments and delayed send
+        run: npm run check:images
+
       - name: Lint
         run: npm run lint
 

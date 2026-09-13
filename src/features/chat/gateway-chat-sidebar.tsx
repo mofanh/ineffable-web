@@ -397,7 +397,17 @@ export function GatewayChatSidebar({
     renameConversation,
   } = useAppSession()
 
-  const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? "new"}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
+  const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
+  const sendViewRef = React.useRef({ generation: 0, session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId })
+  const observedSendViewRef = React.useRef({ session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId })
+  if (observedSendViewRef.current.session !== currentSessionId || observedSendViewRef.current.workspace !== currentWorkspace?.id || observedSendViewRef.current.conversation !== currentConversationId) {
+    // A synchronous selection already fenced the old view. Its ensuing React
+    // commit must not invalidate the send that initiated that same handoff.
+    const alreadySelected = sendViewRef.current.session === currentSessionId && sendViewRef.current.workspace === currentWorkspace?.id && sendViewRef.current.conversation === currentConversationId
+    sendViewRef.current = { generation: sendViewRef.current.generation + (alreadySelected ? 0 : 1), session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
+    observedSendViewRef.current = { session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
+  }
+  const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? `new:${newDraftGeneration}`}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
@@ -620,6 +630,9 @@ export function GatewayChatSidebar({
 
   const selectConversationTarget = React.useCallback(
     (conversationId: string | null) => {
+      setIsSubmittingInput(false)
+      sendViewRef.current = { ...sendViewRef.current, generation: sendViewRef.current.generation + 1, conversation: conversationId }
+      if (conversationId === null) setNewDraftGeneration((generation) => generation + 1)
       humanInputSubmissionGenerationRef.current += 1
       pendingInputRequestRef.current += 1
       pendingInputProjectionRef.current = null
@@ -998,6 +1011,7 @@ export function GatewayChatSidebar({
   }, [assistantVisualScheduler])
 
   React.useEffect(() => {
+    if (currentConversationIdRef.current !== currentConversationId) setIsSubmittingInput(false)
     currentConversationIdRef.current = currentConversationId
     humanInputSubmissionGenerationRef.current += 1
     recoveryRequestIdRef.current += 1
@@ -3236,6 +3250,7 @@ export function GatewayChatSidebar({
   }
 
   function startNewChat() {
+    if (currentConversationIdRef.current === null) imageDraft.detach()
     capabilityExposureDraftDirtyRef.current = false
     capabilityExposureSelectionRef.current = null
     capabilityExposurePolicyRef.current = null
@@ -3444,7 +3459,7 @@ export function GatewayChatSidebar({
   async function sendContentToApi(
     content: string,
     mode?: "guided",
-    onAccepted?: (conversationId: string) => void,
+    onAccepted?: (conversationId: string, isCurrentView: boolean) => void,
     images: ImageReference[] = []
   ) {
     if (!accessToken || (!content.trim() && images.length === 0)) {
@@ -3567,32 +3582,44 @@ export function GatewayChatSidebar({
     }
 
     const controller = new AbortController()
+    const submissionOwner = { session: currentSessionId, workspace: currentWorkspace?.id }
+    let submissionViewGeneration = sendViewRef.current.generation
+    const ownsSession = () => sendViewRef.current.session === submissionOwner.session
+    const isCurrentSubmission = () => ownsSession()
+      && sendViewRef.current.workspace === submissionOwner.workspace
+      && sendViewRef.current.generation === submissionViewGeneration
     setError(null)
     setIsSubmittingInput(true)
 
     let targetConversationId = submissionConversationId
     if (!targetConversationId) {
       try {
-        const createdConversation = await createConversation(buildConversationTitle(content))
+        const createdConversation = await createConversation(buildConversationTitle(content), { select: false })
+        if (!ownsSession()) return false
         targetConversationId = createdConversation.id
-        imageDraft.moveTo(`${currentSessionId}:${targetConversationId}:${currentWorkspace?.id}`)
-        skipNextConversationSyncRef.current = targetConversationId
-        clearConversation()
-        setIsSubmittingInput(true)
-        if (iterationRequestedForSubmission !== undefined) {
-          const handoffTargetKey = agentNodeManagementTargetKey(
-            targetConversationId,
-            submissionAgentEvolutionWorkspaceId
-          )
-          pendingAgentIterationHandoffsRef.current.set(handoffTargetKey, {
-            requested: iterationRequestedForSubmission,
-          })
-          setAgentIterationConversationId(targetConversationId)
-          setAgentIterationRequestedState(iterationRequestedForSubmission)
-          setIsAgentIterationResolved(true)
-          setIsAgentIterationLoading(true)
+        // The hook captures the submitted draft object, never the newer draft.
+        imageDraft.moveTo(`${submissionOwner.session}:${targetConversationId}:${submissionOwner.workspace}`)
+        if (isCurrentSubmission()) {
+          skipNextConversationSyncRef.current = targetConversationId
+          clearConversation()
+          setIsSubmittingInput(true)
+          if (iterationRequestedForSubmission !== undefined) {
+            const handoffTargetKey = agentNodeManagementTargetKey(
+              targetConversationId,
+              submissionAgentEvolutionWorkspaceId
+            )
+            pendingAgentIterationHandoffsRef.current.set(handoffTargetKey, {
+              requested: iterationRequestedForSubmission,
+            })
+            setAgentIterationConversationId(targetConversationId)
+            setAgentIterationRequestedState(iterationRequestedForSubmission)
+            setIsAgentIterationResolved(true)
+            setIsAgentIterationLoading(true)
+          }
+          selectConversationTarget(targetConversationId)
+          submissionViewGeneration = sendViewRef.current.generation
+          setIsSubmittingInput(true)
         }
-        selectConversationTarget(targetConversationId)
         if (typeof window !== "undefined") {
           writeComposerRuntimeSelectionDraft(
             window.localStorage,
@@ -3601,6 +3628,7 @@ export function GatewayChatSidebar({
           )
         }
       } catch (createError) {
+        if (!isCurrentSubmission()) return false
         setIsSubmittingInput(false)
         const message = reportChatError(
           createError,
@@ -3615,6 +3643,7 @@ export function GatewayChatSidebar({
     try {
       await primeConversationCursor(targetConversationId)
     } catch (primeError) {
+      if (!isCurrentSubmission()) return false
       setIsSubmittingInput(false)
       const message = reportChatError(
         primeError,
@@ -3629,6 +3658,7 @@ export function GatewayChatSidebar({
       return false
     }
 
+    if (!ownsSession()) return false
     let acceptedAsRun = false
     let accepted = false
     let queued = false
@@ -3638,7 +3668,7 @@ export function GatewayChatSidebar({
         return
       }
       accepted = true
-      if (typeof window !== "undefined") {
+      if (ownsSession() && typeof window !== "undefined") {
         if (commitSelection) {
           commitAcceptedComposerRuntimeSelection(
             window.localStorage,
@@ -3652,8 +3682,9 @@ export function GatewayChatSidebar({
           )
         }
       }
+      onAccepted?.(targetConversationId, isCurrentSubmission())
+      if (!isCurrentSubmission()) return
       setIsSubmittingInput(false)
-      onAccepted?.(targetConversationId)
       reconcileAgentIterationHandoff(
         targetConversationId,
         submissionAgentEvolutionWorkspaceId
@@ -3681,6 +3712,7 @@ export function GatewayChatSidebar({
             if (envelope.type === "queued") {
               acceptSubmission(false)
               queued = true
+              if (!isCurrentSubmission()) return
               if (currentConversationIdRef.current === targetConversationId) {
                 setPreInputQueue((prev) => {
                   const id =
@@ -3698,6 +3730,7 @@ export function GatewayChatSidebar({
             }
 
             acceptSubmission()
+            if (!isCurrentSubmission()) return
             if (!acceptedAsRun) {
               acceptedAsRun = true
               const previousController = abortRef.current
@@ -3732,6 +3765,7 @@ export function GatewayChatSidebar({
         }
       )
 
+      if (!isCurrentSubmission()) return accepted
       if (queued) {
         setIsSubmittingInput(false)
         return true
@@ -3757,6 +3791,7 @@ export function GatewayChatSidebar({
         }
       }
     } catch (streamError) {
+      if (!isCurrentSubmission()) return accepted
       setIsSubmittingInput(false)
       if (!accepted) {
         reconcileAgentIterationHandoff(
@@ -3839,8 +3874,8 @@ export function GatewayChatSidebar({
     const submittedImageIds = imageDraft.items.map((item) => item.id)
     if (submittedImages.length && !modelProfiles.find((model) => model.id === selectedModelProfileId)?.supports_vision && !auxiliaryVisionAvailable) { setError(i18n.t("images.visionRequired")); return }
     const submittedComposer = composer
-    await sendContentToApi(content, undefined, (acceptedConversationId) => {
-      if (currentConversationIdRef.current === acceptedConversationId) setComposer((current) => (current === submittedComposer ? "" : current))
+    await sendContentToApi(content, undefined, (acceptedConversationId, isCurrentView) => {
+      if (isCurrentView && currentConversationIdRef.current === acceptedConversationId) setComposer((current) => (current === submittedComposer ? "" : current))
       imageDraft.clear(submittedImageIds)
     }, submittedImages)
   }

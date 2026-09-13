@@ -69,7 +69,7 @@ type ConversationSessionContextValue = {
   currentConversationId: string | null
   refreshConversations: () => Promise<void>
   renameConversation: (conversationId: string, title: string) => Promise<void>
-  createConversation: (title: string) => Promise<Conversation>
+  createConversation: (title: string, options?: { select?: boolean }) => Promise<Conversation>
   selectConversation: (conversationId: string | null) => void
 }
 
@@ -200,6 +200,8 @@ export function AppSessionProvider({
   const conversationSelectionVersionRef = React.useRef(0)
   const conversationRefreshRequestRef = React.useRef(0)
   const sessionGenerationRef = React.useRef(0)
+  const sessionIdentityRef = React.useRef(currentSessionId)
+  sessionIdentityRef.current = currentSessionId
 
   const clearSession = React.useCallback(() => {
     sessionGenerationRef.current += 1
@@ -229,6 +231,7 @@ export function AppSessionProvider({
       setAccessToken(tokens.access_token)
       setRefreshToken(tokens.refresh_token)
       setAccessExpiresAt(tokens.access_expires_at)
+      sessionIdentityRef.current = tokens.session_id
       setCurrentSessionId(tokens.session_id)
       writeStorage(STORAGE_KEYS.refreshToken, tokens.refresh_token)
       writeStorage(STORAGE_KEYS.accessExpiresAt, String(tokens.access_expires_at))
@@ -445,6 +448,7 @@ export function AppSessionProvider({
       const nextAccessExpiresAt = readStoredNumber(STORAGE_KEYS.accessExpiresAt)
       setAccessToken(nextAccessToken)
       setRefreshToken(nextRefreshToken)
+      sessionIdentityRef.current = nextSessionId
       setCurrentSessionId(nextSessionId)
       setAccessExpiresAt(nextAccessExpiresAt)
 
@@ -501,19 +505,27 @@ export function AppSessionProvider({
   }, [accessToken, clearSession, currentWorkspaceId])
 
   const selectWorkspace = React.useCallback(async (workspaceId: string) => {
+    conversationSelectionVersionRef.current += 1
     setCurrentWorkspaceId(workspaceId)
     writeStorage(STORAGE_KEYS.workspaceId, workspaceId)
   }, [])
 
   const createConversationForWorkspace = React.useCallback(
-    async (title: string) => {
+    async (title: string, options?: { select?: boolean }) => {
       if (!accessToken) {
         throw new Error(i18n.t("common.sessionExpired.signedOut"))
       }
 
+      const generation = sessionGenerationRef.current
+      const sessionIdentity = sessionIdentityRef.current
+      const selectionVersion = conversationSelectionVersionRef.current
       const conversation = await createConversation(accessToken, {
         title,
       })
+
+      if (generation !== sessionGenerationRef.current || sessionIdentity !== sessionIdentityRef.current) {
+        throw new Error(i18n.t("common.sessionExpired.signedOut"))
+      }
 
       setConversations((current) => {
         const next = [
@@ -522,10 +534,12 @@ export function AppSessionProvider({
         ]
         return next
       })
-      conversationSelectionVersionRef.current += 1
-      setCurrentConversationId(conversation.id)
-      writeStorage(STORAGE_KEYS.conversationId, conversation.id)
-      writeStorage(STORAGE_KEYS.newConversationDraft, null)
+      if (options?.select !== false && selectionVersion === conversationSelectionVersionRef.current) {
+        conversationSelectionVersionRef.current += 1
+        setCurrentConversationId(conversation.id)
+        writeStorage(STORAGE_KEYS.conversationId, conversation.id)
+        writeStorage(STORAGE_KEYS.newConversationDraft, null)
+      }
       return conversation
     },
     [accessToken],
