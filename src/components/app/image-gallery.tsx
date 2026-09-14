@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button"
 import { AppDialog } from "@/components/app/app-dialog"
 import type { ImageReference } from "@/lib/image-reference"
 
-function ImageTile({ image, accessToken, onReference }: {
-  image: ImageReference; accessToken: string; onReference?: (image: ImageReference) => void
+function ImageTile({ image, accessToken, onReference, compact }: {
+  image: ImageReference; accessToken: string; compact?: boolean; onReference?: (image: ImageReference) => void
 }) {
   const { t } = useTranslation()
   const [resource, setResource] = React.useState<{ identity: string; url?: string; error?: boolean }>({ identity: "" })
@@ -61,9 +61,9 @@ function ImageTile({ image, accessToken, onReference }: {
   const full = original.identity === originalIdentity ? original : null
   const current = resource.identity === identity ? resource : null
   return <div ref={element} className="min-w-0 max-w-full space-y-1">
-    {current?.url ? <Button type="button" variant="ghost" className="h-auto max-w-full p-0" onClick={() => { setPreviewEpoch((value) => value + 1); setFullSize(false); setOpen(true) }}>
-      <img src={current.url} alt={t("images.preview")} width={image.width} height={image.height} decoding="async" className="max-h-60 max-w-full rounded-lg object-contain" />
-    </Button> : <div className="flex h-24 w-32 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground" role="status">
+    {current?.url ? <Button type="button" variant="ghost" className={compact ? "size-20 overflow-hidden rounded-xl p-0" : "h-auto max-w-full p-0"} onClick={() => { setPreviewEpoch((value) => value + 1); setFullSize(false); setOpen(true) }}>
+      <img src={current.url} alt={t("images.preview")} width={image.width} height={image.height} decoding="async" className={compact ? "size-20 object-cover" : "max-h-60 max-w-full rounded-lg object-contain"} />
+    </Button> : <div className={`flex items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground ${compact ? "size-20 overflow-hidden" : "h-24 w-32"}`} role="status">
       {current?.error ? <Button variant="ghost" size="sm" onClick={() => setRetry((value) => value + 1)}>{t("images.unavailableRetry")}</Button> : t("common.loading")}
     </div>}
     <AppDialog open={open && Boolean(current?.url)} onOpenChange={setOpen} title={t("images.preview")} maxWidth="6xl">
@@ -80,11 +80,11 @@ function ImageTile({ image, accessToken, onReference }: {
   </div>
 }
 
-export function ImageGallery({ images, accessToken, onReference }: {
-  images: ImageReference[]; accessToken?: string | null; onReference?: (image: ImageReference) => void
+export function ImageGallery({ images, accessToken, onReference, compact }: {
+  images: ImageReference[]; compact?: boolean; accessToken?: string | null; onReference?: (image: ImageReference) => void
 }) {
   if (!accessToken || images.length === 0) return null
-  return <div className="my-2 flex max-w-full flex-wrap items-start gap-2">{images.map((image, index) =>
-    <ImageTile key={`${image.version_id}:${index}`} image={image} accessToken={accessToken} onReference={onReference} />
+  return <div className={compact ? "flex max-w-full" : "my-2 flex max-w-full flex-wrap items-start gap-2"}>{images.map((image, index) =>
+    <ImageTile key={`${image.version_id}:${index}`} image={image} accessToken={accessToken} onReference={onReference} compact={compact} />
   )}</div>
 }

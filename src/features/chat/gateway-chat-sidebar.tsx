@@ -1,3 +1,4 @@
+import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
 import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
 import { WorkspaceImagePicker } from "@/features/chat/components/workspace-image-picker"
 import { useImageAttachments } from "@/features/chat/model/use-image-attachments"
@@ -4346,7 +4347,8 @@ export function GatewayChatSidebar({
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}
         onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}
-        imageAttachments={<><ImageAttachments items={imageDraft.items} enabled={imageDraft.enabled} accessToken={accessToken} onFiles={imageDraft.addFiles} onRemove={imageDraft.remove} onRetry={(item) => { void imageDraft.retry(item) }} />{accessToken && currentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${currentWorkspace.id}`} accessToken={accessToken} workspaceId={currentWorkspace.id} disabled={imageDraft.items.length >= 4} onSelect={imageDraft.addReference} /> : null}</>}
+        imageActions={accessToken && currentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${currentWorkspace.id}`} accessToken={accessToken} workspaceId={currentWorkspace.id} disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onSelect={imageDraft.addReference} renderTrigger={(open) => <ImageAttachmentActions disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onFiles={imageDraft.addFiles} onWorkspace={open} />} /> : <ImageAttachmentActions disabled onFiles={imageDraft.addFiles} />}
+        imageAttachments={<ImageAttachments items={imageDraft.items} accessToken={accessToken} onRemove={imageDraft.remove} onRetry={(item) => { void imageDraft.retry(item) }} />}
         isFullScreen={isFullScreen}
         composer={composer}
         error={error}

@@ -1,3 +1,4 @@
+import { ImageAttachmentActions } from "../src/features/chat/components/image-attachment-actions"
 import * as React from "react"
 import { createRoot } from "react-dom/client"
 import "../src/index.css"
@@ -17,7 +18,8 @@ function Fixture() {
     <button onClick={() => setScope("created")}>old</button>
     <button onClick={() => setToken("refreshed-fixture-token")}>refresh-token</button>
     <output data-scope>{scope}</output><output data-count>{draft.images.length}</output>
-    <ImageAttachments items={draft.items} accessToken="image-fixture-token" enabled onFiles={draft.addFiles} onRemove={draft.remove} onRetry={(item) => void draft.retry(item)} />
+    <ImageAttachmentActions disabled={false} onFiles={draft.addFiles} />
+    <ImageAttachments items={draft.items} accessToken="image-fixture-token" onRemove={draft.remove} onRetry={(item) => void draft.retry(item)} />
     <ImageGallery images={draft.images} accessToken="image-fixture-token" />
   </main>
 }

@@ -35,6 +35,7 @@ try {
       else if(path.endsWith("conversations/list"))body={conversations:[conversation("other")]}
       else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});body=conversation("created")}
       else if(path.endsWith("conversations/get"))body=conversation(url.searchParams.get("conversation_id"))
+      else if(path.endsWith("/directory"))body={objects:[],next_cursor:null}
       else if(path.endsWith("/messages"))body={messages:[],next_seq:0,page:{has_older:false,before:null}}
       else if(path.endsWith("models/profiles"))body={profiles:[{id:"vision",display_name:"Vision",supports_vision:true,is_default:true,enabled:true},{id:"vision-b",display_name:"Vision B",supports_vision:true,enabled:true}]}
       else if(path.endsWith("sandbox/environments"))body={providers:[{provider_id:"a",display_name:"Sandbox A",status:"online"},{provider_id:"b",display_name:"Sandbox B",status:"online"}],environments:[{environment_id:"sandbox-a",provider_id:"a",status:"ready"},{environment_id:"sandbox-b",provider_id:"b",status:"ready"}]}
@@ -51,14 +52,46 @@ try {
     })
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/image-send-fixture.html`)
     await page.getByLabel("New conversation",{exact:true}).click()
-    await page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.textContent.includes("Add images"))?.disabled)
+    await page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.getAttribute("aria-label")==="Add images")?.disabled)
     const composer=page.locator("textarea")
     if(scenario==="session-helper") await page.getByRole("button",{name:"Create through session",exact:true}).click()
     else {
       await page.getByTitle("No model selected",{exact:true}).click()
       await page.getByRole("option",{name:/Vision/}).first().click()
-      await page.locator('input[type="file"]').setInputFiles({name:"original.png",mimeType:"image/png",buffer:png})
+      if(scenario==="normal") {
+        const add=page.getByRole("button",{name:"Add images",exact:true})
+        for(const width of [1200,390,320]) {
+          await page.setViewportSize({width,height:900})
+          await add.click()
+          const menu=page.getByRole("menu")
+          await menu.waitFor()
+          await menu.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)))
+          assert.equal(await page.getByRole("menuitem").count(),2)
+          assert.ok(await menu.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}),"attachment menu must fit mobile viewport")
+          if(process.env.IMAGE_MENU_SCREENSHOT_DIR) await page.screenshot({path:`${process.env.IMAGE_MENU_SCREENSHOT_DIR}/menu-${width}.png`})
+          await page.keyboard.press("Escape")
+          await menu.waitFor({state:"hidden"})
+          assert.ok(await add.evaluate(el=>el===document.activeElement),"Escape must restore plus-button focus")
+        }
+        await page.setViewportSize({width:1200,height:900})
+        await add.click()
+        await page.getByRole("menuitem",{name:/workspace/i}).click()
+        const dialog=page.getByRole("dialog")
+        await dialog.waitFor()
+        await page.getByText("Empty folder",{exact:true}).waitFor()
+        await page.keyboard.press("Escape")
+        await dialog.waitFor({state:"hidden"})
+        await add.click()
+        const chooser=page.waitForEvent("filechooser")
+        await page.getByRole("menuitem",{name:/Upload images/}).click()
+        await (await chooser).setFiles({name:"original.png",mimeType:"image/png",buffer:png})
+      } else await page.locator('input[type="file"]').setInputFiles({name:"original.png",mimeType:"image/png",buffer:png})
       await page.locator('img').first().waitFor()
+      if(scenario==="normal" && process.env.IMAGE_MENU_SCREENSHOT_DIR) {
+        await page.waitForFunction(()=>document.querySelector('img')?.getAttribute('src')?.startsWith('blob:'))
+        await page.getByRole("menu").waitFor({state:"hidden"})
+        await page.screenshot({path:`${process.env.IMAGE_MENU_SCREENSHOT_DIR}/attachment.png`})
+      }
       await composer.fill("ORIGINAL_SEND")
       await composer.press("Enter")
     }

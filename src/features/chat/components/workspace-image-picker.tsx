@@ -8,8 +8,8 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { listWorkspaceDirectory } from "@/lib/api/api-client"
 import { getImageReference, type ImageReference } from "@/lib/api/images"
 
-export function WorkspaceImagePicker({ accessToken, workspaceId, onSelect, disabled }: {
-  accessToken: string; workspaceId: string; onSelect: (image: ImageReference) => void; disabled: boolean
+export function WorkspaceImagePicker({ accessToken, workspaceId, onSelect, disabled, renderTrigger }: {
+  accessToken: string; workspaceId: string; onSelect: (image: ImageReference) => void; disabled: boolean; renderTrigger?: (open: () => void) => React.ReactNode
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -33,7 +33,7 @@ export function WorkspaceImagePicker({ accessToken, workspaceId, onSelect, disab
     } finally { if (selectedGeneration === generation.current) setBusy(false) }
   }
   return <>
-    <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setOpen(true)}>{t("images.fromWorkspace")}</Button>
+    {renderTrigger ? renderTrigger(() => { if (!disabled) setOpen(true) }) : <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setOpen(true)}>{t("images.fromWorkspace")}</Button>}
     <AppDialog open={open} title={t("images.fromWorkspace")} onOpenChange={(value) => { if (!value) { generation.current += 1; setBusy(false) } setOpen(value) }}>
       <div className="mb-3 flex items-center gap-2"><Button type="button" size="sm" variant="outline" disabled={!path || busy} onClick={() => { setPath(path.split("/").slice(0, -1).join("/")); setCursor(undefined) }}>{t("images.parentDirectory")}</Button><span className="truncate text-sm">/{path}</span></div>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}

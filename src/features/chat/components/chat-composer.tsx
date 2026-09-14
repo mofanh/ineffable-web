@@ -65,6 +65,7 @@ export type ModelProfileOption = {
 }
 
 type ChatComposerProps = {
+  imageActions?: React.ReactNode
   imageAttachments?: React.ReactNode
   imageCount?: number
   imagesReady?: boolean
@@ -117,7 +118,7 @@ type ChatComposerProps = {
 }
 
 export function ChatComposer({
-  imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
+  imageActions, imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
   isFullScreen,
   composer,
   error,
@@ -442,7 +443,6 @@ export function ChatComposer({
           onSend()
         }}
       >
-        {imageAttachments}
         {imageCount > 0 && modelOptions.some(model => model.id === selectedModelProfileId && !model.supportsVision && model.supportsAuxiliaryVision) ? <Notice>{t("images.auxiliaryHint")}</Notice> : null}
         {imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)) ? <Notice tone="warning">{t("images.visionRequired")}</Notice> : null}
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
@@ -518,6 +518,7 @@ export function ChatComposer({
           className="h-auto overflow-hidden rounded-[26px] border border-sidebar-border/90 bg-background shadow-[0_10px_32px_-20px_rgba(15,23,42,0.45)] transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-[0_14px_38px_-20px_rgba(15,23,42,0.5)] dark:shadow-[0_12px_34px_-22px_rgba(0,0,0,0.8)]"
           onWheel={containChatWheel}
         >
+          {imageCount > 0 ? <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0">{imageAttachments}</InputGroupAddon> : null}
           <InputGroupTextarea
             data-chat-scroll-region
             aria-label={t("chat.composer.messageLabel")}
@@ -536,6 +537,7 @@ export function ChatComposer({
             align="block-end"
             className="cursor-default flex-nowrap items-center justify-between gap-1 px-3 pb-3 pt-1"
           >
+            {imageActions}
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
               <div className="flex w-fit min-w-0 max-w-40 shrink">
                 {modelOptions.length > 0 ? (
