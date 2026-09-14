@@ -23,6 +23,8 @@ export type ConversationRunRuntime = {
   executionEpoch: number | null
   lifecycle: RunLifecycle
   connection: StreamConnectionState
+  compacting: boolean
+  activitySeq: number
   lastSeq: number
   terminalEventSeen: boolean
   error: string | null
@@ -34,6 +36,7 @@ export type RuntimeAction =
   | { type: "recovering"; error?: string | null }
   | { type: "transport_closed" }
   | { type: "event"; event: GatewayChatStreamEvent }
+  | { type: "activity-snapshot"; runId: string; executionEpoch: number; seq: number; compacting: boolean }
   | { type: "reset" }
 
 export function createConversationRunRuntime(
@@ -45,6 +48,8 @@ export function createConversationRunRuntime(
     executionEpoch: null,
     lifecycle: "idle",
     connection: "idle",
+    compacting: false,
+    activitySeq: 0,
     lastSeq: 0,
     terminalEventSeen: false,
     error: null,
@@ -88,6 +93,17 @@ export function reduceConversationRunRuntime(
   if (action.type === "reset") {
     return createConversationRunRuntime(state.conversationId)
   }
+  if (action.type === "activity-snapshot") {
+    if (!Number.isSafeInteger(action.seq) || action.seq < Math.max(state.lastSeq, state.activitySeq) ||
+        !Number.isSafeInteger(action.executionEpoch) || action.executionEpoch < 0) return state
+    if (state.runId && state.runId !== action.runId) {
+      // This snapshot belongs to the page's authoritative current_run. Epochs are per run.
+      state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
+    }
+    if (action.executionEpoch < (state.executionEpoch ?? 0) || state.terminalEventSeen) return state
+    return { ...state, runId: action.runId, executionEpoch: action.executionEpoch,
+      compacting: action.compacting, activitySeq: action.seq }
+  }
   if (action.type === "connect") {
     if (action.runId && action.runId !== state.runId) {
       state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
@@ -98,6 +114,8 @@ export function reduceConversationRunRuntime(
       executionEpoch: action.runId && action.runId !== state.runId
         ? action.executionEpoch ?? null
         : Math.max(state.executionEpoch ?? 0, action.executionEpoch ?? 0) || null,
+      compacting: action.executionEpoch != null && action.executionEpoch > (state.executionEpoch ?? 0)
+        ? false : state.compacting,
       connection: "connecting",
       error: null,
     }
@@ -151,12 +169,23 @@ export function reduceConversationRunRuntime(
   }
   const nextLifecycle = lifecycle ?? state.lifecycle
   const terminal = isTerminal(nextLifecycle)
+  const activityKind = action.event.event
+  const closesActivity = terminal || nextLifecycle === "awaiting_human" || nextLifecycle === "suspended"
+  const compacting = seq > state.activitySeq
+    ? closesActivity ? false : activityKind === "agent.compaction.started" ? true
+      : activityKind === "agent.compaction.completed" || activityKind === "agent.compaction.failed" ||
+        activityKind === "run.resumed" || activityKind === "run.started" ||
+        activityKind === "model.text.delta" || activityKind === "model.reasoning.delta" ||
+        (epoch != null && epoch > (state.executionEpoch ?? 0)) ? false : state.compacting
+    : state.compacting
 
   return {
     ...state,
     runId: identity.runId,
     executionEpoch: epoch ?? state.executionEpoch,
     lifecycle: nextLifecycle,
+    compacting,
+    activitySeq: Math.max(state.activitySeq, Math.floor(seq)),
     connection:
       terminal ||
       nextLifecycle === "awaiting_human" ||

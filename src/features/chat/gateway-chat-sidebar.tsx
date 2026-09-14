@@ -507,6 +507,15 @@ export function GatewayChatSidebar({
   const runtimeControllerRef = React.useRef(
     new ConversationRuntimeController(runtimeStoreRef.current)
   )
+  const compactingRunId = React.useSyncExternalStore(
+    React.useCallback((listener: () => void) => runtimeStoreRef.current.subscribe(listener), []),
+    () => {
+      if (!currentConversationId) return null
+      const runtime = runtimeStoreRef.current.get(currentConversationId)
+      return runtime.compacting ? runtime.runId : null
+    },
+    () => null
+  )
   const entriesRef = React.useRef<ChatEntry[]>([])
   const displayedConversationIdRef = React.useRef<string | null>(null)
   const conversationWindowCacheRef = React.useRef(new ConversationWindowCache())
@@ -1983,6 +1992,11 @@ export function GatewayChatSidebar({
           conversationSeqRef.current.set(conversationId, response.next_seq ?? 0)
           runtimeStoreRef.current.dispatch(conversationId, { type: "reset" })
         }
+        const activity = response.run_activities?.find(item => item.run_id === conversationDetail?.current_run?.id)
+        if (activity) runtimeStoreRef.current.dispatch(conversationId, {
+          type: "activity-snapshot", runId: activity.run_id, executionEpoch: activity.execution_epoch,
+          seq: activity.seq, compacting: activity.compacting,
+        })
         setEntries((current) => {
           if (shouldReplaceTranscript) {
             return reduceCurrentTimeline(current, {
@@ -4295,6 +4309,7 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
+          compactingRunId={compactingRunId}
           accessToken={accessToken}
           onImageReference={imageDraft.addReference}
           onInspectRun={canInspectRun ? (runId) => {

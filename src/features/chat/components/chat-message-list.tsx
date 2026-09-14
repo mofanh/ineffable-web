@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ListTreeIcon,
+  ListCollapseIcon,
   ArrowDownIcon,
   CircleAlertIcon,
   CircleHelpIcon,
@@ -77,6 +78,7 @@ function InputStatusIcon({ label, phase }: { label: string; phase?: string }) {
 }
 
 type ChatMessageListProps = {
+  compactingRunId?: string | null
   accessToken?: string | null
   onImageReference?: (image: ImageReference) => void
   onInspectRun?: (runId: string) => void
@@ -150,7 +152,7 @@ function shortDefinitionFingerprint(value: string | null | undefined) {
   return normalized ? normalized.slice(0, 7) : null
 }
 
-function RunActivity() {
+function RunActivity({ compacting = false }: { compacting?: boolean }) {
   const { t } = useTranslation()
   const [startedAt] = React.useState(() => Date.now())
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
@@ -164,9 +166,9 @@ function RunActivity() {
 
   return (
     <span className="inline-flex items-center gap-2 text-[11px] text-foreground/48" role="status">
-      <Loader2Icon className="size-3 animate-spin motion-reduce:animate-none" />
+      {compacting ? <ListCollapseIcon aria-hidden="true" className="size-3.5 motion-safe:animate-pulse" /> : <Loader2Icon className="size-3 animate-spin motion-reduce:animate-none" />}
       <span>
-        {elapsedSeconds >= 15
+        {compacting ? t("chat.messages.compacting") : elapsedSeconds >= 15
           ? t("chat.messages.generatingFor", { seconds: elapsedSeconds })
           : t("chat.messages.generating")}
       </span>
@@ -174,7 +176,7 @@ function RunActivity() {
   )
 }
 
-function ThinkingPlaceholder() {
+function ThinkingPlaceholder({ compacting = false }: { compacting?: boolean }) {
   const { t } = useTranslation()
 
   return (
@@ -183,8 +185,8 @@ function ThinkingPlaceholder() {
       role="status"
       aria-live="polite"
     >
-      <Loader2Icon className="size-3.5 animate-spin" />
-      <span>{t("chat.messages.thinking")}</span>
+      {compacting ? <ListCollapseIcon aria-hidden="true" className="size-3.5 motion-safe:animate-pulse" /> : <Loader2Icon className="size-3.5 animate-spin" />}
+      <span>{t(compacting ? "chat.messages.compacting" : "chat.messages.thinking")}</span>
     </div>
   )
 }
@@ -209,6 +211,7 @@ function usePrefersReducedMotion() {
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
+  compactingRunId,
   accessToken, onImageReference,
   entries,
   modelDisplayNames = {},
@@ -521,7 +524,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
                 {showStreamingTail ? (
                   <div className="flex items-center pt-1 text-foreground/70">
-                    <RunActivity />
+                    <RunActivity compacting={Boolean(compactingRunId && compactingRunId === entry.runId)} />
                   </div>
                 ) : null}
 
@@ -677,7 +680,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             </div>
           )
         })}
-        {showThinkingPlaceholder ? <ThinkingPlaceholder /> : null}
+        {showThinkingPlaceholder ? <ThinkingPlaceholder compacting={Boolean(compactingRunId)} /> : null}
         </div>
       </div>
 

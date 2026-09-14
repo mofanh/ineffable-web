@@ -294,6 +294,7 @@ export type ConversationEventsResponse = {
 }
 
 export type ConversationMessagesResponse = {
+  run_activities?: Array<{ run_id: string; execution_epoch: number; seq: number; compacting: boolean }>
   messages: ConversationMessageRecord[]
   next_seq?: number | null
   page?: {
