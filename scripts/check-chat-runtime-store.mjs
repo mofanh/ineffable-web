@@ -145,10 +145,10 @@ console.log("human resume SSE delivery and subscription fencing checks passed")
 // Activity is observation only: durable snapshot and live events share identity/fences.
 let activity = createConversationRunRuntime("compact")
 const compactEvent = (seq, kind, epoch = 2) => ({ ...event("compact", "run-c", seq, kind), metadata: {
-  ...event("compact", "run-c", seq, kind).metadata, execution_epoch: epoch,
+  ...event("compact", "run-c", seq, kind).metadata, execution_epoch: epoch, activity_seq: seq,
 }})
 const reduceActivity = action => activity = reduceConversationRunRuntime(activity, action)
-reduceActivity({type:"activity-snapshot", runId:"run-c", executionEpoch:2, seq:10, compacting:true})
+reduceActivity({type:"activity-snapshot", runId:"run-c", executionEpoch:2, seq:10, activityVersion:10, compacting:true})
 assert.equal(activity.compacting, true, "refresh restores an actual in-progress compaction")
 assert.equal(activity.lastSeq, 0, "activity snapshot must not skip transcript replay")
 reduceActivity({type:"event",event:compactEvent(5,"run.started")})
@@ -158,7 +158,7 @@ reduceActivity({type:"event",event:compactEvent(7,"run.resumed")})
 assert.equal(activity.compacting, true, "old human pause/resume replay cannot erase a newer activity snapshot")
 reduceActivity({type:"event",event:compactEvent(11,"agent.compaction.completed")})
 assert.equal(activity.compacting, false)
-reduceActivity({type:"activity-snapshot",runId:"run-c",executionEpoch:2,seq:10,compacting:true})
+reduceActivity({type:"activity-snapshot",runId:"run-c",executionEpoch:2,seq:10,activityVersion:10,compacting:true})
 assert.equal(activity.compacting, false, "late page cannot restore completed activity")
 reduceActivity({type:"event",event:compactEvent(12,"agent.compaction.started")})
 assert.equal(activity.compacting,true)
@@ -179,6 +179,16 @@ for (const ending of ["agent.compaction.failed", "run.awaiting_human", "run.susp
 }
 console.log("compaction activity snapshot, replay, epoch, terminal and isolation checks passed")
 
-reduceActivity({type:"activity-snapshot",runId:"successor",executionEpoch:0,seq:20,compacting:true})
+reduceActivity({type:"activity-snapshot",runId:"successor",executionEpoch:0,seq:20,activityVersion:1,compacting:true})
 assert.equal(activity.runId,"successor")
 assert.equal(activity.compacting,true,"successor epoch is independent of predecessor epoch")
+
+activity=createConversationRunRuntime("compact")
+reduceActivity({type:"event",event:compactEvent(1,"run.started")})
+reduceActivity({type:"event",event:compactEvent(2,"agent.compaction.started")})
+reduceActivity({type:"event",event:compactEvent(3,"agent.compaction.completed")})
+const retriedStart=compactEvent(4,"agent.compaction.started")
+retriedStart.metadata.activity_seq=2
+reduceActivity({type:"event",event:retriedStart})
+assert.equal(activity.compacting,false,"a retried start with a newer transport seq cannot reopen completed compaction")
+assert.equal(activity.lastSeq,4,"retry remains part of normal transport coverage")

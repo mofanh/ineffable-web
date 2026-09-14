@@ -24,6 +24,7 @@ export type ConversationRunRuntime = {
   lifecycle: RunLifecycle
   connection: StreamConnectionState
   compacting: boolean
+  activityVersion: number
   activitySeq: number
   lastSeq: number
   terminalEventSeen: boolean
@@ -36,7 +37,7 @@ export type RuntimeAction =
   | { type: "recovering"; error?: string | null }
   | { type: "transport_closed" }
   | { type: "event"; event: GatewayChatStreamEvent }
-  | { type: "activity-snapshot"; runId: string; executionEpoch: number; seq: number; compacting: boolean }
+  | { type: "activity-snapshot"; runId: string; executionEpoch: number; seq: number; activityVersion: number; compacting: boolean }
   | { type: "reset" }
 
 export function createConversationRunRuntime(
@@ -50,6 +51,7 @@ export function createConversationRunRuntime(
     connection: "idle",
     compacting: false,
     activitySeq: 0,
+    activityVersion: 0,
     lastSeq: 0,
     terminalEventSeen: false,
     error: null,
@@ -100,9 +102,11 @@ export function reduceConversationRunRuntime(
       // This snapshot belongs to the page's authoritative current_run. Epochs are per run.
       state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
     }
-    if (action.executionEpoch < (state.executionEpoch ?? 0) || state.terminalEventSeen) return state
+    if (action.executionEpoch < (state.executionEpoch ?? 0) || state.terminalEventSeen ||
+        !Number.isSafeInteger(action.activityVersion) || action.activityVersion < 0) return state
+    if (action.executionEpoch === state.executionEpoch && action.compacting && action.activityVersion < state.activityVersion) return state
     return { ...state, runId: action.runId, executionEpoch: action.executionEpoch,
-      compacting: action.compacting, activitySeq: action.seq }
+      compacting: action.compacting, activitySeq: action.seq, activityVersion: action.activityVersion }
   }
   if (action.type === "connect") {
     if (action.runId && action.runId !== state.runId) {
@@ -171,13 +175,20 @@ export function reduceConversationRunRuntime(
   const terminal = isTerminal(nextLifecycle)
   const activityKind = action.event.event
   const closesActivity = terminal || nextLifecycle === "awaiting_human" || nextLifecycle === "suspended"
-  const compacting = seq > state.activitySeq
-    ? closesActivity ? false : activityKind === "agent.compaction.started" ? true
-      : activityKind === "agent.compaction.completed" || activityKind === "agent.compaction.failed" ||
-        activityKind === "run.resumed" || activityKind === "run.started" ||
-        activityKind === "model.text.delta" || activityKind === "model.reasoning.delta" ||
-        (epoch != null && epoch > (state.executionEpoch ?? 0)) ? false : state.compacting
-    : state.compacting
+  const epochChanged = epoch != null && epoch > (state.executionEpoch ?? 0)
+  let activityVersion = epochChanged ? 0 : state.activityVersion
+  let compacting = state.compacting
+  if (seq > state.activitySeq) {
+    if (closesActivity || epochChanged || activityKind === "run.started" || activityKind === "run.resumed" ||
+        activityKind === "model.text.delta" || activityKind === "model.reasoning.delta") compacting = false
+    if (!closesActivity && ["agent.compaction.started", "agent.compaction.completed", "agent.compaction.failed"].includes(activityKind)) {
+      const version = action.event.metadata?.activity_seq
+      if (typeof version === "number" && Number.isSafeInteger(version) && version > activityVersion) {
+        compacting = activityKind === "agent.compaction.started"
+        activityVersion = version
+      }
+    }
+  }
 
   return {
     ...state,
@@ -185,6 +196,7 @@ export function reduceConversationRunRuntime(
     executionEpoch: epoch ?? state.executionEpoch,
     lifecycle: nextLifecycle,
     compacting,
+    activityVersion,
     activitySeq: Math.max(state.activitySeq, Math.floor(seq)),
     connection:
       terminal ||

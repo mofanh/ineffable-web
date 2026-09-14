@@ -1995,7 +1995,7 @@ export function GatewayChatSidebar({
         const activity = response.run_activities?.find(item => item.run_id === conversationDetail?.current_run?.id)
         if (activity) runtimeStoreRef.current.dispatch(conversationId, {
           type: "activity-snapshot", runId: activity.run_id, executionEpoch: activity.execution_epoch,
-          seq: activity.seq, compacting: activity.compacting,
+          seq: activity.seq, activityVersion: activity.activity_seq, compacting: activity.compacting,
         })
         setEntries((current) => {
           if (shouldReplaceTranscript) {

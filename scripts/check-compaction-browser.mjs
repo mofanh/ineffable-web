@@ -19,7 +19,7 @@ const server=await createServer({root:process.cwd(),logLevel:"error",optimizeDep
 let browser
 const emit=kind=>{
  seq++
- for(const res of streams)res.write(`data: ${JSON.stringify({type:"event",event:{run_id:"refresh-run",seq,ts_ms:seq,stream:"agentic",event:kind,metadata:{conversation_id:"refresh-conversation",execution_epoch:1}}})}\n\n`)
+ for(const res of streams)res.write(`data: ${JSON.stringify({type:"event",event:{run_id:"refresh-run",seq,ts_ms:seq,stream:"agentic",event:kind,metadata:{conversation_id:"refresh-conversation",execution_epoch:1,activity_seq:seq}}})}\n\n`)
 }
 try{
  await server.listen();browser=await chromium.launch({executablePath,headless:true})
@@ -30,7 +30,7 @@ try{
   if(url.pathname.endsWith("/subscribe"))return route.continue()
   let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:seq}
   if(url.pathname.endsWith("/get"))body={id:"refresh-conversation",title:"Compaction",current_run_id:"refresh-run",current_run:{id:"refresh-run",status,is_streaming:status==="streaming",is_live:status==="streaming"}}
-  if(url.pathname.endsWith("/messages"))body={messages:[{id:"user",conversation_id:"refresh-conversation",role:"user",message_type:"input",content:"Continue",created_at:"2026-09-14T00:00:00Z",updated_at:"2026-09-14T00:00:00Z",metadata_json:{}}],next_seq:seq,run_activities:[{run_id:"refresh-run",execution_epoch:1,seq,compacting}],page:{has_older:false,before:null}}
+  if(url.pathname.endsWith("/messages"))body={messages:[{id:"user",conversation_id:"refresh-conversation",role:"user",message_type:"input",content:"Continue",created_at:"2026-09-14T00:00:00Z",updated_at:"2026-09-14T00:00:00Z",metadata_json:{}}],next_seq:seq,run_activities:[{run_id:"refresh-run",execution_epoch:1,seq,activity_seq:seq,compacting}],page:{has_older:false,before:null}}
   if(url.pathname.endsWith("/observations/access"))body={allowed:false}
   await route.fulfill({contentType:"application/json",body:JSON.stringify(body)})
  })
