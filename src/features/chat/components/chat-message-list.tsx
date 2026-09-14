@@ -31,7 +31,7 @@ import {
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
-import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
+import { useChatScrollBoundary } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
 
 const inputStatusIcons = {
@@ -233,6 +233,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   trialVerdict,
   onInspectRun,
 }: ChatMessageListProps) {
+  const scrollBoundaryRef = useChatScrollBoundary(scrollViewportRef)
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
   const messageContentRef = React.useRef<HTMLDivElement | null>(null)
@@ -306,9 +307,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   return (
     <div className="relative h-full">
       <div
-        ref={scrollViewportRef}
+        ref={scrollBoundaryRef}
         data-chat-scroll-region
-        onWheel={containChatWheel}
         onScroll={(event) => {
           onViewportScroll()
           if (

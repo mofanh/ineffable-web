@@ -6,7 +6,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import type { ToolCallView } from "@/features/chat/chat-pane-state"
-import { containChatWheel } from "@/features/chat/components/chat-scroll-boundary"
+import { useChatScrollBoundary } from "@/features/chat/components/chat-scroll-boundary"
 import { objectValue, parseJsonObject, stringValue } from "@/features/chat/model/chat-parsing"
 import { i18n } from "@/lib/i18n/i18n"
 import { cn } from "@/lib/utils"
@@ -52,6 +52,7 @@ export function AgentPlanPanel({
   tool: ToolCallView | null
   isFullScreen: boolean
 }) {
+  const scrollBoundaryRef = useChatScrollBoundary<HTMLDivElement>()
   const parsed = React.useMemo(() => (tool ? parsePlan(tool) : null), [tool])
   const completed = parsed?.plan.filter((item) => item.status === "completed").length ?? 0
   const total = parsed?.plan.length ?? 0
@@ -88,7 +89,7 @@ export function AgentPlanPanel({
         <CollapsibleContent className="animated-collapsible-content">
           <div
             data-chat-scroll-region
-            onWheel={containChatWheel}
+            ref={scrollBoundaryRef}
             className="mt-2 max-h-52 space-y-2 overflow-y-auto overscroll-contain rounded-lg border border-sidebar-border/70 bg-background/55 px-3 py-2.5"
           >
             {parsed.explanation ? (
