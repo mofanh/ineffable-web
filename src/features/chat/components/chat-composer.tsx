@@ -179,12 +179,12 @@ export function ChatComposer({
         supportingContent: (
           <>
             {option.supportsReasoning ? (
-              <span className="rounded-full border border-border/80 bg-muted/45 px-1.5 py-0.5">
+              <span className="text-muted-foreground">
                 {t("chat.composer.modelReasoning")}
               </span>
             ) : null}
             {option.supportsToolCalls ? (
-              <span className="rounded-full border border-border/80 bg-muted/45 px-1.5 py-0.5">
+              <span className="text-muted-foreground">
                 {t("chat.composer.modelTools")}
               </span>
             ) : null}
@@ -210,7 +210,7 @@ export function ChatComposer({
         label: option.label,
         searchText: option.status,
         supportingContent: (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
           <StatusBadge
             status={option.status}
             label={t(`chat.composer.sandboxStatus.${option.status}`, {
@@ -218,7 +218,7 @@ export function ChatComposer({
             })}
             className="px-1.5 py-0 text-[10px]"
           />
-          {sandboxDeliveryPresentation(option.resultDelivery) ? <span className="block text-xs text-muted-foreground">{t(sandboxDeliveryPresentation(option.resultDelivery)!.key, { count: option.resultDelivery?.pending_results ?? 0 })}</span> : null}
+          {sandboxDeliveryPresentation(option.resultDelivery) ? <span className="block text-[11px] leading-4 text-muted-foreground">{t(sandboxDeliveryPresentation(option.resultDelivery)!.key, { count: option.resultDelivery?.pending_results ?? 0 })}</span> : null}
           </div>
         ),
       })),

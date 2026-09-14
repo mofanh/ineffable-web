@@ -127,8 +127,8 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" side="top" className="w-80">
-                  <DropdownMenuLabel>
+                <DropdownMenuContent align="start" side="top" sideOffset={8} className={capabilityExposureSelection?.mode === "custom" ? "w-72 max-w-[calc(100vw-2rem)] rounded-xl p-1" : "w-60 max-w-[calc(100vw-2rem)] rounded-xl p-1"}>
+                  <DropdownMenuLabel className="px-2.5 py-1 text-[11px] font-normal text-muted-foreground">
                     {t("chat.composer.capabilityModeLabel")}
                   </DropdownMenuLabel>
                   <DropdownMenuRadioGroup
@@ -138,7 +138,7 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                     }
                   >
                     {allowedCapabilityModes.map((mode) => (
-                      <DropdownMenuRadioItem key={mode} value={mode}>
+                      <DropdownMenuRadioItem key={mode} value={mode} className="min-h-9 rounded-lg py-2 text-[13px] font-normal">
                         <span>
                           {t(`chat.composer.capabilityMode.${mode}`)}
                         </span>
@@ -161,11 +161,12 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                           />
                         </div>
                       </div>
-                      <DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-1 text-[11px] font-normal text-muted-foreground">
                         {t("chat.composer.capabilityFamilies")}
                       </DropdownMenuLabel>
                       {selectableCapabilityFamilies.map((family) => (
                         <DropdownMenuCheckboxItem
+                          className="min-h-9 rounded-lg py-2 text-[13px] font-normal"
                           key={family}
                           checked={
                             capabilityExposureSelection.custom?.families.includes(
@@ -181,7 +182,7 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                         </DropdownMenuCheckboxItem>
                       ))}
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel>
+                      <DropdownMenuLabel className="px-2.5 py-1 text-[11px] font-normal text-muted-foreground">
                         {t("chat.composer.capabilities")}
                       </DropdownMenuLabel>
                       <div className="max-h-56 overflow-y-auto overscroll-contain">
@@ -242,10 +243,10 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                                   toggleCapability(entry, checked === true)
                                 }
                                 onSelect={(event) => event.preventDefault()}
-                                className="items-start"
+                                className="min-h-9 items-start rounded-lg py-1.5"
                               >
                                 <span className="min-w-0">
-                                  <span className="block truncate text-xs font-medium">
+                                  <span className="block truncate text-[13px] font-normal leading-5">
                                     {entry.name}
                                   </span>
                                   <span className="block truncate text-[11px] text-muted-foreground">
@@ -264,7 +265,7 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                     capabilityExposureSelection?.mode === "clean") ? (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="font-normal">
+                      <DropdownMenuLabel className="px-2.5 py-1 text-[11px] font-normal text-muted-foreground whitespace-normal">
                         {t("chat.composer.capabilityBudget", {
                           count:
                             capabilityExposurePolicy.exposure_budget.max_count,
