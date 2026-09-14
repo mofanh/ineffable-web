@@ -383,12 +383,13 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 data-chat-entry-role="user"
                 className="flex justify-end"
               >
-                <div className="min-w-0 max-w-[82%]">
+                <div className="flex min-w-0 max-w-[82%] flex-col items-end">
                   <div data-input-waiting={isWaitingGuidedInput(entry) || undefined}
-                    className={cn("rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground transition-opacity", isWaitingGuidedInput(entry) && "opacity-50")}>
-
-                    <ImageGallery images={entry.images ?? []} accessToken={accessToken} onReference={onImageReference} />
-                    <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                    className={cn("flex min-w-0 max-w-full flex-col items-end gap-2 transition-opacity", isWaitingGuidedInput(entry) && "opacity-50")}>
+                    <ImageGallery images={entry.images ?? []} accessToken={accessToken} onReference={onImageReference} userMessage />
+                    {entry.content ? <div data-user-message-text className="min-w-0 max-w-full rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
+                      <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                    </div> : null}
                   </div>
                   {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}
                 </div>
