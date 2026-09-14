@@ -120,6 +120,8 @@ export function reduceConversationRunRuntime(
         : Math.max(state.executionEpoch ?? 0, action.executionEpoch ?? 0) || null,
       compacting: action.executionEpoch != null && action.executionEpoch > (state.executionEpoch ?? 0)
         ? false : state.compacting,
+      activityVersion: action.executionEpoch != null && action.executionEpoch > (state.executionEpoch ?? 0)
+        ? 0 : state.activityVersion,
       connection: "connecting",
       error: null,
     }

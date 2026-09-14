@@ -192,3 +192,17 @@ retriedStart.metadata.activity_seq=2
 reduceActivity({type:"event",event:retriedStart})
 assert.equal(activity.compacting,false,"a retried start with a newer transport seq cannot reopen completed compaction")
 assert.equal(activity.lastSeq,4,"retry remains part of normal transport coverage")
+
+activity=createConversationRunRuntime("compact")
+reduceActivity({type:"event",event:compactEvent(100,"agent.compaction.started",2)})
+reduceActivity({type:"connect",runId:"run-c",executionEpoch:3})
+assert.equal(activity.activityVersion,0,"HTTP resume before SSE must reset the per-epoch activity counter")
+assert.equal(activity.compacting,false)
+const resumedStart=compactEvent(101,"agent.compaction.started",3)
+resumedStart.metadata.activity_seq=1
+reduceActivity({type:"event",event:resumedStart})
+assert.equal(activity.compacting,true,"new epoch's lower activity counter is valid")
+activity=createConversationRunRuntime("compact")
+reduceActivity({type:"activity-snapshot",runId:"run-c",executionEpoch:3,seq:100,activityVersion:0,compacting:false})
+reduceActivity({type:"event",event:resumedStart})
+assert.equal(activity.compacting,true,"refresh followed by a new epoch start")
