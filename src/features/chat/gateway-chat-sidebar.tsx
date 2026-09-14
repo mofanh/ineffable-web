@@ -392,12 +392,19 @@ export function GatewayChatSidebar({
     conversations,
     currentConversationId,
     createConversation,
+    getConversationSelectionIdentity,
     selectConversation,
     refreshConversations,
     renameConversation,
   } = useAppSession()
 
   const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
+  const submissionLifecycleRef = React.useRef(0)
+  const runtimePreferenceRevisionRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    submissionLifecycleRef.current += 1
+    return () => { submissionLifecycleRef.current += 1 }
+  }, [])
   const sendViewRef = React.useRef({ generation: 0, session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId })
   const observedSendViewRef = React.useRef({ session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId })
   if (observedSendViewRef.current.session !== currentSessionId || observedSendViewRef.current.workspace !== currentWorkspace?.id || observedSendViewRef.current.conversation !== currentConversationId) {
@@ -601,6 +608,7 @@ export function GatewayChatSidebar({
     "idle" | "resuming" | "clearing"
   >("idle")
   const [isSubmittingInput, setIsSubmittingInput] = React.useState(false)
+  React.useEffect(() => { setIsSubmittingInput(false) }, [currentSessionId, currentWorkspace?.id])
   const [unreadConversationIds, setUnreadConversationIds] = React.useState(
     () => new Set<string>()
   )
@@ -3584,10 +3592,17 @@ export function GatewayChatSidebar({
     const controller = new AbortController()
     const submissionOwner = { session: currentSessionId, workspace: currentWorkspace?.id }
     let submissionViewGeneration = sendViewRef.current.generation
-    const ownsSession = () => sendViewRef.current.session === submissionOwner.session
+    let submissionSelectionVersion = getConversationSelectionIdentity().version
+    const submissionLifecycle = submissionLifecycleRef.current
+    const submissionPreferenceRevision = runtimePreferenceRevisionRef.current
+    const ownsSession = () => getConversationSelectionIdentity().sessionId === submissionOwner.session
     const isCurrentSubmission = () => ownsSession()
+      && submissionLifecycleRef.current === submissionLifecycle
+      && getConversationSelectionIdentity().version === submissionSelectionVersion
       && sendViewRef.current.workspace === submissionOwner.workspace
       && sendViewRef.current.generation === submissionViewGeneration
+    const canUpdateRecentSelection = () => isCurrentSubmission()
+      && runtimePreferenceRevisionRef.current === submissionPreferenceRevision
     setError(null)
     setIsSubmittingInput(true)
 
@@ -3618,13 +3633,15 @@ export function GatewayChatSidebar({
           }
           selectConversationTarget(targetConversationId)
           submissionViewGeneration = sendViewRef.current.generation
+          submissionSelectionVersion = getConversationSelectionIdentity().version
           setIsSubmittingInput(true)
         }
         if (typeof window !== "undefined") {
           writeComposerRuntimeSelectionDraft(
             window.localStorage,
             targetConversationId,
-            submissionRuntimeSelection
+            submissionRuntimeSelection,
+            { updateRecent: canUpdateRecentSelection() }
           )
         }
       } catch (createError) {
@@ -3673,13 +3690,11 @@ export function GatewayChatSidebar({
           commitAcceptedComposerRuntimeSelection(
             window.localStorage,
             targetConversationId,
-            submissionRuntimeSelection
+            submissionRuntimeSelection,
+            { updateRecent: canUpdateRecentSelection() }
           )
-        } else {
-          writeRecentComposerRuntimeSelection(
-            window.localStorage,
-            submissionRuntimeSelection
-          )
+        } else if (canUpdateRecentSelection()) {
+          writeRecentComposerRuntimeSelection(window.localStorage, submissionRuntimeSelection)
         }
       }
       onAccepted?.(targetConversationId, isCurrentSubmission())
@@ -3881,6 +3896,7 @@ export function GatewayChatSidebar({
   }
 
   function handleSandboxEnvironmentChange(value: string) {
+    runtimePreferenceRevisionRef.current += 1
     setSelectedSandboxEnvironmentId(value)
     if (typeof window !== "undefined") {
       const selection = {
@@ -3900,6 +3916,7 @@ export function GatewayChatSidebar({
   }
 
   function handleModelProfileChange(value: string) {
+    runtimePreferenceRevisionRef.current += 1
     setSelectedModelProfileId(value)
     if (typeof window !== "undefined") {
       const selection = {

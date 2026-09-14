@@ -4,6 +4,7 @@ export const conversation = { id: "refresh-conversation", title: "Refresh test",
 let session = {
   accessToken: "fixture", currentWorkspace: null, workspaces: [], conversations: [conversation],
   currentConversationId: conversation.id, refreshConversations: async () => {},
+  getConversationSelectionIdentity: () => ({sessionId: undefined, version: 0}),
   createConversation: async () => conversation, selectConversation: () => {}, renameConversation: async () => {},
 }
 const listeners = new Set<() => void>()

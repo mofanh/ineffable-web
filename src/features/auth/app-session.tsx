@@ -70,6 +70,7 @@ type ConversationSessionContextValue = {
   refreshConversations: () => Promise<void>
   renameConversation: (conversationId: string, title: string) => Promise<void>
   createConversation: (title: string, options?: { select?: boolean }) => Promise<Conversation>
+  getConversationSelectionIdentity: () => { sessionId: string | null; version: number }
   selectConversation: (conversationId: string | null) => void
 }
 
@@ -205,6 +206,7 @@ export function AppSessionProvider({
 
   const clearSession = React.useCallback(() => {
     sessionGenerationRef.current += 1
+    sessionIdentityRef.current = null
     clearApiResourceCache()
     setStatus("unauthenticated")
     setAccessToken(null)
@@ -613,6 +615,11 @@ export function AppSessionProvider({
     ))
   }, [accessToken])
 
+  const getConversationSelectionIdentity = React.useCallback(() => ({
+    sessionId: sessionIdentityRef.current,
+    version: conversationSelectionVersionRef.current,
+  }), [])
+
   const conversationValue = React.useMemo<ConversationSessionContextValue>(
     () => ({
       conversations,
@@ -621,6 +628,7 @@ export function AppSessionProvider({
       renameConversation,
       createConversation: createConversationForWorkspace,
       selectConversation,
+      getConversationSelectionIdentity,
     }),
     [
       conversations,
@@ -629,6 +637,7 @@ export function AppSessionProvider({
       refreshConversationList,
       renameConversation,
       selectConversation,
+      getConversationSelectionIdentity,
     ],
   )
 

@@ -97,13 +97,14 @@ export function readCachedComposerRuntimeSelection(
 export function writeComposerRuntimeSelectionDraft(
   storage: SelectionStorage,
   conversationId: string,
-  selection: ComposerRuntimeSelection
+  selection: ComposerRuntimeSelection,
+  options?: { updateRecent?: boolean }
 ) {
   storage.setItem(
     draftStorageKey(conversationId),
     JSON.stringify({ version: RUNTIME_SELECTION_DRAFT_VERSION, ...selection })
   )
-  writeRecentComposerRuntimeSelection(storage, selection)
+  if (options?.updateRecent !== false) writeRecentComposerRuntimeSelection(storage, selection)
 }
 
 export function writeRecentComposerRuntimeSelection(
@@ -131,11 +132,12 @@ export function writeCanonicalComposerRuntimeSelection(
 export function commitAcceptedComposerRuntimeSelection(
   storage: SelectionStorage,
   conversationId: string,
-  selection: ComposerRuntimeSelection
+  selection: ComposerRuntimeSelection,
+  options?: { updateRecent?: boolean }
 ) {
   const draft = readComposerRuntimeSelectionDraft(storage, conversationId)
   writeCanonicalComposerRuntimeSelection(storage, conversationId, selection)
-  writeRecentComposerRuntimeSelection(storage, selection)
+  if (options?.updateRecent !== false) writeRecentComposerRuntimeSelection(storage, selection)
   if (
     !draft ||
     (draft.modelProfileId === selection.modelProfileId &&
