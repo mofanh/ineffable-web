@@ -131,6 +131,12 @@ export type WorkspaceObjectContentResponse = {
 }
 
 export type Conversation = {
+  kind?: "daily_root" | "task"
+  root_date?: string | null
+  root_timezone?: string | null
+  root_started_at?: string | null
+  root_ends_at?: string | null
+  origin_root_id?: string | null
   id: string
   created_by: string
   title: string
@@ -1111,13 +1117,18 @@ export function tickDueAutomations(accessToken: string) {
 
 export function createConversation(
   accessToken: string,
-  payload: { title: string }
+  payload: { title: string; origin_root_id?: string }
 ) {
   return requestApiJson<Conversation>("/gateway/v1/conversations/create", {
     method: "POST",
     accessToken,
     body: payload,
   })
+}
+
+export async function enterTodayConversation(accessToken: string) {
+  const root = await requestApiJson<Conversation>("/gateway/v1/conversations/today", { method: "POST", accessToken })
+  return getConversation(accessToken, root.id)
 }
 
 const pendingConversationRenames = new Map<string, Promise<Conversation>>()
@@ -2680,4 +2691,17 @@ export function getRunObservationAccess(accessToken: string, conversationId: str
     .finally(()=>{if(observationAccessRequests.get(key)===promise) observationAccessRequests.delete(key)})
   observationAccessRequests.set(key,promise)
   return promise
+}
+
+export type ConversationPreferences = {
+  timezone: string
+  day_start_minutes: number
+  version: number
+  defaults_json: Partial<AutomationRuntimeConfig>
+}
+export function getConversationPreferences(accessToken: string) {
+  return requestApiJson<ConversationPreferences>("/gateway/v1/conversations/preferences", { accessToken })
+}
+export function saveConversationPreferences(accessToken: string, body: ConversationPreferences) {
+  return requestApiJson<ConversationPreferences>("/gateway/v1/conversations/preferences", { accessToken, method: "PUT", body })
 }

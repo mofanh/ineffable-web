@@ -139,6 +139,7 @@ import {
   clearPendingInputs,
   deletePendingInput,
   getConversation,
+  getConversationPreferences,
   getCapabilityExposureDraft,
   getConversationEvents,
   getConversationMessages,
@@ -399,6 +400,8 @@ export function GatewayChatSidebar({
     renameConversation,
   } = useAppSession()
 
+  const taskDraftRef = React.useRef(false)
+  const taskOriginRootRef = React.useRef<string | undefined>(undefined)
   const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
   const submissionLifecycleRef = React.useRef(0)
   const runtimePreferenceRevisionRef = React.useRef(0)
@@ -1460,6 +1463,20 @@ export function GatewayChatSidebar({
       conversations.find((conversation) => conversation.id === currentConversationId) ?? null,
     [conversations, currentConversationId]
   )
+  React.useEffect(() => {
+    if (!accessToken || selectedConversation?.last_message_at) return
+    let cancelled = false
+    const revision = runtimePreferenceRevisionRef.current
+    const conversationId = currentConversationId
+    void getConversationPreferences(accessToken).then(({ defaults_json: defaults }) => {
+      if (cancelled || currentConversationIdRef.current !== conversationId || runtimePreferenceRevisionRef.current !== revision) return
+      if (defaults.model_profile_id) setSelectedModelProfileId(defaults.model_profile_id)
+      if (Object.hasOwn(defaults, "sandbox")) setSelectedSandboxEnvironmentId(defaults.sandbox?.environment_id ?? "")
+      if (defaults.capability_exposure && !capabilityExposureDraftDirtyRef.current) setCapabilityExposureSelection(defaults.capability_exposure)
+    }).catch(() => { /* Existing catalog and explicit choices remain usable. */ })
+    return () => { cancelled = true }
+  }, [accessToken, currentConversationId, selectedConversation?.last_message_at])
+
   const selectedLiveRun = React.useMemo(
     () => getLiveConversationRun(selectedConversation),
     [selectedConversation]
@@ -1509,6 +1526,7 @@ export function GatewayChatSidebar({
   const bindStatus = currentConversationId
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
+  const isClosedRoot = selectedConversation?.kind === "daily_root" && Boolean(selectedConversation.root_ends_at && Date.parse(selectedConversation.root_ends_at) <= Date.now())
   const isSending = Boolean(selectedLiveRun)
   const isAwaitingVisibleResponse =
     isSubmittingInput ||
@@ -1520,6 +1538,7 @@ export function GatewayChatSidebar({
     () =>
       conversations.map((conversation) => ({
         id: conversation.id,
+        kind: conversation.kind,
         title: conversation.title || i18n.t("chat.gateway.unnamed"),
         updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
         runtimeStatus: getConversationRuntimeStatus(
@@ -3273,6 +3292,8 @@ export function GatewayChatSidebar({
   }
 
   function startNewChat() {
+    taskDraftRef.current = true
+    taskOriginRootRef.current = selectedConversation?.kind === "daily_root" ? selectedConversation.id : undefined
     if (currentConversationIdRef.current === null) imageDraft.detach()
     capabilityExposureDraftDirtyRef.current = false
     capabilityExposureSelectionRef.current = null
@@ -3488,6 +3509,7 @@ export function GatewayChatSidebar({
     if (!accessToken || (!content.trim() && images.length === 0)) {
       return
     }
+    if (isClosedRoot && mode !== "guided") { setError(i18n.t("chat.header.closedDay")); return false }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
       selectedModelProfileId,
       modelProfilesLoadedRef.current,
@@ -3499,7 +3521,7 @@ export function GatewayChatSidebar({
     }
     const sandboxPayload = selectedSandboxEnvironmentId
       ? { environment_id: selectedSandboxEnvironmentId }
-      : undefined
+      : { environment_id: undefined }
     const submissionConversationId =
       currentConversationIdRef.current ?? currentConversationId
     const submissionCapabilityExposure = capabilityExposureForSubmission(
@@ -3621,12 +3643,14 @@ export function GatewayChatSidebar({
     setError(null)
     setIsSubmittingInput(true)
 
+    let reusedDailyRoot = false
     let targetConversationId = submissionConversationId
     if (!targetConversationId) {
       try {
-        const createdConversation = await createConversation(buildConversationTitle(content), { select: false })
+        const createdConversation = await createConversation(buildConversationTitle(content), { select: false, kind: taskDraftRef.current ? "task" : "daily_root", originRootId: taskDraftRef.current ? taskOriginRootRef.current : undefined })
         if (!ownsSession()) return false
         targetConversationId = createdConversation.id
+        reusedDailyRoot = createdConversation.kind === "daily_root" && Boolean(createdConversation.last_message_at)
         // The hook captures the submitted draft object, never the newer draft.
         imageDraft.moveTo(`${submissionOwner.session}:${targetConversationId}:${submissionOwner.workspace}`)
         if (isCurrentSubmission()) {
@@ -3722,6 +3746,12 @@ export function GatewayChatSidebar({
     }
 
     try {
+      // A daily get-or-create can return an existing transcript. Complete the
+      // ordinary canonical hydration before streaming another input into it.
+      for (let attempt = 0; reusedDailyRoot && isCurrentSubmission() && hydratedConversationIdRef.current !== targetConversationId && attempt < 2; attempt += 1) {
+        await syncLatestConversationMessagesPage(targetConversationId)
+      }
+      if (reusedDailyRoot && isCurrentSubmission() && hydratedConversationIdRef.current !== targetConversationId) throw new Error(i18n.t("chat.gateway.loadConversationFailed"))
       await streamConversationSend(
         accessToken,
         {
@@ -4300,8 +4330,18 @@ export function GatewayChatSidebar({
         conversations={headerConversations}
         onSelectConversation={selectConversationTarget}
         onRefreshConversations={handleRefreshConversationList}
-        onRenameConversation={accessToken ? renameConversation : undefined}
+        onRenameConversation={accessToken && selectedConversation?.kind !== "daily_root" ? renameConversation : undefined}
         onStartNewChat={startNewChat}
+        onEnterToday={() => {
+          const identity = getConversationSelectionIdentity()
+          void createConversation("", { kind: "daily_root", select: false }).then((root) => {
+            const current = getConversationSelectionIdentity()
+            if (identity.sessionId === current.sessionId && identity.version === current.version) {
+              taskDraftRef.current = false
+              selectConversationTarget(root.id)
+            }
+          }).catch((error) => reportChatError(error, i18n.t("chat.gateway.sendFailed"), i18n.t("chat.gateway.sendFailedTitle")))
+        }}
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}
         onCollapseSidebar={toggleSidebar}
@@ -4359,6 +4399,7 @@ export function GatewayChatSidebar({
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 
       <ChatComposer
+        inputDisabledReason={isClosedRoot ? i18n.t("chat.header.closedDay") : undefined}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}
         onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}

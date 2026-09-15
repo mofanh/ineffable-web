@@ -17,6 +17,7 @@ import { i18n } from "@/lib/i18n/i18n"
 import type { ConversationRuntimeStatus } from "@/features/chat/model/conversation-runtime-status"
 import {
   CheckIcon,
+  CalendarDaysIcon,
   ChevronDownIcon,
   BotIcon,
   Maximize2Icon,
@@ -36,6 +37,7 @@ type ChatSidebarHeaderProps = {
   onSelectConversation: (conversationId: string | null) => void
   onRefreshConversations: () => void
   onStartNewChat: () => void
+  onEnterToday?: () => void
   isFullScreen: boolean
   onFullScreenChange: (isFullScreen: boolean) => void
   onCollapseSidebar: () => void
@@ -43,6 +45,7 @@ type ChatSidebarHeaderProps = {
 }
 
 type ConversationListItem = {
+  kind?: "daily_root" | "task"
   id: string
   title: string
   updatedAt?: string | null
@@ -109,6 +112,8 @@ function groupConversations(
   conversations: ConversationListItem[]
 ) {
   const order = [
+    i18n.t("chat.header.experiences"),
+    i18n.t("chat.header.tasks"),
     i18n.t("chat.header.today"),
     i18n.t("chat.header.last7Days"),
     i18n.t("chat.header.last30Days"),
@@ -117,7 +122,8 @@ function groupConversations(
   const grouped = new Map<string, ConversationGroup>()
 
   for (const conversation of conversations) {
-    const label = getConversationGroupLabel(conversation.updatedAt)
+    const label = conversation.kind === "daily_root" ? i18n.t("chat.header.experiences")
+      : conversation.kind === "task" ? i18n.t("chat.header.tasks") : getConversationGroupLabel(conversation.updatedAt)
     const bucket = grouped.get(label) ?? { label, items: [] }
     bucket.items.push(conversation)
     grouped.set(label, bucket)
@@ -158,6 +164,7 @@ export function ChatSidebarHeader({
   onSelectConversation,
   onRefreshConversations,
   onStartNewChat,
+  onEnterToday,
   isFullScreen,
   onFullScreenChange,
   onCollapseSidebar,
@@ -264,6 +271,7 @@ export function ChatSidebarHeader({
                 className="max-h-[360px] overflow-y-auto overscroll-contain"
               >
                 <div className="px-1.5 py-1.5">
+                  {onEnterToday && <button type="button" onClick={() => { setOpen(false); onEnterToday() }} className="flex h-[34px] w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] hover:bg-accent"><MessageSquareTextIcon className="size-4 text-muted-foreground" />{t("chat.header.enterToday")}</button>}
                   <button
                     type="button"
                     onClick={handleStartNewChat}
@@ -271,7 +279,7 @@ export function ChatSidebarHeader({
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <PlusIcon className="size-4 text-muted-foreground" />
-                      <span className="truncate">{t("chat.header.newChat")}</span>
+                      <span className="truncate">{t("chat.header.newTask")}</span>
                     </div>
                   </button>
                 </div>
@@ -344,11 +352,12 @@ export function ChatSidebarHeader({
             />
           )}
           <HeaderActionButton
-            title={t("chat.header.newChat")}
-            onClick={handleStartNewChat}
+            title={t(onEnterToday ? "chat.header.enterToday" : "chat.header.newChat")}
+            onClick={onEnterToday ?? handleStartNewChat}
           >
-            <PlusIcon className="size-4" />
+            {onEnterToday ? <CalendarDaysIcon className="size-4" /> : <PlusIcon className="size-4" />}
           </HeaderActionButton>
+          {onEnterToday && <HeaderActionButton title={t("chat.header.newTask")} onClick={handleStartNewChat}><PlusIcon className="size-4" /></HeaderActionButton>}
           <HeaderActionButton
             title={
               isFullScreen

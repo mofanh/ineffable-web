@@ -1,4 +1,4 @@
-import { AutomationRuntimeFields } from "./automation-runtime-fields"
+import { RuntimeConfigurationFields as AutomationRuntimeFields } from "@/features/chat/components/runtime-configuration-fields"
 import * as React from "react"
 import {
   CalendarClock,

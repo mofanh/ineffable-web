@@ -7,7 +7,9 @@ import { CapabilityExposurePicker } from "@/features/chat/components/capability-
 import { useApiResource } from "@/lib/app/use-api-resource"
 import { getCapabilityExposureDraft, listConversationCapabilityCatalog, listModelProfiles, listSandboxWorkspaceEnvironments, listWorkspaces, type AutomationRuntimeConfig } from "@/lib/api/api-client"
 
-export function AutomationRuntimeFields({ accessToken, conversationId, value, onChange }: {
+export function RuntimeConfigurationFields({ accessToken, conversationId, value, onChange, title, description }: {
+  title?: string
+  description?: string
   accessToken: string
   conversationId: string
   value: AutomationRuntimeConfig
@@ -32,7 +34,7 @@ export function AutomationRuntimeFields({ accessToken, conversationId, value, on
   const catalog = useApiResource({
     enabled: value.capability_exposure.mode === "custom",
     cacheKey: ["automation-capabilities", accessToken, conversationId, value.workspace_id, value.sandbox?.environment_id],
-    load: React.useCallback(() => listConversationCapabilityCatalog(accessToken, conversationId, value.sandbox?.environment_id, value.workspace_id), [accessToken, conversationId, value.sandbox?.environment_id, value.workspace_id]),
+    load: React.useCallback(() => listConversationCapabilityCatalog(accessToken, conversationId || null, value.sandbox?.environment_id, value.workspace_id), [accessToken, conversationId, value.sandbox?.environment_id, value.workspace_id]),
     errorMessage: t("automation.runtime.loadFailed"),
   })
   const selectedModel = value.model_profile_id
@@ -51,7 +53,7 @@ export function AutomationRuntimeFields({ accessToken, conversationId, value, on
   if (value.sandbox && !sandboxOptions.some((env) => env.value === value.sandbox?.environment_id)) {
     sandboxOptions.push({ value: value.sandbox.environment_id, label: t("automation.runtime.unavailable", { name: value.sandbox.environment_id }) })
   }
-  return <FormSection title={t("automation.runtime.title")} description={t("automation.runtime.description")}>
+  return <FormSection title={title ?? t("automation.runtime.title")} description={description ?? t("automation.runtime.description")}>
     {choices.error ? <ErrorState error={choices.error.message} onRetry={choices.reload} /> : null}
     {environments.error ? <ErrorState error={environments.error.message} onRetry={environments.reload} /> : null}
     <FormField label={t("chat.composer.modelPickerLabel")}>

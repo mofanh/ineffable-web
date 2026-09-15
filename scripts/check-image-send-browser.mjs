@@ -51,7 +51,7 @@ try {
       await route.fulfill({json:body})
     })
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/image-send-fixture.html`)
-    await page.getByLabel("New conversation",{exact:true}).click()
+    await page.getByLabel("New independent task",{exact:true}).click()
     await page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.getAttribute("aria-label")==="Add images")?.disabled)
     const composer=page.locator("textarea")
     if(scenario==="session-helper") await page.getByRole("button",{name:"Create through session",exact:true}).click()
@@ -130,7 +130,7 @@ try {
       await page.waitForFunction(()=>document.querySelector('[data-session]')?.textContent==="replacement-session")
       await composer.waitFor()
     }
-    if(["new-draft","late-ack","session-ack"].includes(scenario))await page.getByLabel("New conversation",{exact:true}).click()
+    if(["new-draft","late-ack","session-ack"].includes(scenario))await page.getByLabel("New independent task",{exact:true}).click()
     else if(scenario!=="normal") await page.getByRole("button",{name:"Select other",exact:true}).click()
     if(scenario!=="session-helper" && scenario!=="normal") {
       await composer.fill("NEW_DRAFT")

@@ -1,3 +1,4 @@
+import { ConversationPreferencesForm } from "@/features/chat/components/conversation-preferences-form";
 import * as React from "react";
 import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
 import { useTranslation } from "react-i18next";
@@ -263,6 +264,8 @@ export function AccountPage() {
           </AppFieldGrid>
         </CardContent>
       </Card>
+
+      {accessToken && <ConversationPreferencesForm key={currentUser.id} accessToken={accessToken} />}
 
       {accessToken && currentSessionId && <ChangePasswordForm
         key={`${currentUser.id}:${currentSessionId}`}

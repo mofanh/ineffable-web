@@ -65,6 +65,7 @@ export type ModelProfileOption = {
 }
 
 type ChatComposerProps = {
+  inputDisabledReason?: string
   imageActions?: React.ReactNode
   imageAttachments?: React.ReactNode
   imageCount?: number
@@ -164,6 +165,7 @@ export function ChatComposer({
   onDeleteFromQueue,
   onResumePreInputQueue,
   onClearPreInputQueue,
+  inputDisabledReason,
 }: ChatComposerProps) {
   const scrollBoundaryRef = useChatScrollBoundary<HTMLDivElement>()
   const { t } = useTranslation()
@@ -441,11 +443,12 @@ export function ChatComposer({
         className="space-y-1.5"
         onSubmit={(event) => {
           event.preventDefault()
-          onSend()
+          if (!inputDisabledReason) onSend()
         }}
       >
         {imageCount > 0 && modelOptions.some(model => model.id === selectedModelProfileId && !model.supportsVision && model.supportsAuxiliaryVision) ? <Notice>{t("images.auxiliaryHint")}</Notice> : null}
         {imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)) ? <Notice tone="warning">{t("images.visionRequired")}</Notice> : null}
+        {inputDisabledReason && <Notice>{inputDisabledReason}</Notice>}
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
         {shouldShowAgentMenu ? (
@@ -530,7 +533,7 @@ export function ChatComposer({
             onFocus={handleComposerFocus}
             onBlur={handleComposerBlur}
             onKeyDown={handleComposerKeyDown}
-            readOnly={isSubmittingInput}
+            readOnly={isSubmittingInput || Boolean(inputDisabledReason)}
             aria-busy={isSubmittingInput}
             className="min-h-14 max-h-32 overflow-y-auto overscroll-contain border-0 bg-transparent px-4 py-3 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0"
           />
@@ -654,7 +657,7 @@ export function ChatComposer({
                   "size-10 rounded-full bg-foreground text-background transition-[color,background-color,transform] hover:bg-foreground/85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground",
                   isSending && "bg-amber-500 text-white hover:bg-amber-600"
                 )}
-                disabled={(!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)))}
+                disabled={Boolean(inputDisabledReason) || (!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)))}
                 title={
                   isSubmittingInput
                     ? t("chat.composer.submitting")
