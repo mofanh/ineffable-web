@@ -289,6 +289,8 @@ export function AutomationPage() {
   const { currentSessionId } = useAuthSession()
   const { conversations, refreshConversations, selectConversation } =
     useConversationSession()
+  const [dailyRerun, setDailyRerun] = React.useState<Automation | null>(null)
+  const [sourceDate, setSourceDate] = React.useState("")
   const [dailyEditor, setDailyEditor] = React.useState<{ automation: Automation | null } | null>(null)
   const [editingAutomation, setEditingAutomation] =
     React.useState<Automation | null>(null)
@@ -574,12 +576,13 @@ export function AutomationPage() {
     }
   }
 
-  async function handleRunAutomation(automation: Automation) {
+  async function handleRunAutomation(automation: Automation, date?: string) {
     setSaving(true)
     setError(null)
     setLastRunConversationId(null)
     try {
-      const response = await runAutomation(accessToken, automation.id)
+      const response = await runAutomation(accessToken, automation.id, date)
+      setDailyRerun(null)
       setLastRunConversationId(response.conversation_id)
       notify.success({
         title: t("automation.feedback.runStarted"),
@@ -662,6 +665,10 @@ export function AutomationPage() {
     >
       <ErrorState error={error} title={t("common.operationFailed")} />
       <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setDailyEditor({ automation: automations.find((item) => item.purpose === "daily_consolidation") ?? null })}><CalendarClock className="size-4" />{t("automation.daily.title")}</Button></div>
+      <AppDialog open={Boolean(dailyRerun)} onOpenChange={(open) => { if (!open && !saving) setDailyRerun(null) }} title={t("automation.daily.rerunTitle")} description={t("automation.daily.rerunHint")} footer={<AppDialogFooter><Button variant="outline" disabled={saving} onClick={() => setDailyRerun(null)}>{t("automation.form.cancel")}</Button><AsyncButton isLoading={saving} onClick={() => { if (dailyRerun) void handleRunAutomation(dailyRerun, sourceDate || undefined) }}>{t("automation.page.runNow")}</AsyncButton></AppDialogFooter>}>
+        <ErrorState error={error} />
+        <FormField label={t("automation.daily.sourceDate")} htmlFor="daily-source-date"><Input id="daily-source-date" type="date" value={sourceDate} disabled={saving} onChange={(event) => setSourceDate(event.target.value)} /></FormField>
+      </AppDialog>
       {dailyEditor ? <DailyAutomationDialog key={`${accessToken}:${dailyEditor.automation?.id ?? "new"}`} accessToken={accessToken} automation={dailyEditor.automation} onClose={() => setDailyEditor(null)} onSaved={reload} /> : null}
 
       {lastRunConversationId ? (
@@ -807,7 +814,7 @@ export function AutomationPage() {
                 <Button
                   size="sm"
                   disabled={saving || automation.status !== "active"}
-                  onClick={() => void handleRunAutomation(automation)}
+                  onClick={() => { if (automation.purpose === "daily_consolidation") { setSourceDate(""); setError(null); setDailyRerun(automation) } else void handleRunAutomation(automation) }}
                 >
                   <Play className="size-3.5" />
                   {t("automation.page.runNow")}

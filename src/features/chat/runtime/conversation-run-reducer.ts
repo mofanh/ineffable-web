@@ -1,5 +1,5 @@
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
-import { getConversationEventIdentity } from "../model/conversation-event-routing.ts"
+import { getConversationEventIdentity, isConversationScopedEvent } from "../model/conversation-event-routing.ts"
 
 export type RunLifecycle =
   | "idle"
@@ -146,6 +146,10 @@ export function reduceConversationRunRuntime(
   const identity = getConversationEventIdentity(action.event)
   if (!identity || identity.conversationId !== state.conversationId) {
     return state
+  }
+  if (isConversationScopedEvent(action.event)) {
+    const seq = action.event.seq
+    return typeof seq === "number" && Number.isSafeInteger(seq) && seq > state.lastSeq ? { ...state, lastSeq: seq } : state
   }
   if (state.runId && state.runId !== identity.runId) {
     if (action.event.event !== "run.started" || !state.terminalEventSeen) {

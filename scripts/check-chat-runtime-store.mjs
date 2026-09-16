@@ -206,3 +206,19 @@ activity=createConversationRunRuntime("compact")
 reduceActivity({type:"activity-snapshot",runId:"run-c",executionEpoch:3,seq:100,activityVersion:0,compacting:false})
 reduceActivity({type:"event",event:resumedStart})
 assert.equal(activity.compacting,true,"refresh followed by a new epoch start")
+
+for (const kind of ["conversation.task_result", "conversation.daily_summary"]) {
+  const notification = { ...event("notify", "conversation:notify", 4, kind), metadata: {
+    conversation_id: "notify", event_scope: "conversation",
+  } }
+  let idle = createConversationRunRuntime("notify")
+  idle = reduceConversationRunRuntime(idle, { type: "event", event: notification })
+  assert.equal(idle.runId, null)
+  assert.equal(idle.lastSeq, 4)
+  const running = reduceConversationRunRuntime(idle, { type: "event", event: event("notify", "real-run", 5, "run.started") })
+  assert.equal(running.runId, "real-run")
+  const updated = reduceConversationRunRuntime(running, { type: "event", event: { ...notification, seq: 6 } })
+  assert.deepEqual({ ...updated, lastSeq: 5 }, running, "notification changes only conversation cursor")
+  assert.equal(updated.lastSeq, 6)
+  assert.equal(reduceConversationRunRuntime(updated, {type:"event",event:notification}), updated)
+}

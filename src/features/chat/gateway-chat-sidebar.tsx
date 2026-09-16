@@ -99,6 +99,7 @@ import {
 import {
   eventBelongsToConversation,
   getConversationEventIdentity,
+  isConversationScopedEvent,
 } from "@/features/chat/model/conversation-event-routing"
 import { shouldApplyConversationProjection } from "@/features/chat/model/conversation-projection"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
@@ -1418,11 +1419,12 @@ export function GatewayChatSidebar({
   }, [accessToken, isPageActive, selectedSandboxEnvironmentId, refreshSandboxOptions])
 
 
+  const isDailyRootSelected = conversations.some((conversation) => conversation.id === currentConversationId && conversation.kind === "daily_root")
   React.useEffect(() => {
     if (
       !accessToken ||
       !isPageActive ||
-      (!hasLiveConversation && !isSubmittingInput)
+      (!hasLiveConversation && !isSubmittingInput && !isDailyRootSelected)
     ) {
       return
     }
@@ -1434,6 +1436,7 @@ export function GatewayChatSidebar({
       backgroundRefreshInFlightRef.current = true
       try {
         await refreshConversations()
+        if (isDailyRootSelected) await syncConversationIfBehind(currentConversationIdRef.current)
       } catch {
         // 当前会话的流恢复负责展示错误；后台列表轮询保持静默并等待下次重试。
       } finally {
@@ -1449,6 +1452,7 @@ export function GatewayChatSidebar({
   }, [
     accessToken,
     hasLiveConversation,
+    isDailyRootSelected,
     isSubmittingInput,
     isPageActive,
     refreshConversations,
@@ -2937,7 +2941,7 @@ export function GatewayChatSidebar({
           if (envelope.type === "event") {
             const identity = getConversationEventIdentity(envelope.event)
             if (identity?.conversationId === conversationId && expected.runId &&
-                identity.runId !== expected.runId) {
+                identity.runId !== expected.runId && !isConversationScopedEvent(envelope.event)) {
               // Scanning history advances even when another run is not projected.
               setConversationLastSeq(conversationId, envelope.event.seq)
               continue
@@ -3082,15 +3086,17 @@ export function GatewayChatSidebar({
       setConversationLastSeq(identity.conversationId, envelope.event.seq)
       persistResumeState({
         conversationId: identity.conversationId,
-        runId: identity.runId,
+        runId: isConversationScopedEvent(envelope.event) ? nextRuntime.runId : identity.runId,
         afterSeq: envelope.event.seq,
       })
       if (currentConversationIdRef.current !== identity.conversationId) {
         void refreshConversations().catch(() => {})
         return
       }
-      bindTriggerUserMessage(envelope.event)
-      bindActiveAssistantRun(identity.runId)
+      if (!isConversationScopedEvent(envelope.event)) {
+        bindTriggerUserMessage(envelope.event)
+        bindActiveAssistantRun(identity.runId)
+      }
     }
 
     if (envelope.type === "error") {
@@ -3161,7 +3167,9 @@ export function GatewayChatSidebar({
           }
         )
 
+        if (currentConversationIdRef.current !== conversationId) return
         if (response.events.length > 0) {
+          setDailySummaryRevision((revision) => revision + 1)
           await Promise.all([
             refreshConversations(),
             syncLatestConversationMessagesPage(conversationId),

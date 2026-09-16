@@ -1090,7 +1090,7 @@ export function deleteAutomation(accessToken: string, automationId: string) {
   )
 }
 
-export function runAutomation(accessToken: string, automationId: string) {
+export function runAutomation(accessToken: string, automationId: string, sourceDate?: string) {
   return requestApiJson<{
     automation_run: AutomationRun
     conversation_id: string
@@ -1098,6 +1098,7 @@ export function runAutomation(accessToken: string, automationId: string) {
   }>(`/gateway/v1/automations/${encodeURIComponent(automationId)}/run`, {
     method: "POST",
     accessToken,
+    body: sourceDate ? { source_date: sourceDate } : undefined,
   })
 }
 

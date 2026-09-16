@@ -40,3 +40,11 @@ export function eventBelongsToConversation(
     identity && conversationId && identity.conversationId === conversationId
   )
 }
+
+/** Conversation facts share the durable sequence, never a run lifecycle. */
+export function isConversationScopedEvent(event: GatewayChatStreamEvent): boolean {
+  const identity = getConversationEventIdentity(event)
+  return Boolean(identity && event.metadata?.event_scope === "conversation" &&
+    event.run_id === `conversation:${identity.conversationId}` &&
+    !event.metadata?.conversation_run_id)
+}
