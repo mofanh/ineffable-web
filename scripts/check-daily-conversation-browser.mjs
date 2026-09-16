@@ -24,6 +24,7 @@ try {
   const workspace = "00000000-0000-0000-0000-000000000001"
   const root = { id: "today", title: "2026-09-15", kind: "daily_root", root_ends_at: "2099-01-01T00:00:00Z", last_message_at: "2026-09-15T10:00:00Z", current_run: null }
   const old = { ...root, id: "old", title: "2026-09-14", root_ends_at: "2000-01-01T00:00:00Z" }
+  const task = { id: "task", title: "Independent task", kind: "task", current_run: null }
   const sends = []
   await page.route("**/gateway/v1/**", async route => {
     const url = new URL(route.request().url())
@@ -31,11 +32,11 @@ try {
     let body = { items: [], profiles: [], environments: [], pending_inputs: [], events: [], next_seq: 0 }
     if (path.endsWith("auth/me")) body = { user: { id: "owner", status: "active", role: "user" }, workspaces: [{ id: workspace, name: "Workspace", kind: "personal" }], current_workspace_id: workspace }
     else if (path.endsWith("conversations/preferences")) body = { timezone: "Asia/Shanghai", day_start_minutes: 240, version: 0, defaults_json: {} }
-    else if (path.endsWith("conversations/list")) body = { conversations: [root, old] }
+    else if (path.endsWith("conversations/list")) body = { conversations: [root, old, task] }
     else if (path.endsWith("conversations/today")) { todayCalls++; body = root }
     else if (path.endsWith("conversations/create")) { taskCalls++; body = { id: "task", title: "Task", kind: "task", current_run: null } }
-    else if (path.endsWith("conversations/get")) body = url.searchParams.get("conversation_id") === "old" ? old : root
-    else if (path.endsWith("/messages")) body = { messages: [{ id: "history", conversation_id: url.searchParams.get("conversation_id"), message_seq: 1, role: "user", message_type: "input", content: "EXISTING_DAILY_HISTORY", metadata_json: {}, created_at: "2026-09-15T10:00:00Z" }], next_seq: 0, page: { has_older: false, before: null } }
+    else if (path.endsWith("conversations/get")) body = url.searchParams.get("conversation_id") === "old" ? old : url.searchParams.get("conversation_id") === "task" ? task : root
+    else if (path.endsWith("/messages")) body = { messages: [{ id: "history", conversation_id: url.searchParams.get("conversation_id"), message_seq: 1, role: "user", message_type: "input", content: "EXISTING_DAILY_HISTORY", metadata_json: { input_progress: { message_id: "history", conversation_id: url.searchParams.get("conversation_id"), phase: "accepted", kind: "pre_input", task_source: { conversation_id: "old", run_id: "source-run" } } }, created_at: "2026-09-15T10:00:00Z" }, { id: "result", conversation_id: url.searchParams.get("conversation_id"), message_seq: 2, role: "system", message_type: "system", content: "Task run status data", metadata_json: { task_result: { conversation_id: "task", run_id: "task-run", outcome: "completed", title: "Task result card" } }, created_at: "2026-09-15T10:00:01Z" }], next_seq: 0, page: { has_older: false, before: null } }
     else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model", display_name: "Model", supports_tool_calls: true, enabled: true }] }
     else if (path.endsWith("/send")) { sends.push(route.request().postDataJSON()); body = { status: "queued", queue_len: 1, pending_id: 1, message_id: "message", conversation_id: "today" } }
     else if (path.endsWith("/observations/access")) body = { allowed: false }
@@ -45,6 +46,10 @@ try {
   await page.getByRole("button", { name: "Go to today", exact: true }).click()
   await page.getByText("EXISTING_DAILY_HISTORY", { exact: true }).waitFor()
   assert.equal(await page.locator("[data-selection]").textContent(), "today")
+  await page.getByText("Task instruction from a daily conversation", { exact: true }).waitFor()
+  await page.getByText("This run completed", { exact: true }).waitFor()
+  await page.getByRole("button", { name: "Open task", exact: true }).click()
+  await page.waitForFunction(() => document.querySelector("[data-selection]")?.textContent === "task")
   await page.getByRole("button", { name: "Go to today", exact: true }).click()
   await page.waitForFunction(() => document.querySelector("[data-selection]")?.textContent === "today")
   assert.equal(taskCalls, 0, "today must never create a task")

@@ -1,4 +1,5 @@
 export type InputProgress = {
+  task_source?: { conversation_id: string; run_id: string }
   message_seq?: number
   message_id: string
   conversation_id: string
@@ -16,6 +17,10 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
   if (typeof item.message_id !== "string" || typeof item.conversation_id !== "string" ||
       !["received", "queued", "resuming", "accepted", "cancelled"].includes(String(item.phase))) return undefined
   return {
+    task_source: item.task_source && typeof item.task_source === "object" &&
+      typeof (item.task_source as Record<string, unknown>).conversation_id === "string" &&
+      typeof (item.task_source as Record<string, unknown>).run_id === "string"
+      ? item.task_source as { conversation_id: string; run_id: string } : undefined,
     message_seq: Number.isSafeInteger(item.message_seq) ? item.message_seq as number : undefined,
     message_id: item.message_id, conversation_id: item.conversation_id,
     phase: item.phase as InputProgress["phase"], kind: typeof item.kind === "string" ? item.kind : "ordinary",

@@ -2727,6 +2727,10 @@ export function GatewayChatSidebar({
       return
     }
 
+    if (event.event === "conversation.task_result") {
+      void syncLatestConversationMessagesPage(identity.conversationId, null, "coalesce").catch(() => {})
+      return
+    }
     if (event.event === "input.accepted") {
       const progress = parseInputProgress(objectValue(event.metadata)?.input_progress)
       if (progress && progress.conversation_id === identity.conversationId && progress.run_id === identity.runId) {
@@ -4349,6 +4353,7 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
+          onOpenConversation={selectConversationTarget}
           compactingRunId={compactingRunId}
           accessToken={accessToken}
           onImageReference={imageDraft.addReference}

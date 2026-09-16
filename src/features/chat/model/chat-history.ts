@@ -580,6 +580,7 @@ export function mapConversationMessagesToEntries(
       entries.push({
         id: message.timeline_unit_id || message.id,
         role: "system",
+        taskResult: parseTaskResult(message.metadata_json?.task_result),
         content: message.content,
         timelineSeq: message.timeline_seq,
         timelineUnitId: message.timeline_unit_id,
@@ -639,4 +640,12 @@ export function reconcilePendingUserInput(
   const next = [...entries]
   next[targetIndex] = updateUserInputTool(nextEntry, nextEntry.pane.tools[toolId])
   return next
+}
+
+function parseTaskResult(value: unknown) {
+  if (!value || typeof value !== "object") return undefined
+  const result = value as Record<string, unknown>
+  if (typeof result.conversation_id !== "string" || typeof result.run_id !== "string" ||
+    typeof result.title !== "string" || !["completed", "failed", "cancelled"].includes(String(result.outcome))) return undefined
+  return { conversationId: result.conversation_id, runId: result.run_id, outcome: String(result.outcome), title: result.title }
 }

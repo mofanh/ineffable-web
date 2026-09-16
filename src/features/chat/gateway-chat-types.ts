@@ -17,6 +17,7 @@ export type UserEntry = {
 }
 
 export type SystemEntry = {
+  taskResult?: { conversationId: string; runId: string; outcome: string; title: string }
   id: string
   role: "system"
   content: string

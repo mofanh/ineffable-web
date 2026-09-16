@@ -78,6 +78,7 @@ function InputStatusIcon({ label, phase }: { label: string; phase?: string }) {
 }
 
 type ChatMessageListProps = {
+  onOpenConversation?: (conversationId: string) => void
   compactingRunId?: string | null
   accessToken?: string | null
   onImageReference?: (image: ImageReference) => void
@@ -211,6 +212,7 @@ function usePrefersReducedMotion() {
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
+  onOpenConversation,
   compactingRunId,
   accessToken, onImageReference,
   entries,
@@ -387,6 +389,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 className="flex justify-end"
               >
                 <div className="flex min-w-0 max-w-[82%] flex-col items-end">
+                  {entry.inputProgress?.task_source ? <span className="mb-1 text-xs text-muted-foreground">{t("chat.header.taskInstruction")}</span> : null}
                   <div data-input-waiting={isWaitingGuidedInput(entry) || undefined}
                     className={cn("flex min-w-0 max-w-full flex-col items-end gap-2 transition-opacity", isWaitingGuidedInput(entry) && "opacity-50")}>
                     <ImageGallery images={entry.images ?? []} accessToken={accessToken} onReference={onImageReference} userMessage />
@@ -398,6 +401,15 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 </div>
               </div>
             )
+          }
+
+          if (entry.role === "system" && entry.taskResult) {
+            const result = entry.taskResult
+            return <div key={entry.id} data-chat-row-key={entry.id} data-chat-entry-role="system" className="rounded-xl border border-border/60 px-4 py-3 text-sm">
+              <div className="font-medium">{result.title}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{t(`chat.header.taskResult.${result.outcome}`)}</div>
+              {onOpenConversation ? <Button variant="ghost" size="sm" className="mt-2" onClick={() => onOpenConversation(result.conversationId)}>{t("chat.header.openTask")}</Button> : null}
+            </div>
           }
 
           if (entry.role === "system") {
