@@ -59,13 +59,19 @@ try {
   const config = saved.runtime_config
   const automations = ["A", "B"].map((name) => ({ id: name, name, message: "Task", conversation_id: "conversation-a", status: "active", trigger_kind: "manual", trigger_spec: {}, runtime_config: config }))
   let dailySave
+  let dailyRun
   let releaseSave
   let saveStarted = false
   await editorPage.route("**/gateway/v1/**", async (route) => {
     const url = route.request().url()
     let body = {}
     if (url.includes("conversations/preferences")) body = {timezone:"Asia/Shanghai",day_start_minutes:240,version:0,defaults_json:{model_profile_id:"model-a",workspace_id:"workspace-a",sandbox:null,capability_exposure:{mode:"smart",custom:null}}}
-    else if (route.request().method() === "PUT") {dailySave=route.request().postDataJSON();body={automation:{id:"daily"}}}
+    else if (route.request().method() === "PUT") {
+      dailySave=route.request().postDataJSON()
+      automations.push({id:"daily",name:"Nightly",message:"Summarize",conversation_id:"nightly-task",status:"active",purpose:"daily_consolidation",runtime_config:config})
+      body={automation:automations.at(-1)}
+    }
+    else if (url.endsWith("/daily/run")) {dailyRun=route.request().postDataJSON();body={automation_run:{},conversation_id:"supplement-task",send_status:202}}
     else if (route.request().method() === "PATCH") {
       saveStarted = true
       await new Promise((resolve) => { releaseSave = resolve })
@@ -110,6 +116,11 @@ try {
   assert.equal(dailySave.config.wait_seconds,90)
   assert.equal(dailySave.config.max_turns,16)
   assert.equal(dailySave.expected_updated_at,null)
+  await editorPage.getByText("Nightly",{exact:true}).waitFor()
+  await editorPage.getByText("Nightly",{exact:true}).locator("xpath=../../../..").getByRole("button",{name:"Run now",exact:true}).click()
+  await editorPage.locator("#daily-source-date").fill("2026-09-10")
+  await Promise.all([editorPage.waitForResponse(r=>r.url().endsWith("/daily/run")),editorPage.getByRole("dialog").getByRole("button",{name:"Run now",exact:true}).click()])
+  assert.deepEqual(dailyRun,{source_date:"2026-09-10"},"manual supplement freezes the explicitly chosen source day")
   await editorPage.close()
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }

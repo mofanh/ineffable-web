@@ -2045,7 +2045,7 @@ export function GatewayChatSidebar({
         hydratedConversationIdRef.current = conversationId
         setHydratedConversationId(conversationId)
         setOlderMessagesError(null)
-        setError(null)
+        if (streamStatusRef.current !== "error") setError(null)
         return handoffConfirmed
       } catch (error) {
         if (
@@ -3145,10 +3145,8 @@ export function GatewayChatSidebar({
         return
       }
 
-      if (status === "error") {
-        return
-      }
-
+      // A failed run keeps its error UI; conversation facts still arrive from
+      // independent tasks and the consolidation worker after that failure.
       catchupInFlightRef.current = true
       try {
         const hasCursor = conversationSeqRef.current.has(conversationId)
