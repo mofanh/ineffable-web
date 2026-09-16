@@ -58,12 +58,15 @@ try {
   })
   const config = saved.runtime_config
   const automations = ["A", "B"].map((name) => ({ id: name, name, message: "Task", conversation_id: "conversation-a", status: "active", trigger_kind: "manual", trigger_spec: {}, runtime_config: config }))
+  let dailySave
   let releaseSave
   let saveStarted = false
   await editorPage.route("**/gateway/v1/**", async (route) => {
     const url = route.request().url()
     let body = {}
-    if (route.request().method() === "PATCH") {
+    if (url.includes("conversations/preferences")) body = {timezone:"Asia/Shanghai",day_start_minutes:240,version:0,defaults_json:{model_profile_id:"model-a",workspace_id:"workspace-a",sandbox:null,capability_exposure:{mode:"smart",custom:null}}}
+    else if (route.request().method() === "PUT") {dailySave=route.request().postDataJSON();body={automation:{id:"daily"}}}
+    else if (route.request().method() === "PATCH") {
       saveStarted = true
       await new Promise((resolve) => { releaseSave = resolve })
       body = { automation: automations[0] }
@@ -92,6 +95,21 @@ try {
   await editorPage.waitForLoadState("networkidle")
   assert.equal(await editorPage.locator("#automation-name").inputValue(), "B draft")
   assert.equal(await editorPage.getByRole("dialog").count(), 1)
+  await editorPage.getByRole("button",{name:"Cancel",exact:true}).click()
+  await editorPage.getByRole("button",{name:"Daily consolidation",exact:true}).click()
+  await editorPage.getByText("Day boundary: 04:00 · Asia/Shanghai",{exact:true}).waitFor()
+  assert.equal(await editorPage.getByRole("switch").first().isChecked(),false,"opening setup must not enable model costs")
+  await editorPage.getByRole("switch").first().click()
+  await editorPage.locator("#daily-directory").fill("Experiences")
+  await editorPage.locator("#daily-wait").fill("90")
+  await editorPage.locator("#daily-turns").fill("16")
+  await Promise.all([editorPage.waitForResponse(r=>r.request().method()==="PUT"),editorPage.locator('button[form="daily-automation-form"]').click()])
+  assert.equal(dailySave.enabled,true)
+  assert.equal(dailySave.runtime_config.model_profile_id,"model-a")
+  assert.equal(dailySave.runtime_config.workspace_id,"workspace-a")
+  assert.equal(dailySave.config.wait_seconds,90)
+  assert.equal(dailySave.config.max_turns,16)
+  assert.equal(dailySave.expected_updated_at,null)
   await editorPage.close()
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }

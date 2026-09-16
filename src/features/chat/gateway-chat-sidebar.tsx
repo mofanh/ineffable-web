@@ -1,3 +1,4 @@
+import { DailyHandoffNotice } from "./components/daily-handoff-notice"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
 import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
 import { WorkspaceImagePicker } from "@/features/chat/components/workspace-image-picker"
@@ -1526,6 +1527,7 @@ export function GatewayChatSidebar({
   const bindStatus = currentConversationId
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
+  const [dailySummaryRevision, setDailySummaryRevision] = React.useState(0)
   const isClosedRoot = selectedConversation?.kind === "daily_root" && Boolean(selectedConversation.root_ends_at && Date.parse(selectedConversation.root_ends_at) <= Date.now())
   const isSending = Boolean(selectedLiveRun)
   const isAwaitingVisibleResponse =
@@ -2727,6 +2729,10 @@ export function GatewayChatSidebar({
       return
     }
 
+    if (event.event === "conversation.daily_summary") {
+      setDailySummaryRevision((revision) => revision + 1)
+      return
+    }
     if (event.event === "conversation.task_result") {
       void syncLatestConversationMessagesPage(identity.conversationId, null, "coalesce").catch(() => {})
       return
@@ -4402,6 +4408,7 @@ export function GatewayChatSidebar({
       )}
 
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
+      {accessToken && selectedConversation?.kind === "daily_root" && currentConversationId ? <DailyHandoffNotice refreshKey={dailySummaryRevision} key={`${accessToken}:${currentConversationId}`} accessToken={accessToken} conversationId={currentConversationId} onOpenConversation={selectConversationTarget} /> : null}
 
       <ChatComposer
         inputDisabledReason={isClosedRoot ? i18n.t("chat.header.closedDay") : undefined}

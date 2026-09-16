@@ -131,6 +131,8 @@ export type WorkspaceObjectContentResponse = {
 }
 
 export type Conversation = {
+  daily_handoff?: {status?:string; waiting:boolean; deadline:string; conversation_id:string; occurrence_id:string; release_reason:string|null} | null
+  daily_summary?: {status:string; workspace_id:string; object_id:string; version_id:string} | null
   kind?: "daily_root" | "task"
   root_date?: string | null
   root_timezone?: string | null
@@ -234,7 +236,11 @@ export type AutomationRuntimeConfig = {
   capability_exposure: CapabilityExposureSelection
 }
 
+export type DailyConsolidationConfig = { directory: string; wait_enabled: boolean; wait_seconds: number; max_turns?: number; token_budget?: number }
 export type Automation = {
+  purpose?: "standard" | "daily_consolidation"
+  purpose_config?: DailyConsolidationConfig | null
+  updated_at?: string
   runtime_config: AutomationRuntimeConfig | null
   id: string
   user_id: string
@@ -250,6 +256,9 @@ export type Automation = {
 }
 
 export type AutomationRun = {
+  scheduled_for?: string | null
+  execution_message_id?: string | null
+  product_run_id?: string | null
   runtime_config?: AutomationRuntimeConfig | null
   id: string
   automation_id: string
@@ -2704,4 +2713,8 @@ export function getConversationPreferences(accessToken: string) {
 }
 export function saveConversationPreferences(accessToken: string, body: ConversationPreferences) {
   return requestApiJson<ConversationPreferences>("/gateway/v1/conversations/preferences", { accessToken, method: "PUT", body })
+}
+
+export function saveDailyAutomation(accessToken: string, body: {runtime_config: AutomationRuntimeConfig; config: DailyConsolidationConfig; enabled: boolean; expected_updated_at: string | null}) {
+  return requestApiJson<{automation: Automation}>("/gateway/v1/automations/daily-consolidation", {accessToken, method: "PUT", body})
 }

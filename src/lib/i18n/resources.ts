@@ -263,6 +263,7 @@ export const resources = {
         },
       },
       automation: {
+        daily: { released: "输入已放行，可在任务中查看整理进度", title: "每日睡眠整理", description: "每天在工作日分界整理昨日经历，保存到工作区。启用后会产生模型用量。", schedule: "跟随日界设置：{{time}} · {{timezone}}", directory: "工作区保存目录", enabled: "启用每日整理", wait: "整理期间暂缓新日输入", turns: "模型调用轮数上限", tokens: "Token 预算上限", seconds: "最长等待（秒）", waiting: "正在整理昨日经历，新消息将排队", view: "查看整理任务", summary: "查看整理总结", invalid: "请选择模型、工作区和保存目录", scheduleHint: "时间和时区在账户的对话默认设置中统一修改。", noSummary: "尚无已验收总结" },
         runtime: { title: "运行配置", description: "每次按保存的配置执行；权限和可用性会重新检查。", workspace: "Workspace", none: "不使用", loadFailed: "加载运行配置失败。", unavailable: "{{name}}（当前不可用）" },
         interval: {
           every15Minutes: "每 15 分钟",
@@ -299,6 +300,7 @@ export const resources = {
           calendar: "日历",
         },
         status: {
+          validating: "验收产物中", skipped: "空日已跳过", created: "等待投递", dispatching: "正在投递", streaming: "运行中", awaiting_human: "等待用户", suspended: "已挂起", cancelled: "已取消",
           active: "已启用",
           inactive: "已暂停",
           completed: "已完成",
@@ -1979,6 +1981,7 @@ export const resources = {
         },
       },
       automation: {
+        daily: { released: "Input released; view the task for consolidation progress", title: "Daily consolidation", description: "Summarize the previous day at your day boundary and save it to Workspace. Enabling this uses model quota.", schedule: "Day boundary: {{time}} · {{timezone}}", directory: "Workspace directory", enabled: "Enable daily consolidation", wait: "Queue new-day input while consolidating", turns: "Maximum model turns", tokens: "Token budget", seconds: "Maximum wait (seconds)", waiting: "Consolidating yesterday; new messages will be queued", view: "View consolidation task", summary: "Open daily summary", invalid: "Select a model, Workspace, and directory", scheduleHint: "Change the shared time and timezone in account conversation defaults.", noSummary: "No verified summary yet" },
         runtime: { title: "Runtime configuration", description: "Each run uses the saved choices and rechecks access and availability.", workspace: "Workspace", none: "None", loadFailed: "Failed to load runtime configuration.", unavailable: "{{name}} (unavailable)" },
         interval: {
           every15Minutes: "Every 15 minutes",
@@ -2015,6 +2018,7 @@ export const resources = {
           calendar: "Calendar",
         },
         status: {
+          validating: "Verifying summary", skipped: "Skipped empty day", created: "Waiting to dispatch", dispatching: "Dispatching", streaming: "Running", awaiting_human: "Waiting for input", suspended: "Suspended", cancelled: "Cancelled",
           active: "Enabled",
           inactive: "Paused",
           completed: "Completed",

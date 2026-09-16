@@ -1,3 +1,4 @@
+import { DailyAutomationDialog } from "./daily-automation-dialog"
 import { RuntimeConfigurationFields as AutomationRuntimeFields } from "@/features/chat/components/runtime-configuration-fields"
 import * as React from "react"
 import {
@@ -173,6 +174,7 @@ function numberArray(value: unknown) {
 }
 
 function triggerLabel(automation: Automation) {
+  if (automation.purpose === "daily_consolidation") return i18n.t("automation.daily.title")
   if (automation.trigger_kind === "manual")
     return i18n.t("automation.trigger.manualTrigger")
   if (
@@ -231,6 +233,7 @@ function triggerKindLabel(triggerKind: string) {
 }
 
 function statusLabel(status: string) {
+  if (["created", "dispatching", "streaming", "awaiting_human", "suspended", "cancelled", "validating", "skipped"].includes(status)) return i18n.t(`automation.status.${status}`)
   if (status === "active") return i18n.t("automation.status.active")
   if (status === "inactive") return i18n.t("automation.status.inactive")
   if (status === "completed") return i18n.t("automation.status.completed")
@@ -286,6 +289,7 @@ export function AutomationPage() {
   const { currentSessionId } = useAuthSession()
   const { conversations, refreshConversations, selectConversation } =
     useConversationSession()
+  const [dailyEditor, setDailyEditor] = React.useState<{ automation: Automation | null } | null>(null)
   const [editingAutomation, setEditingAutomation] =
     React.useState<Automation | null>(null)
   const [automationDialogOpen, setAutomationDialogOpen] = React.useState(false)
@@ -391,6 +395,7 @@ export function AutomationPage() {
   }
 
   function startEditAutomation(automation: Automation) {
+    if (automation.purpose === "daily_consolidation") { setDailyEditor({ automation }); return }
     editorGeneration.current += 1
     setSaving(false)
     setError(null)
@@ -656,6 +661,8 @@ export function AutomationPage() {
       }
     >
       <ErrorState error={error} title={t("common.operationFailed")} />
+      <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setDailyEditor({ automation: automations.find((item) => item.purpose === "daily_consolidation") ?? null })}><CalendarClock className="size-4" />{t("automation.daily.title")}</Button></div>
+      {dailyEditor ? <DailyAutomationDialog key={`${accessToken}:${dailyEditor.automation?.id ?? "new"}`} accessToken={accessToken} automation={dailyEditor.automation} onClose={() => setDailyEditor(null)} onSaved={reload} /> : null}
 
       {lastRunConversationId ? (
         <Notice tone="success" title={t("automation.feedback.runStarted")}>

@@ -22,6 +22,7 @@ try {
   let todayCalls = 0
   let taskCalls = 0
   const workspace = "00000000-0000-0000-0000-000000000001"
+  let waiting = true
   const root = { id: "today", title: "2026-09-15", kind: "daily_root", root_ends_at: "2099-01-01T00:00:00Z", last_message_at: "2026-09-15T10:00:00Z", current_run: null }
   const old = { ...root, id: "old", title: "2026-09-14", root_ends_at: "2000-01-01T00:00:00Z" }
   const task = { id: "task", title: "Independent task", kind: "task", current_run: null }
@@ -35,7 +36,7 @@ try {
     else if (path.endsWith("conversations/list")) body = { conversations: [root, old, task] }
     else if (path.endsWith("conversations/today")) { todayCalls++; body = root }
     else if (path.endsWith("conversations/create")) { taskCalls++; body = { id: "task", title: "Task", kind: "task", current_run: null } }
-    else if (path.endsWith("conversations/get")) body = url.searchParams.get("conversation_id") === "old" ? old : url.searchParams.get("conversation_id") === "task" ? task : root
+    else if (path.endsWith("conversations/get")) body = url.searchParams.get("conversation_id") === "old" ? old : url.searchParams.get("conversation_id") === "task" ? task : {...root,daily_handoff:{waiting,conversation_id:"task",occurrence_id:"nightly",deadline:"2099-01-01T00:00:00Z"}}
     else if (path.endsWith("/messages")) body = { messages: [{ id: "history", conversation_id: url.searchParams.get("conversation_id"), message_seq: 1, role: "user", message_type: "input", content: "EXISTING_DAILY_HISTORY", metadata_json: { input_progress: { message_id: "history", conversation_id: url.searchParams.get("conversation_id"), phase: "accepted", kind: "pre_input", task_source: { conversation_id: "old", run_id: "source-run" } } }, created_at: "2026-09-15T10:00:00Z" }, { id: "result", conversation_id: url.searchParams.get("conversation_id"), message_seq: 2, role: "system", message_type: "system", content: "Task run status data", metadata_json: { task_result: { conversation_id: "task", run_id: "task-run", outcome: "completed", title: "Task result card" } }, created_at: "2026-09-15T10:00:01Z" }], next_seq: 0, page: { has_older: false, before: null } }
     else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model", display_name: "Model", supports_tool_calls: true, enabled: true }] }
     else if (path.endsWith("/send")) { sends.push(route.request().postDataJSON()); body = { status: "queued", queue_len: 1, pending_id: 1, message_id: "message", conversation_id: "today" } }
@@ -46,6 +47,9 @@ try {
   await page.getByRole("button", { name: "Go to today", exact: true }).click()
   await page.getByText("EXISTING_DAILY_HISTORY", { exact: true }).waitFor()
   assert.equal(await page.locator("[data-selection]").textContent(), "today")
+  await page.getByText("Consolidating yesterday; new messages will be queued",{exact:true}).waitFor()
+  waiting=false
+  await page.getByText("Consolidating yesterday; new messages will be queued",{exact:true}).waitFor({state:"hidden",timeout:10000})
   await page.getByText("Task instruction from a daily conversation", { exact: true }).waitFor()
   await page.getByText("This run completed", { exact: true }).waitFor()
   await page.getByRole("button", { name: "Open task", exact: true }).click()
