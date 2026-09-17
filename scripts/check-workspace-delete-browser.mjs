@@ -40,7 +40,7 @@ try {
       else if (url.pathname.includes("workspace-objects/")) {
         const id = url.pathname.split("workspace-objects/")[1].split("/")[0]
         if (id === "a" && deleted) { status = 404; body = { error: "object not found" } }
-        else body = url.pathname.endsWith("versions") ? { versions: [] } : { object: file(id), content: `Content ${id.toUpperCase()}`, version: { id: `v-${id}`, version_no: 1 } }
+        else body = url.pathname.endsWith("versions") ? { object: file(id), versions: [] } : { object: file(id), content: `Content ${id.toUpperCase()}`, version: { id: `v-${id}`, version_no: 1 } }
       }
       if (scenario === "loading-folder" && url.pathname.endsWith("/a/content")) {
         await new Promise(resolve => { releaseContent = resolve })

@@ -1,3 +1,4 @@
+import { dispatchWorkspaceObjectsChanged } from "@/lib/workspace-events"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { type ImageReference, uploadImage } from "@/lib/api/images"
@@ -41,7 +42,10 @@ export function useImageAttachments(scope: string, accessToken: string | null, w
     update((items) => items.map((current) => current.id === item.id ? { ...current, status: "uploading", error: undefined } : current))
     try {
       const image = await uploadImage(accessToken, workspaceId, item.file, controller.signal)
-      if (!controller.signal.aborted) update((items) => items.map((current) => current.id === item.id ? { id: item.id, image, status: "ready" } : current))
+      if (!controller.signal.aborted) {
+        update((items) => items.map((current) => current.id === item.id ? { id: item.id, image, status: "ready" } : current))
+        dispatchWorkspaceObjectsChanged({ workspaceId: image.workspace_id, objectId: image.object_id, versionId: image.version_id, action: "create_file", source: "user" })
+      }
     } catch (error) {
       if (!controller.signal.aborted) update((items) => items.map((current) => current.id === item.id ? {
         ...current, status: "error", error: normalizeAppError(error, { fallbackMessage: t("images.uploadFailed") }).message,

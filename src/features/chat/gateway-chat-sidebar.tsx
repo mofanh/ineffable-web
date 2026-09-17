@@ -1,3 +1,4 @@
+import { IMAGE_REFERENCE_REQUEST, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { DailyHandoffNotice } from "./components/daily-handoff-notice"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
 import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
@@ -387,7 +388,7 @@ export function GatewayChatSidebar({
   onFullScreenChange,
 }: GatewayChatSidebarProps) {
   useTranslation()
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, setOpen } = useSidebar()
   const {
     accessToken,
     currentSessionId,
@@ -421,6 +422,19 @@ export function GatewayChatSidebar({
     observedSendViewRef.current = { session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
   }
   const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? `new:${newDraftGeneration}`}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
+  React.useEffect(() => {
+    const acceptReference = (event: Event) => {
+      const request = event as ImageReferenceRequest
+      if (request.defaultPrevented || !imageDraft.enabled || imageDraft.items.length >= 4 ||
+          request.detail.sessionId !== currentSessionId ||
+          getConversationSelectionIdentity().sessionId !== currentSessionId) return
+      imageDraft.addReference(request.detail.image)
+      request.preventDefault()
+      setOpen(true)
+    }
+    window.addEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
+    return () => window.removeEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
+  }, [currentSessionId, getConversationSelectionIdentity, imageDraft, setOpen])
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")

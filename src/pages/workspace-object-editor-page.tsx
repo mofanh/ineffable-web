@@ -1,3 +1,4 @@
+import { WorkspaceImagePreview } from "@/features/workspace/components/workspace-image-preview"
 import { statWorkspacePath } from "@/features/workspace/api/workspace-api"
 import * as React from "react"
 import MarkdownIt from "markdown-it"
@@ -50,7 +51,8 @@ import {
   type WorkspaceObjectVersion,
 } from "@/features/workspace/api/workspace-api"
 import {
-  getWorkspaceObjectContentDeduped,
+  getWorkspaceDocument,
+  isWorkspaceImage,
   listWorkspaceDirectoryDeduped,
 } from "@/features/workspace/api/workspace-resource-api"
 import { downloadTextFile } from "@/features/workspace/model/download"
@@ -421,10 +423,7 @@ export function WorkspaceObjectEditorPage() {
     }
     window.addEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
     try {
-      const [contentResponse, versionsResponse] = await Promise.all([
-        getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId),
-        listWorkspaceObjectVersions(accessToken, workspaceId, objectId),
-      ])
+      const contentResponse = await getWorkspaceDocument(accessToken, workspaceId, objectId)
       if (contentLoadRequestRef.current !== requestId || currentObjectRouteRef.current !== route) {
         return
       }
@@ -437,7 +436,7 @@ export function WorkspaceObjectEditorPage() {
       setVersion(contentResponse.version)
       setContent(contentResponse.content)
       setSavedContent(contentResponse.content)
-      setVersions(versionsResponse.versions)
+      setVersions(contentResponse.versions)
       setPreviewVersion(null)
       setPreviewContent(null)
     } catch (loadError) {
@@ -616,7 +615,7 @@ export function WorkspaceObjectEditorPage() {
           version_id: targetVersion.id,
           expected_version_id: version.id,
         })
-        const contentResponse = await getWorkspaceObjectContentDeduped(
+        const contentResponse = await getWorkspaceDocument(
           accessToken,
           workspaceId,
           objectId
@@ -950,7 +949,7 @@ export function WorkspaceObjectEditorPage() {
           >
             {getActorInitial(object?.updated_by_actor_id, currentUser?.display_name?.[0] ?? "U")}
           </div>
-          <Button
+          {!isWorkspaceImage(object.mime_type) ? <Button
             type="button"
             variant={isEditing ? "secondary" : "ghost"}
             size="icon-sm"
@@ -967,7 +966,7 @@ export function WorkspaceObjectEditorPage() {
             }
           >
             <PencilIcon />
-          </Button>
+          </Button> : null}
           {isEditing && isDirty ? (
             <>
               <Button
@@ -1020,10 +1019,10 @@ export function WorkspaceObjectEditorPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 rounded-lg p-1">
-              <DropdownMenuItem className="gap-2 rounded-md" onClick={() => setIsHistoryOpen(true)}>
+              {!isWorkspaceImage(object.mime_type) ? <DropdownMenuItem className="gap-2 rounded-md" onClick={() => setIsHistoryOpen(true)}>
                 <HistoryIcon />
                 <span>{t("workspace.actions.history")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem> : null}
               <DropdownMenuItem className="gap-2 rounded-md" onClick={copyLink}>
                 <CopyIcon />
                 <span>{t("workspace.actions.copyLink")}</span>
@@ -1044,10 +1043,10 @@ export function WorkspaceObjectEditorPage() {
                 <Switch checked={isCompact} onCheckedChange={setIsCompact} className="ml-auto" />
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 rounded-md" onClick={duplicateObject}>
+              {!isWorkspaceImage(object.mime_type) ? <DropdownMenuItem className="gap-2 rounded-md" onClick={duplicateObject}>
                 <CopyPlusIcon />
                 <span>{t("workspace.actions.duplicate")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem> : null}
               <DropdownMenuItem className="gap-2 rounded-md" onClick={moveObject}>
                 <FolderInputIcon />
                 <span>{t("workspace.actions.move")}</span>
@@ -1056,10 +1055,10 @@ export function WorkspaceObjectEditorPage() {
                 <FilePenIcon />
                 <span>{t("workspace.actions.rename")}</span>
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 rounded-md" onClick={exportObject}>
+              {!isWorkspaceImage(object.mime_type) ? <DropdownMenuItem className="gap-2 rounded-md" onClick={exportObject}>
                 <DownloadIcon />
                 <span>{t("workspace.actions.export")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem> : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="gap-2 rounded-md text-destructive focus:text-destructive"
@@ -1155,6 +1154,8 @@ export function WorkspaceObjectEditorPage() {
             title={t("workspace.preview.selectFile")}
             action={<Button variant="outline" onClick={() => void loadContent()}>{t("workspace.actions.reload")}</Button>}
           />
+        ) : isWorkspaceImage(object.mime_type) ? (
+          <WorkspaceImagePreview key={`${accessToken}:${object.id}:${object.current_version_id}`} object={object} />
         ) : isEditing ? (
           <React.Suspense
             fallback={
