@@ -2018,7 +2018,7 @@ export function GatewayChatSidebar({
           runtimeStoreRef.current.dispatch(conversationId, { type: "reset" })
         }
         const activity = response.run_activities?.find(item => item.run_id === conversationDetail?.current_run?.id)
-        if (activity) runtimeStoreRef.current.dispatch(conversationId, {
+        if (activity && conversationDetail && getConversationRunLifecycle(conversationDetail) === "active") runtimeStoreRef.current.dispatch(conversationId, {
           type: "activity-snapshot", runId: activity.run_id, executionEpoch: activity.execution_epoch,
           seq: activity.seq, activityVersion: activity.activity_seq, compacting: activity.compacting,
         })
