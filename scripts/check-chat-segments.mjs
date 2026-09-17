@@ -96,3 +96,22 @@ for (const entry of [withNeed,restoredNeed]) {
  assert.equal(entry.segments[segment(301).id].pane.tools[`${segment(301).id}:tool:reused`].status,"waiting")
  assert.equal(Object.keys(entry.pane.tools).length,2)
 }
+
+// Native chat images use the same segment/canonical handoff as text and tools.
+const image = { workspace_id:"00000000-0000-0000-0000-000000000001", object_id:"00000000-0000-0000-0000-000000000002", version_id:"00000000-0000-0000-0000-000000000003", mime_type:"image/png",width:1,height:1,size_bytes:5 }
+const paneImages = entry => Object.values(entry.pane.blocks).flatMap(block=>block.type==="text"?block.images??[]:[])
+let imageLive=projectConversationOutputEvent(undefined,event(0,"model.images","",{images:[image]}),"run")
+imageLive=projectConversationOutputEvent(imageLive,event(0,"model.images","",{images:[image]}),"run")
+imageLive=projectConversationOutputEvent(imageLive,event(0,"model.text.delta","edited"),"run")
+assert.deepEqual(paneImages(imageLive),[image],"repeated image event is one attachment, not a second output")
+assert.equal(body(imageLive),"edited")
+imageLive=projectConversationOutputEvent(imageLive,event(0,"assistant.snapshot","edited",{images:[image],canonical_reconciliation:true,canonical_message_seq:2,transcript_segment_complete:true}),"run")
+assert.deepEqual(paneImages(imageLive),[image],"canonical handoff preserves one image")
+const imageHistory=mapConversationMessagesToEntries([record(0,"output","edited",2,{images:[image]})])[0]
+assert.deepEqual(paneImages(imageHistory),paneImages(imageLive),"refresh/history use the same image reference")
+const imageOnly=mapConversationMessagesToEntries([record(0,"output","",2,{images:[image]})])[0]
+assert.deepEqual(paneImages(imageOnly),[image],"image-only assistant output is not dropped")
+assert.equal(body(imageOnly),"")
+const withTool=mapConversationMessagesToEntries([record(0,"tool_call","",3,{images:[image],tool_calls:[{id:"inspect",name:"read_file",input:{}}]}),record(0,"tool_result","result",4,{tool_call_id:"inspect",tool_name:"read_file"})])[0]
+assert.deepEqual(paneImages(withTool),[image],"image accompanying assistant tool calls belongs to assistant output")
+assert.ok(Object.values(withTool.pane.tools).every(tool=>!tool.images?.length),"assistant image is not copied into tool cards")

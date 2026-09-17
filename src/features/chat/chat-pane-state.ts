@@ -34,6 +34,7 @@ export type ToolCallView = {
 }
 
 export type TextBlock = {
+  images?: ImageReference[]
   id: string
   type: "text"
   content: string
@@ -512,6 +513,24 @@ export function applyTextDeltaToPane(pane: AgentPaneState, chunk: string) {
   )
 }
 
+/** Shared by live image events and canonical snapshots. Bytes never enter pane state. */
+export function applyAssistantImagesToPane(pane: AgentPaneState, event: GatewayChatStreamEvent) {
+  if (event.event !== "model.images" && event.event !== "assistant.snapshot") return pane
+  const images = imageReferences(event.metadata?.images)
+  if (!images.length) return pane
+  const known = new Set(Object.values(pane.blocks).flatMap(block => block.type === "text" ? (block.images ?? []).map(image => image.version_id) : []))
+  const additions = images.filter(image => !known.has(image.version_id))
+  if (!additions.length) return pane
+  const base = closeActiveThinkBlock(pane)
+  const lastId = base.blockOrder.at(-1)
+  const last = lastId ? base.blocks[lastId] : undefined
+  if (last?.type === "text") {
+    return { ...base, blocks: { ...base.blocks, [last.id]: { ...last, images: [...(last.images ?? []), ...additions] } } }
+  }
+  const id = `images-${additions.map(image => image.version_id).join("-")}`
+  return { ...base, blockOrder: [...base.blockOrder, id], blocks: { ...base.blocks, [id]: { id, type: "text" as const, content: "", images: additions } } }
+}
+
 export function applyMessageToPane(pane: AgentPaneState, content: string) {
   if (pane.receivedTextDelta) {
     return pane
@@ -659,7 +678,7 @@ export function buildToolView(
         if (typeof model.profile_id === "string" && typeof model.display_name === "string") nextTool.operation.model = { profileId: model.profile_id, displayName: model.display_name }
       }
     }
-    if (event.metadata?.images !== undefined) nextTool.images = imageReferences(event.metadata.images)
+    if (event.event === "tool.result" && event.metadata?.images !== undefined) nextTool.images = imageReferences(event.metadata.images)
     nextTool.output = appendChunk(nextTool.output, event.content ?? "")
     let need = event.metadata?.blocking_need as {kind?: unknown; need_id?: unknown} | undefined
     if (!need && event.content) {

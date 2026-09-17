@@ -918,11 +918,11 @@ const ToolCallCard = React.memo(function ToolCallCard({
   )
 })
 
-const TextNodeRenderer: WebNodeRenderer<TextWebNodePayload> = ({ node }) => (
-  <AgentTextBlock
-    content={node.payload.content}
-    streaming={node.payload.streaming}
-  />
+const TextNodeRenderer: WebNodeRenderer<TextWebNodePayload> = ({ node, context }) => (
+  <div>
+    {node.payload.content ? <AgentTextBlock content={node.payload.content} streaming={node.payload.streaming} /> : null}
+    <ImageGallery images={node.payload.images ?? []} accessToken={context.accessToken} onReference={context.onImageReference} />
+  </div>
 )
 
 const ReasoningNodeRenderer: WebNodeRenderer<ReasoningWebNodePayload> = ({

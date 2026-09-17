@@ -5,6 +5,7 @@ import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryFo
 import {
   applyCanonicalMessageToPane,
   applyMessageToPane,
+  applyAssistantImagesToPane,
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
   appendUpdateToPane,
@@ -228,7 +229,7 @@ export function applyEventToPaneState(
           ? applyCanonicalMessageToPane(pane, content)
           : applyMessageToPane(pane, content)
         : appendUpdateToPane(pane, content)
-  return projectDeclaredWebNode(nextPane, event)
+  return projectDeclaredWebNode(applyAssistantImagesToPane(nextPane, event), event)
 }
 
 function getMessageReasoningContent(message: ConversationMessageRecord) {

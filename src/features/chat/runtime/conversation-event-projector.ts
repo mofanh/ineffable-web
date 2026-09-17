@@ -2,6 +2,7 @@ import { canonicalMessagesToGatewayEvents } from "../model/canonical-message-eve
 import { updateAssistantSegment, updateUserInputTool, transcriptSegment } from "../model/assistant-segments"
 import {
   applyMessageToPane,
+  applyAssistantImagesToPane,
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
   appendUpdateToPane,
@@ -55,7 +56,7 @@ function projectPaneEvent(
   } else {
     nextPane = appendUpdateToPane(basePane, content)
   }
-  return projectDeclaredWebNode(nextPane, event)
+  return projectDeclaredWebNode(applyAssistantImagesToPane(nextPane, event), event)
 }
 
 function projectToolEvent(

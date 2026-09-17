@@ -1,3 +1,4 @@
+import { imageReferences } from "@/lib/image-reference"
 import { transcriptSegment } from "./assistant-segments"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 
@@ -241,7 +242,7 @@ export function canonicalMessagesToGatewayEvents(
       const bodyIdentity = baseMetadata.canonical_message_seq != null
         ? `${runId}:message:${baseMetadata.canonical_message_seq}`
         : metadataString(baseMetadata, "canonical_source_message_id")
-      if (assistantBody.trim() && (!bodyIdentity || !seenBodyIdentities.has(bodyIdentity))) {
+      if ((assistantBody.trim() || imageReferences(baseMetadata.images).length > 0) && (!bodyIdentity || !seenBodyIdentities.has(bodyIdentity))) {
         if (bodyIdentity) seenBodyIdentities.add(bodyIdentity)
         pushEvent("assistant.snapshot", "assistant",
           stripInlineThinkBlocks(assistantBody), { ...baseMetadata })
