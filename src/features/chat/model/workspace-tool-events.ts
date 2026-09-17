@@ -1,3 +1,4 @@
+import { imageReferences } from "@/lib/image-reference"
 import { getToolName } from "@/features/chat/gateway-chat-helpers"
 import {
   objectValue,
@@ -7,7 +8,20 @@ import {
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { dispatchWorkspaceObjectsChanged } from "@/lib/workspace-events"
 
-export function notifyWorkspaceToolResult(event: GatewayChatStreamEvent) {
+export function notifyWorkspaceOutputEvent(event: GatewayChatStreamEvent) {
+  if (event.event === "model.images" || event.event === "tool.result") {
+    // The caller already deduplicates envelope identities. Refresh once per
+    // workspace in this bounded batch, using persisted typed references only.
+    const images = imageReferences(event.metadata?.images)
+    const workspaces = new Set<string>()
+    for (const image of images) {
+      if (workspaces.has(image.workspace_id)) continue
+      workspaces.add(image.workspace_id)
+      dispatchWorkspaceObjectsChanged({ workspaceId: image.workspace_id, objectId: image.object_id,
+        versionId: image.version_id, action: "create_file", source: "agent" })
+    }
+    if (images.length) return
+  }
   if (event.event !== "tool.result") {
     return
   }

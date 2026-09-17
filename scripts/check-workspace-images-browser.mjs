@@ -71,4 +71,35 @@ try {
     assert.deepEqual(errors, [])
     await page.close(); console.log(`workspace image preview, reference and navigation passed (${lang})`)
   }
+  for (const kind of ["model.images", "tool.result"]) {
+    const page = await browser.newPage()
+    let generated = false, reads = 0
+    await page.addInitScript(() => {
+      localStorage.setItem("ineffable.auth.access_token", "fixture-token")
+      localStorage.setItem("ineffable.auth.session_id", "fixture-session")
+      localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
+    })
+    await page.route("**/gateway/v1/**", async route => {
+      const path = new URL(route.request().url()).pathname
+      let body = { conversations: [], invitations: [], objects: [], next_cursor: null }
+      if (path.endsWith("auth/me")) body = { user: { id: "actor", role: "user", status: "active" }, workspaces: [{ id: workspace, workspace_type: "personal", name: "Workspace" }] }
+      else if (path.endsWith("/directory")) {
+        reads++
+        body = { objects: generated ? [{ id: "folder", workspace_id: workspace, kind: "folder", name: "会话附件", path: "会话附件", parent_id: null }] : [], next_cursor: null }
+      }
+      await route.fulfill({ json: body })
+    })
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/workspace-image-fixture.html?tree=1`)
+    while (!reads) await page.waitForTimeout(10)
+    generated = true
+    const before = reads
+    await page.evaluate(async ({ kind, image }) => {
+      const { notifyWorkspaceOutputEvent } = await import("/src/features/chat/model/workspace-tool-events.ts")
+      notifyWorkspaceOutputEvent({ event: kind, metadata: { images: [image, image] } })
+    }, { kind, image })
+    await page.getByText("会话附件", { exact: true }).waitFor()
+    assert.equal(reads, before + 1, "one directory refresh per workspace in image batch")
+    assert.equal(await page.getByText("2026-09", { exact: true }).count(), 0, "new attachment folder starts collapsed")
+    await page.close(); console.log(`generated image sidebar refresh passed (${kind})`)
+  }
 } finally { await browser?.close(); await server.close() }

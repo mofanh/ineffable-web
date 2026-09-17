@@ -104,7 +104,7 @@ import {
 } from "@/features/chat/model/conversation-event-routing"
 import { shouldApplyConversationProjection } from "@/features/chat/model/conversation-projection"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
-import { notifyWorkspaceToolResult } from "@/features/chat/model/workspace-tool-events"
+import { notifyWorkspaceOutputEvent } from "@/features/chat/model/workspace-tool-events"
 import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
 import {
   agentNodeManagementTargetKey,
@@ -3134,7 +3134,7 @@ export function GatewayChatSidebar({
     }
 
     seenEventRef.current.add(fingerprint)
-    notifyWorkspaceToolResult(envelope.event)
+    notifyWorkspaceOutputEvent(envelope.event)
     applyEvent(envelope.event)
   })
 
