@@ -532,10 +532,14 @@ export function AutomationPage() {
       })
       // Saving succeeded; a list refresh failure does not turn it into a failed write.
       void reload()
-      void refreshConversations()
     } catch (err) {
       if (!isCurrentEditor()) return
-      if (!editingAutomation) setCreateUncertain(true)
+      if (!editingAutomation) {
+        const error = normalizeAppError(err)
+        const rejected = ["validation", "unauthorized", "forbidden", "not_found"].includes(error.kind)
+          || error.status === 409 || error.status === 429
+        setCreateUncertain(!rejected)
+      }
       reportActionError(
         err,
         t("automation.feedback.saveFailed"),

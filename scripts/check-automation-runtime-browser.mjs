@@ -59,12 +59,17 @@ try {
   const config = saved.runtime_config
   const automations = ["A", "B"].map((name) => ({ id: name, name, message: "Task", conversation_id: "conversation-a", status: "active", trigger_kind: "manual", trigger_spec: {}, runtime_config: config }))
   const creations=[]
+  let createFailure = null
+  let createAttempts = 0
   let releaseSave
   let saveStarted = false
   await editorPage.route("**/gateway/v1/**", async (route) => {
     const url = route.request().url()
     let body = {}
     if (url.endsWith("/automations") && route.request().method() === "POST") {
+      createAttempts++
+      if (createFailure === "validation") return route.fulfill({status:400,json:{error:"Invalid timezone"}})
+      if (createFailure === "network") return route.abort("failed")
       const payload=route.request().postDataJSON();creations.push(payload)
       body={automation:{id:`new-${creations.length}`,...payload,conversation_id:payload.conversation_id??"created-conversation",status:"active"}}
       automations.push(body.automation)
@@ -114,6 +119,30 @@ try {
     assert.equal(creations.at(-1).runtime_config.model_profile_id,"model-a")
   }
   assert.equal(creations.length,2)
+  for (const failure of ["validation", "network"]) {
+    await editorPage.getByRole("button",{name:"Create automation",exact:true}).click()
+    await editorPage.locator("#automation-name").fill("Keep my draft")
+    await editorPage.locator("#automation-message").fill("Read history")
+    await editorPage.getByText("No model selected",{exact:true}).click()
+    await editorPage.getByRole("option",{name:"Model A",exact:true}).click()
+    createFailure = failure
+    const save = editorPage.locator('button[form="automation-edit-form"]')
+    await save.click()
+    await editorPage.getByRole("button",{name:"Cancel",exact:true}).waitFor()
+    await editorPage.waitForFunction(() => ![...document.querySelectorAll("button")].find(b => b.textContent === "Cancel")?.disabled)
+    assert.equal(await editorPage.locator("#automation-name").inputValue(),"Keep my draft")
+    assert.equal(await save.isDisabled(),failure === "network")
+    if (failure === "validation") {
+      createFailure = null
+      await editorPage.locator("#automation-name").fill("Corrected draft")
+      await save.click()
+      await editorPage.getByRole("dialog",{name:"Create automation",exact:true}).waitFor({state:"hidden"})
+      assert.equal(creations.at(-1).name,"Corrected draft")
+    } else {
+      assert.equal(createAttempts,5,"a lost response must not cause an automatic create retry")
+      await editorPage.getByRole("button",{name:"Cancel",exact:true}).click()
+    }
+  }
   await editorPage.close()
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }
