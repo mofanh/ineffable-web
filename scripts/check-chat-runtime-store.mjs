@@ -207,7 +207,7 @@ reduceActivity({type:"activity-snapshot",runId:"run-c",executionEpoch:3,seq:100,
 reduceActivity({type:"event",event:resumedStart})
 assert.equal(activity.compacting,true,"refresh followed by a new epoch start")
 
-for (const kind of ["conversation.task_result", "conversation.daily_summary"]) {
+for (const kind of ["conversation.task_result"]) {
   const notification = { ...event("notify", "conversation:notify", 4, kind), metadata: {
     conversation_id: "notify", event_scope: "conversation",
   } }

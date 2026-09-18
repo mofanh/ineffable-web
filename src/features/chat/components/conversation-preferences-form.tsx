@@ -44,7 +44,6 @@ function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: str
   return <div className="space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
       <FormField label={t("chat.header.timezone")}><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => setValue({ ...value, timezone: e.target.value })} /></FormField>
-      <FormField label={t("chat.header.dayBoundary")}><Input type="time" value={`${String(Math.floor(value.day_start_minutes / 60)).padStart(2, "0")}:${String(value.day_start_minutes % 60).padStart(2, "0")}`} onChange={(e) => { const [hours, minutes] = e.target.value.split(":").map(Number); if (Number.isFinite(hours + minutes)) setValue({ ...value, day_start_minutes: hours * 60 + minutes }) }} /></FormField>
     </div>
     <AutomationRuntimeFields accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue({ ...value, defaults_json })} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
     <AsyncButton isLoading={saving} onClick={() => void save()}>{t("chat.header.savePreferences")}</AsyncButton>

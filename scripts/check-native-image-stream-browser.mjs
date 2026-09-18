@@ -9,7 +9,7 @@ const server=await createServer({root:process.cwd(),logLevel:"error",plugins:[{n
 })}}],server:{host:"127.0.0.1",port:0}})
 let browser
 const workspace="00000000-0000-0000-0000-000000000001"
-const root={id:"today",title:"Today",kind:"daily_root",root_ends_at:"2099-01-01T00:00:00Z",last_message_at:"2026-09-17T00:00:00Z",current_run:{id:"previous",status:"completed",is_live:false}}
+const root={id:"today",title:"Today",last_message_at:"2026-09-17T00:00:00Z",current_run:{id:"previous",status:"completed",is_live:false}}
 const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=","base64")
 try {
  await server.listen();browser=await chromium.launch({executablePath,headless:true});
@@ -25,7 +25,7 @@ try {
  let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
  if(path.endsWith("auth/me"))body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:workspace,name:"Workspace",workspace_type:"personal"}],current_workspace_id:workspace}
  else if(path.endsWith("conversations/list"))body={conversations:[root]}
- else if(path.endsWith("conversations/today")||path.endsWith("conversations/get"))body=root
+ else if(path.endsWith("conversations/create")||path.endsWith("conversations/get"))body=root
  else if(path.endsWith("/messages"))body={messages:[{id:"old",conversation_id:"today",role:"user",content:"OLD_HISTORY",message_seq:1,created_at:"2026-09-17T00:00:00Z"}],next_seq:0,run_activities:[{run_id:"previous",execution_epoch:0,seq:0,activity_seq:0,compacting:false}],page:{has_older:false,before:null}}
  else if(path.endsWith("models/profiles"))body={profiles:[{id:"vision",display_name:"Vision",supports_vision:true,is_default:true,enabled:true}]}
  else if(path.endsWith("/images"))body={image:{workspace_id:workspace,object_id:"00000000-0000-0000-0000-000000000002",version_id:"00000000-0000-0000-0000-000000000003",mime_type:"image/png",width:1,height:1,size_bytes:png.length}}

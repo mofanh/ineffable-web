@@ -21,7 +21,7 @@ try {
       localStorage.setItem("ineffable.auth.workspace_id","00000000-0000-0000-0000-000000000001")
       localStorage.setItem("ineffable.chat.new_conversation_draft","true")
     })
-    let releaseCreate;let releaseSend;let holdRefresh=false;let releaseRefresh;let uploads=0;const sends=[]
+    let releaseCreate;let releaseSend;let holdRefresh=false;let created=false;let releaseRefresh;let uploads=0;const sends=[]
     const waitUntil=async (condition,message)=>{
       const deadline=Date.now()+10000
       while(!condition()&&Date.now()<deadline) await page.waitForTimeout(20)
@@ -32,8 +32,8 @@ try {
       const url=new URL(route.request().url());const path=url.pathname
       let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
       if(path.endsWith("auth/me")) { if(holdRefresh) await new Promise(resolve=>{releaseRefresh=resolve});body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:"00000000-0000-0000-0000-000000000001",name:"Workspace",kind:"personal"}],current_workspace_id:"00000000-0000-0000-0000-000000000001"}}
-      else if(path.endsWith("conversations/list"))body={conversations:[conversation("other")]}
-      else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});body=conversation("created")}
+      else if(path.endsWith("conversations/list"))body={conversations:[...(created?[conversation("created")]:[]),conversation("other")]}
+      else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});created=true;body=conversation("created")}
       else if(path.endsWith("conversations/get"))body=conversation(url.searchParams.get("conversation_id"))
       else if(path.endsWith("/directory"))body={objects:[],next_cursor:null}
       else if(path.endsWith("/messages"))body={messages:[],next_seq:0,page:{has_older:false,before:null}}
@@ -51,7 +51,7 @@ try {
       await route.fulfill({json:body})
     })
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/image-send-fixture.html`)
-    await page.getByLabel("New independent task",{exact:true}).click()
+    await page.getByLabel("New conversation",{exact:true}).click()
     await page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.getAttribute("aria-label")==="Add images")?.disabled)
     const composer=page.locator("textarea")
     if(scenario==="session-helper") await page.getByRole("button",{name:"Create through session",exact:true}).click()
@@ -130,7 +130,7 @@ try {
       await page.waitForFunction(()=>document.querySelector('[data-session]')?.textContent==="replacement-session")
       await composer.waitFor()
     }
-    if(["new-draft","late-ack","session-ack"].includes(scenario))await page.getByLabel("New independent task",{exact:true}).click()
+    if(["new-draft","late-ack","session-ack"].includes(scenario))await page.getByLabel("New conversation",{exact:true}).click()
     else if(scenario!=="normal") await page.getByRole("button",{name:"Select other",exact:true}).click()
     if(scenario!=="session-helper" && scenario!=="normal") {
       await composer.fill("NEW_DRAFT")

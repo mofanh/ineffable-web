@@ -1,4 +1,3 @@
-import { DailyAutomationDialog } from "./daily-automation-dialog"
 import { RuntimeConfigurationFields as AutomationRuntimeFields } from "@/features/chat/components/runtime-configuration-fields"
 import * as React from "react"
 import {
@@ -7,6 +6,7 @@ import {
   Edit3,
   History,
   Play,
+  Plus,
   RotateCw,
   Trash2,
   Zap,
@@ -46,6 +46,7 @@ import {
   useConversationSession,
 } from "@/features/auth/app-session"
 import {
+  createAutomation,
   deleteAutomation,
   listAutomations,
   runAutomation,
@@ -174,7 +175,6 @@ function numberArray(value: unknown) {
 }
 
 function triggerLabel(automation: Automation) {
-  if (automation.purpose === "daily_consolidation") return i18n.t("automation.daily.title")
   if (automation.trigger_kind === "manual")
     return i18n.t("automation.trigger.manualTrigger")
   if (
@@ -289,11 +289,10 @@ export function AutomationPage() {
   const { currentSessionId } = useAuthSession()
   const { conversations, refreshConversations, selectConversation } =
     useConversationSession()
-  const [dailyRerun, setDailyRerun] = React.useState<Automation | null>(null)
-  const [sourceDate, setSourceDate] = React.useState("")
-  const [dailyEditor, setDailyEditor] = React.useState<{ automation: Automation | null } | null>(null)
   const [editingAutomation, setEditingAutomation] =
     React.useState<Automation | null>(null)
+  const [conversationTarget, setConversationTarget] = React.useState("__new__")
+  const [createUncertain, setCreateUncertain] = React.useState(false)
   const [automationDialogOpen, setAutomationDialogOpen] = React.useState(false)
   const [runtimeConfig, setRuntimeConfig] = React.useState<AutomationRuntimeConfig | null>(null)
   const [query, setQuery] = React.useState("")
@@ -315,6 +314,16 @@ export function AutomationPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
   const editorGeneration = React.useRef(0)
+  const sessionIdentity = React.useRef(currentSessionId)
+  sessionIdentity.current = currentSessionId
+  React.useEffect(() => {
+    editorGeneration.current += 1
+    setAutomationDialogOpen(false)
+    setEditingAutomation(null)
+    setRuntimeConfig(null)
+    setSaving(false)
+    setCreateUncertain(false)
+  }, [currentSessionId])
   const [lastRunConversationId, setLastRunConversationId] = React.useState<
     string | null
   >(null)
@@ -389,7 +398,18 @@ export function AutomationPage() {
     })
   }
 
+  function startCreateAutomation() {
+    editorGeneration.current += 1
+    resetForm()
+    setConversationTarget("__new__")
+    setCreateUncertain(false)
+    setError(null)
+    setRuntimeConfig({model_profile_id:"",workspace_id:null,sandbox:null,capability_exposure:{mode:"smart"}})
+    setAutomationDialogOpen(true)
+  }
+
   function closeAutomationDialog() {
+    if (saving) return
     editorGeneration.current += 1
     setSaving(false)
     setAutomationDialogOpen(false)
@@ -397,7 +417,6 @@ export function AutomationPage() {
   }
 
   function startEditAutomation(automation: Automation) {
-    if (automation.purpose === "daily_consolidation") { setDailyEditor({ automation }); return }
     editorGeneration.current += 1
     setSaving(false)
     setError(null)
@@ -415,6 +434,8 @@ export function AutomationPage() {
           : "60"
     const calendarWeekdays = numberArray(automation.trigger_spec?.weekdays)
     const calendarMonthDays = numberArray(automation.trigger_spec?.month_days)
+    setCreateUncertain(false)
+    setConversationTarget(automation.conversation_id)
     setRuntimeConfig(automation.runtime_config)
     setEditingAutomation(automation)
     setForm({
@@ -481,22 +502,26 @@ export function AutomationPage() {
 
   async function handleSaveAutomation(event: React.FormEvent) {
     event.preventDefault()
-    if (!editingAutomation) {
-      return
-    }
+    if (saving || createUncertain || !runtimeConfig?.model_profile_id) return
     const generation = ++editorGeneration.current
-    const isCurrentEditor = () => editorGeneration.current === generation
+    const isCurrentEditor = () => editorGeneration.current === generation && sessionIdentity.current === currentSessionId
     setSaving(true)
     setError(null)
     try {
-      await updateAutomation(accessToken, editingAutomation.id, {
-        ...(runtimeConfig ? { runtime_config: runtimeConfig } : {}),
+      const payload = {
+        runtime_config: runtimeConfig,
         name: form.name,
         description: form.description,
         message: form.message,
         trigger_kind: form.trigger_kind,
         trigger_spec: buildTriggerSpec(),
-      })
+      }
+      if (editingAutomation) {
+        await updateAutomation(accessToken, editingAutomation.id, payload)
+      } else {
+        await createAutomation(accessToken, { ...payload, ...(conversationTarget === "__new__" ? {} : {conversation_id: conversationTarget}) })
+      }
+      if (!isCurrentEditor()) return
       if (isCurrentEditor()) {
         setAutomationDialogOpen(false)
         resetForm()
@@ -505,9 +530,12 @@ export function AutomationPage() {
         title: t("automation.feedback.saved"),
         description: form.name,
       })
-      await reload()
+      // Saving succeeded; a list refresh failure does not turn it into a failed write.
+      void reload()
+      void refreshConversations()
     } catch (err) {
       if (!isCurrentEditor()) return
+      if (!editingAutomation) setCreateUncertain(true)
       reportActionError(
         err,
         t("automation.feedback.saveFailed"),
@@ -576,13 +604,12 @@ export function AutomationPage() {
     }
   }
 
-  async function handleRunAutomation(automation: Automation, date?: string) {
+  async function handleRunAutomation(automation: Automation) {
     setSaving(true)
     setError(null)
     setLastRunConversationId(null)
     try {
-      const response = await runAutomation(accessToken, automation.id, date)
-      setDailyRerun(null)
+      const response = await runAutomation(accessToken, automation.id)
       setLastRunConversationId(response.conversation_id)
       notify.success({
         title: t("automation.feedback.runStarted"),
@@ -664,12 +691,7 @@ export function AutomationPage() {
       }
     >
       <ErrorState error={error} title={t("common.operationFailed")} />
-      <div className="flex justify-end"><Button variant="outline" size="sm" onClick={() => setDailyEditor({ automation: automations.find((item) => item.purpose === "daily_consolidation") ?? null })}><CalendarClock className="size-4" />{t("automation.daily.title")}</Button></div>
-      <AppDialog open={Boolean(dailyRerun)} onOpenChange={(open) => { if (!open && !saving) setDailyRerun(null) }} title={t("automation.daily.rerunTitle")} description={t("automation.daily.rerunHint")} footer={<AppDialogFooter><Button variant="outline" disabled={saving} onClick={() => setDailyRerun(null)}>{t("automation.form.cancel")}</Button><AsyncButton isLoading={saving} onClick={() => { if (dailyRerun) void handleRunAutomation(dailyRerun, sourceDate || undefined) }}>{t("automation.page.runNow")}</AsyncButton></AppDialogFooter>}>
-        <ErrorState error={error} />
-        <FormField label={t("automation.daily.sourceDate")} htmlFor="daily-source-date"><Input id="daily-source-date" type="date" value={sourceDate} disabled={saving} onChange={(event) => setSourceDate(event.target.value)} /></FormField>
-      </AppDialog>
-      {dailyEditor ? <DailyAutomationDialog key={`${accessToken}:${dailyEditor.automation?.id ?? "new"}`} accessToken={accessToken} automation={dailyEditor.automation} onClose={() => setDailyEditor(null)} onSaved={reload} /> : null}
+      <div className="flex justify-end"><Button onClick={startCreateAutomation} disabled={saving}><Plus className="size-4" />{t("automation.form.createTitle")}</Button></div>
 
       {lastRunConversationId ? (
         <Notice tone="success" title={t("automation.feedback.runStarted")}>
@@ -814,7 +836,7 @@ export function AutomationPage() {
                 <Button
                   size="sm"
                   disabled={saving || automation.status !== "active"}
-                  onClick={() => { if (automation.purpose === "daily_consolidation") { setSourceDate(""); setError(null); setDailyRerun(automation) } else void handleRunAutomation(automation) }}
+                  onClick={() => void handleRunAutomation(automation)}
                 >
                   <Play className="size-3.5" />
                   {t("automation.page.runNow")}
@@ -861,12 +883,13 @@ export function AutomationPage() {
 
       <AutomationDialog
         open={automationDialogOpen}
-        title={t("automation.form.editTitle")}
+        title={t(editingAutomation ? "automation.form.editTitle" : "automation.form.createTitle")}
         footer={
           <AppDialogFooter>
             <Button
               type="button"
               variant="outline"
+              disabled={saving}
               onClick={closeAutomationDialog}
             >
               {t("automation.form.cancel")}
@@ -876,13 +899,14 @@ export function AutomationPage() {
               form="automation-edit-form"
               isLoading={saving}
               loadingLabel={t("automation.form.saving")}
-              disabled={!editingAutomation}
+              disabled={createUncertain || !runtimeConfig?.model_profile_id}
             >
               {t("automation.form.save")}
             </AsyncButton>
           </AppDialogFooter>
         }
         onOpenChange={(open) => {
+          if (saving) return
           if (open) setAutomationDialogOpen(true)
           else closeAutomationDialog()
         }}
@@ -892,7 +916,18 @@ export function AutomationPage() {
           className="space-y-5"
           onSubmit={handleSaveAutomation}
         >
+          <ErrorState error={error} />
+          {createUncertain && <Notice tone="warning">{t("automation.form.verifyCreation")}</Notice>}
+          <fieldset disabled={saving} className="contents">
           <FormSection className="space-y-4">
+            {!editingAutomation && <FormField label={t("automation.form.conversation")} description={t("automation.form.conversationHint")}>
+              <Select value={conversationTarget} onValueChange={setConversationTarget}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="__new__">{t("automation.form.newConversation")}</SelectItem>
+                  {conversations.map((conversation) => <SelectItem key={conversation.id} value={conversation.id}>{conversation.title}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>}
             <FormField
               htmlFor="automation-name"
               label={t("automation.form.name")}
@@ -947,7 +982,7 @@ export function AutomationPage() {
                 required
               />
             </FormField>
-            {runtimeConfig && editingAutomation ? <AutomationRuntimeFields key={editingAutomation.id} accessToken={accessToken} conversationId={editingAutomation.conversation_id} value={runtimeConfig} onChange={setRuntimeConfig} /> : null}
+            {runtimeConfig ? <AutomationRuntimeFields key={editingAutomation?.id ?? "new"} accessToken={accessToken} conversationId={conversationTarget === "__new__" ? "" : conversationTarget} value={runtimeConfig} onChange={setRuntimeConfig} /> : null}
             <FormField label={t("automation.form.triggerType")}>
               <Select
                 value={form.trigger_kind}
@@ -1134,6 +1169,7 @@ export function AutomationPage() {
               ) : null}
             </FormField>
           ) : null}
+          </fieldset>
         </form>
       </AutomationDialog>
     </AppMetricPage>

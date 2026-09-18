@@ -14,7 +14,6 @@ import {
 } from "@/features/auth/api/auth-api"
 import {
   createConversation,
-  enterTodayConversation,
   listConversations,
   type Conversation,
 } from "@/features/chat/api/chat-api"
@@ -70,7 +69,7 @@ type ConversationSessionContextValue = {
   currentConversationId: string | null
   refreshConversations: () => Promise<void>
   renameConversation: (conversationId: string, title: string) => Promise<void>
-  createConversation: (title: string, options?: { select?: boolean; kind?: "daily_root" | "task"; originRootId?: string }) => Promise<Conversation>
+  createConversation: (title: string, options?: { select?: boolean }) => Promise<Conversation>
   getConversationSelectionIdentity: () => { sessionId: string | null; version: number }
   selectConversation: (conversationId: string | null) => void
 }
@@ -514,7 +513,7 @@ export function AppSessionProvider({
   }, [])
 
   const createConversationForWorkspace = React.useCallback(
-    async (title: string, options?: { select?: boolean; kind?: "daily_root" | "task"; originRootId?: string }) => {
+    async (title: string, options?: { select?: boolean }) => {
       if (!accessToken) {
         throw new Error(i18n.t("common.sessionExpired.signedOut"))
       }
@@ -522,9 +521,7 @@ export function AppSessionProvider({
       const generation = sessionGenerationRef.current
       const sessionIdentity = sessionIdentityRef.current
       const selectionVersion = conversationSelectionVersionRef.current
-      const conversation = options?.kind === "daily_root"
-        ? await enterTodayConversation(accessToken)
-        : await createConversation(accessToken, { title, origin_root_id: options?.originRootId })
+      const conversation = await createConversation(accessToken, { title })
 
       if (generation !== sessionGenerationRef.current || sessionIdentity !== sessionIdentityRef.current) {
         throw new Error(i18n.t("common.sessionExpired.signedOut"))

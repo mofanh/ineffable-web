@@ -1,5 +1,4 @@
 import { IMAGE_REFERENCE_REQUEST, type ImageReferenceRequest } from "@/lib/image-reference-events"
-import { DailyHandoffNotice } from "./components/daily-handoff-notice"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
 import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
 import { WorkspaceImagePicker } from "@/features/chat/components/workspace-image-picker"
@@ -403,8 +402,6 @@ export function GatewayChatSidebar({
     renameConversation,
   } = useAppSession()
 
-  const taskDraftRef = React.useRef(false)
-  const taskOriginRootRef = React.useRef<string | undefined>(undefined)
   const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
   const submissionLifecycleRef = React.useRef(0)
   const runtimePreferenceRevisionRef = React.useRef(0)
@@ -1433,12 +1430,11 @@ export function GatewayChatSidebar({
   }, [accessToken, isPageActive, selectedSandboxEnvironmentId, refreshSandboxOptions])
 
 
-  const isDailyRootSelected = conversations.some((conversation) => conversation.id === currentConversationId && conversation.kind === "daily_root")
   React.useEffect(() => {
     if (
       !accessToken ||
       !isPageActive ||
-      (!hasLiveConversation && !isSubmittingInput && !isDailyRootSelected)
+      (!hasLiveConversation && !isSubmittingInput && !currentConversationId)
     ) {
       return
     }
@@ -1450,7 +1446,7 @@ export function GatewayChatSidebar({
       backgroundRefreshInFlightRef.current = true
       try {
         await refreshConversations()
-        if (isDailyRootSelected) await syncConversationIfBehind(currentConversationIdRef.current)
+        if (currentConversationId && currentConversationIdRef.current === currentConversationId) await syncConversationIfBehind(currentConversationId)
       } catch {
         // 当前会话的流恢复负责展示错误；后台列表轮询保持静默并等待下次重试。
       } finally {
@@ -1465,8 +1461,8 @@ export function GatewayChatSidebar({
     return () => window.clearInterval(intervalId)
   }, [
     accessToken,
+    currentConversationId,
     hasLiveConversation,
-    isDailyRootSelected,
     isSubmittingInput,
     isPageActive,
     refreshConversations,
@@ -1545,8 +1541,6 @@ export function GatewayChatSidebar({
   const bindStatus = currentConversationId
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
-  const [dailySummaryRevision, setDailySummaryRevision] = React.useState(0)
-  const isClosedRoot = selectedConversation?.kind === "daily_root" && Boolean(selectedConversation.root_ends_at && Date.parse(selectedConversation.root_ends_at) <= Date.now())
   const isSending = Boolean(selectedLiveRun)
   const isAwaitingVisibleResponse =
     isSubmittingInput ||
@@ -1558,7 +1552,6 @@ export function GatewayChatSidebar({
     () =>
       conversations.map((conversation) => ({
         id: conversation.id,
-        kind: conversation.kind,
         title: conversation.title || i18n.t("chat.gateway.unnamed"),
         updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
         runtimeStatus: getConversationRuntimeStatus(
@@ -2747,10 +2740,6 @@ export function GatewayChatSidebar({
       return
     }
 
-    if (event.event === "conversation.daily_summary") {
-      setDailySummaryRevision((revision) => revision + 1)
-      return
-    }
     if (event.event === "conversation.task_result") {
       void syncLatestConversationMessagesPage(identity.conversationId, null, "coalesce").catch(() => {})
       return
@@ -3160,7 +3149,7 @@ export function GatewayChatSidebar({
       }
 
       // A failed run keeps its error UI; conversation facts still arrive from
-      // independent tasks and the consolidation worker after that failure.
+      // independent tasks after that failure.
       catchupInFlightRef.current = true
       try {
         const hasCursor = conversationSeqRef.current.has(conversationId)
@@ -3181,7 +3170,6 @@ export function GatewayChatSidebar({
 
         if (currentConversationIdRef.current !== conversationId) return
         if (response.events.length > 0) {
-          setDailySummaryRevision((revision) => revision + 1)
           await Promise.all([
             refreshConversations(),
             syncLatestConversationMessagesPage(conversationId),
@@ -3322,8 +3310,6 @@ export function GatewayChatSidebar({
   }
 
   function startNewChat() {
-    taskDraftRef.current = true
-    taskOriginRootRef.current = selectedConversation?.kind === "daily_root" ? selectedConversation.id : undefined
     if (currentConversationIdRef.current === null) imageDraft.detach()
     capabilityExposureDraftDirtyRef.current = false
     capabilityExposureSelectionRef.current = null
@@ -3539,7 +3525,6 @@ export function GatewayChatSidebar({
     if (!accessToken || (!content.trim() && images.length === 0)) {
       return
     }
-    if (isClosedRoot && mode !== "guided") { setError(i18n.t("chat.header.closedDay")); return false }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
       selectedModelProfileId,
       modelProfilesLoadedRef.current,
@@ -3673,14 +3658,12 @@ export function GatewayChatSidebar({
     setError(null)
     setIsSubmittingInput(true)
 
-    let reusedDailyRoot = false
     let targetConversationId = submissionConversationId
     if (!targetConversationId) {
       try {
-        const createdConversation = await createConversation(buildConversationTitle(content), { select: false, kind: taskDraftRef.current ? "task" : "daily_root", originRootId: taskDraftRef.current ? taskOriginRootRef.current : undefined })
+        const createdConversation = await createConversation(buildConversationTitle(content), { select: false })
         if (!ownsSession()) return false
         targetConversationId = createdConversation.id
-        reusedDailyRoot = createdConversation.kind === "daily_root" && Boolean(createdConversation.last_message_at)
         // The hook captures the submitted draft object, never the newer draft.
         imageDraft.moveTo(`${submissionOwner.session}:${targetConversationId}:${submissionOwner.workspace}`)
         if (isCurrentSubmission()) {
@@ -3776,12 +3759,6 @@ export function GatewayChatSidebar({
     }
 
     try {
-      // A daily get-or-create can return an existing transcript. Complete the
-      // ordinary canonical hydration before streaming another input into it.
-      for (let attempt = 0; reusedDailyRoot && isCurrentSubmission() && hydratedConversationIdRef.current !== targetConversationId && attempt < 2; attempt += 1) {
-        await syncLatestConversationMessagesPage(targetConversationId)
-      }
-      if (reusedDailyRoot && isCurrentSubmission() && hydratedConversationIdRef.current !== targetConversationId) throw new Error(i18n.t("chat.gateway.loadConversationFailed"))
       await streamConversationSend(
         accessToken,
         {
@@ -4360,18 +4337,8 @@ export function GatewayChatSidebar({
         conversations={headerConversations}
         onSelectConversation={selectConversationTarget}
         onRefreshConversations={handleRefreshConversationList}
-        onRenameConversation={accessToken && selectedConversation?.kind !== "daily_root" ? renameConversation : undefined}
+        onRenameConversation={accessToken ? renameConversation : undefined}
         onStartNewChat={startNewChat}
-        onEnterToday={() => {
-          const identity = getConversationSelectionIdentity()
-          void createConversation("", { kind: "daily_root", select: false }).then((root) => {
-            const current = getConversationSelectionIdentity()
-            if (identity.sessionId === current.sessionId && identity.version === current.version) {
-              taskDraftRef.current = false
-              selectConversationTarget(root.id)
-            }
-          }).catch((error) => reportChatError(error, i18n.t("chat.gateway.sendFailed"), i18n.t("chat.gateway.sendFailedTitle")))
-        }}
         isFullScreen={isFullScreen}
         onFullScreenChange={onFullScreenChange}
         onCollapseSidebar={toggleSidebar}
@@ -4428,10 +4395,8 @@ export function GatewayChatSidebar({
       )}
 
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
-      {accessToken && selectedConversation?.kind === "daily_root" && currentConversationId ? <DailyHandoffNotice refreshKey={dailySummaryRevision} key={`${accessToken}:${currentConversationId}`} accessToken={accessToken} conversationId={currentConversationId} onOpenConversation={selectConversationTarget} /> : null}
 
       <ChatComposer
-        inputDisabledReason={isClosedRoot ? i18n.t("chat.header.closedDay") : undefined}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}
         onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}

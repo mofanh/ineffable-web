@@ -131,14 +131,6 @@ export type WorkspaceObjectContentResponse = {
 }
 
 export type Conversation = {
-  daily_handoff?: {status?:string; waiting:boolean; deadline:string; conversation_id:string; occurrence_id:string; release_reason:string|null} | null
-  daily_summary?: {status:string; workspace_id:string; object_id:string; version_id:string} | null
-  kind?: "daily_root" | "task"
-  root_date?: string | null
-  root_timezone?: string | null
-  root_started_at?: string | null
-  root_ends_at?: string | null
-  origin_root_id?: string | null
   id: string
   created_by: string
   title: string
@@ -236,10 +228,7 @@ export type AutomationRuntimeConfig = {
   capability_exposure: CapabilityExposureSelection
 }
 
-export type DailyConsolidationConfig = { directory: string; wait_enabled: boolean; wait_seconds: number; max_turns?: number; token_budget?: number }
 export type Automation = {
-  purpose?: "standard" | "daily_consolidation"
-  purpose_config?: DailyConsolidationConfig | null
   updated_at?: string
   runtime_config: AutomationRuntimeConfig | null
   id: string
@@ -1041,7 +1030,7 @@ export function createAutomation(
   accessToken: string,
   payload: {
     runtime_config: AutomationRuntimeConfig
-    conversation_id: string
+    conversation_id?: string
     name: string
     description?: string | null
     message: string
@@ -1090,7 +1079,7 @@ export function deleteAutomation(accessToken: string, automationId: string) {
   )
 }
 
-export function runAutomation(accessToken: string, automationId: string, sourceDate?: string) {
+export function runAutomation(accessToken: string, automationId: string) {
   return requestApiJson<{
     automation_run: AutomationRun
     conversation_id: string
@@ -1098,7 +1087,7 @@ export function runAutomation(accessToken: string, automationId: string, sourceD
   }>(`/gateway/v1/automations/${encodeURIComponent(automationId)}/run`, {
     method: "POST",
     accessToken,
-    body: sourceDate ? { source_date: sourceDate } : undefined,
+    body: {},
   })
 }
 
@@ -1127,18 +1116,13 @@ export function tickDueAutomations(accessToken: string) {
 
 export function createConversation(
   accessToken: string,
-  payload: { title: string; origin_root_id?: string }
+  payload: { title: string }
 ) {
   return requestApiJson<Conversation>("/gateway/v1/conversations/create", {
     method: "POST",
     accessToken,
     body: payload,
   })
-}
-
-export async function enterTodayConversation(accessToken: string) {
-  const root = await requestApiJson<Conversation>("/gateway/v1/conversations/today", { method: "POST", accessToken })
-  return getConversation(accessToken, root.id)
 }
 
 const pendingConversationRenames = new Map<string, Promise<Conversation>>()
@@ -2705,7 +2689,6 @@ export function getRunObservationAccess(accessToken: string, conversationId: str
 
 export type ConversationPreferences = {
   timezone: string
-  day_start_minutes: number
   version: number
   defaults_json: Partial<AutomationRuntimeConfig>
 }
@@ -2714,8 +2697,4 @@ export function getConversationPreferences(accessToken: string) {
 }
 export function saveConversationPreferences(accessToken: string, body: ConversationPreferences) {
   return requestApiJson<ConversationPreferences>("/gateway/v1/conversations/preferences", { accessToken, method: "PUT", body })
-}
-
-export function saveDailyAutomation(accessToken: string, body: {runtime_config: AutomationRuntimeConfig; config: DailyConsolidationConfig; enabled: boolean; expected_updated_at: string | null}) {
-  return requestApiJson<{automation: Automation}>("/gateway/v1/automations/daily-consolidation", {accessToken, method: "PUT", body})
 }

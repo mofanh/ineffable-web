@@ -48,7 +48,7 @@ try {
   assert.equal(current.capability_exposure.custom.capabilities.length, 20)
   assert.ok(calls.length < 20, "configuration rerenders must not cause request loops")
   assert.deepEqual(errors, [])
-  // Mount the actual page/dialog and hold A's save while editing B.
+  // Saves lock the editor; new and existing targets share the ordinary create API.
   const editorPage = await browser.newPage()
   editorPage.on("pageerror", (error) => console.error(error.message))
   await editorPage.addInitScript(() => {
@@ -58,27 +58,24 @@ try {
   })
   const config = saved.runtime_config
   const automations = ["A", "B"].map((name) => ({ id: name, name, message: "Task", conversation_id: "conversation-a", status: "active", trigger_kind: "manual", trigger_spec: {}, runtime_config: config }))
-  let dailySave
-  let dailyRun
+  const creations=[]
   let releaseSave
   let saveStarted = false
   await editorPage.route("**/gateway/v1/**", async (route) => {
     const url = route.request().url()
     let body = {}
-    if (url.includes("conversations/preferences")) body = {timezone:"Asia/Shanghai",day_start_minutes:240,version:0,defaults_json:{model_profile_id:"model-a",workspace_id:"workspace-a",sandbox:null,capability_exposure:{mode:"smart",custom:null}}}
-    else if (route.request().method() === "PUT") {
-      dailySave=route.request().postDataJSON()
-      automations.push({id:"daily",name:"Nightly",message:"Summarize",conversation_id:"nightly-task",status:"active",purpose:"daily_consolidation",runtime_config:config})
-      body={automation:automations.at(-1)}
+    if (url.endsWith("/automations") && route.request().method() === "POST") {
+      const payload=route.request().postDataJSON();creations.push(payload)
+      body={automation:{id:`new-${creations.length}`,...payload,conversation_id:payload.conversation_id??"created-conversation",status:"active"}}
+      automations.push(body.automation)
     }
-    else if (url.endsWith("/daily/run")) {dailyRun=route.request().postDataJSON();body={automation_run:{},conversation_id:"supplement-task",send_status:202}}
     else if (route.request().method() === "PATCH") {
       saveStarted = true
       await new Promise((resolve) => { releaseSave = resolve })
       body = { automation: automations[0] }
     } else if (url.includes("auth/me")) body = { user: { id: "actor", display_name: "Actor" }, workspaces: [] }
     else if (url.includes("/automations")) body = { automations, runs: [] }
-    else if (url.includes("conversations/list")) body = { conversations: [] }
+    else if (url.includes("conversations/list")) body = { conversations: [{id:"conversation-a",title:"Existing conversation"}] }
     else if (url.includes("models/profiles")) body = { profiles: [{ id: "model-a", display_name: "Model A" }] }
     else if (url.includes("workspaces/list")) body = { workspaces: [] }
     else if (url.includes("sandbox/environments")) body = { providers: [], environments: [] }
@@ -92,35 +89,31 @@ try {
   await editorPage.locator('button[type="submit"][form="automation-edit-form"]').click()
   await editorPage.waitForFunction(() => document.querySelector('button[form="automation-edit-form"]')?.disabled === true)
   assert.ok(saveStarted)
-  await editorPage.getByRole("button", { name: "Cancel", exact: true }).click()
-  await editorPage.getByRole("button", { name: /Runtime configuration/ }).nth(1).click()
-  await editorPage.locator("#automation-name").fill("B draft")
+  assert.equal(await editorPage.getByRole("button", {name:"Cancel",exact:true}).isDisabled(),true)
   const response = editorPage.waitForResponse((r) => r.request().method() === "PATCH")
   releaseSave()
   await response
-  await editorPage.waitForLoadState("networkidle")
-  assert.equal(await editorPage.locator("#automation-name").inputValue(), "B draft")
-  assert.equal(await editorPage.getByRole("dialog").count(), 1)
+  await editorPage.getByRole("dialog",{name:/^(Edit|Create) automation$/}).waitFor({state:"hidden"})
+  await editorPage.getByRole("button", { name: /Runtime configuration/ }).nth(1).click()
+  await editorPage.locator("#automation-name").fill("B draft")
+  assert.equal(await editorPage.locator("#automation-name").inputValue(),"B draft")
   await editorPage.getByRole("button",{name:"Cancel",exact:true}).click()
-  await editorPage.getByRole("button",{name:"Daily consolidation",exact:true}).click()
-  await editorPage.getByText("Day boundary: 04:00 · Asia/Shanghai",{exact:true}).waitFor()
-  assert.equal(await editorPage.getByRole("switch").first().isChecked(),false,"opening setup must not enable model costs")
-  await editorPage.getByRole("switch").first().click()
-  await editorPage.locator("#daily-directory").fill("Experiences")
-  await editorPage.locator("#daily-wait").fill("90")
-  await editorPage.locator("#daily-turns").fill("16")
-  await Promise.all([editorPage.waitForResponse(r=>r.request().method()==="PUT"),editorPage.locator('button[form="daily-automation-form"]').click()])
-  assert.equal(dailySave.enabled,true)
-  assert.equal(dailySave.runtime_config.model_profile_id,"model-a")
-  assert.equal(dailySave.runtime_config.workspace_id,"workspace-a")
-  assert.equal(dailySave.config.wait_seconds,90)
-  assert.equal(dailySave.config.max_turns,16)
-  assert.equal(dailySave.expected_updated_at,null)
-  await editorPage.getByText("Nightly",{exact:true}).waitFor()
-  await editorPage.getByText("Nightly",{exact:true}).locator("xpath=../../../..").getByRole("button",{name:"Run now",exact:true}).click()
-  await editorPage.locator("#daily-source-date").fill("2026-09-10")
-  await Promise.all([editorPage.waitForResponse(r=>r.url().endsWith("/daily/run")),editorPage.getByRole("dialog").getByRole("button",{name:"Run now",exact:true}).click()])
-  assert.deepEqual(dailyRun,{source_date:"2026-09-10"},"manual supplement freezes the explicitly chosen source day")
+  for (const existing of [false,true]) {
+    await editorPage.getByRole("button",{name:"Create automation",exact:true}).click()
+    await editorPage.locator("#automation-name").fill(existing?"Existing target":"New target")
+    await editorPage.locator("#automation-message").fill("Read history and save notes in Workspace")
+    if(existing) {
+      await editorPage.getByRole("combobox").filter({hasText:"Create a new conversation"}).click()
+      await editorPage.getByRole("option",{name:"Existing conversation",exact:true}).click()
+    }
+    await editorPage.getByText("No model selected",{exact:true}).click()
+    await editorPage.getByRole("option",{name:"Model A",exact:true}).click()
+    await Promise.all([editorPage.waitForResponse(r=>r.url().endsWith("/automations")&&r.request().method()==="POST"),editorPage.locator('button[form="automation-edit-form"]').click()])
+    await editorPage.getByRole("dialog",{name:/^(Edit|Create) automation$/}).waitFor({state:"hidden"})
+    assert.equal(creations.at(-1).conversation_id,existing?"conversation-a":undefined)
+    assert.equal(creations.at(-1).runtime_config.model_profile_id,"model-a")
+  }
+  assert.equal(creations.length,2)
   await editorPage.close()
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }

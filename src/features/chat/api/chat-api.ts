@@ -9,7 +9,6 @@ export {
   approveSandboxApproval,
   admitAgentDefinition,
   createConversation,
-  enterTodayConversation,
   getConversationPreferences,
   clearPendingInputs,
   deletePendingInput,
