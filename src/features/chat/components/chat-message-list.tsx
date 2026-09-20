@@ -543,7 +543,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 {!showAnswerFooter && entry.runId && onInspectRun && <div className="pt-1"><Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => onInspectRun(entry.runId!)}><ListTreeIcon className="size-4" />{t("trajectory.open")}</Button></div>}
                 {showAnswerFooter ? (
                   <div
-                    className="flex min-w-0 items-center gap-2 overflow-x-auto pt-1 text-muted-foreground"
+                    className="no-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto pt-1 text-muted-foreground"
                     data-assistant-answer-footer
                     data-agent-trial-verdict={showTrialVerdict || undefined}
                   >
