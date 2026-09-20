@@ -496,8 +496,8 @@ export function AgentNodeManagementView({
                 <div key={`review:${evaluation.id}`} className="rounded-xl border p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium">{i18n.t("nodeManagement.candidate")}{shortFingerprint(evaluation.candidate_fingerprint)}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">{i18n.t("nodeManagement.conversation")}{shortFingerprint(evaluation.conversation_id)}</p>
+                      <p className="truncate text-xs font-medium">{t("nodeManagement.candidateVersion", { version: shortFingerprint(evaluation.candidate_fingerprint) })}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{t("nodeManagement.conversationIdentity", { id: shortFingerprint(evaluation.conversation_id) })}</p>
                     </div>
                     <Badge>{i18n.t("nodeManagement.pendingReview")}</Badge>
                   </div>
