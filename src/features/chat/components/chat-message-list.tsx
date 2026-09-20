@@ -1,3 +1,6 @@
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { copyTextToClipboard } from "@/lib/app/clipboard"
+import { getCurrentLocale } from "@/lib/i18n/i18n"
 import { ImageGallery } from "@/components/app/image-gallery"
 import type { ImageReference } from "@/lib/api/images"
 import { inputProgressLabel, isWaitingGuidedInput } from "@/features/chat/model/input-progress"
@@ -10,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ListTreeIcon,
+  InfoIcon,
   ListCollapseIcon,
   ArrowDownIcon,
   CircleAlertIcon,
@@ -140,17 +144,12 @@ function formatCompletionTime(value: string | null | undefined) {
   if (!value) return null
   const completedAt = new Date(value)
   if (!Number.isFinite(completedAt.getTime())) return null
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   }).format(completedAt)
-}
-
-function shortDefinitionFingerprint(value: string | null | undefined) {
-  const normalized = value?.replace(/^sha256:/, "").trim()
-  return normalized ? normalized.slice(0, 7) : null
 }
 
 function RunActivity({ compacting = false }: { compacting?: boolean }) {
@@ -394,7 +393,15 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     className={cn("flex min-w-0 max-w-full flex-col items-end gap-2 transition-opacity", isWaitingGuidedInput(entry) && "opacity-50")}>
                     <ImageGallery images={entry.images ?? []} accessToken={accessToken} onReference={onImageReference} userMessage />
                     {entry.content ? <div data-user-message-text className="min-w-0 max-w-full rounded-2xl rounded-br-md bg-primary/8 px-4 py-3 text-[14px] leading-7 text-foreground">
-                      <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                      {entry.inputProgress?.automation_source ? <details className="group" data-automation-instruction>
+                        <summary className="cursor-pointer list-none space-y-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <span className="block text-xs text-muted-foreground">{t("presentation.automation")}</span>
+                          <span className="block font-medium">{entry.inputProgress.automation_source.name || t("presentation.automation")}</span>
+                          {entry.inputProgress.automation_source.summary && <span className="block line-clamp-2 text-sm text-muted-foreground">{entry.inputProgress.automation_source.summary}</span>}
+                          <span className="block text-xs text-muted-foreground group-open:hidden">{t("presentation.instruction")}</span>
+                        </summary>
+                        <p className="mt-3 whitespace-pre-wrap wrap-break-word">{entry.content}</p>
+                      </details> : <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>}
                     </div> : null}
                   </div>
                   {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}
@@ -543,7 +550,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 {!showAnswerFooter && entry.runId && onInspectRun && <div className="pt-1"><Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => onInspectRun(entry.runId!)}><ListTreeIcon className="size-4" />{t("trajectory.open")}</Button></div>}
                 {showAnswerFooter ? (
                   <div
-                    className="no-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto pt-1 text-muted-foreground"
+                    className="flex min-w-0 flex-wrap items-center gap-2 pt-1 text-muted-foreground"
                     data-assistant-answer-footer
                     data-agent-trial-verdict={showTrialVerdict || undefined}
                   >
@@ -554,12 +561,10 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                         size="icon-sm"
                         variant="ghost"
                         className="rounded-full"
-                        aria-label="复制这条回答"
-                        title="复制回答"
+                        aria-label={t("presentation.copy")}
+                        title={t("presentation.copy")}
                         onClick={() => {
-                          if (navigator.clipboard) {
-                            void navigator.clipboard.writeText(answerText)
-                          }
+                          void copyTextToClipboard(answerText)
                         }}
                       >
                         <CopyIcon className="size-4" />
@@ -572,8 +577,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                             variant="ghost"
                             className="rounded-full hover:text-emerald-600"
                             disabled={!trialVerdict.canAccept || trialVerdict.busyAction !== null}
-                            aria-label="保留生成这条回答的 Agent 版本"
-                            title="效果满意，保留此 Agent 版本"
+                            aria-label={t("presentation.keepAgent")}
+                            title={t("presentation.keepAgentHint")}
                             onClick={trialVerdict.onAccept}
                           >
                             {trialVerdict.busyAction === "accept" ? (
@@ -588,8 +593,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                             variant="ghost"
                             className="rounded-full hover:text-destructive"
                             disabled={!trialVerdict.canRollback || trialVerdict.busyAction !== null}
-                            aria-label="恢复到生成这条回答之前的 Agent 版本"
-                            title="效果不行，恢复之前的 Agent 版本"
+                            aria-label={t("presentation.restoreAgent")}
+                            title={t("presentation.restoreAgentHint")}
                             onClick={trialVerdict.onRollback}
                           >
                             {trialVerdict.busyAction === "rollback" ? (
@@ -602,6 +607,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       ) : null}
                     </div>
 
+                    {entry.modelProfileId && <span className="inline-flex min-w-0 max-w-48 items-center gap-1 text-[11px] text-foreground/45" title={modelDisplayNames[entry.modelProfileId] ?? entry.modelProfileId}><CpuIcon className="size-3 shrink-0" /><span className="truncate">{modelDisplayNames[entry.modelProfileId] ?? entry.modelProfileId}</span></span>}
                     {entry.modelProfileId ||
                     entry.sandboxEnvironmentId ||
                     entry.agentId ||
@@ -609,82 +615,87 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                     entry.capabilityExposure ||
                     entry.runDurationMs != null ||
                     entry.runCompletedAt ? (
-                      <div
-                        className="flex min-w-0 items-center gap-3 whitespace-nowrap text-[11px] text-foreground/45"
-                        data-answer-run-metadata
-                      >
-                        {entry.modelProfileId ? (
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title={`模型：${entry.modelProfileId}`}
+                      <Popover>
+                        <PopoverTrigger asChild><Button variant="ghost" size="icon-sm" className="rounded-full" aria-label={t("presentation.answerDetails")} title={t("presentation.answerDetails")}><InfoIcon className="size-4" /></Button></PopoverTrigger>
+                        <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3">
+                          <div
+                            className="flex min-w-0 flex-col gap-3 text-xs wrap-anywhere text-muted-foreground"
+                            data-answer-run-metadata
                           >
-                            <CpuIcon className="size-3" />
-                            {modelDisplayNames[entry.modelProfileId] ?? entry.modelProfileId}
-                          </span>
-                        ) : null}
-                        {entry.sandboxEnvironmentId ? (
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title={t("chat.answerMetadata.sandboxTitle", {
-                              id: entry.sandboxEnvironmentId,
-                            })}
-                          >
-                            <BoxIcon className="size-3" />
-                            {sandboxDisplayNames[entry.sandboxEnvironmentId] ??
-                              entry.sandboxEnvironmentId}
-                          </span>
-                        ) : null}
-                        {entry.agentId || entry.definitionFingerprint ? (
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title={`Agent：${entry.agentId ?? "unknown"}${entry.definitionFingerprint ? ` (${entry.definitionFingerprint})` : ""}`}
-                          >
-                            <BotIcon className="size-3" />
-                            {entry.agentId ?? "Agent"}
-                            {shortDefinitionFingerprint(entry.definitionFingerprint)
-                              ? ` · ${shortDefinitionFingerprint(entry.definitionFingerprint)}`
-                              : ""}
-                          </span>
-                        ) : null}
-                        {entry.capabilityExposure ? (
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title={t("chat.answerMetadata.capabilityTitle", {
-                              authorized: entry.capabilityExposure.authorizedCount,
-                              initial: entry.capabilityExposure.initialExposedCount,
-                              prefetched: entry.capabilityExposure.prefetchedCount,
-                              activated: entry.capabilityExposure.activatedCount,
-                              final: entry.capabilityExposure.finalExposedCount,
-                              deferred: entry.capabilityExposure.deferredCount,
-                              stable: entry.capabilityExposure.stableCount,
-                              dynamic: entry.capabilityExposure.dynamicCount,
-                              bytes: entry.capabilityExposure.schemaBytes,
-                              hash: entry.capabilityExposure.planHash,
-                            })}
-                          >
-                            <SparklesIcon className="size-3" />
-                            {t("chat.answerMetadata.capability", {
-                              mode: entry.capabilityExposure.mode,
-                              count: entry.capabilityExposure.finalExposedCount,
-                            })}
-                          </span>
-                        ) : null}
-                        {formatRunDuration(entry.runDurationMs) ? (
-                          <span className="inline-flex items-center gap-1" title="完成耗时">
-                            <TimerIcon className="size-3" />
-                            {formatRunDuration(entry.runDurationMs)}
-                          </span>
-                        ) : null}
-                        {formatCompletionTime(entry.runCompletedAt) ? (
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title={`完成时间：${entry.runCompletedAt}`}
-                          >
-                            <Clock3Icon className="size-3" />
-                            {formatCompletionTime(entry.runCompletedAt)}
-                          </span>
-                        ) : null}
-                      </div>
+                            {entry.modelProfileId ? (
+                              <span
+                                className="inline-flex items-center gap-1"
+                                title={`${t("presentation.model")}: ${entry.modelProfileId}`}
+                              >
+                                <CpuIcon className="size-3" />
+                                {modelDisplayNames[entry.modelProfileId] ?? entry.modelProfileId}
+                              </span>
+                            ) : null}
+                            {entry.sandboxEnvironmentId ? (
+                              <span
+                                className="inline-flex items-center gap-1"
+                                title={t("chat.answerMetadata.sandboxTitle", {
+                                  id: entry.sandboxEnvironmentId,
+                                })}
+                              >
+                                <BoxIcon className="size-3" />
+                                {sandboxDisplayNames[entry.sandboxEnvironmentId] ??
+                                  entry.sandboxEnvironmentId}
+                              </span>
+                            ) : null}
+                            {entry.agentId || entry.definitionFingerprint ? (
+                              <span
+                                className="inline-flex items-center gap-1"
+                                title={`${t("presentation.agent")}: ${entry.agentId ?? "unknown"}${entry.definitionFingerprint ? ` (${entry.definitionFingerprint})` : ""}`}
+                              >
+                                <BotIcon className="size-3" />
+                                {entry.agentId ?? "Agent"}
+                                {entry.definitionFingerprint
+                                  ? ` · ${entry.definitionFingerprint}`
+                                  : ""}
+                              </span>
+                            ) : null}
+                            {entry.capabilityExposure ? (
+                              <span
+                                className="inline-flex items-center gap-1"
+                                title={t("chat.answerMetadata.capabilityTitle", {
+                                  authorized: entry.capabilityExposure.authorizedCount,
+                                  initial: entry.capabilityExposure.initialExposedCount,
+                                  prefetched: entry.capabilityExposure.prefetchedCount,
+                                  activated: entry.capabilityExposure.activatedCount,
+                                  final: entry.capabilityExposure.finalExposedCount,
+                                  deferred: entry.capabilityExposure.deferredCount,
+                                  stable: entry.capabilityExposure.stableCount,
+                                  dynamic: entry.capabilityExposure.dynamicCount,
+                                  bytes: entry.capabilityExposure.schemaBytes,
+                                  hash: entry.capabilityExposure.planHash,
+                                })}
+                              >
+                                <SparklesIcon className="size-3" />
+                                {t("chat.answerMetadata.capability", {
+                                  mode: ({ clean: t("presentation.modeClean"), smart: t("presentation.modeSmart"), full: t("presentation.modeFull"), custom: t("presentation.modeCustom") } as Record<string, string>)[entry.capabilityExposure.mode] ?? entry.capabilityExposure.mode,
+                                  count: entry.capabilityExposure.finalExposedCount,
+                                })}
+                              </span>
+                            ) : null}
+                            {formatRunDuration(entry.runDurationMs) ? (
+                              <span className="inline-flex items-center gap-1" title={t("presentation.duration")}>
+                                <TimerIcon className="size-3" />
+                                {formatRunDuration(entry.runDurationMs)}
+                              </span>
+                            ) : null}
+                            {formatCompletionTime(entry.runCompletedAt) ? (
+                              <span
+                                className="inline-flex items-center gap-1"
+                                title={`${t("presentation.completedAt")}: ${entry.runCompletedAt}`}
+                              >
+                                <Clock3Icon className="size-3" />
+                                {formatCompletionTime(entry.runCompletedAt)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     ) : null}
                   </div>
                 ) : null}

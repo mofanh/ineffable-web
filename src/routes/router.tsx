@@ -38,20 +38,8 @@ const SandboxPreviewLaunchPage = lazy(async () => ({
   default: (await import("@/pages/sandbox-preview-launch-page"))
     .SandboxPreviewLaunchPage,
 }))
-const DocsCenterPage = lazy(async () => ({
-  default: (await import("@/pages/docs-pages")).DocsCenterPage,
-}))
 const ModelCenterPage = lazy(async () => ({
   default: (await import("@/pages/model-pages")).ModelCenterPage,
-}))
-const ProjectsHomePage = lazy(async () => ({
-  default: (await import("@/pages/project-pages")).ProjectsHomePage,
-}))
-const FeedbackPage = lazy(async () => ({
-  default: (await import("@/pages/support-pages")).FeedbackPage,
-}))
-const SupportPage = lazy(async () => ({
-  default: (await import("@/pages/support-pages")).SupportPage,
 }))
 const AcceptWorkspaceInvitationPage = lazy(async () => ({
   default: (await import("@/pages/team-workspace-pages"))
@@ -121,22 +109,22 @@ const routeElements: Record<string, React.ReactElement> = {
   "/models/explorer": <Navigate to="/models" replace />,
   "/models/quantum": <Navigate to="/models" replace />,
   "/notifications": <WorkspaceNotificationsPage />,
-  "/docs": <DocsCenterPage />,
-  "/docs/introduction": <Navigate to="/docs" replace />,
-  "/docs/get-started": <Navigate to="/docs" replace />,
-  "/docs/tutorials": <Navigate to="/docs" replace />,
-  "/docs/changelog": <Navigate to="/docs" replace />,
+  "/docs": <Navigate to="/automation" replace />,
+  "/docs/introduction": <Navigate to="/automation" replace />,
+  "/docs/get-started": <Navigate to="/automation" replace />,
+  "/docs/tutorials": <Navigate to="/automation" replace />,
+  "/docs/changelog": <Navigate to="/automation" replace />,
   "/settings": <Navigate to="/account" replace />,
   "/settings/general": <Navigate to="/account" replace />,
   "/settings/team": <Navigate to="/account" replace />,
   "/settings/billing": <Navigate to="/account" replace />,
   "/settings/limits": <Navigate to="/account" replace />,
-  "/projects": <ProjectsHomePage />,
-  "/projects/design-engineering": <Navigate to="/projects" replace />,
-  "/projects/sales-marketing": <Navigate to="/projects" replace />,
-  "/projects/travel": <Navigate to="/projects" replace />,
-  "/support": <SupportPage />,
-  "/feedback": <FeedbackPage />,
+  "/projects": <Navigate to="/automation" replace />,
+  "/projects/design-engineering": <Navigate to="/automation" replace />,
+  "/projects/sales-marketing": <Navigate to="/automation" replace />,
+  "/projects/travel": <Navigate to="/automation" replace />,
+  "/support": <Navigate to="/account" replace />,
+  "/feedback": <Navigate to="/account" replace />,
 }
 
 export const router = createBrowserRouter([

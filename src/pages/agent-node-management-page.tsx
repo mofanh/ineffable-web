@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next"
+import { i18n } from "@/lib/i18n/i18n"
 import * as React from "react"
 import { GitBranchIcon, RefreshCcwIcon } from "lucide-react"
 
@@ -32,14 +34,15 @@ import {
 
 function iterationModeLabel(mode: AgentEvolutionProjection["effective_mode"]) {
   return {
-    disabled: "不可用",
-    declarative_only: "声明式",
+    disabled: i18n.t("nodeManagement.unavailable"),
+    declarative_only: i18n.t("nodeManagement.declarative"),
     artifact_allowed: "Artifact Node",
-    runtime_lab_allowed: "开放运行时",
+    runtime_lab_allowed: i18n.t("nodeManagement.runtime"),
   }[mode]
 }
 
 export function AgentNodeManagementPage() {
+  useTranslation()
   const { accessToken } = useAuthSession()
   const { currentWorkspace } = useWorkspaceSession()
   const { conversations, currentConversationId } = useConversationSession()
@@ -127,7 +130,7 @@ export function AgentNodeManagementPage() {
         setProjectionTargetKey("")
         setError(
           normalizeAppError(caught, {
-            fallbackMessage: "Agent Node 数据加载失败，请稍后重试。",
+            fallbackMessage: i18n.t("nodeManagement.loadFailed"),
           }).message
         )
         setErrorTargetKey(requestTargetKey)
@@ -164,22 +167,22 @@ export function AgentNodeManagementPage() {
 
   return (
     <AppPage
-      title="Agent Node 管理"
-      description="查看完整 Agent Node 组合的版本链，复用经过评估的能力，并管理试用、准入和回滚。"
+      title={i18n.t("nodeManagement.title")}
+      description={i18n.t("nodeManagement.description")}
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Select
             value={targetConversationId || undefined}
             onValueChange={setSelectedConversationId}
             disabled={conversations.length === 0 || isMutationBusy}
           >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="选择应用目标会话" />
+            <SelectTrigger className="w-full min-w-0 sm:w-64">
+              <SelectValue placeholder={i18n.t("nodeManagement.chooseConversation")} />
             </SelectTrigger>
             <SelectContent>
               {conversations.map((conversation) => (
                 <SelectItem key={conversation.id} value={conversation.id}>
-                  {conversation.title || "未命名会话"}
+                  {conversation.title || i18n.t("nodeManagement.untitled")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -191,18 +194,16 @@ export function AgentNodeManagementPage() {
             onClick={() => void refresh()}
           >
             <RefreshCcwIcon className={isLoading ? "animate-spin" : undefined} />
-            刷新
-          </Button>
+            {i18n.t("nodeManagement.refresh")}</Button>
         </div>
       }
     >
       {!targetConversationId ? (
         <div className="rounded-2xl border border-dashed p-10 text-center">
           <GitBranchIcon className="mx-auto size-8 text-muted-foreground" />
-          <h2 className="mt-4 text-base font-medium">还没有可管理的会话</h2>
+          <h2 className="mt-4 text-base font-medium">{i18n.t("nodeManagement.empty")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            先在对话中开启 Node 迭代并生成候选版本，再回到这里管理。
-          </p>
+            {i18n.t("nodeManagement.emptyHint")}</p>
         </div>
       ) : error && errorTargetKey === targetKey ? (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
@@ -212,13 +213,13 @@ export function AgentNodeManagementPage() {
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-2xl border p-5">
-              <p className="text-xs text-muted-foreground">Agent Node 版本</p>
+              <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.versions")}</p>
               <p className="mt-2 text-2xl font-semibold">
                 {activeProjection?.definitions.length ?? 0}
               </p>
             </div>
             <div className="rounded-2xl border p-5">
-              <p className="text-xs text-muted-foreground">已验证可复用</p>
+              <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.reusable")}</p>
               <p className="mt-2 text-2xl font-semibold">
                 {activeProjection?.definitions.filter(
                   (definition) => definition.admitted_for_future_selection
@@ -226,14 +227,14 @@ export function AgentNodeManagementPage() {
               </p>
             </div>
             <div className="rounded-2xl border p-5">
-              <p className="text-xs text-muted-foreground">当前模式</p>
+              <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.mode")}</p>
               <div className="mt-3">
                 <Badge variant={activeProjection?.requested ? "default" : "secondary"}>
                   {activeProjection
                     ? iterationModeLabel(activeProjection.effective_mode)
                     : isLoading
-                      ? "加载中"
-                      : "不可用"}
+                      ? i18n.t("nodeManagement.loading")
+                      : i18n.t("nodeManagement.unavailable")}
                 </Badge>
               </div>
             </div>

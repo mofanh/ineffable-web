@@ -35,10 +35,6 @@ export {
   AppSectionCard,
   type AppMetricCard,
 } from "@/components/app/metric-page"
-export {
-  ModuleStatusPage,
-  type ModuleStatusLink,
-} from "@/components/app/module-status-page"
 export { Notice, type NoticeTone } from "@/components/app/notice"
 export {
   FullPageLoading,

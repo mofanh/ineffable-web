@@ -1,3 +1,4 @@
+import { i18n } from "@/lib/i18n/i18n"
 import { FormField } from "@/components/app/form"
 import { AppDialog } from "@/components/app/app-dialog"
 import * as React from "react"
@@ -42,14 +43,14 @@ function capabilityProfileSummary(
   definition: AgentEvolutionProjection["definitions"][number]
 ) {
   const profile = definition.composition_json.capability_profile
-  if (!profile) return "默认能力 Profile"
+  if (!profile) return i18n.t("nodeManagement.defaultProfile")
   const discovery =
     profile.discovery_scope.kind === "families"
-      ? profile.discovery_scope.families.join(", ") || "关闭发现"
+      ? profile.discovery_scope.families.join(", ") || i18n.t("nodeManagement.discoveryOff")
       : profile.discovery_scope.kind === "all_authorized"
-        ? "授权范围内发现"
-        : "关闭发现"
-  return `必需 ${profile.required_capabilities.length} · 偏好 ${profile.preferred_capabilities.length} · ${discovery}`
+        ? i18n.t("nodeManagement.authorizedDiscovery")
+        : i18n.t("nodeManagement.discoveryOff")
+  return i18n.t("nodeManagement.profileSummary", { required: profile.required_capabilities.length, preferred: profile.preferred_capabilities.length, discovery })
 }
 
 function actionFor(
@@ -129,8 +130,8 @@ export function AgentNodeManagementView({
         await Promise.all([onRefresh(), refreshReviewQueue()])
       } catch (caught) {
         if (currentScopeRef.current !== operationScope) return
-        const error = normalizeAppError(caught, { fallbackMessage: "Agent 迭代操作失败" })
-        notify.error({ title: "Agent 迭代操作失败", description: error.message })
+        const error = normalizeAppError(caught, { fallbackMessage: i18n.t("nodeManagement.operationFailed") })
+        notify.error({ title: i18n.t("nodeManagement.operationFailed"), description: error.message })
       } finally {
         if (currentScopeRef.current === operationScope) {
           setBusyKey(null)
@@ -207,30 +208,29 @@ export function AgentNodeManagementView({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium">
-                  {projection?.trial_binding?.mode === "trial" ? "正在试用新 Agent Node" : "当前 Agent Node"}
+                  {projection?.trial_binding?.mode === "trial" ? i18n.t("nodeManagement.trialNode") : i18n.t("nodeManagement.currentNode")}
                 </h3>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {projection?.effective_selection.fingerprint
                     ? shortFingerprint(projection.effective_selection.fingerprint)
-                    : "系统 Agent"}
+                    : i18n.t("nodeManagement.systemAgent")}
                   {projection?.trial_binding
                     ? ` · v${projection.trial_binding.version}`
                     : projection?.effective_selection.source === "default"
-                      ? " · 跟随默认"
-                      : " · 系统基线"}
+                      ? i18n.t("nodeManagement.followDefault")
+                      : i18n.t("nodeManagement.systemBaseline")}
                 </p>
               </div>
               <Badge variant={projection?.trial_binding?.mode === "trial" ? "default" : "secondary"}>
-                {projection?.trial_binding?.mode === "trial" ? "正在试用" : "稳定"}
+                {projection?.trial_binding?.mode === "trial" ? i18n.t("nodeManagement.trial") : i18n.t("nodeManagement.stable")}
               </Badge>
             </div>
             {projection?.trial_binding?.mode === "trial" ? (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  回退目标：{projection.trial_binding.fallback_fingerprint
+                  {i18n.t("nodeManagement.fallback")}{projection.trial_binding.fallback_fingerprint
                     ? shortFingerprint(projection.trial_binding.fallback_fingerprint)
-                    : "系统 Agent"}。候选产出回答后可直接在回答下方保留或恢复；当前正在运行的任务不会被热切换。
-                </p>
+                    : i18n.t("nodeManagement.systemAgent")}{i18n.t("nodeManagement.trialHint")}</p>
                 <Button
                   type="button"
                   size="sm"
@@ -238,7 +238,7 @@ export function AgentNodeManagementView({
                   disabled={!accessToken || !actionFor(projection, "rollback_definition_trial")?.enabled || busyKey !== null}
                   onClick={() => accessToken && void runConfirmed(
                     "trial:rollback-fallback",
-                    `确认在「${targetLabel}」恢复试用前的 Agent Node？外部工具产生的副作用不会回滚。`,
+                    t("nodeManagement.confirmRestore", { target: targetLabel }),
                     () => updateAgentDefinitionTrial(accessToken, {
                       action: "rollback",
                       conversation_id: projection.conversation_id,
@@ -248,23 +248,23 @@ export function AgentNodeManagementView({
                     "destructive"
                   )}
                 >
-                  恢复试用前版本
+                  {i18n.t("nodeManagement.restore")}
                 </Button>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                从下方选择候选开始单活试用；不会并行运行旧版，也不会替换当前任务。
+                {i18n.t("nodeManagement.chooseTrial")}
               </p>
             )}
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">Agent Node 版本链</h3>
+            <h3 className="text-sm font-medium">{i18n.t("nodeManagement.versionChain")}</h3>
             <p className="text-xs text-muted-foreground">{t("agentEvolution.rebuildHint")}</p>
             <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">
-              当前默认：{projection?.default_binding?.fingerprint
+              {i18n.t("nodeManagement.defaultLabel")}{projection?.default_binding?.fingerprint
                 ? shortFingerprint(projection.default_binding.fingerprint)
-                : "系统 Agent"}
+                : i18n.t("nodeManagement.systemAgent")}
               {projection?.default_binding ? ` · v${projection.default_binding.version}` : ""}
             </div>
             <Button variant="ghost" size="sm" onClick={() => setShowArchived(value => !value)}>{t(showArchived ? "agentEvolution.hideArchived" : "agentEvolution.showArchived")}</Button>
@@ -286,9 +286,9 @@ export function AgentNodeManagementView({
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         {item.parent_fingerprint
-                          ? `继承 ${shortFingerprint(item.parent_fingerprint)}`
-                          : "演化链起点"}
-                        {` · ${item.evaluation_count} 次评估`}
+                          ? t("nodeManagement.inherits", { version: shortFingerprint(item.parent_fingerprint) })
+                          : i18n.t("nodeManagement.origin")}
+                        {t("nodeManagement.evaluationCount", { count: item.evaluation_count })}
                       </p>
                       <p
                         className="mt-1 max-w-xl truncate text-[11px] text-muted-foreground"
@@ -298,7 +298,7 @@ export function AgentNodeManagementView({
                       </p>
                     </div>
                     <Badge variant={item.admitted_for_future_selection ? "default" : "outline"}>
-                      {item.admitted_for_future_selection ? "已准入" : item.latest_verdict || "候选"}
+                      {item.admitted_for_future_selection ? i18n.t("nodeManagement.admitted") : item.latest_verdict || i18n.t("nodeManagement.candidate")}
                     </Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -344,7 +344,7 @@ export function AgentNodeManagementView({
                       disabled={!accessToken || !trialAction?.enabled || busyKey !== null}
                       onClick={() => accessToken && void runConfirmed(
                         `trial:${item.fingerprint}`,
-                        `确认从「${targetLabel}」的下一条普通消息开始应用这个 Agent Node 版本？`,
+                        t("nodeManagement.confirmApply", { target: targetLabel }),
                         () => updateAgentDefinitionTrial(accessToken, {
                           action: "start",
                           conversation_id: projection.conversation_id,
@@ -354,7 +354,7 @@ export function AgentNodeManagementView({
                         })
                       )}
                     >
-                      应用到当前会话
+                      {i18n.t("nodeManagement.apply")}
                     </Button>
                     <Button
                       type="button"
@@ -363,7 +363,7 @@ export function AgentNodeManagementView({
                       disabled={!action?.enabled || busyKey !== null}
                       onClick={() => setCandidate(item.fingerprint)}
                     >
-                      配置评估
+                      {i18n.t("nodeManagement.configureEvaluation")}
                     </Button>
                     <Button
                       type="button"
@@ -374,7 +374,7 @@ export function AgentNodeManagementView({
                         if (!accessToken || !projection) return
                         void runConfirmed(
                           `default:${item.fingerprint}`,
-                          "确认将这个已准入 Agent Node 版本用于后续新运行？",
+                          i18n.t("nodeManagement.confirmDefault"),
                           () => updateAgentDefinitionDefault(accessToken, {
                             action: "set",
                             conversation_id: projection.conversation_id,
@@ -385,12 +385,12 @@ export function AgentNodeManagementView({
                         )
                       }}
                     >
-                      {isDefault ? "当前默认" : "设为默认 Agent"}
+                      {isDefault ? i18n.t("nodeManagement.currentDefault") : i18n.t("nodeManagement.setDefault")}
                     </Button>
                   </div>
                 </div>
               )
-            }) : <p className="text-xs text-muted-foreground">还没有候选 Agent Node 版本。</p>}
+            }) : <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.noCandidates")}</p>}
             <Button
               type="button"
               size="sm"
@@ -400,7 +400,7 @@ export function AgentNodeManagementView({
                 if (!accessToken || !projection?.default_binding) return
                 void runConfirmed(
                   "default:rollback",
-                  "确认把后续新运行回滚到上一个默认 Agent Node 版本？",
+                  i18n.t("nodeManagement.confirmRollback"),
                   () => updateAgentDefinitionDefault(accessToken, {
                     action: "rollback",
                     conversation_id: projection.conversation_id,
@@ -411,23 +411,23 @@ export function AgentNodeManagementView({
                 )
               }}
             >
-              回滚默认版本
+              {i18n.t("nodeManagement.rollbackDefault")}
             </Button>
           </section>
 
           {definition?.parent_fingerprint ? (
             <section className="space-y-2 rounded-xl border p-3">
-              <h3 className="text-sm font-medium">隔离评估</h3>
+              <h3 className="text-sm font-medium">{i18n.t("nodeManagement.isolatedEvaluation")}</h3>
               <Textarea
                 value={fixture}
                 onChange={(event) => setFixture(event.target.value)}
-                placeholder="输入评估任务"
+                placeholder={i18n.t("nodeManagement.evaluationTask")}
                 className="min-h-24"
               />
               <Input
                 value={expected}
                 onChange={(event) => setExpected(event.target.value)}
-                placeholder="期望回答包含的文字"
+                placeholder={i18n.t("nodeManagement.expectedText")}
               />
               <Button
                 type="button"
@@ -449,13 +449,13 @@ export function AgentNodeManagementView({
                   )
                 }}
               >
-                运行隔离回归评估
+                {i18n.t("nodeManagement.runEvaluation")}
               </Button>
             </section>
           ) : null}
 
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">评估与人工准入</h3>
+            <h3 className="text-sm font-medium">{i18n.t("nodeManagement.evaluations")}</h3>
             {projection?.evaluations.length ? projection.evaluations.map((evaluation) => {
               const action = actionFor(projection, "admit_definition", evaluation.id)
               return (
@@ -476,30 +476,30 @@ export function AgentNodeManagementView({
                       if (!accessToken) return
                       void runConfirmed(
                         `admit:${evaluation.id}`,
-                        "确认以独立审核者身份准入这个 Agent Node 版本？",
+                        i18n.t("nodeManagement.confirmAdmission"),
                         () => admitAgentDefinition(accessToken, evaluation.id, projection?.conversation_id ?? "")
                       )
                     }}
                   >
-                    人工准入
+                    {i18n.t("nodeManagement.manualAdmission")}
                   </Button>
                 </div>
               )
-            }) : <p className="text-xs text-muted-foreground">暂无评估记录。</p>}
+            }) : <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.noEvaluations")}</p>}
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">独立审核收件箱</h3>
+            <h3 className="text-sm font-medium">{i18n.t("nodeManagement.reviewInbox")}</h3>
             {reviewQueue?.evaluations.length ? reviewQueue.evaluations.map((evaluation) => {
               const action = actionFor(projection, "admit_definition", evaluation.id)
               return (
                 <div key={`review:${evaluation.id}`} className="rounded-xl border p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium">候选 {shortFingerprint(evaluation.candidate_fingerprint)}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">会话 {shortFingerprint(evaluation.conversation_id)}</p>
+                      <p className="truncate text-xs font-medium">{i18n.t("nodeManagement.candidate")}{shortFingerprint(evaluation.candidate_fingerprint)}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{i18n.t("nodeManagement.conversation")}{shortFingerprint(evaluation.conversation_id)}</p>
                     </div>
-                    <Badge>待独立审核</Badge>
+                    <Badge>{i18n.t("nodeManagement.pendingReview")}</Badge>
                   </div>
                   <pre className="mt-2 max-h-36 overflow-auto rounded-lg bg-muted p-2 text-[11px] leading-5">
                     {JSON.stringify(evaluation.evidence_json, null, 2)}
@@ -512,19 +512,19 @@ export function AgentNodeManagementView({
                     disabled={!accessToken || !action?.enabled || busyKey !== null}
                     onClick={() => accessToken && void runConfirmed(
                       `review:${evaluation.id}`,
-                      "确认以独立审核者身份准入这个 Agent Node 版本？",
+                      i18n.t("nodeManagement.confirmAdmission"),
                       () => admitAgentDefinition(accessToken, evaluation.id, evaluation.conversation_id)
                     )}
                   >
-                    审核并准入
+                    {i18n.t("nodeManagement.reviewAdmit")}
                   </Button>
                 </div>
               )
-            }) : <p className="text-xs text-muted-foreground">当前范围暂无待审核候选。</p>}
+            }) : <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.noReviews")}</p>}
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">Gateway 迭代建议</h3>
+            <h3 className="text-sm font-medium">{i18n.t("nodeManagement.suggestions")}</h3>
             {projection?.suggestions.length ? projection.suggestions.map((suggestion) => (
               <div key={suggestion.id} className="rounded-xl border p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -537,15 +537,15 @@ export function AgentNodeManagementView({
                   {JSON.stringify(suggestion.evidence_json, null, 2)}
                 </pre>
               </div>
-            )) : <p className="text-xs text-muted-foreground">暂无由 Gateway 权威事实生成的建议。</p>}
+            )) : <p className="text-xs text-muted-foreground">{i18n.t("nodeManagement.noSuggestions")}</p>}
           </section>
 
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-medium">开放运行时（高级）</h3>
+                <h3 className="text-sm font-medium">{i18n.t("nodeManagement.advancedRuntime")}</h3>
                 <p className="text-xs text-muted-foreground">
-                  TTL {projection?.runtime_lab_quote.ttl_seconds ?? "—"} 秒 · 预计最多 {projection?.runtime_lab_quote.max_estimated_credits?.toFixed(3) ?? "—"} credits
+                  {t("nodeManagement.runtimeEstimate", { seconds: projection?.runtime_lab_quote.ttl_seconds ?? "—", credits: projection?.runtime_lab_quote.max_estimated_credits?.toFixed(3) ?? "—" })}
                 </p>
               </div>
               <Button
@@ -556,7 +556,7 @@ export function AgentNodeManagementView({
                   if (!accessToken || !projection) return
                   void runConfirmed(
                     "lab:create",
-                    "确认创建会产生实际资源成本的开放运行环境？",
+                    i18n.t("nodeManagement.confirmRuntime"),
                     () => runRuntimeLabCommand(accessToken, {
                       action: "create",
                       workspace_id: projection.workspace_id ?? undefined,
@@ -567,7 +567,7 @@ export function AgentNodeManagementView({
                   )
                 }}
               >
-                创建运行环境
+                {i18n.t("nodeManagement.createRuntime")}
               </Button>
             </div>
             {projection?.runtime_labs.map((lab) => (
@@ -577,9 +577,9 @@ export function AgentNodeManagementView({
                   <Badge variant={lab.status === "ready" ? "default" : "outline"}>{lab.status}</Badge>
                 </div>
                 <div className="mt-3 grid gap-2">
-                  <Input value={componentName} onChange={(event) => setComponentName(event.target.value)} placeholder="组件逻辑名称" />
-                  <Input value={componentDigest} onChange={(event) => setComponentDigest(event.target.value)} placeholder="sha256:... artifact digest" />
-                  <Textarea value={componentConfig} onChange={(event) => setComponentConfig(event.target.value)} placeholder="组件 JSON 配置" className="min-h-20 font-mono text-xs" />
+                  <Input value={componentName} onChange={(event) => setComponentName(event.target.value)} placeholder={i18n.t("nodeManagement.componentName")} />
+                  <Input value={componentDigest} onChange={(event) => setComponentDigest(event.target.value)} placeholder={t("nodeManagement.artifactDigest")} />
+                  <Textarea value={componentConfig} onChange={(event) => setComponentConfig(event.target.value)} placeholder={i18n.t("nodeManagement.componentConfig")} className="min-h-20 font-mono text-xs" />
                   <Button
                     type="button"
                     size="sm"
@@ -591,7 +591,7 @@ export function AgentNodeManagementView({
                       try {
                         config = JSON.parse(componentConfig) as Record<string, unknown>
                       } catch {
-                        notify.error({ title: "组件配置无效", description: "请输入有效的 JSON 对象。" })
+                        notify.error({ title: i18n.t("nodeManagement.invalidConfig"), description: i18n.t("nodeManagement.invalidJson") })
                         return
                       }
                       void run(`lab:define:${lab.id}`, () => runRuntimeLabCommand(accessToken, {
@@ -606,7 +606,7 @@ export function AgentNodeManagementView({
                       }))
                     }}
                   >
-                    定义组件
+                    {i18n.t("nodeManagement.defineComponent")}
                   </Button>
                 </div>
                 {projection.runtime_lab_components.filter((component) => component.runtime_lab_id === lab.id).map((component) => {
@@ -629,7 +629,7 @@ export function AgentNodeManagementView({
                           component_id: component.id,
                         }))}
                       >
-                        {component.state === "active" ? "已激活" : "激活"}
+                        {component.state === "active" ? i18n.t("nodeManagement.active") : i18n.t("nodeManagement.activate")}
                       </Button>
                     </div>
                   )
@@ -637,7 +637,7 @@ export function AgentNodeManagementView({
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(["inspect_runtime_lab", "export_runtime_lab", "dispose_runtime_lab"] as const).map((name) => {
                     const action = actionFor(projection, name, lab.id)
-                    const labels = { inspect_runtime_lab: "检查", export_runtime_lab: "导出", dispose_runtime_lab: "释放" }
+                    const labels = { inspect_runtime_lab: i18n.t("nodeManagement.inspect"), export_runtime_lab: i18n.t("nodeManagement.export"), dispose_runtime_lab: i18n.t("nodeManagement.dispose") }
                     return (
                       <Button
                         key={name}
@@ -657,7 +657,7 @@ export function AgentNodeManagementView({
                           if (action?.requires_confirmation) {
                             void runConfirmed(
                               `lab:${name}:${lab.id}`,
-                              "确认执行这个操作？",
+                              i18n.t("nodeManagement.confirmAction"),
                               operation,
                               name === "dispose_runtime_lab" ? "destructive" : "default"
                             )

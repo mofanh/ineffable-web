@@ -67,29 +67,9 @@ const routeMetaDefinitions: RouteMetaDefinition[] = [
     breadcrumbs: [{ labelKey: "shell.routes.models" }],
   },
   {
-    path: "/projects",
-    titleKey: "shell.routes.projects",
-    breadcrumbs: [{ labelKey: "shell.routes.projects" }],
-  },
-  {
     path: "/account",
     titleKey: "shell.routes.account",
     breadcrumbs: [{ labelKey: "shell.routes.account" }],
-  },
-  {
-    path: "/docs",
-    titleKey: "shell.routes.docs",
-    breadcrumbs: [{ labelKey: "shell.routes.docs" }],
-  },
-  {
-    path: "/support",
-    titleKey: "shell.routes.support",
-    breadcrumbs: [{ labelKey: "shell.routes.support" }],
-  },
-  {
-    path: "/feedback",
-    titleKey: "shell.routes.feedback",
-    breadcrumbs: [{ labelKey: "shell.routes.feedback" }],
   },
   {
     path: "/admin/llm",

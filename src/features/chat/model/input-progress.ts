@@ -1,4 +1,5 @@
 export type InputProgress = {
+  automation_source?: { automation_id: string; occurrence_id: string; name?: string; summary?: string }
   task_source?: { conversation_id: string; run_id: string }
   message_seq?: number
   message_id: string
@@ -16,7 +17,12 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
   const item = value as Record<string, unknown>
   if (typeof item.message_id !== "string" || typeof item.conversation_id !== "string" ||
       !["received", "queued", "resuming", "accepted", "cancelled"].includes(String(item.phase))) return undefined
+  const automation = item.automation_source as Record<string, unknown> | null | undefined
   return {
+    automation_source: automation && typeof automation.automation_id === "string" && typeof automation.occurrence_id === "string"
+      ? { automation_id: automation.automation_id, occurrence_id: automation.occurrence_id,
+          name: typeof automation.name === "string" ? automation.name : undefined,
+          summary: typeof automation.summary === "string" ? automation.summary : undefined } : undefined,
     task_source: item.task_source && typeof item.task_source === "object" &&
       typeof (item.task_source as Record<string, unknown>).conversation_id === "string" &&
       typeof (item.task_source as Record<string, unknown>).run_id === "string"

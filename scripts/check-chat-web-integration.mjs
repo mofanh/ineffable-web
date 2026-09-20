@@ -1591,13 +1591,13 @@ assert.equal(
   answerFooterTree.root.findAll(
     (node) => node.props["data-answer-run-metadata"] !== undefined
   ).length,
-  1,
-  "legacy answers must hide unavailable provenance without losing copy"
+  0,
+  "run metadata stays collapsed until the user requests it"
 )
 assert.equal(
   answerFooterTree.root.findAll(
     (node) =>
-      node.type === "button" && node.props["aria-label"] === "复制这条回答"
+      node.type === "button" && node.props["aria-label"] === "复制"
   ).length,
   2
 )
@@ -1620,7 +1620,8 @@ assert.equal(
   "only the eligible trial answer gets a rollback action"
 )
 assert.match(JSON.stringify(answerFooterTree.toJSON()), /GLM 5\.3/)
-assert.match(JSON.stringify(answerFooterTree.toJSON()), /开发 Sandbox/)
+assert.equal(answerFooterTree.root.findAll((node) => node.type === "button" && node.props["aria-label"] === "回答信息").length, 1,
+  "only answers with provenance expose a details action")
 await act(async () => {
   answerFooterTree.update(
     React.createElement(ChatMessageList, {
@@ -1635,11 +1636,7 @@ assert.match(
   /glm-5\.3/,
   "unknown or archived profiles must fall back to the persisted model id"
 )
-assert.match(
-  JSON.stringify(answerFooterTree.toJSON()),
-  /sandbox-alpha/,
-  "unknown or archived sandboxes must fall back to the persisted environment id"
-)
+assert.doesNotMatch(JSON.stringify(answerFooterTree.toJSON()), /sandbox-alpha/, "sandbox metadata is not part of the default footer")
 await act(async () => answerFooterTree.unmount())
 
 const trialProjection = {

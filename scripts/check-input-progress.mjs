@@ -53,3 +53,11 @@ assert.equal(reduceConversationTimeline([{ ...user, inputProgress: accepted }], 
 assert.equal(reduceConversationTimeline([consuming], { type: "pending-inputs", inputs: pendingIdentities }).length, 1, "an old predecessor snapshot cannot erase a new consuming run")
 assert.equal(mergeInputProgress(accepted, queuedA.inputProgress), accepted, "confirmed consumption cannot roll back to a stale queued projection")
 assert.equal(reduceConversationTimeline([{ ...user, id: "message:other", timelineUnitId: "message:other" }], { type: "pending-inputs", inputs: pendingIdentities }).length, 1, "identical text is not identity")
+
+const automationSource = { automation_id: "a", occurrence_id: "o", name: "Daily notes", summary: "Summarize yesterday" }
+const automatedProgress = parseInputProgress({ ...accepted, automation_source: automationSource })
+assert.deepEqual(automatedProgress.automation_source, automationSource)
+const automatedLive = reduceConversationTimeline([user], { type:"input-progress", progress:automatedProgress })
+const automatedRefresh = reduceConversationTimeline([], { type:"hydrate", entries:[{...user,inputProgress:automatedProgress}] })
+assert.deepEqual(automatedLive[0].inputProgress.automation_source, automatedRefresh[0].inputProgress.automation_source, "live and restored inputs retain the same trusted automation source")
+assert.equal(parseInputProgress({...accepted,automation_source:{name:"Fake task"}}).automation_source,undefined, "a label alone cannot establish an automation identity")

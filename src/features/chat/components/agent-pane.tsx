@@ -1,3 +1,6 @@
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { InfoIcon } from "lucide-react"
+import { copyTextToClipboard } from "@/lib/app/clipboard"
 import { ImageGallery } from "@/components/app/image-gallery"
 import type { ImageReference } from "@/lib/image-reference"
 import * as React from "react"
@@ -128,26 +131,32 @@ const WorkspaceArtifactCard = React.memo(function WorkspaceArtifactCard({
 }: {
   artifact: WorkspaceArtifactReference
 }) {
+  useTranslation()
   const title = artifact.path.split("/").filter(Boolean).at(-1) ?? artifact.path
   const size = formatArtifactSize(artifact.sizeBytes)
   return (
-    <Link
-      to={workspaceArtifactHref(artifact)}
-      className="group flex min-w-0 items-center gap-2.5 rounded-lg border border-border/65 bg-muted/20 px-2.5 py-2 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <FileIcon className="size-4 flex-none text-foreground/45" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium text-foreground/80">{title}</span>
-        <span className="block truncate text-[10px] text-foreground/45">
-          {artifact.mimeType}
-          {size ? ` · ${size}` : ""}
-          {artifact.versionId
-            ? ` · ${artifact.versionId.slice(0, 8)}`
-            : ` · ${i18n.t("chat.agent.currentVersion")}`}
+    <div className="flex min-w-0 items-center gap-1">
+      <Link
+        to={workspaceArtifactHref(artifact)}
+        className="group flex flex-1 min-w-0 items-center gap-2.5 rounded-lg border border-border/65 bg-muted/20 px-2.5 py-2 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <FileIcon className="size-4 flex-none text-foreground/45" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-medium text-foreground/80">{title}</span>
+          <span className="block truncate text-[10px] text-foreground/45">
+            {artifact.mimeType === "text/markdown" ? i18n.t("presentation.markdown") : artifact.mimeType?.startsWith("text/") ? i18n.t("presentation.text") : title.includes(".") ? title.split(".").at(-1)?.toUpperCase() : i18n.t("presentation.file")}
+            {size ? ` · ${size}` : ""}
+          </span>
         </span>
-      </span>
-      <ExternalLinkIcon className="size-3.5 flex-none text-foreground/35 group-hover:text-foreground/60" />
-    </Link>
+        <ExternalLinkIcon className="size-3.5 flex-none text-foreground/35 group-hover:text-foreground/60" />
+      </Link>
+      <Popover><PopoverTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`${i18n.t("presentation.fileDetails")}: ${title}`}><InfoIcon className="size-3.5" /></Button></PopoverTrigger>
+        <PopoverContent align="end" className="w-72 max-w-[calc(100vw-2rem)] space-y-2 p-3 text-xs wrap-anywhere">
+          <p>{i18n.t("presentation.fileType")}: {artifact.mimeType}</p>
+          <p>{i18n.t("presentation.fileVersion")}: {artifact.versionId ?? i18n.t("chat.agent.currentVersion")}</p>
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 })
 
@@ -275,7 +284,9 @@ const MarkdownFragment = React.memo(function MarkdownFragment({
   content: string
   settled: boolean
 }) {
-  const plainHtml = React.useMemo(() => markdownIt.render(content), [content])
+  const { i18n: translation } = useTranslation()
+  const language = translation.resolvedLanguage
+  const plainHtml = React.useMemo(() => markdownIt.render(content, { language }), [content, language])
   const [highlightedHtml, setHighlightedHtml] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -291,7 +302,7 @@ const MarkdownFragment = React.memo(function MarkdownFragment({
     return () => {
       cancelled = true
     }
-  }, [content, settled])
+  }, [content, settled, language])
 
   return <div dangerouslySetInnerHTML={{ __html: highlightedHtml ?? plainHtml }} />
 })
@@ -320,8 +331,8 @@ function ProjectedMarkdownContent({
       const button = target.closest<HTMLButtonElement>("[data-copy-code]")
       if (!button) return
       const code = button.closest(".chat-code-block")?.querySelector("code")
-      if (!code?.textContent || !navigator.clipboard) return
-      void navigator.clipboard.writeText(code.textContent)
+      if (!code?.textContent) return
+      void copyTextToClipboard(code.textContent)
     },
     []
   )
