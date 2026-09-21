@@ -1,4 +1,4 @@
-import { trackTelemetry } from "../telemetry/events"
+import { noteFreshRun, releaseFreshRun, trackTelemetry } from "../telemetry/events"
 import {
   normalizeGatewayEnvelope,
   type GatewayChatStreamEnvelope,
@@ -2119,6 +2119,16 @@ export async function streamConversationSend(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
+  const onEnvelope = (envelope: GatewayChatStreamEnvelope) => {
+    let freshRunId: string | null = null
+    if (envelope.type === "event" && envelope.event.event === "run.started") {
+      const runId = envelope.event.metadata?.conversation_run_id ?? envelope.event.run_id
+      if (typeof runId === "string" && runId.trim()) freshRunId = runId.trim()
+    }
+    if (freshRunId) noteFreshRun(freshRunId)
+    try { options.onEnvelope(envelope) }
+    finally { if (freshRunId) releaseFreshRun(freshRunId) }
+  }
   const telemetryStarted = performance.now()
   trackTelemetry({ name: "chat_send_requested", properties: { mode: payload.input_mode === "guided" ? "guided" : "ordinary" } })
   const response = await requestApi("/gateway/v1/conversations/send", {
@@ -2150,14 +2160,14 @@ export async function streamConversationSend(
       await parseSseStream(
         response,
         normalizeGatewayEnvelope,
-        options.onEnvelope
+        onEnvelope
       )
       return
     }
 
     const parsed = normalizeGatewayEnvelope(await response.json())
     if (parsed) {
-      options.onEnvelope(parsed)
+      onEnvelope(parsed)
     }
   } catch (error) {
     const next =

@@ -15,10 +15,12 @@
 - `frontend_long_tasks`：可见页面的长任务次数、总耗时、最大耗时；30 秒聚合。浏览器不支持则不报告。
 - `frontend_scroll_frames`：滚动期间可见页面的 rAF 间隔；大于 34ms 记为慢帧，是卡顿线索而非精确掉帧率，不读取滚动目标/正文。30 秒聚合，隐藏时刷新；空闲不持续运行 rAF。
 - `chat_send_requested` / `chat_send_response`：普通/引导发送和 HTTP 响应头延迟；status=0 是请求未获得响应，不是 run failed。排队成功不代表已消费。
-- `chat_first_output`：从浏览器新观测到 run.started 至首个文本 delta 到达，**不是发送至首字绘制耗时**。图片、reasoning 不算正文首字。
-- `chat_run_observed_end`：同一 epoch 的新运行在当前浏览器被观察到的 canonical completed/failed/cancelled 与耗时，包含观察中的等待。回放、旧 epoch、重复事件和 transport EOF 不生成终态；超过一小时、刷新或换 epoch 丢弃计时，不补造数据。因此不是全站业务成功率或计费事实。
+- `chat_first_output`：仅新 POST /send 流授予计时资格，从浏览器新观测到 run.started 至首个文本 delta 到达，**不是发送至首字绘制耗时**。图片、reasoning 不算正文首字。
+- `chat_run_observed_end`：同一 epoch 的新运行在当前浏览器被观察到的 canonical completed/failed/cancelled 与耗时，包含观察中的等待。回放、旧 epoch、重复事件和 transport EOF 不生成终态；超过一小时、刷新或换 epoch 丢弃计时，不补造数据。未在当前浏览器直接发起的 Automation/后台运行也不纳入。因此不是全站业务成功率或计费事实。
 
 属性仅允许固定名称、枚举和非负数。路由去掉动态 ID、query、hash、token；不采集标题、输入、聊天正文、工具参数、图片、身份、Cookie 或认证头，fetch 不发送 Referer。网络层的 IP/UA/Origin 仍由 OpenPanel 处理；没有会话录屏与自动点击采集。
+
+web-vitals 官方 API 无卸载能力，底层观察器在首次启用后保持文档生命周期单例；停止时解除应用回调，不在 HMR 中重复注册。完全停止底层采集需关闭配置并刷新页面。
 
 单实例最多排队 32 条，每分钟最多接纳 120 条，串行发送、2 秒超时、无重试。指标是抽样观察，拥塞和离页会丢失；上报故障不提示业务失败。不会持久化事件或无限重放。关闭需重启开发服务/重建部署并刷新页面。
 

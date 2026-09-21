@@ -30,10 +30,14 @@ createRoot(document.getElementById("root")!).render(
 
 // Optional observers load only when enabled. No SDK or network activity when off.
 if (import.meta.env.VITE_TELEMETRY_ENABLED === "true") {
+  let disposed = false
+  let cleanup: (() => void) | undefined
+  import.meta.hot?.dispose(() => { disposed = true; cleanup?.() })
   void import("@/lib/telemetry/browser").then(({ startBrowserTelemetry }) => {
+    if (disposed) return
     const telemetry = startBrowserTelemetry(import.meta.env)
     if (!telemetry) return
     const unsubscribe = router.subscribe(state => telemetry.route(state.location.pathname))
-    import.meta.hot?.dispose(() => { unsubscribe(); telemetry.stop() })
+    cleanup = () => { unsubscribe(); telemetry.stop() }
   }).catch(() => { /* Optional analytics must not affect application startup. */ })
 }

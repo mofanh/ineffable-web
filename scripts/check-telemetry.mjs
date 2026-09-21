@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { telemetryPath, safeProperties, installTelemetrySink } from "../src/lib/telemetry/events.ts"
+import { telemetryPath, safeProperties, installTelemetrySink, noteFreshRun } from "../src/lib/telemetry/events.ts"
 import { readTelemetryConfig, createTelemetryTransport } from "../src/lib/telemetry/transport.ts"
 import { ChatRuntimeStore } from "../src/features/chat/runtime/chat-runtime-store.ts"
 const delay=ms=>new Promise(r=>setTimeout(r,ms))
@@ -36,6 +36,7 @@ assert.equal(bounded.stats.accepted,32);assert.equal(bounded.stats.dropped,168);
 const captured=[];const uninstall=installTelemetrySink(e=>captured.push(e))
 const store=new ChatRuntimeStore()
 const event=(seq,kind,epoch=1,ts=Date.now())=>({run_id:"private-run",seq,ts_ms:ts,event:kind,content:"private-body",metadata:{conversation_id:"private-conversation",execution_epoch:epoch}})
+noteFreshRun("private-run")
 store.applyEvent(event(1,"run.started"))
 store.applyEvent(event(2,"model.text.delta"))
 store.applyEvent(event(2,"model.text.delta"))
@@ -48,5 +49,9 @@ assert.equal(captured[1].properties.outcome,"failed")
 assert.ok(!JSON.stringify(captured).includes("private"))
 const recovered=new ChatRuntimeStore();recovered.applyEvent(event(1,"run.started",1,1));recovered.applyEvent(event(2,"run.completed"))
 assert.equal(captured.length,2,"history is not fresh timings")
+const recent=new ChatRuntimeStore();recent.applyEvent(event(1,"run.started",1,Date.now()-3000));recent.applyEvent(event(2,"model.text.delta"));recent.applyEvent(event(3,"run.completed"))
+assert.equal(captured.length,2,"recent replay also cannot create timings")
+const reset=new ChatRuntimeStore();noteFreshRun("private-run");reset.applyEvent(event(1,"run.started"));reset.dispatch("private-conversation",{type:"reset"});reset.applyEvent(event(2,"run.completed"))
+assert.equal(captured.length,2,"hydrate/reset discards timing")
 uninstall()
 console.log("telemetry disabled/config/privacy/bounds/failure isolation/canonical timing checks passed")

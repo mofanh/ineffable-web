@@ -2,8 +2,18 @@
 <input id="input" aria-label="Synthetic input"><button id="slow">Synthetic slow interaction</button><div style="height:4000px">Synthetic scroll content</div>
 <script type="module">
 import { startBrowserTelemetry } from '/src/lib/telemetry/browser.ts'
+const OriginalObserver = window.PerformanceObserver
+window.observerCounts = {}
+window.PerformanceObserver = class extends OriginalObserver {
+  observe(options) {
+    const type = options.type ?? options.entryTypes?.join(',')
+    window.observerCounts[type] = (window.observerCounts[type] ?? 0) + 1
+    return super.observe(options)
+  }
+}
 const enabled = new URLSearchParams(location.search).get('enabled') === 'true'
-window.telemetry = startBrowserTelemetry({ VITE_TELEMETRY_ENABLED: String(enabled), VITE_OPENPANEL_API_URL: location.origin + '/collector', VITE_OPENPANEL_CLIENT_ID: 'public-test', VITE_TELEMETRY_ENVIRONMENT: 'test' })
+window.startTelemetry = () => startBrowserTelemetry({ VITE_TELEMETRY_ENABLED: String(enabled), VITE_OPENPANEL_API_URL: location.origin + '/collector', VITE_OPENPANEL_CLIENT_ID: 'public-test', VITE_TELEMETRY_ENVIRONMENT: 'test' })
+window.telemetry = window.startTelemetry()
 document.querySelector('#slow').onclick = () => { const until = performance.now() + 100; while(performance.now() < until) {} }
 window.fixtureReady = true
 </script></body></html>

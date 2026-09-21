@@ -20,6 +20,10 @@ try {
  await page.waitForFunction(()=>window.telemetry?.stats.delivered>=1)
  await page.locator("#input").fill("private-input")
  await page.locator("#slow").click()
+ await page.evaluate(()=>new Promise(resolve=>{
+  document.dispatchEvent(new Event('scroll'))
+  requestAnimationFrame(()=>setTimeout(()=>{const until=performance.now()+260;while(performance.now()<until){};requestAnimationFrame(resolve)},0))
+ }))
  await page.evaluate(()=>{window.telemetry.route('/workspace/private-workspace/objects/private-object');window.telemetry.route('/workspace/another/objects/another')})
  await page.mouse.wheel(0,800);await page.waitForTimeout(800)
  // Force hidden lifecycle to flush INP and low-frequency aggregates.
@@ -27,7 +31,7 @@ try {
  await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});document.dispatchEvent(new Event('visibilitychange'))})
  await page.waitForTimeout(1500)
  assert.ok(received.some(x=>x.body.payload.name==='frontend_long_tasks'), 'long task aggregation')
- assert.ok(received.some(x=>x.body.payload.name==='frontend_scroll_frames'), 'scroll frame aggregation')
+ assert.ok(received.some(x=>x.body.payload.name==='frontend_scroll_frames'&&x.body.payload.properties.max_ms>=200), 'severe scroll stall is counted')
  assert.ok(received.some(x=>x.body.payload.name==='frontend_web_vital'&&x.body.payload.properties.metric==='INP'), 'standard INP observation')
  const screens=received.filter(x=>x.body.payload.name==='screen_view')
  assert.equal(screens.length,2,"same route template is not duplicate navigation")
@@ -37,5 +41,10 @@ try {
  assert.deepEqual(errors,[])
  await page.evaluate(()=>window.telemetry.stop())
  const count=received.length;await page.locator('#slow').click();await page.waitForTimeout(500);assert.equal(received.length,count)
+ const beforeObservers=await page.evaluate(()=>({...window.observerCounts}))
+ await page.evaluate(()=>{for(let i=0;i<5;i++){const t=window.startTelemetry();t.stop()}})
+ await page.waitForTimeout(500)
+ const afterObservers=await page.evaluate(()=>({...window.observerCounts}))
+ for(const type of ['event','first-input','layout-shift'])assert.equal(afterObservers[type],beforeObservers[type],`${type} observers are document singletons`)
  console.log('browser optional telemetry pageviews, route sanitization, interaction, isolation and teardown checks passed')
 } finally {await browser?.close();await server.close()}

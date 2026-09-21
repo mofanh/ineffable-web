@@ -27,6 +27,7 @@ export class ChatRuntimeStore {
     if (next === current) {
       return current
     }
+    if (action.type === "reset") this.telemetry.forget(current.runId)
     this.states.set(conversationId, next)
     if (action.type === "event") this.telemetry.observe(action.event, next.runId, next.executionEpoch)
     this.listeners.forEach((listener) => listener())

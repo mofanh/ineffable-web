@@ -13,7 +13,7 @@ export type TelemetrySink = (event: TelemetryEvent) => void
 let sink: TelemetrySink | undefined
 export function installTelemetrySink(next: TelemetrySink) {
   sink = next
-  return () => { if (sink === next) sink = undefined }
+  return () => { if (sink === next) { sink = undefined; freshRuns.clear() } }
 }
 export function telemetryEnabled() { return sink !== undefined }
 export function trackTelemetry(event: TelemetryEvent) {
@@ -46,3 +46,19 @@ export function safeProperties(event: TelemetryEvent): Record<string, string | n
     default: return null
   }
 }
+
+// Eligibility comes only from a new POST /send stream, never a subscribe/replay.
+// IDs are ephemeral local correlation, not telemetry properties.
+const freshRuns = new Map<string, number>()
+export function noteFreshRun(runId: string) {
+  if (!telemetryEnabled()) return
+  if (freshRuns.size >= 32) freshRuns.delete(freshRuns.keys().next().value!)
+  freshRuns.set(runId, Date.now())
+}
+export function claimFreshRun(runId: string) {
+  const started = freshRuns.get(runId)
+  freshRuns.delete(runId)
+  return started !== undefined && Date.now() - started < 10_000
+}
+
+export function releaseFreshRun(runId: string) { freshRuns.delete(runId) }
