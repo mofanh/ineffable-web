@@ -19,7 +19,7 @@ export function ChannelsPage() {
 }
 function Connections({ token, session }: { token: string; session: string }) {
   const { t } = useTranslation()
-  const { selectConversation, refreshConversations } = useConversationSession()
+  const { selectConversation, refreshConversations, getConversationSelectionIdentity } = useConversationSession()
   const mounted = React.useRef(true)
   React.useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const resource = useApiResource({
@@ -99,8 +99,20 @@ function Connections({ token, session }: { token: string; session: string }) {
     } finally { if (mounted.current && request === generation.current) setBusy(false) }
   }
   async function openConversation(id: string) {
-    await refreshConversations()
-    if (mounted.current) { selectConversation(id); setDetail(null) }
+    const request = ++generation.current
+    const selection = getConversationSelectionIdentity()
+    const ownsSelection = () => {
+      const current = getConversationSelectionIdentity()
+      return mounted.current && request === generation.current && current.sessionId === selection.sessionId && current.version === selection.version
+    }
+    try { await refreshConversations() } catch (e) {
+      if (ownsSelection()) setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message)
+      return
+    }
+    if (!ownsSelection()) return
+    selectConversation(id)
+    window.dispatchEvent(new Event("ineffable:right-sidebar:open"))
+    setDetail(null)
   }
   return <AppPage title={t("channels.title")} description={t("channels.description")} actions={<div className="flex gap-2">
     <Button variant="outline" disabled={busy} onClick={() => void resource.reload()} aria-label={t("channels.refresh")}><RefreshCw className="size-4" /></Button>
@@ -128,7 +140,7 @@ function Connections({ token, session }: { token: string; session: string }) {
     <AppDialog open={issued !== null} title={t("channels.credentials")} description={t("channels.tokenHint")} onOpenChange={open => { if (!open) setIssued(null) }}>
       {issued ? <div className="space-y-4"><FormField label={t("channels.endpoint")}><Textarea readOnly value={socketUrl(issued.connection.id)} /></FormField><FormField label="Access token"><Textarea readOnly autoComplete="off" value={issued.token} /></FormField><Notice>{t("channels.protocolHint")}</Notice></div> : null}
     </AppDialog>
-    <AppDialog open={detail !== null} title={detail?.connection.display_name ?? t("channels.details")} description={t("channels.deliveryHint")} onOpenChange={open => { if (!open) setDetail(null) }}>
+    <AppDialog open={detail !== null} title={detail?.connection.display_name ?? t("channels.details")} description={t("channels.deliveryHint")} onOpenChange={open => { if (!open) { generation.current += 1; setDetail(null) } }}>
       {detail ? <div className="space-y-4"><FormField label={t("channels.endpoint")}><Textarea readOnly value={socketUrl(detail.connection.id)} /></FormField><div className="flex flex-wrap gap-2">{detail.value.deliveries.map(d => <StatusBadge key={d.status} status={d.status} label={`${t(`channels.delivery.${d.status}`)} · ${d.count}`} />)}</div>{detail.value.chats.length === 0 ? <EmptyState title={t("channels.noChats")} /> : detail.value.chats.map(chat => <Button key={chat.conversation_id} variant="outline" className="w-full justify-start" onClick={() => void openConversation(chat.conversation_id).catch(e => { if (mounted.current) setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message) })}>{t(chat.chat_type === "group" ? "channels.groupChat" : "channels.privateChat")} · {chat.external_chat_id}</Button>)}</div> : null}
     </AppDialog>
   </AppPage>

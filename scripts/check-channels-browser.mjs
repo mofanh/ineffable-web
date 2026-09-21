@@ -16,7 +16,7 @@ try {
   localStorage.setItem("ineffable.auth.access_expires_at",String(Date.now()/1000+3600))
  })
  const runtime={model_profile_id:"model-a",workspace_id:null,sandbox:null,capability_exposure:{mode:"smart"}}
- let connections=[];let saved;let patches=0
+ let connections=[];let saved;let patches=0;let delayedRefresh=false;let releaseRefresh;let refreshStarted=false
  await page.route("**/gateway/v1/**",async route=>{
   const req=route.request(),url=new URL(req.url());let body={}
   if(url.pathname.endsWith("/channel-connections")&&req.method()==="POST") {
@@ -29,10 +29,13 @@ try {
   else if(url.pathname.includes("/channel-connections/")&&req.method()==="PATCH") {
    patches++;saved=req.postDataJSON();assert.deepEqual(Object.keys(saved).sort(),["allowed_group_ids","allowed_private_ids","display_name","enabled","runtime_config"])
    connections=[{...connections[0],...saved,runtime_config_json:saved.runtime_config}];body=connections[0]
-  } else if(url.pathname.includes("/channel-connections/")) body={chats:[],deliveries:[{status:"outcome_unknown",count:1}]}
+  } else if(url.pathname.includes("/channel-connections/")) body={chats:[{chat_type:"private",external_chat_id:"456",conversation_id:"qq-conversation"}],deliveries:[{status:"outcome_unknown",count:1}]}
   else if(url.pathname.includes("/conversations/preferences")) body={timezone:"Asia/Shanghai",version:1,defaults_json:runtime}
   else if(url.pathname.includes("auth/me")) body={user:{id:"owner",display_name:"Owner"},workspaces:[]}
-  else if(url.pathname.includes("conversations/list")) body={conversations:[]}
+  else if(url.pathname.includes("conversations/list")) {
+   if(delayedRefresh){refreshStarted=true;await new Promise(resolve=>{releaseRefresh=resolve})}
+   body={conversations:[{id:"qq-conversation",title:"QQ"},{id:"other",title:"Other"}]}
+  }
   else if(url.pathname.includes("models/profiles")) body={profiles:[{id:"model-a",display_name:"Model A"}]}
   else if(url.pathname.includes("workspaces/list")) body={workspaces:[]}
   else if(url.pathname.includes("sandbox/environments")) body={providers:[],environments:[]}
@@ -66,6 +69,22 @@ try {
  await page.getByRole("button",{name:"Chats and delivery"}).click()
  await page.getByText("Unknown outcome · 1",{exact:true}).waitFor()
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+ await page.evaluate(()=>{window.fixtureOpenCount=0;window.addEventListener("ineffable:right-sidebar:open",()=>window.fixtureOpenCount++)})
+ await page.getByRole("button",{name:"Private",exact:false}).click()
+ await page.waitForFunction(()=>window.fixtureOpenCount===1)
+ assert.equal(await page.locator("[data-selection]").textContent(),"qq-conversation")
+ await page.getByRole("button",{name:"Chats and delivery"}).click()
+ delayedRefresh=true
+ await page.getByRole("button",{name:"Private",exact:false}).click()
+ await page.waitForTimeout(100)
+ assert.ok(refreshStarted)
+ await page.getByRole("dialog").getByRole("button",{name:"Close",exact:true}).click()
+ await page.getByRole("button",{name:"Select other fixture"}).click()
+ const response=page.waitForResponse(r=>r.url().includes("conversations/list"))
+ releaseRefresh();await response
+ await page.waitForTimeout(50)
+ assert.equal(await page.locator("[data-selection]").textContent(),"other")
+ assert.equal(await page.evaluate(()=>window.fixtureOpenCount),1)
  assert.deepEqual(errors,[])
  console.log("owned channel configuration, credentials, payload and mobile checks passed")
 } finally {await browser?.close();await server.close()}
