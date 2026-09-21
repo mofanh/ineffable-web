@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   BotIcon,
   ChevronDownIcon,
-  CheckIcon,
   Edit3Icon,
   PackageIcon,
   PlusIcon,
@@ -284,13 +283,6 @@ export function SystemPlanManagementPage() {
         tone: "green" as const,
       },
       {
-        label: t("system.plans.metrics.selected"),
-        value: selectedPlanId || "-",
-        detail: t("system.plans.metrics.selectedDetail"),
-        icon: CheckIcon,
-        tone: "amber" as const,
-      },
-      {
         label: t("system.plans.metrics.users"),
         value: formatCompactNumber(planInsights.assignedUsers),
         detail: t("system.plans.metrics.usersDetail"),
@@ -298,7 +290,7 @@ export function SystemPlanManagementPage() {
         tone: "indigo" as const,
       },
     ],
-    [models.length, planInsights.assignedUsers, plans, selectedPlanId, t],
+    [models.length, planInsights.assignedUsers, plans, t],
   );
 
   function openCreateDialog() {

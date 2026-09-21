@@ -54,7 +54,7 @@ export function AppMetricPage({
         </p>
       </section>
 
-      <section className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
+      <section className={cn("grid grid-cols-1 gap-2 sm:gap-4", metrics.length === 2 ? "sm:grid-cols-2" : metrics.length === 1 ? "sm:grid-cols-1" : "sm:grid-cols-3")}>
         {metrics.map((metric) => (
           <MetricPanel key={metric.label} metric={metric} />
         ))}

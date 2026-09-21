@@ -220,7 +220,6 @@ export function SystemUserManagementPage() {
   }, [workspaceUsage]);
 
   const metrics = React.useMemo(() => {
-    const cachedDetails = Object.values(userDetailsByUserId);
     return [
       {
         label: t("system.users.metrics.users"),
@@ -230,30 +229,6 @@ export function SystemUserManagementPage() {
         }),
         icon: UsersIcon,
         tone: "blue" as const,
-      },
-      {
-        label: t("system.users.metrics.assignments"),
-        value: String(
-          cachedDetails.reduce(
-            (total, details) => total + details.assignments.length,
-            0,
-          ),
-        ),
-        detail: t("system.users.metrics.detailsLoaded"),
-        icon: PackageIcon,
-        tone: "green" as const,
-      },
-      {
-        label: t("system.users.metrics.usage"),
-        value: String(
-          cachedDetails.reduce(
-            (total, details) => total + details.usage.length,
-            0,
-          ),
-        ),
-        detail: t("system.users.metrics.monthlyLoaded"),
-        icon: GaugeIcon,
-        tone: "amber" as const,
       },
       {
         label: t("system.users.metrics.storage"),
@@ -267,7 +242,7 @@ export function SystemUserManagementPage() {
         tone: "indigo" as const,
       },
     ];
-  }, [t, userDetailsByUserId, users, workspaceUsage]);
+  }, [t, users, workspaceUsage]);
 
   function openEditDialog(user: AdminUser) {
     editor.begin();
