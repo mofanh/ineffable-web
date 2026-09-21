@@ -1,3 +1,4 @@
+import { ChatTelemetry } from "./chat-telemetry.ts"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import {
   createConversationRunRuntime,
@@ -9,6 +10,7 @@ import {
 type RuntimeListener = () => void
 
 export class ChatRuntimeStore {
+  private readonly telemetry = new ChatTelemetry()
   private readonly states = new Map<string, ConversationRunRuntime>()
   private readonly listeners = new Set<RuntimeListener>()
 
@@ -26,6 +28,7 @@ export class ChatRuntimeStore {
       return current
     }
     this.states.set(conversationId, next)
+    if (action.type === "event") this.telemetry.observe(action.event, next.runId, next.executionEpoch)
     this.listeners.forEach((listener) => listener())
     return next
   }

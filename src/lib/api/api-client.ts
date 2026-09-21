@@ -1,3 +1,4 @@
+import { trackTelemetry } from "../telemetry/events"
 import {
   normalizeGatewayEnvelope,
   type GatewayChatStreamEnvelope,
@@ -2118,6 +2119,8 @@ export async function streamConversationSend(
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
+  const telemetryStarted = performance.now()
+  trackTelemetry({ name: "chat_send_requested", properties: { mode: payload.input_mode === "guided" ? "guided" : "ordinary" } })
   const response = await requestApi("/gateway/v1/conversations/send", {
     method: "POST",
     accessToken,
@@ -2129,6 +2132,12 @@ export async function streamConversationSend(
     },
     body: JSON.stringify(payload),
     signal: options.signal,
+  }).then(response => {
+    trackTelemetry({ name: "chat_send_response", properties: { status: response.status, duration_ms: performance.now() - telemetryStarted } })
+    return response
+  }, error => {
+    trackTelemetry({ name: "chat_send_response", properties: { status: 0, duration_ms: performance.now() - telemetryStarted } })
+    throw error
   })
 
   if (!response.ok) {

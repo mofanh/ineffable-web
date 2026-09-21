@@ -37,7 +37,8 @@
     "check:workspace-delete": "node scripts/check-workspace-delete-browser.mjs",
     "check:workspace-directory": "tsx scripts/check-workspace-directory.mjs",
     "check:run-observations": "node scripts/check-run-observations-browser.mjs",
-    "check:images": "node scripts/check-image-capabilities-browser.mjs && node scripts/check-image-send-browser.mjs && node scripts/check-user-image-layout-browser.mjs && node scripts/check-native-image-stream-browser.mjs && node scripts/check-workspace-images-browser.mjs"
+    "check:images": "node scripts/check-image-capabilities-browser.mjs && node scripts/check-image-send-browser.mjs && node scripts/check-user-image-layout-browser.mjs && node scripts/check-native-image-stream-browser.mjs && node scripts/check-workspace-images-browser.mjs",
+    "check:telemetry": "tsx scripts/check-telemetry.mjs && node scripts/check-telemetry-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
@@ -66,7 +67,8 @@
     "shiki": "^3.23.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.1.17",
-    "tw-animate-css": "^1.4.0"
+    "tw-animate-css": "^1.4.0",
+    "web-vitals": "^6.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
