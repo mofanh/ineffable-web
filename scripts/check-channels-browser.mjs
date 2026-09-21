@@ -1,0 +1,71 @@
+import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
+import { chromium } from "playwright-core"
+import { createServer } from "vite"
+const executablePath=[process.env.CHROME_PATH,"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome","/usr/bin/google-chrome","/usr/bin/chromium"].find(p=>p&&existsSync(p))
+assert.ok(executablePath)
+const server=await createServer({root:process.cwd(),logLevel:"error",server:{host:"127.0.0.1",port:0}})
+let browser
+try {
+ await server.listen();browser=await chromium.launch({executablePath,headless:true})
+ const page=await browser.newPage({viewport:{width:390,height:844}})
+ const errors=[];page.on("pageerror",e=>errors.push(e.message))
+ await page.addInitScript(()=>{
+  localStorage.setItem("ineffable.auth.access_token","test-token")
+  localStorage.setItem("ineffable.auth.session_id","test-session")
+  localStorage.setItem("ineffable.auth.access_expires_at",String(Date.now()/1000+3600))
+ })
+ const runtime={model_profile_id:"model-a",workspace_id:null,sandbox:null,capability_exposure:{mode:"smart"}}
+ let connections=[];let saved;let patches=0
+ await page.route("**/gateway/v1/**",async route=>{
+  const req=route.request(),url=new URL(req.url());let body={}
+  if(url.pathname.endsWith("/channel-connections")&&req.method()==="POST") {
+   saved=req.postDataJSON();assert.equal(saved.enabled,undefined)
+   assert.equal(saved.owner_user_id,undefined)
+   assert.deepEqual(saved.runtime_config,runtime)
+   const connection={id:"12a45678-1234-4234-9234-123456789abc",...saved,runtime_config_json:saved.runtime_config,enabled:false,connected:false}
+   connections=[connection];body={connection,token:"one-time-test-credential"}
+  } else if(url.pathname.endsWith("/channel-connections")) body=connections
+  else if(url.pathname.includes("/channel-connections/")&&req.method()==="PATCH") {
+   patches++;saved=req.postDataJSON();assert.deepEqual(Object.keys(saved).sort(),["allowed_group_ids","allowed_private_ids","display_name","enabled","runtime_config"])
+   connections=[{...connections[0],...saved,runtime_config_json:saved.runtime_config}];body=connections[0]
+  } else if(url.pathname.includes("/channel-connections/")) body={chats:[],deliveries:[{status:"outcome_unknown",count:1}]}
+  else if(url.pathname.includes("/conversations/preferences")) body={timezone:"Asia/Shanghai",version:1,defaults_json:runtime}
+  else if(url.pathname.includes("auth/me")) body={user:{id:"owner",display_name:"Owner"},workspaces:[]}
+  else if(url.pathname.includes("conversations/list")) body={conversations:[]}
+  else if(url.pathname.includes("models/profiles")) body={profiles:[{id:"model-a",display_name:"Model A"}]}
+  else if(url.pathname.includes("workspaces/list")) body={workspaces:[]}
+  else if(url.pathname.includes("sandbox/environments")) body={providers:[],environments:[]}
+  else if(url.pathname.includes("capability-exposure/policy")) body={capability_exposure_policy:{policy:{allowed_modes:["smart","clean","custom","full"],exposure_budget:{max_count:24}}}}
+  else if(url.pathname.includes("capability-catalog")) body={items:[]}
+  await route.fulfill({json:body})
+ })
+ await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/channels-fixture.html`)
+ await page.getByRole("button",{name:"Connect QQ",exact:true}).click()
+ let dialog=page.getByRole("dialog",{name:"Connect QQ",exact:true})
+ await dialog.getByText("Model A",{exact:true}).waitFor()
+ await dialog.locator("input").nth(0).fill("My QQ")
+ await dialog.locator("input").nth(1).fill("123456")
+ await dialog.locator("textarea").nth(0).fill("456\n789\n")
+ await dialog.getByRole("button",{name:"Save",exact:true}).click()
+ const secret=page.getByRole("dialog",{name:"Connection credential"})
+ await secret.waitFor()
+ assert.equal(saved.allowed_private_ids.length,2)
+ const url=await secret.locator("textarea").first().inputValue()
+ assert.match(url,/^ws:\/\/127.0.0.1:\d+\/gateway\/v1\/channel-connections\//)
+ assert.equal(await secret.locator("textarea").nth(1).inputValue(),"one-time-test-credential")
+ await secret.getByRole("button",{name:"Close",exact:true}).click()
+ assert.equal(await page.getByText("one-time-test-credential",{exact:true}).count(),0)
+ await page.getByRole("button",{name:"Edit connection",exact:true}).click()
+ dialog=page.getByRole("dialog",{name:"Edit connection",exact:true})
+ await dialog.getByRole("switch").click()
+ await dialog.getByRole("button",{name:"Save",exact:true}).click()
+ await dialog.waitFor({state:"hidden"})
+ assert.equal(patches,1);assert.equal(saved.enabled,true)
+ await page.getByText("Waiting for connection",{exact:true}).waitFor()
+ await page.getByRole("button",{name:"Chats and delivery"}).click()
+ await page.getByText("Unknown outcome · 1",{exact:true}).waitFor()
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+ assert.deepEqual(errors,[])
+ console.log("owned channel configuration, credentials, payload and mobile checks passed")
+} finally {await browser?.close();await server.close()}

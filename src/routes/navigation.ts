@@ -61,6 +61,7 @@ type RouteMetaDefinition = {
 }
 
 const routeMetaDefinitions: RouteMetaDefinition[] = [
+  { path: "/channels", titleKey: "channels.title", breadcrumbs: [{ labelKey: "channels.title" }] },
   {
     path: "/models",
     titleKey: "shell.routes.models",

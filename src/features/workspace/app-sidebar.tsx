@@ -106,6 +106,7 @@ import {
   UserPlusIcon,
   UsersIcon,
   ZapIcon,
+  SmartphoneIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -121,6 +122,7 @@ const primaryNavItems: Array<{
     path: string
   }>
 }> = [
+  { id: "channels", titleKey: "channels.title", icon: SmartphoneIcon, path: "/channels" },
   {
     id: "automation",
     titleKey: "sidebar.navigation.automation",

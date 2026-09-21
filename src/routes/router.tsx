@@ -21,6 +21,7 @@ const App = lazy(() => import("@/App"))
 const AccountPage = lazy(async () => ({
   default: (await import("@/pages/account-pages")).AccountPage,
 }))
+const ChannelsPage = lazy(async () => ({ default: (await import("@/pages/agent-products/channels-page")).ChannelsPage }))
 const AutomationPage = lazy(async () => ({
   default: (await import("@/pages/agent-products/automation-page")).AutomationPage,
 }))
@@ -77,6 +78,7 @@ const SystemUserManagementPage = lazy(async () => ({
 
 const routeElements: Record<string, React.ReactElement> = {
   "/account": <AccountPage />,
+  "/channels": <ChannelsPage />,
   "/admin/llm": (
     <RequireAdmin>
       <AdminLlmSettingsPage />
