@@ -59,3 +59,8 @@ not the user's login token. Preserve request headers through both proxy layers.
 - 自动任务仅依据 Gateway `input_progress.automation_source` 折叠为名称、摘要与可展开的原始指令；普通用户文本不能通过文字前缀冒充任务来源。实时与历史共用输入进度投影。
 - 回答和代码复制共用剪贴板反馈；用户可见标签使用中英文资源，日期遵循应用语言。
 - `npm run check:chat-browser` 包含移动端信息栏、自动任务原文、产物详情、复制反馈及语言切换回归。
+
+## 可选前端观测
+
+OpenPanel 浏览器配置见 [.env.example](.env.example)，完整事件口径、隐私边界和测试方式见
+[前端观测包](src/lib/telemetry/README.md)。默认关闭；只填公开 client ID，禁止将后端 secret 放进 VITE 变量。
