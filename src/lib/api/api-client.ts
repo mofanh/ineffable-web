@@ -1080,11 +1080,20 @@ export function deleteAutomation(accessToken: string, automationId: string) {
   )
 }
 
+export type ConversationInputReceipt = {
+  conversation_id: string
+  message_id: string
+  pending_id: number
+  status: "queued" | "guided_injected" | "consuming" | "consumed" | "cancelled"
+  automation_run_id?: string
+  operation_id?: string
+}
+
 export function runAutomation(accessToken: string, automationId: string) {
   return requestApiJson<{
     automation_run: AutomationRun
     conversation_id: string
-    send_status: number
+    input_receipt: ConversationInputReceipt
   }>(`/gateway/v1/automations/${encodeURIComponent(automationId)}/run`, {
     method: "POST",
     accessToken,
@@ -1106,7 +1115,7 @@ export function tickDueAutomations(accessToken: string) {
     triggered: Array<{
       automation_run: AutomationRun
       conversation_id: string
-      send_status: number
+      input_receipt: ConversationInputReceipt
     }>
     failed: Array<{ automation_id: string; status: number }>
   }>("/gateway/v1/automations/tick", {
