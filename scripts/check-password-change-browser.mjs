@@ -40,6 +40,11 @@ try {
       const actor = route.request().headers().authorization === "Bearer token-b" ? "actor-b" : "actor"
       body = { user: { id: actor, email: `${actor}@example.com`, display_name: actor, role: "user", status: "active" }, workspaces: [] }
     }
+    else if (url.includes("conversations/preferences")) body = { timezone: "UTC", version: 1, defaults_json: {} }
+    else if (url.includes("models/profiles")) body = { profiles: [] }
+    else if (url.includes("workspaces/list")) body = { workspaces: [] }
+    else if (url.includes("sandbox/environments")) body = { providers: [], environments: [] }
+    else if (url.includes("capability-exposure/policy")) body = { capability_exposure_policy: { policy: { allowed_modes: ["smart"], exposure_budget: { max_count: 24 } } } }
     else if (url.includes("conversations/list")) body = { conversations: [] }
     else if (url.includes("auth/sessions")) { sessionReads += 1; body = failSessions ? { error: "device refresh failed" } : { sessions: [] }; status = failSessions ? 500 : 200 }
     else if (url.includes("password/code")) {

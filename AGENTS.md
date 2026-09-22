@@ -163,6 +163,12 @@ routes -> page barrel -> real page
 
 ## 请求、错误和通知
 
+- 所有认证 API 请求冻结发起时的登录 session，跨会话旧 token 不得被替换为新会话 token；
+  同 session 的 JWT sid 仅用于浏览器隔离，授权仍由 Gateway 校验。请求、401 续期/重试和
+  JSON body 读取后统一复核身份。AppSession hydration、storage 同步、logout 与列表应用
+  同时校验 session generation；身份变化使在途初始化失效并清空用户投影。
+  Refresh promise 仅在同 adapter/session 内共享。认证适配器在 layout effect 注册，先于子组件加载请求。
+
 - 修改密码复用账户认证接口：当前密码、新密码确认及邮件验证码只保存在表单内存，成功后清空；
   账户概览只展示安全设置入口，点击后使用 AppDialog；取消清空敏感输入，保存期间不允许关闭，
   成功关闭并在设置行提示。验证码重发冷却跨弹窗开关保留，迟到发码提示按打开代次隔离。

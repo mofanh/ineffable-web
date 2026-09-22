@@ -26,7 +26,38 @@ type AuthSessionRuntimeAdapter = {
 const EXPIRY_SECONDS_CUTOFF = 1_000_000_000_000
 
 let adapter: AuthSessionRuntimeAdapter | null = null
-let refreshPromise: Promise<string | null> | null = null
+let refreshFlight: {
+  adapter: AuthSessionRuntimeAdapter
+  sessionId: string | null | undefined
+  promise: Promise<string | null>
+} | null = null
+
+// The signed sid is used only to fence browser operations. Authorization remains
+// the gateway's responsibility; decoding here never grants access.
+function tokenSessionId(token: string) {
+  try {
+    const payload = token.split(".")[1]
+    const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")))
+    return typeof claims.sid === "string" ? claims.sid : null
+  } catch {
+    return null
+  }
+}
+
+function tokenMatchesSession(token: string, snapshot: AuthSessionSnapshot) {
+  return token === snapshot.accessToken ||
+    Boolean(snapshot.sessionId && tokenSessionId(token) === snapshot.sessionId)
+}
+
+export function captureAuthSession(accessToken?: string | null, expectedSessionId?: string) {
+  if (!accessToken && expectedSessionId === undefined) return () => true
+  const owner = adapter
+  const snapshot = owner?.getSnapshot()
+  const sessionId = snapshot?.sessionId ?? null
+  const valid = (expectedSessionId === undefined || expectedSessionId === sessionId) &&
+    (!owner || !accessToken || Boolean(snapshot && tokenMatchesSession(accessToken, snapshot)))
+  return () => valid && adapter === owner && (owner?.getSnapshot().sessionId ?? null) === sessionId
+}
 
 export function normalizeAuthExpiry(value: number | null | undefined) {
   if (!value || !Number.isFinite(value) || value <= 0) {
@@ -47,7 +78,11 @@ export function registerAuthSessionRuntime(
 }
 
 export function getLatestAccessToken(fallback?: string | null) {
-  return adapter?.getSnapshot().accessToken || fallback || null
+  if (!fallback) return null
+  const snapshot = adapter?.getSnapshot()
+  return snapshot && tokenMatchesSession(fallback, snapshot)
+    ? snapshot.accessToken
+    : fallback
 }
 
 export function getCurrentAuthSessionId() {
@@ -78,6 +113,9 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
 
   const snapshot = currentAdapter.getSnapshot()
   const isCurrentSession = () => adapter === currentAdapter && currentAdapter.getSnapshot().sessionId === snapshot.sessionId
+  if (failedAccessToken && snapshot.sessionId && !tokenMatchesSession(failedAccessToken, snapshot)) {
+    return null
+  }
   if (
     failedAccessToken &&
     snapshot.accessToken &&
@@ -86,8 +124,8 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
     return snapshot.accessToken
   }
 
-  if (refreshPromise) {
-    return refreshPromise
+  if (refreshFlight?.adapter === currentAdapter && refreshFlight.sessionId === snapshot.sessionId) {
+    return refreshFlight.promise
   }
 
   if (!snapshot.refreshToken) {
@@ -154,12 +192,12 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
       return null
     })
     .finally(() => {
-      if (refreshPromise === pendingRefresh) {
-        refreshPromise = null
+      if (refreshFlight?.promise === pendingRefresh) {
+        refreshFlight = null
       }
     })
 
-  refreshPromise = pendingRefresh
+  refreshFlight = { adapter: currentAdapter, sessionId: snapshot.sessionId, promise: pendingRefresh }
   return pendingRefresh
 }
 

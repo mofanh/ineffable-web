@@ -27,6 +27,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install browser for behavior checks
+        run: |
+          node node_modules/playwright-core/cli.js install --with-deps chromium
+          echo "CHROME_PATH=$(node --input-type=module -e 'import { chromium } from "playwright-core"; console.log(chromium.executablePath())')" >> "$GITHUB_ENV"
+
+      - name: Authentication session boundaries
+        run: |
+          npm run check:auth-session
+          npm run check:auth-isolation
+          npm run check:password-change
+
+      - name: Internationalization
+        run: npm run i18n:check
+
       - name: Chat architecture
         run: npm run check:chat-architecture
 

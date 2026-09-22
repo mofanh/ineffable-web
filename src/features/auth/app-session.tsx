@@ -32,6 +32,7 @@ import {
 import { clearApiResourceCache } from "@/lib/app/use-api-resource"
 import { ApiRequestError } from "@/lib/app/api-errors"
 import {
+  captureAuthSession,
   ensureAuthSessionFresh,
   getAccessTokenRefreshDelay,
   registerAuthSessionRuntime,
@@ -202,12 +203,31 @@ export function AppSessionProvider({
   const conversationRefreshRequestRef = React.useRef(0)
   const sessionGenerationRef = React.useRef(0)
   const sessionIdentityRef = React.useRef(currentSessionId)
-  sessionIdentityRef.current = currentSessionId
+
+  const isCurrentSession = React.useCallback((generation: number, identity: string | null) =>
+    generation === sessionGenerationRef.current && identity === sessionIdentityRef.current &&
+    identity === (readStorage(STORAGE_KEYS.sessionId) || null), [])
+
+  const invalidateSession = React.useCallback((identity: string | null) => {
+    sessionGenerationRef.current += 1
+    sessionIdentityRef.current = identity
+    conversationRefreshRequestRef.current += 1
+    conversationSelectionVersionRef.current += 1
+    refreshAppDataPromiseRef.current = null
+    clearApiResourceCache()
+    setIsBootstrapping(false)
+    setCurrentUser(null)
+    setWorkspaces([])
+    setCurrentWorkspaceId(null)
+    setConversations([])
+    setCurrentConversationId(null)
+    writeStorage(STORAGE_KEYS.workspaceId, null)
+    writeStorage(STORAGE_KEYS.conversationId, null)
+    writeStorage(STORAGE_KEYS.newConversationDraft, null)
+  }, [])
 
   const clearSession = React.useCallback(() => {
-    sessionGenerationRef.current += 1
-    sessionIdentityRef.current = null
-    clearApiResourceCache()
+    invalidateSession(null)
     setStatus("unauthenticated")
     setAccessToken(null)
     setRefreshToken(null)
@@ -226,10 +246,11 @@ export function AppSessionProvider({
     writeStorage(STORAGE_KEYS.workspaceId, null)
     writeStorage(STORAGE_KEYS.conversationId, null)
     writeStorage(STORAGE_KEYS.newConversationDraft, null)
-  }, [])
+  }, [invalidateSession])
 
   const persistTokens = React.useCallback(
     (tokens: AuthTokenPair) => {
+      if (sessionIdentityRef.current !== tokens.session_id) invalidateSession(tokens.session_id)
       setAccessToken(tokens.access_token)
       setRefreshToken(tokens.refresh_token)
       setAccessExpiresAt(tokens.access_expires_at)
@@ -244,10 +265,10 @@ export function AppSessionProvider({
       writeStorage(STORAGE_KEYS.sessionId, tokens.session_id)
       writeStorage(STORAGE_KEYS.accessToken, tokens.access_token)
     },
-    [],
+    [invalidateSession],
   )
 
-  React.useEffect(
+  React.useLayoutEffect(
     () =>
       registerAuthSessionRuntime({
         getSnapshot: readStoredAuthSnapshot,
@@ -269,6 +290,9 @@ export function AppSessionProvider({
       tokenOverride?: string | null,
     ) => {
       const token = tokenOverride ?? accessToken
+      if (!captureAuthSession(token)()) return
+      const generation = sessionGenerationRef.current
+      const identity = sessionIdentityRef.current
       const requestId = ++conversationRefreshRequestRef.current
       const selectionVersionAtRequest =
         conversationSelectionVersionRef.current
@@ -285,6 +309,7 @@ export function AppSessionProvider({
         offset: 0,
       })
       if (
+        !isCurrentSession(generation, identity) ||
         !shouldApplyConversationListRefresh({
           requestId,
           latestRequestId: conversationRefreshRequestRef.current,
@@ -309,12 +334,15 @@ export function AppSessionProvider({
         return nextId
       })
     },
-    [accessToken],
+    [accessToken, isCurrentSession],
   )
 
   const hydrateWithToken = React.useCallback(
     async (token: string) => {
+      const generation = sessionGenerationRef.current
+      const identity = sessionIdentityRef.current
       const me = await fetchMe(token)
+      if (!isCurrentSession(generation, identity)) return
       const nextWorkspaces = me.workspaces
 
       setCurrentUser(me.user)
@@ -332,14 +360,17 @@ export function AppSessionProvider({
 
       await refreshConversations(nextWorkspaceId, token)
     },
-    [currentWorkspaceId, refreshConversations],
+    [currentWorkspaceId, refreshConversations, isCurrentSession],
   )
 
   const refreshAppData = React.useCallback(() => {
+    if (!captureAuthSession(accessToken)()) return Promise.resolve()
     if (refreshAppDataPromiseRef.current) {
       return refreshAppDataPromiseRef.current
     }
 
+    const generation = sessionGenerationRef.current
+    const identity = sessionIdentityRef.current
     const run = (async () => {
       if (!accessToken) {
         clearSession()
@@ -351,13 +382,14 @@ export function AppSessionProvider({
       try {
         await hydrateWithToken(accessToken)
       } catch {
+        if (!isCurrentSession(generation, identity)) return
         if (!readStorage(STORAGE_KEYS.accessToken)) {
           clearSession()
         } else {
           setStatus("loading")
         }
       } finally {
-        setIsBootstrapping(false)
+        if (isCurrentSession(generation, identity)) setIsBootstrapping(false)
       }
     })()
 
@@ -370,7 +402,7 @@ export function AppSessionProvider({
     refreshAppDataPromiseRef.current = trackedRun
 
     return refreshAppDataPromiseRef.current
-  }, [accessToken, clearSession, hydrateWithToken])
+  }, [accessToken, clearSession, hydrateWithToken, isCurrentSession])
 
   React.useEffect(() => {
     if (initialBootstrapStartedRef.current) {
@@ -448,6 +480,11 @@ export function AppSessionProvider({
       const nextRefreshToken = readStorage(STORAGE_KEYS.refreshToken) || null
       const nextSessionId = readStorage(STORAGE_KEYS.sessionId) || null
       const nextAccessExpiresAt = readStoredNumber(STORAGE_KEYS.accessExpiresAt)
+      if (sessionIdentityRef.current !== nextSessionId) {
+        invalidateSession(nextSessionId)
+        setStatus("loading")
+      }
+      const generation = sessionGenerationRef.current
       setAccessToken(nextAccessToken)
       setRefreshToken(nextRefreshToken)
       sessionIdentityRef.current = nextSessionId
@@ -457,6 +494,7 @@ export function AppSessionProvider({
       try {
         await hydrateWithToken(nextAccessToken)
       } catch {
+        if (!isCurrentSession(generation, nextSessionId)) return
         if (!readStorage(STORAGE_KEYS.accessToken)) {
           clearSession()
         }
@@ -465,17 +503,20 @@ export function AppSessionProvider({
 
     window.addEventListener("storage", syncAuthStorage)
     return () => window.removeEventListener("storage", syncAuthStorage)
-  }, [clearSession, hydrateWithToken])
+  }, [clearSession, hydrateWithToken, invalidateSession, isCurrentSession])
 
   const login = React.useCallback(
     async (payload: { email: string; password: string }) => {
+      const generation = ++sessionGenerationRef.current
+      const identity = sessionIdentityRef.current
       const response = await loginUser(payload)
+      if (!isCurrentSession(generation, identity)) return
       persistTokens(response.tokens)
       setCurrentUser(response.user)
       setStatus("authenticated")
       await hydrateWithToken(response.tokens.access_token)
     },
-    [hydrateWithToken, persistTokens],
+    [hydrateWithToken, persistTokens, isCurrentSession],
   )
 
   const register = React.useCallback(
@@ -485,16 +526,23 @@ export function AppSessionProvider({
       password: string
       email_verification_code: string
     }) => {
+      const generation = ++sessionGenerationRef.current
+      const identity = sessionIdentityRef.current
       const response = await registerUser(payload)
+      if (!isCurrentSession(generation, identity)) return
       persistTokens(response.tokens)
       setCurrentUser(response.user)
       setStatus("authenticated")
       await hydrateWithToken(response.tokens.access_token)
     },
-    [hydrateWithToken, persistTokens],
+    [hydrateWithToken, persistTokens, isCurrentSession],
   )
 
   const logout = React.useCallback(async () => {
+    const ownsSession = captureAuthSession(accessToken, currentSessionId ?? undefined)
+    if (!ownsSession()) return
+    const generation = sessionGenerationRef.current
+    const identity = sessionIdentityRef.current
     if (accessToken) {
       try {
         await logoutUser(accessToken, currentWorkspaceId)
@@ -503,8 +551,8 @@ export function AppSessionProvider({
       }
     }
 
-    clearSession()
-  }, [accessToken, clearSession, currentWorkspaceId])
+    if (ownsSession() && isCurrentSession(generation, identity)) clearSession()
+  }, [accessToken, clearSession, currentWorkspaceId, currentSessionId, isCurrentSession])
 
   const selectWorkspace = React.useCallback(async (workspaceId: string) => {
     conversationSelectionVersionRef.current += 1

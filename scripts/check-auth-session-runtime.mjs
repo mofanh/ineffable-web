@@ -57,7 +57,9 @@ const refreshed = await Promise.all([
 assert.deepEqual(refreshed, ["access-new", "access-new", "access-new"])
 assert.equal(refreshCalls, 1)
 assert.equal(expiredCalls, 0)
-assert.equal(getLatestAccessToken("fallback"), "access-new")
+assert.equal(getLatestAccessToken("fallback"), "fallback")
+assert.equal(getLatestAccessToken("access-new"), "access-new")
+assert.equal(getLatestAccessToken(), null, "public requests must not inherit credentials")
 
 assert.equal(await refreshAuthSession("access-old"), "access-new")
 assert.equal(refreshCalls, 1)
@@ -168,3 +170,26 @@ for (const rejected of [false, true]) {
 }
 
 console.log("auth session runtime checks passed")
+
+// A new login must start its own refresh while the previous session is pending.
+let current = { sessionId: "a", accessToken: "a", refreshToken: "ra", accessExpiresAt: now - 1, refreshExpiresAt: now + 60000 }
+let finishOld
+const calls = []
+const stop = registerAuthSessionRuntime({
+  getSnapshot: () => current,
+  refresh: async refreshToken => {
+    calls.push(refreshToken)
+    if (refreshToken === "ra") await new Promise(resolve => { finishOld = resolve })
+    return { access_token: refreshToken, refresh_token: refreshToken, session_id: refreshToken === "ra" ? "a" : "b" }
+  },
+  onRefreshed: tokens => { current = { ...current, accessToken: tokens.access_token } },
+  onExpired: () => assert.fail("must not expire"),
+})
+const old = refreshAuthSession("a")
+current = { ...current, sessionId: "b", accessToken: "b", refreshToken: "rb" }
+assert.equal(await refreshAuthSession("b"), "rb")
+assert.deepEqual(calls, ["ra", "rb"])
+finishOld()
+assert.equal(await old, null)
+assert.equal(current.accessToken, "rb")
+stop()

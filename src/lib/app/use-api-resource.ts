@@ -50,24 +50,23 @@ async function loadCachedResource<T>({
   }
 
   const promise = load()
-  apiResourceCache.set(cacheKey, {
+  const flight = {
     data: current?.data,
     updatedAt: current?.updatedAt ?? 0,
     inFlight: promise,
-  })
+  }
+  apiResourceCache.set(cacheKey, flight)
 
   try {
     const result = await promise
-    apiResourceCache.set(cacheKey, {
-      data: result,
-      updatedAt: Date.now(),
-    })
+    if (apiResourceCache.get(cacheKey) === flight) {
+      apiResourceCache.set(cacheKey, { data: result, updatedAt: Date.now() })
+    }
     return result
   } catch (error) {
-    if (current?.data !== undefined) {
-      apiResourceCache.set(cacheKey, current)
-    } else {
-      apiResourceCache.delete(cacheKey)
+    if (apiResourceCache.get(cacheKey) === flight) {
+      if (current?.data !== undefined) apiResourceCache.set(cacheKey, current)
+      else apiResourceCache.delete(cacheKey)
     }
     throw error
   }

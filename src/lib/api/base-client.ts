@@ -1,7 +1,7 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
 import {
   expireAuthSession,
-  getCurrentAuthSessionId,
+  captureAuthSession,
   getLatestAccessToken,
   refreshAuthSession,
 } from "@/lib/api/auth-session-runtime"
@@ -108,8 +108,9 @@ export async function requestApi(
   }
 ) {
   const { accessToken, workspaceId, expectedSessionId, headers, ...requestInit } = options ?? {}
+  const isCurrentSession = captureAuthSession(accessToken, expectedSessionId)
   const assertSession = () => {
-    if (expectedSessionId !== undefined && getCurrentAuthSessionId() !== expectedSessionId) {
+    if (!isCurrentSession()) {
       throw createApiError("Authentication session changed", 409)
     }
   }
@@ -135,10 +136,9 @@ export async function requestApi(
   const initialAccessToken = getLatestAccessToken(accessToken)
   const response = await performRequest(initialAccessToken)
   assertSession()
-  if (
-    !accessToken ||
-    !(await responseHasExpiredAccessToken(response))
-  ) {
+  const expired = accessToken ? await responseHasExpiredAccessToken(response) : false
+  assertSession()
+  if (!expired) {
     return response
   }
 
@@ -168,6 +168,11 @@ export async function requestApiJson<T>(
     expectedSessionId?: string
   },
 ) {
+  const isCurrentSession = captureAuthSession(options?.accessToken, options?.expectedSessionId)
+  const assertSession = () => {
+    if (!isCurrentSession()) throw createApiError("Authentication session changed", 409)
+  }
+  assertSession()
   const response = await requestApi(path, {
     method: options?.method ?? "GET",
     accessToken: options?.accessToken,
@@ -178,8 +183,12 @@ export async function requestApiJson<T>(
   })
 
   if (!response.ok) {
-    throw createApiError(await parseApiError(response), response.status)
+    const message = await parseApiError(response)
+    assertSession()
+    throw createApiError(message, response.status)
   }
 
-  return (await response.json()) as T
+  const body = (await response.json()) as T
+  assertSession()
+  return body
 }
