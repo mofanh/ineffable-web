@@ -20,7 +20,7 @@ type AuthSessionRuntimeAdapter = {
   onRefreshed: (tokens: AuthTokenSet) => void
   onExpired: () => void
   shouldExpireOnRefreshError?: (error: unknown) => boolean
-  runRefreshExclusive?: <T>(run: () => Promise<T>) => Promise<T>
+  runRefreshExclusive?: <T>(run: () => Promise<T>, sessionId?: string | null) => Promise<T>
 }
 
 const EXPIRY_SECONDS_CUTOFF = 1_000_000_000_000
@@ -175,7 +175,7 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
   }
 
   const pendingRefresh = (
-    currentAdapter.runRefreshExclusive?.(performRefresh) ?? performRefresh()
+    currentAdapter.runRefreshExclusive?.(performRefresh, snapshot.sessionId) ?? performRefresh()
   )
     .then((refreshedAccessToken) => {
       if (!isCurrentSession()) {

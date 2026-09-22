@@ -7,4 +7,4 @@ function Fixture() {
   Object.assign(window, { session, client })
   return <pre id="snapshot">{JSON.stringify({ status: session.status, user: session.currentUser?.id, conversations: session.conversations.map(c => c.id), bootstrapping: session.isBootstrapping })}</pre>
 }
-createRoot(document.getElementById("root")!).render(<AppSessionProvider><Fixture /></AppSessionProvider>)
+createRoot(document.getElementById("root")!).render(<React.StrictMode><AppSessionProvider><Fixture /></AppSessionProvider></React.StrictMode>)

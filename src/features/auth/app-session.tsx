@@ -136,12 +136,13 @@ function readStoredAuthSnapshot(): AuthSessionSnapshot {
 }
 
 async function runAuthRefreshExclusive<T>(
-  run: () => Promise<T>
+  run: () => Promise<T>,
+  sessionId?: string | null,
 ): Promise<T> {
   if (typeof navigator === "undefined" || !navigator.locks) {
     return run()
   }
-  return await navigator.locks.request(AUTH_REFRESH_LOCK_NAME, run)
+  return await navigator.locks.request(`${AUTH_REFRESH_LOCK_NAME}:${sessionId ?? "unknown"}`, run)
 }
 
 function getWorkspaceType(workspace: Workspace) {
@@ -268,21 +269,23 @@ export function AppSessionProvider({
     [invalidateSession],
   )
 
-  React.useLayoutEffect(
-    () =>
-      registerAuthSessionRuntime({
+  // Keep the adapter identity across StrictMode's effect replay. A genuinely
+  // new provider still gets a different identity and fences old requests.
+  const authRuntimeAdapter = React.useMemo(
+    () => ({
         getSnapshot: readStoredAuthSnapshot,
-        refresh: async (currentRefreshToken) =>
+        refresh: async (currentRefreshToken: string) =>
           (await refreshAuthToken(currentRefreshToken)).tokens,
         onRefreshed: persistTokens,
         onExpired: clearSession,
         runRefreshExclusive: runAuthRefreshExclusive,
-        shouldExpireOnRefreshError: (error) =>
+        shouldExpireOnRefreshError: (error: unknown) =>
           error instanceof ApiRequestError &&
-          Boolean(error.status && error.status >= 400 && error.status < 500),
+          error.status === 401,
       }),
     [clearSession, persistTokens],
   )
+  React.useLayoutEffect(() => registerAuthSessionRuntime(authRuntimeAdapter), [authRuntimeAdapter])
 
   const refreshConversations = React.useCallback(
     async (

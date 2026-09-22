@@ -45,7 +45,7 @@ try {
       await route.fulfill({ status, json: body })
     })
     await page.goto(`${origin}/scripts/auth-isolation-fixture.html`)
-    if (!["hydrate", "hydrate-error", "list"].includes(scenario)) await page.waitForFunction(() => window.session?.currentUser?.id === "a" && window.session.conversations.length)
+    if (!["hydrate", "hydrate-error", "list"].includes(scenario)) await page.waitForFunction(() => window.session?.currentUser?.id === "a" && window.session.conversations.length, null, { timeout: 3000 })
     if (scenario === "logout") await page.evaluate(() => { window.pending = window.session.logout() })
     if (scenario === "401") await page.evaluate(() => { window.pending = window.client.requestApiJson("/gateway/v1/probe", { method: "POST", accessToken: window.session.accessToken }).then(() => "ok", error => error.status) })
     if (["confirmation", "same-session-refresh"].includes(scenario)) await page.evaluate(() => { window.capturedToken = window.session.accessToken })

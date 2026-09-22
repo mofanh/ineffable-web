@@ -27,7 +27,7 @@
     "check:sandbox-delivery": "node --experimental-strip-types scripts/check-sandbox-delivery.mjs",
     "check:polling": "node --experimental-strip-types scripts/check-page-activity-policy.mjs",
     "check:responsive-layout": "node --experimental-strip-types scripts/check-responsive-layout.mjs",
-    "check:auth-isolation": "node scripts/check-auth-isolation-browser.mjs",
+    "check:auth-isolation": "node scripts/check-auth-isolation-browser.mjs && node scripts/check-auth-refresh-browser.mjs",
     "check:auth-session": "node --experimental-strip-types scripts/check-auth-session-runtime.mjs && node scripts/check-auth-cache.mjs",
     "check:password-change": "node scripts/check-password-change-browser.mjs",
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
