@@ -81,6 +81,8 @@ try {
  await dialog.waitFor({state:"hidden"})
  assert.equal(patches,1);assert.equal(saved.enabled,true)
  await page.getByText("Enabled",{exact:true}).waitFor()
+ await page.getByText("Callback verified",{exact:true}).waitFor()
+ await page.getByText("Last received: No messages yet",{exact:true}).waitFor()
  await page.getByRole("button",{name:"Chats and delivery"}).click()
  await page.getByText("Unknown outcome · 1",{exact:true}).waitFor()
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)

@@ -5,7 +5,10 @@ export const resources = {
         secret: "AppSecret",
         secretKeep: "留空保留现有密钥",
         enabled: "已启用",
-        verified: "回调已验证，未启用",
+        verified: "回调已验证",
+        unverified: "等待回调验证",
+        lastReceived: "最近收件：{{time}}",
+        neverReceived: "尚未收到消息",
         contactsHint: "OpenID 不是 QQ 号。先让联系人私聊机器人，或在群内 @ 机器人，再在“会话与投递”中选择授权；授权前不会启动 Agent。",
         allowContact: "加入授权配置",
 
@@ -1833,7 +1836,10 @@ export const resources = {
         secret: "AppSecret",
         secretKeep: "Leave blank to keep the current secret",
         enabled: "Enabled",
-        verified: "Callback verified, disabled",
+        verified: "Callback verified",
+        unverified: "Awaiting callback verification",
+        lastReceived: "Last received: {{time}}",
+        neverReceived: "No messages yet",
         contactsHint: "OpenIDs are not QQ numbers. Send a direct message or group mention, then authorize the observed contact in Conversations & delivery. Unauthorized contacts cannot start the Agent.",
         allowContact: "Add to authorization",
 

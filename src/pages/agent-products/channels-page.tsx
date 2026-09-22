@@ -124,8 +124,9 @@ function Connections({ token, session }: { token: string; session: string }) {
     {error && !draft ? <ErrorState error={error} /> : null}
     {!resource.data ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p> : resource.data.filter(c => c.protocol === "qqbot").length === 0 ? <EmptyState title={t("channels.empty")} description={t("channels.description")} /> : <div className="space-y-3">{resource.data.filter(c => c.protocol === "qqbot").map(connection => <div key={connection.id} className="rounded-xl border p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><p className="font-medium break-words">{connection.display_name}</p><p className="text-sm text-muted-foreground">AppID · {connection.account_id}</p></div>
-        <StatusBadge status={connection.enabled ? "active" : "disabled"} label={t(connection.enabled ? "channels.enabled" : connection.webhook_verified_at ? "channels.verified" : "channels.disabled")} />
+        <StatusBadge status={connection.enabled ? "active" : "disabled"} label={t(connection.enabled ? "channels.enabled" : "channels.disabled")} />
       </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"><span>{t(connection.webhook_verified_at ? "channels.verified" : "channels.unverified")}</span><span>{t("channels.lastReceived", { time: connection.last_received_at ? new Date(connection.last_received_at).toLocaleString() : t("channels.neverReceived") })}</span></div>
       <p className="text-xs text-muted-foreground">{t("channels.scope", { private: connection.allowed_private_ids.length, groups: connection.allowed_group_ids.length })}</p>
       <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => edit(connection)}>{t("channels.edit")}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void action(connection, "details")}>{t("channels.details")}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void action(connection, "delete")}>{t("channels.delete")}</Button></div>
     </div>)}</div>}
