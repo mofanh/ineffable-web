@@ -15,19 +15,20 @@ try {
   localStorage.setItem("ineffable.auth.session_id","test-session")
   localStorage.setItem("ineffable.auth.access_expires_at",String(Date.now()/1000+3600))
  })
- const runtime={model_profile_id:"model-a",workspace_id:null,sandbox:null,capability_exposure:{mode:"smart"}}
+ const runtime={model_profile_id:"model-a",workspace_id:null,sandbox:{environment_id:"sandbox-offline"},capability_exposure:{mode:"smart"}}
  let nextSaveStatus=400;let connections=[];let saved;let patches=0;let delayedRefresh=false;let releaseRefresh;let refreshStarted=false
  await page.route("**/gateway/v1/**",async route=>{
   const req=route.request(),url=new URL(req.url());let body={}
   if(url.pathname.endsWith("/channel-connections")&&req.method()==="POST") {
    if(nextSaveStatus) {
     const status=nextSaveStatus;nextSaveStatus=0
+    if(status===400) assert.deepEqual(req.postDataJSON().runtime_config.sandbox,{environment_id:"sandbox-offline"})
     await route.fulfill({status,json:{error:status===400?"selected sandbox is currently unavailable":"service unavailable"}})
     return
    }
    saved=req.postDataJSON();assert.equal(saved.enabled,undefined)
    assert.equal(saved.owner_user_id,undefined)
-   assert.deepEqual(saved.runtime_config,runtime)
+   assert.deepEqual(saved.runtime_config,{...runtime,sandbox:null})
    const connection={id:"12a45678-1234-4234-9234-123456789abc",...saved,runtime_config_json:saved.runtime_config,enabled:false,connected:false}
    connections=[connection];body={connection,token:"one-time-test-credential"}
   } else if(url.pathname.endsWith("/channel-connections")) body=connections
@@ -43,7 +44,7 @@ try {
   }
   else if(url.pathname.includes("models/profiles")) body={profiles:[{id:"model-a",display_name:"Model A"}]}
   else if(url.pathname.includes("workspaces/list")) body={workspaces:[]}
-  else if(url.pathname.includes("sandbox/environments")) body={providers:[],environments:[]}
+  else if(url.pathname.includes("sandbox/environments")) body={providers:[{provider_id:"offline-provider",display_name:"Offline sandbox",status:"offline"}],environments:[{environment_id:"sandbox-offline",provider_id:"offline-provider",status:"offline"}]}
   else if(url.pathname.includes("capability-exposure/policy")) body={capability_exposure_policy:{policy:{allowed_modes:["smart","clean","custom","full"],exposure_budget:{max_count:24}}}}
   else if(url.pathname.includes("capability-catalog")) body={items:[]}
   await route.fulfill({json:body})
@@ -59,7 +60,8 @@ try {
  await dialog.getByText("The sandbox is offline or unavailable. Start it, or select no sandbox before saving.",{exact:true}).waitFor()
  assert.equal(await dialog.locator("input").first().isEnabled(),true)
  assert.equal(await dialog.getByRole("button",{name:"Save",exact:true}).isEnabled(),true)
- await dialog.locator("input").first().fill("My QQ corrected")
+ await dialog.getByRole("button",{name:"Choose a Sandbox environment: Offline sandbox",exact:true}).click()
+ await page.getByRole("option",{name:"None",exact:true}).click()
  await dialog.getByRole("button",{name:"Save",exact:true}).click()
  const secret=page.getByRole("dialog",{name:"Connection credential"})
  await secret.waitFor()

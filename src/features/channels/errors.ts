@@ -10,6 +10,7 @@ const configurationErrors: Record<string, string> = {
   "selected sandbox is currently unavailable": "sandboxOffline",
   "selected capabilities are not allowed by your plan": "capabilities",
   "runtime owner is not active": "owner",
+  "invalid capability selection; reselect the capability mode and tools": "capabilitySelection",
 }
 export function normalizeChannelError(error: unknown) {
   const normalized = normalizeAppError(error, { fallbackMessage: i18n.t("channels.error") })
