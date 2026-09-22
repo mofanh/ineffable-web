@@ -35,7 +35,12 @@ try {
   else if(url.pathname.includes("/channel-connections/")&&req.method()==="PATCH") {
    patches++;saved=req.postDataJSON();assert.deepEqual(Object.keys(saved).sort(),["allowed_group_ids","allowed_private_ids","display_name","enabled","runtime_config"])
    connections=[{...connections[0],...saved,runtime_config_json:saved.runtime_config}];body=connections[0]
-  } else if(url.pathname.includes("/channel-connections/")) body={chats:[{chat_type:"private",external_chat_id:"456",conversation_id:"qq-conversation"}],deliveries:[{status:"outcome_unknown",count:1}]}
+  } else if(url.pathname.includes("/channel-connections/")) body={chats:[{chat_type:"private",external_chat_id:"456",conversation_id:"qq-conversation"}],deliveries:[
+   {status:"outcome_unknown",count:1,error_category:"outcome_unknown",retryable:false,recovery_action:"verify_delivery"},
+   {status:"failed",count:2,error_category:"reply_expired",retryable:false,recovery_action:"view_conversation"},
+   {status:"failed",count:3,error_category:"reply_limit_exceeded",retryable:false,recovery_action:"view_conversation"},
+   {status:"failed",count:4,error_category:"upstream_rejected",retryable:false,recovery_action:"check_connection"},
+  ]}
   else if(url.pathname.includes("/conversations/preferences")) body={timezone:"Asia/Shanghai",version:1,defaults_json:runtime}
   else if(url.pathname.includes("auth/me")) body={user:{id:"owner",display_name:"Owner"},workspaces:[]}
   else if(url.pathname.includes("conversations/list")) {
@@ -85,6 +90,13 @@ try {
  await page.getByText("Last received: No messages yet",{exact:true}).waitFor()
  await page.getByRole("button",{name:"Chats and delivery"}).click()
  await page.getByText("Unknown outcome · 1",{exact:true}).waitFor()
+ await page.getByText("Reply window expired",{exact:true}).waitFor()
+ await page.getByText("Reply limit reached",{exact:true}).waitFor()
+ await page.getByText("Platform rejected delivery",{exact:true}).waitFor()
+ await page.getByText("Check QQ for the reply before taking action. This delivery will not be resent automatically.",{exact:true}).waitFor()
+ assert.equal(await page.locator('[data-delivery-category="outcome_unknown"] button').count(),0)
+ assert.equal(await page.locator("[data-delivery-category]").count(),4)
+
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await page.evaluate(()=>{window.fixtureOpenCount=0;window.addEventListener("ineffable:right-sidebar:open",()=>window.fixtureOpenCount++)})
  await page.getByRole("button",{name:"Private",exact:false}).click()

@@ -28,7 +28,13 @@ export type IssuedConnection = { connection: ChannelConnection; token: string }
 export type ConnectionDetails = {
   contacts: { chat_type: string; external_chat_id: string }[]
   chats: { chat_type: string; external_chat_id: string; conversation_id: string }[]
-  deliveries: { status: string; count: number }[]
+  deliveries: {
+    status: string
+    count: number
+    error_category: string | null
+    retryable: boolean
+    recovery_action: string | null
+  }[]
 }
 const root = "/gateway/v1/channel-connections"
 export function listConnections(accessToken: string, expectedSessionId: string) {

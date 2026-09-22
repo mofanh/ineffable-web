@@ -2,6 +2,22 @@ export const resources = {
   "zh-CN": {
     translation: {
       channels: {
+        deliveryReason: {
+          invalid_message: "回复格式不受支持",
+          reply_expired: "回复时限已过",
+          reply_limit_exceeded: "回复次数已用完",
+          upstream_rejected: "平台明确拒绝投递",
+          not_started: "投递尚未开始",
+          outcome_unknown: "平台是否收件尚未确认",
+          lease_lost: "连接中断，投递结果未确认",
+          credentials_changed: "连接配置已更新，旧投递已取消",
+          unspecified_failure: "未记录具体原因",
+        },
+        deliveryRecovery: {
+          view_conversation: "请在 Web 会话查看完整回复；需要继续时，可在渠道重新发送消息。",
+          check_connection: "请核对连接配置和平台权限，然后发送新消息；系统不会自动重发原投递。",
+          verify_delivery: "请先在 QQ 核对是否已收到回复，避免重复操作；原投递不会自动重发。",
+        },
         secret: "AppSecret",
         secretKeep: "留空保留现有密钥",
         enabled: "已启用",
@@ -1833,6 +1849,22 @@ export const resources = {
   "en-US": {
     translation: {
       channels: {
+        deliveryReason: {
+          invalid_message: "Unsupported reply format",
+          reply_expired: "Reply window expired",
+          reply_limit_exceeded: "Reply limit reached",
+          upstream_rejected: "Platform rejected delivery",
+          not_started: "Delivery did not start",
+          outcome_unknown: "Delivery is not confirmed",
+          lease_lost: "Connection interrupted before confirmation",
+          credentials_changed: "Connection changed; old delivery cancelled",
+          unspecified_failure: "Detailed cause unavailable",
+        },
+        deliveryRecovery: {
+          view_conversation: "Read the full reply in the Web conversation. Send a new channel message to continue.",
+          check_connection: "Check the connection and platform permissions, then send a new message. The original delivery is not resent automatically.",
+          verify_delivery: "Check QQ for the reply before taking action. This delivery will not be resent automatically.",
+        },
         secret: "AppSecret",
         secretKeep: "Leave blank to keep the current secret",
         enabled: "Enabled",
