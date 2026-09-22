@@ -37,6 +37,7 @@ jobs:
           npm run check:auth-session
           npm run check:auth-isolation
           npm run check:password-change
+          npm run check:api-resource
 
       - name: Internationalization
         run: npm run i18n:check

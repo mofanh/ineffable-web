@@ -79,6 +79,12 @@
 
 请求错误、通知、确认弹窗、通用资源加载状态必须优先走这里。
 
+`useApiResource` 的同键缓存和已挂载订阅者共用唯一 entry snapshot。读取按 revision 与在途请求
+identity 提交；`setData`、invalidate、clear 都撤销旧读取的写入权，迟到成功/错误均不得回填。
+invalidate 唤醒现有订阅者重新读取，clear 立即清空展示并保留身份屏障；下一次显式加载或新身份
+初始化再取数据。mutation updater 只执行一次且不在 React state updater 内写缓存。无 cacheKey
+的请求随 load 参数变化重新加载。运行 `npm run check:api-resource` 验证真实 hook 与 StrictMode。
+
 ### `src/features`
 
 业务功能层。
