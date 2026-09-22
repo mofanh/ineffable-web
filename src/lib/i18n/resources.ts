@@ -2,6 +2,14 @@ export const resources = {
   "zh-CN": {
     translation: {
       channels: {
+        validation: {
+          model: "请选择当前可用且有权限的模型。",
+          workspace: "所选工作区不存在或你已无访问权限，请重新选择。",
+          sandbox: "所选沙箱不属于当前工作区或你无访问权限，请重新选择沙箱。",
+          sandboxOffline: "所选沙箱当前离线或不可用，请启动沙箱，或选择“不使用沙箱”后保存。",
+          capabilities: "所选能力超出当前套餐允许范围，请调整能力配置。",
+          owner: "当前账户不可用，请检查账户状态。",
+        },
         refresh: "刷新",
         save: "保存",
         "title": "消息渠道",
@@ -1810,6 +1818,14 @@ export const resources = {
   "en-US": {
     translation: {
       channels: {
+        validation: {
+          model: "Select an available model you are authorized to use.",
+          workspace: "The workspace is unavailable or access was revoked. Select another workspace.",
+          sandbox: "The sandbox is not authorized for this workspace. Select another sandbox.",
+          sandboxOffline: "The sandbox is offline or unavailable. Start it, or select no sandbox before saving.",
+          capabilities: "The selected capabilities exceed your plan. Adjust the capability selection.",
+          owner: "Your account is unavailable. Check the account status.",
+        },
         refresh: "Refresh",
         save: "Save",
         "title": "Message channels",

@@ -10,7 +10,8 @@ import { RuntimeConfigurationFields } from "@/features/chat/components/runtime-c
 import { listConnections, createConnection, updateConnection, rotateConnection, deleteConnection, connectionDetails, socketUrl, type ChannelConnection, type ConnectionDraft, type IssuedConnection, type ConnectionDetails } from "@/features/channels/api"
 import { getConversationPreferences, type AutomationRuntimeConfig } from "@/lib/api/api-client"
 import { useApiResource } from "@/lib/app/use-api-resource"
-import { normalizeAppError } from "@/lib/app/api-errors"
+import type { AppError } from "@/lib/app/api-errors"
+import { normalizeChannelError, channelSaveOutcomeUncertain } from "@/features/channels/errors"
 import { confirm } from "@/lib/app/confirm"
 
 export function ChannelsPage() {
@@ -33,7 +34,7 @@ function Connections({ token, session }: { token: string; session: string }) {
   const [detail, setDetail] = React.useState<{ connection: ChannelConnection; value: ConnectionDetails } | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [uncertain, setUncertain] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<AppError | null>(null)
   const generation = React.useRef(0)
   async function startCreate() {
     const request = ++generation.current
@@ -50,7 +51,7 @@ function Connections({ token, session }: { token: string; session: string }) {
       setEditing(null)
       setDraft({ display_name: "", account_id: "", allowed_private_ids: [], allowed_group_ids: [], enabled: false, runtime_config: runtime })
     } catch (e) {
-      if (mounted.current && request === generation.current) setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message)
+      if (mounted.current && request === generation.current) setError(normalizeChannelError(e))
     } finally { if (mounted.current && request === generation.current) setBusy(false) }
   }
   function edit(connection: ChannelConnection) {
@@ -73,7 +74,8 @@ function Connections({ token, session }: { token: string; session: string }) {
     } catch (e) {
       if (!mounted.current || request !== generation.current) return
       // An unacknowledged create or update must be inspected before resubmission.
-      setUncertain(true); setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message)
+      const failure = normalizeChannelError(e)
+      setUncertain(channelSaveOutcomeUncertain(failure.status)); setError(failure)
     } finally { if (mounted.current && request === generation.current) setBusy(false) }
   }
   async function action(connection: ChannelConnection, kind: "rotate" | "delete" | "details") {
@@ -95,7 +97,7 @@ function Connections({ token, session }: { token: string; session: string }) {
       }
       if (mounted.current && kind !== "details") void resource.reload()
     } catch (e) {
-      if (mounted.current && request === generation.current) setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message)
+      if (mounted.current && request === generation.current) setError(normalizeChannelError(e))
     } finally { if (mounted.current && request === generation.current) setBusy(false) }
   }
   async function openConversation(id: string) {
@@ -106,7 +108,7 @@ function Connections({ token, session }: { token: string; session: string }) {
       return mounted.current && request === generation.current && current.sessionId === selection.sessionId && current.version === selection.version
     }
     try { await refreshConversations() } catch (e) {
-      if (ownsSelection()) setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message)
+      if (ownsSelection()) setError(normalizeChannelError(e))
       return
     }
     if (!ownsSelection()) return
@@ -119,7 +121,7 @@ function Connections({ token, session }: { token: string; session: string }) {
     <Button disabled={busy} onClick={() => void startCreate()}><Plus className="size-4" />{t("channels.create")}</Button>
   </div>}>
     {resource.error ? <ErrorState error={resource.error.message} onRetry={resource.reload} /> : null}
-    {error && !draft ? <Notice tone="error">{error}</Notice> : null}
+    {error && !draft ? <ErrorState error={error} /> : null}
     {!resource.data ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p> : resource.data.length === 0 ? <EmptyState title={t("channels.empty")} description={t("channels.description")} /> : <div className="space-y-3">{resource.data.map(connection => <div key={connection.id} className="rounded-xl border p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><p className="font-medium break-words">{connection.display_name}</p><p className="text-sm text-muted-foreground">QQ · {connection.account_id}</p></div>
         <StatusBadge status={connection.connected ? "active" : "disabled"} label={t(connection.connected ? "channels.connected" : connection.enabled ? "channels.offline" : "channels.disabled")} />
@@ -135,13 +137,13 @@ function Connections({ token, session }: { token: string; session: string }) {
         <FormField label={t("channels.groups")}><Textarea value={draft.allowed_group_ids.join("\n")} onChange={e => setDraft({ ...draft, allowed_group_ids: e.target.value.split(/[,，\s]+/) })} /></FormField>
         <RuntimeConfigurationFields accessToken={token} conversationId="" value={draft.runtime_config} onChange={runtime_config => setDraft({ ...draft, runtime_config })} title={t("channels.runtime")} description={t("channels.configHint")} />
         {editing ? <ToggleField label={t("channels.enable")} checked={draft.enabled} onCheckedChange={enabled => setDraft({ ...draft, enabled })} /> : <Notice>{t("channels.disabledHint")}</Notice>}
-      </fieldset>{error ? <Notice tone="error">{error}</Notice> : null}{uncertain ? <Notice tone="warning">{t("channels.uncertain")}</Notice> : null}</div> : null}
+      </fieldset>{error ? <ErrorState error={error} /> : null}{uncertain ? <Notice tone="warning">{t("channels.uncertain")}</Notice> : null}</div> : null}
     </AppDialog>
     <AppDialog open={issued !== null} title={t("channels.credentials")} description={t("channels.tokenHint")} onOpenChange={open => { if (!open) setIssued(null) }}>
       {issued ? <div className="space-y-4"><FormField label={t("channels.endpoint")}><Textarea readOnly value={socketUrl(issued.connection.id)} /></FormField><FormField label="Access token"><Textarea readOnly autoComplete="off" value={issued.token} /></FormField><Notice>{t("channels.protocolHint")}</Notice></div> : null}
     </AppDialog>
     <AppDialog open={detail !== null} title={detail?.connection.display_name ?? t("channels.details")} description={t("channels.deliveryHint")} onOpenChange={open => { if (!open) { generation.current += 1; setDetail(null) } }}>
-      {detail ? <div className="space-y-4"><FormField label={t("channels.endpoint")}><Textarea readOnly value={socketUrl(detail.connection.id)} /></FormField><div className="flex flex-wrap gap-2">{detail.value.deliveries.map(d => <StatusBadge key={d.status} status={d.status} label={`${t(`channels.delivery.${d.status}`)} · ${d.count}`} />)}</div>{detail.value.chats.length === 0 ? <EmptyState title={t("channels.noChats")} /> : detail.value.chats.map(chat => <Button key={chat.conversation_id} variant="outline" className="w-full justify-start" onClick={() => void openConversation(chat.conversation_id).catch(e => { if (mounted.current) setError(normalizeAppError(e, { fallbackMessage: t("channels.error") }).message) })}>{t(chat.chat_type === "group" ? "channels.groupChat" : "channels.privateChat")} · {chat.external_chat_id}</Button>)}</div> : null}
+      {detail ? <div className="space-y-4"><FormField label={t("channels.endpoint")}><Textarea readOnly value={socketUrl(detail.connection.id)} /></FormField><div className="flex flex-wrap gap-2">{detail.value.deliveries.map(d => <StatusBadge key={d.status} status={d.status} label={`${t(`channels.delivery.${d.status}`)} · ${d.count}`} />)}</div>{detail.value.chats.length === 0 ? <EmptyState title={t("channels.noChats")} /> : detail.value.chats.map(chat => <Button key={chat.conversation_id} variant="outline" className="w-full justify-start" onClick={() => void openConversation(chat.conversation_id).catch(e => { if (mounted.current) setError(normalizeChannelError(e)) })}>{t(chat.chat_type === "group" ? "channels.groupChat" : "channels.privateChat")} · {chat.external_chat_id}</Button>)}</div> : null}
     </AppDialog>
   </AppPage>
 }

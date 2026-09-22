@@ -16,10 +16,15 @@ try {
   localStorage.setItem("ineffable.auth.access_expires_at",String(Date.now()/1000+3600))
  })
  const runtime={model_profile_id:"model-a",workspace_id:null,sandbox:null,capability_exposure:{mode:"smart"}}
- let connections=[];let saved;let patches=0;let delayedRefresh=false;let releaseRefresh;let refreshStarted=false
+ let nextSaveStatus=400;let connections=[];let saved;let patches=0;let delayedRefresh=false;let releaseRefresh;let refreshStarted=false
  await page.route("**/gateway/v1/**",async route=>{
   const req=route.request(),url=new URL(req.url());let body={}
   if(url.pathname.endsWith("/channel-connections")&&req.method()==="POST") {
+   if(nextSaveStatus) {
+    const status=nextSaveStatus;nextSaveStatus=0
+    await route.fulfill({status,json:{error:status===400?"selected sandbox is currently unavailable":"service unavailable"}})
+    return
+   }
    saved=req.postDataJSON();assert.equal(saved.enabled,undefined)
    assert.equal(saved.owner_user_id,undefined)
    assert.deepEqual(saved.runtime_config,runtime)
@@ -50,6 +55,11 @@ try {
  await dialog.locator("input").nth(0).fill("My QQ")
  await dialog.locator("input").nth(1).fill("123456")
  await dialog.locator("textarea").nth(0).fill("456\n789\n")
+ await dialog.getByRole("button",{name:"Save",exact:true}).click()
+ await dialog.getByText("The sandbox is offline or unavailable. Start it, or select no sandbox before saving.",{exact:true}).waitFor()
+ assert.equal(await dialog.locator("input").first().isEnabled(),true)
+ assert.equal(await dialog.getByRole("button",{name:"Save",exact:true}).isEnabled(),true)
+ await dialog.locator("input").first().fill("My QQ corrected")
  await dialog.getByRole("button",{name:"Save",exact:true}).click()
  const secret=page.getByRole("dialog",{name:"Connection credential"})
  await secret.waitFor()
@@ -85,6 +95,15 @@ try {
  await page.waitForTimeout(50)
  assert.equal(await page.locator("[data-selection]").textContent(),"other")
  assert.equal(await page.evaluate(()=>window.fixtureOpenCount),1)
+ nextSaveStatus=503
+ await page.getByRole("button",{name:"Connect QQ",exact:true}).click()
+ dialog=page.getByRole("dialog",{name:"Connect QQ",exact:true})
+ await dialog.locator("input").nth(0).fill("Uncertain QQ")
+ await dialog.locator("input").nth(1).fill("456789")
+ await dialog.getByRole("button",{name:"Save",exact:true}).click()
+ await dialog.getByText("service unavailable",{exact:true}).waitFor()
+ assert.equal(await dialog.locator("input").first().isEnabled(),false)
+ assert.equal(await dialog.getByRole("button",{name:"Save",exact:true}).isEnabled(),false)
  assert.deepEqual(errors,[])
  console.log("owned channel configuration, credentials, payload and mobile checks passed")
 } finally {await browser?.close();await server.close()}
