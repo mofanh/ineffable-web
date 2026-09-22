@@ -2,6 +2,10 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { i18n } from "@/lib/i18n/i18n"
 
 const configurationErrors: Record<string, string> = {
+  "official bot AppSecret is required": "botSecret",
+  "official bot credentials could not be verified": "botCredentials",
+  "verify the webhook before enabling the bot": "botWebhook",
+  "invalid platform OpenID": "botOpenId",
   "model_profile_id is required": "model",
   "selected model is unavailable or no longer authorized": "model",
   "selected workspace is unavailable or unauthorized": "workspace",

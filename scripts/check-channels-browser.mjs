@@ -26,10 +26,10 @@ try {
     await route.fulfill({status,json:{error:status===400?"selected sandbox is currently unavailable":"service unavailable"}})
     return
    }
-   saved=req.postDataJSON();assert.equal(saved.enabled,undefined)
+   saved=req.postDataJSON();assert.equal(saved.enabled,undefined);assert.equal(saved.protocol,"qqbot");assert.equal(saved.client_secret,"fixture-secret")
    assert.equal(saved.owner_user_id,undefined)
    assert.deepEqual(saved.runtime_config,{...runtime,sandbox:null})
-   const connection={id:"12a45678-1234-4234-9234-123456789abc",...saved,runtime_config_json:saved.runtime_config,enabled:false,connected:false}
+   const connection={id:"12a45678-1234-4234-9234-123456789abc",...saved,runtime_config_json:saved.runtime_config,enabled:false,connected:false,webhook_verified_at:new Date().toISOString(),last_received_at:null}
    connections=[connection];body={connection,token:"one-time-test-credential"}
   } else if(url.pathname.endsWith("/channel-connections")) body=connections
   else if(url.pathname.includes("/channel-connections/")&&req.method()==="PATCH") {
@@ -50,11 +50,12 @@ try {
   await route.fulfill({json:body})
  })
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/channels-fixture.html`)
- await page.getByRole("button",{name:"Connect QQ",exact:true}).click()
- let dialog=page.getByRole("dialog",{name:"Connect QQ",exact:true})
+ await page.getByRole("button",{name:"Connect QQ bot",exact:true}).click()
+ let dialog=page.getByRole("dialog",{name:"Connect QQ bot",exact:true})
  await dialog.getByText("Model A",{exact:true}).waitFor()
  await dialog.locator("input").nth(0).fill("My QQ")
  await dialog.locator("input").nth(1).fill("123456")
+ await dialog.locator("input[type=password]").fill("fixture-secret")
  await dialog.locator("textarea").nth(0).fill("456\n789\n")
  await dialog.getByRole("button",{name:"Save",exact:true}).click()
  await dialog.getByText("The sandbox is offline or unavailable. Start it, or select no sandbox before saving.",{exact:true}).waitFor()
@@ -63,12 +64,14 @@ try {
  await dialog.getByRole("button",{name:"Choose a Sandbox environment: Offline sandbox",exact:true}).click()
  await page.getByRole("option",{name:"None",exact:true}).click()
  await dialog.getByRole("button",{name:"Save",exact:true}).click()
- const secret=page.getByRole("dialog",{name:"Connection credential"})
+ const secret=page.getByRole("dialog",{name:"Configure official bot callback"})
  await secret.waitFor()
  assert.equal(saved.allowed_private_ids.length,2)
  const url=await secret.locator("textarea").first().inputValue()
- assert.match(url,/^ws:\/\/127.0.0.1:\d+\/gateway\/v1\/channel-connections\//)
- assert.equal(await secret.locator("textarea").nth(1).inputValue(),"one-time-test-credential")
+ assert.match(url,/^http:\/\/127.0.0.1:\d+\/gateway\/v1\/channel-connections\//)
+ assert.equal(await secret.locator("textarea").count(),1)
+ assert.ok(url.endsWith("/qqbot/webhook"))
+ assert.equal(await secret.getByText("fixture-secret",{exact:true}).count(),0)
  await secret.getByRole("button",{name:"Close",exact:true}).click()
  assert.equal(await page.getByText("one-time-test-credential",{exact:true}).count(),0)
  await page.getByRole("button",{name:"Edit connection",exact:true}).click()
@@ -77,7 +80,7 @@ try {
  await dialog.getByRole("button",{name:"Save",exact:true}).click()
  await dialog.waitFor({state:"hidden"})
  assert.equal(patches,1);assert.equal(saved.enabled,true)
- await page.getByText("Waiting for connection",{exact:true}).waitFor()
+ await page.getByText("Enabled",{exact:true}).waitFor()
  await page.getByRole("button",{name:"Chats and delivery"}).click()
  await page.getByText("Unknown outcome · 1",{exact:true}).waitFor()
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
@@ -98,10 +101,11 @@ try {
  assert.equal(await page.locator("[data-selection]").textContent(),"other")
  assert.equal(await page.evaluate(()=>window.fixtureOpenCount),1)
  nextSaveStatus=503
- await page.getByRole("button",{name:"Connect QQ",exact:true}).click()
- dialog=page.getByRole("dialog",{name:"Connect QQ",exact:true})
+ await page.getByRole("button",{name:"Connect QQ bot",exact:true}).click()
+ dialog=page.getByRole("dialog",{name:"Connect QQ bot",exact:true})
  await dialog.locator("input").nth(0).fill("Uncertain QQ")
  await dialog.locator("input").nth(1).fill("456789")
+ await dialog.locator("input[type=password]").fill("fixture-secret")
  await dialog.getByRole("button",{name:"Save",exact:true}).click()
  await dialog.getByText("service unavailable",{exact:true}).waitFor()
  assert.equal(await dialog.locator("input").first().isEnabled(),false)

@@ -3,6 +3,9 @@ import type { AutomationRuntimeConfig } from "@/lib/api/api-client"
 
 export type ChannelConnection = {
   id: string
+  protocol: string
+  webhook_verified_at: string | null
+  last_received_at: string | null
   display_name: string
   account_id: string
   enabled: boolean
@@ -12,6 +15,8 @@ export type ChannelConnection = {
   runtime_config_json: AutomationRuntimeConfig
 }
 export type ConnectionDraft = {
+  client_secret?: string
+
   display_name: string
   account_id: string
   allowed_private_ids: string[]
@@ -21,6 +26,7 @@ export type ConnectionDraft = {
 }
 export type IssuedConnection = { connection: ChannelConnection; token: string }
 export type ConnectionDetails = {
+  contacts: { chat_type: string; external_chat_id: string }[]
   chats: { chat_type: string; external_chat_id: string; conversation_id: string }[]
   deliveries: { status: string; count: number }[]
 }
@@ -34,7 +40,7 @@ export function connectionDetails(accessToken: string, expectedSessionId: string
 export function createConnection(accessToken: string, expectedSessionId: string, draft: ConnectionDraft) {
   const { enabled: _, ...body } = draft
   void _
-  return requestApiJson<IssuedConnection>(root, { accessToken, expectedSessionId, method: "POST", body })
+  return requestApiJson<IssuedConnection>(root, { accessToken, expectedSessionId, method: "POST", body: { ...body, protocol: "qqbot" } })
 }
 export function updateConnection(accessToken: string, expectedSessionId: string, id: string, draft: ConnectionDraft) {
   const { account_id: _, ...body } = draft
@@ -47,8 +53,7 @@ export function rotateConnection(accessToken: string, expectedSessionId: string,
 export function deleteConnection(accessToken: string, expectedSessionId: string, id: string) {
   return requestApiJson(`${root}/${encodeURIComponent(id)}`, { accessToken, expectedSessionId, method: "DELETE" })
 }
-export function socketUrl(id: string) {
-  const url = new URL(toApiUrl(`${root}/${encodeURIComponent(id)}/onebot/ws`), window.location.origin)
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+export function webhookUrl(id: string) {
+  const url = new URL(toApiUrl(`${root}/${encodeURIComponent(id)}/qqbot/webhook`), window.location.origin)
   return url.toString()
 }
