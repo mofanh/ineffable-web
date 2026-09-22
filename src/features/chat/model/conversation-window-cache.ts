@@ -6,6 +6,7 @@ export type ConversationScrollAnchor = {
   scrollTop: number
   rowKey?: string
   rowTop?: number
+  childAnchor?: { key: string; top: number }
 }
 
 export type ConversationWindowSnapshot = {

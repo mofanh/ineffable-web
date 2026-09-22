@@ -5,6 +5,7 @@ import { ImageGallery } from "@/components/app/image-gallery"
 import type { ImageReference } from "@/lib/api/images"
 import { inputProgressLabel, isWaitingGuidedInput } from "@/features/chat/model/input-progress"
 import * as React from "react"
+import { ChatRowWindow, type ChatRowWindowHandle } from "./chat-row-window"
 import { useTranslation } from "react-i18next"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -38,6 +39,8 @@ import { WebNodeList } from "@/features/chat/components/agent-pane"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import { useChatScrollBoundary } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
+
+const EMPTY_DISPLAY_NAMES: Record<string, string> = {}
 
 const inputStatusIcons = {
   "inputProgress.sending": Loader2Icon,
@@ -82,6 +85,7 @@ function InputStatusIcon({ label, phase }: { label: string; phase?: string }) {
 }
 
 type ChatMessageListProps = {
+  rowWindowRef?: React.Ref<ChatRowWindowHandle>
   onOpenConversation?: (conversationId: string) => void
   compactingRunId?: string | null
   accessToken?: string | null
@@ -211,12 +215,13 @@ function usePrefersReducedMotion() {
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
+  rowWindowRef,
   onOpenConversation,
   compactingRunId,
   accessToken, onImageReference,
   entries,
-  modelDisplayNames = {},
-  sandboxDisplayNames = {},
+  modelDisplayNames = EMPTY_DISPLAY_NAMES,
+  sandboxDisplayNames = EMPTY_DISPLAY_NAMES,
   hasOlderEntries,
   isLoadingOlderEntries,
   olderEntriesError,
@@ -313,6 +318,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       <div
         ref={scrollBoundaryRef}
         data-chat-scroll-region
+        style={{ overflowAnchor: "none" }}
         onScroll={(event) => {
           onViewportScroll()
           if (
@@ -332,6 +338,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         <div
           ref={messageContentRef}
           data-chat-scroll-content
+          data-chat-entry-count={entries.length}
           className={cn(
             "mx-auto flex min-h-full w-full flex-col gap-7",
             isFullScreen && "max-w-[760px]"
@@ -362,17 +369,61 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           </div>
         ) : null}
 
-        {entries.map((entry, index) => {
+        <ChatRowWindow items={entries} getKey={entryKey} estimateSize={estimateEntry} gap={28} windowRef={rowWindowRef}
+          pinnedKeys={activeHumanRunId ? entries.filter((entry) => entry.role === "assistant" && entry.runId === activeHumanRunId && Object.values(entry.pane.tools).some((tool) => (tool.needId ?? tool.protocolId) === activeHumanNeedId)).map(entryKey) : []}>
+          {(entry, index) => <ChatMessageRow entry={entry} isLast={index === entries.length - 1}
+            trialVerdict={trialVerdict} compactingRunId={compactingRunId} accessToken={accessToken}
+            onImageReference={onImageReference} modelDisplayNames={modelDisplayNames} sandboxDisplayNames={sandboxDisplayNames}
+            onOpenConversation={onOpenConversation} onInspectRun={onInspectRun} onApproveApproval={onApproveApproval}
+            onRejectApproval={onRejectApproval} activeHumanRunId={activeHumanRunId} activeHumanNeedId={activeHumanNeedId}
+            onSubmitUserInput={onSubmitUserInput} prefersReducedMotion={prefersReducedMotion} />}
+        </ChatRowWindow>
+        {showThinkingPlaceholder ? <ThinkingPlaceholder compacting={Boolean(compactingRunId)} /> : null}
+        </div>
+      </div>
+
+      {showScrollToBottom ? (
+        <div className="pointer-events-none absolute right-4 bottom-4">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="pointer-events-auto h-9 rounded-full px-3 shadow-md"
+            onClick={onScrollToBottomClick}
+          >
+            <ArrowDownIcon />
+            {t("chat.messages.latest")}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
+})
+
+const entryKey = (entry: ChatEntry) => entry.id
+const estimateEntry = (entry: ChatEntry) => entry.role === "assistant" ? 320 : 88
+const ChatMessageRow = React.memo(function ChatMessageRow({
+  entry, isLast, trialVerdict, compactingRunId, accessToken, onImageReference,
+  modelDisplayNames = EMPTY_DISPLAY_NAMES, sandboxDisplayNames = EMPTY_DISPLAY_NAMES, onOpenConversation, onInspectRun,
+  onApproveApproval, onRejectApproval, activeHumanRunId, activeHumanNeedId,
+  onSubmitUserInput, prefersReducedMotion,
+}: Pick<ChatMessageListProps, "trialVerdict" | "compactingRunId" | "accessToken" | "onImageReference" |
+  "modelDisplayNames" | "sandboxDisplayNames" | "onOpenConversation" | "onInspectRun" |
+  "onApproveApproval" | "onRejectApproval" | "activeHumanRunId" | "activeHumanNeedId" | "onSubmitUserInput"> & {
+    entry: ChatEntry; isLast: boolean; prefersReducedMotion: boolean
+  }) {
+  const { t } = useTranslation()
           const showStreamingTail =
             entry.role === "assistant" &&
             entry.status === "streaming" &&
-            index === entries.length - 1
+            isLast
           const showTrialVerdict =
             entry.role === "assistant" &&
             entry.status === "done" &&
             trialVerdict?.entryId === entry.id
-          const answerText =
-            entry.role === "assistant" ? assistantAnswerText(entry) : ""
+          const answerText = React.useMemo(
+            () => entry.role === "assistant" ? assistantAnswerText(entry) : "", [entry]
+          )
           const showAnswerFooter =
             entry.role === "assistant" &&
             entry.status === "done" &&
@@ -702,25 +753,4 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               </div>
             </div>
           )
-        })}
-        {showThinkingPlaceholder ? <ThinkingPlaceholder compacting={Boolean(compactingRunId)} /> : null}
-        </div>
-      </div>
-
-      {showScrollToBottom ? (
-        <div className="pointer-events-none absolute right-4 bottom-4">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="pointer-events-auto h-9 rounded-full px-3 shadow-md"
-            onClick={onScrollToBottomClick}
-          >
-            <ArrowDownIcon />
-            {t("chat.messages.latest")}
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  )
 })

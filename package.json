@@ -41,7 +41,8 @@
     "check:run-observations": "node scripts/check-run-observations-browser.mjs",
     "check:images": "node scripts/check-image-capabilities-browser.mjs && node scripts/check-image-send-browser.mjs && node scripts/check-user-image-layout-browser.mjs && node scripts/check-native-image-stream-browser.mjs && node scripts/check-workspace-images-browser.mjs",
     "check:telemetry": "tsx scripts/check-telemetry.mjs && node scripts/check-telemetry-browser.mjs",
-    "check:channels": "node scripts/check-channels-browser.mjs"
+    "check:channels": "node scripts/check-channels-browser.mjs",
+    "check:chat-window": "node scripts/check-chat-window-browser.mjs && node scripts/check-chat-history-budget-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

@@ -1,3 +1,4 @@
+import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
 import { IMAGE_REFERENCE_REQUEST, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
 import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
@@ -589,6 +590,7 @@ export function GatewayChatSidebar({
   )
   const seenEventRef = React.useRef(new Set<string>())
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
+  const rowWindowRef = React.useRef<ChatRowWindowHandle>(null)
   const autoStickToBottomRef = React.useRef(true)
   const lastViewportScrollTopRef = React.useRef(0)
   const pendingInitialBottomScrollRef = React.useRef(false)
@@ -687,14 +689,13 @@ export function GatewayChatSidebar({
           ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
           : 0
         const viewportRect = viewport?.getBoundingClientRect()
-        const anchorElement = viewportRect && typeof document !== "undefined"
-          ? document
-              .elementFromPoint(
-                viewportRect.left + viewportRect.width / 2,
-                viewportRect.top + 1
-              )
-              ?.closest<HTMLElement>("[data-chat-row-key]") ?? null
-          : null
+        const fold = (viewportRect?.top ?? 0) + (viewport ? Number.parseFloat(getComputedStyle(viewport).scrollPaddingTop) || 0 : 0)
+        const anchorElement = viewport && viewportRect ? Array.from(
+          viewport.querySelectorAll<HTMLElement>("[data-chat-entry-role]")
+        ).find((row) => row.getBoundingClientRect().bottom > fold && row.getBoundingClientRect().top < viewportRect.bottom) : undefined
+        const childAnchor = anchorElement && viewportRect ? Array.from(
+          anchorElement.querySelectorAll<HTMLElement>("[data-web-node-row]")
+        ).find((row) => row.getBoundingClientRect().bottom > fold && row.getBoundingClientRect().top < viewportRect.bottom) : undefined
         conversationWindowCacheRef.current.set(currentId, {
           entries: entriesRef.current,
           renderedEntryLimit,
@@ -704,6 +705,10 @@ export function GatewayChatSidebar({
             atBottom: !viewport || distanceToBottom < 48,
             scrollTop: viewport?.scrollTop ?? 0,
             rowKey: anchorElement?.dataset.chatRowKey,
+            childAnchor: childAnchor?.dataset.chatRowKey && viewportRect ? {
+              key: childAnchor.dataset.chatRowKey,
+              top: childAnchor.getBoundingClientRect().top - viewportRect.top,
+            } : undefined,
             rowTop:
               anchorElement && viewportRect
                 ? anchorElement.getBoundingClientRect().top - viewportRect.top
@@ -1662,15 +1667,7 @@ export function GatewayChatSidebar({
       else {
         viewport.scrollTop = restore.scrollTop
         if (restore.rowKey && restore.rowTop !== undefined) {
-          const row = Array.from(
-            viewport.querySelectorAll<HTMLElement>("[data-chat-row-key]")
-          ).find((candidate) => candidate.dataset.chatRowKey === restore.rowKey)
-          if (row) {
-            viewport.scrollTop +=
-              row.getBoundingClientRect().top -
-              viewport.getBoundingClientRect().top -
-              restore.rowTop
-          }
+          rowWindowRef.current?.restoreAnchor(restore.rowKey, restore.rowTop, restore.childAnchor)
         }
       }
       lastViewportScrollTopRef.current = viewport.scrollTop
@@ -1693,8 +1690,7 @@ export function GatewayChatSidebar({
       return
     }
 
-    const addedHeight = viewport.scrollHeight - metrics.scrollHeight
-    viewport.scrollTop = metrics.scrollTop + Math.max(0, addedHeight)
+    // The measured row window owns prepend anchoring; do not apply a second pixel correction.
     pendingOlderLoadMetricsRef.current = null
     setIsLoadingOlderEntries(false)
   }, [renderedEntryCount, entries, isLoadingOlderEntries])
@@ -4346,6 +4342,8 @@ export function GatewayChatSidebar({
 
       <SidebarContent className="overflow-hidden bg-sidebar/50">
         <ChatMessageList
+          key={currentConversationId ?? "draft"}
+          rowWindowRef={rowWindowRef}
           onOpenConversation={selectConversationTarget}
           compactingRunId={compactingRunId}
           accessToken={accessToken}

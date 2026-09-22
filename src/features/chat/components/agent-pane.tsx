@@ -1,3 +1,4 @@
+import { ChatRowWindow } from "./chat-row-window"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { InfoIcon } from "lucide-react"
 import { copyTextToClipboard } from "@/lib/app/clipboard"
@@ -11,7 +12,7 @@ import { Link } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  FRONTEND_WEB_PLUGIN_ID,
+  FRONTEND_WEB_PLUGIN_ID, DEFAULT_WEB_PLUGIN_ID,
 } from "@/features/chat/web-node"
 import {
   Collapsible,
@@ -1055,8 +1056,8 @@ DEFAULT_WEB_NODE_REGISTRY.register<WorkspaceArtifactsWebNodePayload>(
   }
 )
 
-const WEB_NODE_INITIAL_WINDOW = 80
-const WEB_NODE_WINDOW_INCREMENT = 80
+const webNodeKey = (node: ReturnType<WebNodeProjectionCache["project"]>[number]) => node.nodeId
+const estimateWebNode = () => 120
 
 const WebNodeItem = React.memo(function WebNodeItem({
   node,
@@ -1102,7 +1103,6 @@ export const WebNodeList = React.memo(function WebNodeList({
   subagentOrder?: string[]
   subagents?: Record<string, SubagentView>
 }) {
-  const { t } = useTranslation()
   const [projectionCache] = React.useState(() => new WebNodeProjectionCache())
   const nodes = React.useMemo(
     () =>
@@ -1117,38 +1117,13 @@ export const WebNodeList = React.memo(function WebNodeList({
     () => ({ prefersReducedMotion, onSubmitUserInput, activeHumanNeedId, accessToken, onImageReference }),
     [onSubmitUserInput, prefersReducedMotion, activeHumanNeedId, accessToken, onImageReference]
   )
-  const rootRef = React.useRef<HTMLDivElement | null>(null)
-  const [visibleNodeCount, setVisibleNodeCount] = React.useState(
-    WEB_NODE_INITIAL_WINDOW
-  )
-  const visibleNodes = nodes.slice(Math.max(0, nodes.length - visibleNodeCount))
-  const hiddenNodeCount = nodes.length - visibleNodes.length
-
-  const revealEarlierNodes = React.useCallback(() => {
-    const root = rootRef.current
-    const scroller = root?.closest<HTMLElement>("[data-chat-scroll-region]") ?? null
-    const previousHeight = scroller?.scrollHeight ?? 0
-    const previousTop = scroller?.scrollTop ?? 0
-    setVisibleNodeCount((current) => current + WEB_NODE_WINDOW_INCREMENT)
-    if (!scroller) return
-    window.requestAnimationFrame(() => {
-      scroller.scrollTop =
-        previousTop + Math.max(0, scroller.scrollHeight - previousHeight)
-    })
-  }, [])
-
-  return (
-    <div ref={rootRef} className="space-y-3 text-sm">
-      {hiddenNodeCount > 0 ? (
-        <div className="flex justify-center">
-          <Button type="button" variant="ghost" size="sm" onClick={revealEarlierNodes}>
-            {t("chat.messages.older")}
-          </Button>
-        </div>
-      ) : null}
-      {visibleNodes.map((node) => (
-        <WebNodeItem key={node.nodeId} node={node} context={context} />
-      ))}
-    </div>
-  )
+  const pinnedKeys = React.useMemo(() => activeHumanNeedId ? nodes.filter((node) =>
+    node.pluginId === DEFAULT_WEB_PLUGIN_ID && node.renderer === "tool" && node.payload != null &&
+    ((node.payload as ToolWebNodePayload).tool.needId ?? (node.payload as ToolWebNodePayload).tool.protocolId) === activeHumanNeedId
+  ).map(webNodeKey) : [], [activeHumanNeedId, nodes])
+  return <div className="text-sm">
+    <ChatRowWindow nested items={nodes} getKey={webNodeKey} estimateSize={estimateWebNode} gap={12} pinnedKeys={pinnedKeys}>
+      {(node) => <WebNodeItem node={node} context={context} />}
+    </ChatRowWindow>
+  </div>
 })

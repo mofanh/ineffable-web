@@ -45,13 +45,27 @@ const server = await createServer({
   }, resolveId(id) {
     if (id === "@/features/auth/app-session" || id.endsWith("/src/features/auth/app-session")) return resolve("scripts/live-refresh-session-fixture.ts")
   } }],
-  server: { host: "127.0.0.1", port: 0 },
+  server: { host: "127.0.0.1", port: 0, watch: null, hmr: false },
 })
 let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
   const page = await browser.newPage({ locale: "zh-CN" })
+  const scrollToText = async (text) => {
+    const scroller = page.locator('[data-chat-scroll-content]').locator('..')
+    await scroller.evaluate(node => { node.scrollTop = 0 })
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline) {
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      if (await page.getByText(text, { exact: true }).count()) return
+      await scroller.evaluate(node => {
+        const next = Math.min(node.scrollHeight - node.clientHeight, node.scrollTop + node.clientHeight * 0.8)
+        node.scrollTop = next === node.scrollTop ? 0 : next
+      })
+    }
+    assert.fail(`history node ${text} must remain available when scrolled into view`)
+  }
   const errors = []
   page.on("pageerror", e => errors.push(e.message))
   const run = { id: "refresh-run", status: "streaming", is_streaming: true, is_live: true }
@@ -175,9 +189,8 @@ try {
   }
   await page.getByText("LIVE_SEG_59", {exact:true}).waitFor()
   send(segmentEvent(23000, 10, "assistant.snapshot", "CANON_SEG_10", {canonical_reconciliation:true,canonical_message_seq:21,transcript_segment_complete:true}))
-  // AgentPane intentionally renders only its latest 80 nodes until expanded.
-  await page.getByRole("button", {name:"更早消息",exact:true}).click()
-  await page.getByText("CANON_SEG_10", {exact:true}).waitFor()
+  // The same canonical nodes are now mounted by a measured window as the user scrolls.
+  await scrollToText("CANON_SEG_10")
   history = [58,59].flatMap(turn => [
     {...message(`call-${turn}`,"tool_call",`CANON_SEG_${turn}`, {transcript_segment:segmentIdentity(turn),tool_calls:[{id:"reused",name:"read_file",input:{}}]}),canonical_seq:turn*2+1},
     {...message(`result-${turn}`,"tool_result",`RESULT_${turn}`, {transcript_segment:segmentIdentity(turn),tool_call_id:"reused",tool_name:"read_file",status:"succeeded"}),canonical_seq:turn*2+2},
@@ -188,13 +201,12 @@ try {
   run.is_streaming = false
   const terminal = segmentEvent(24000,59,"run.completed","",{canonical_message_seq_end:120})
   send(terminal)
-  await page.getByText("CANON_SEG_59", {exact:true}).waitFor()
-  const earlierNodes = page.getByRole("button", {name:"更早消息",exact:true})
-  if (await earlierNodes.count()) await earlierNodes.click()
-  assert.equal(await page.getByText("LIVE_SEG_0", {exact:true}).count(),1)
-  assert.equal(await page.getByText("LIVE_SEG_57", {exact:true}).count(),1)
+  await scrollToText("CANON_SEG_59")
   assert.equal(await page.getByText("LIVE_SEG_59", {exact:true}).count(),0)
-  assert.equal(await page.getByText("CANON_SEG_10", {exact:true}).count(),1)
+  for (const text of ["LIVE_SEG_0", "LIVE_SEG_57", "CANON_SEG_10"]) {
+    await scrollToText(text)
+    assert.equal(await page.getByText(text, {exact:true}).count(),1)
+  }
   run.status = "streaming"
   run.is_live = true
   run.is_streaming = true

@@ -518,3 +518,16 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 - Automation 创建/编辑复用同一表单与运行配置组件；创建可选择已有会话，或省略 conversation_id 由后端同事务创建并绑定普通会话，后续触发始终复用。前端不得先单独创建空会话。
 - 保存期间锁定编辑和关闭，异步结果按窗口代次与登录身份隔离。创建响应不明时要求刷新核对，不能自动重试重复任务；保存成功后的列表刷新失败不伪装成写入失败。
 - 跨会话任务结果仍走唯一 conversation timeline，来源文案是普通会话；历史读取不隐式订阅。
+
+## 长会话渲染预算
+
+- 消息与大回复内部节点共用 `ChatRowWindow`，在既有 conversation scroller 内按稳定
+  identity 测量、以正常文档流占位。分页负责加载，窗口负责挂载量；上翻不能持续保留全部
+  DOM，不复制 timeline reducer。动态高度变化只由对应窗口补偿一次。
+- 滚动快照保存外层 entry 与可见内层 node identity/偏移，先挂载再校准；恢复绑定当前
+  会话组件，用户滚动取消恢复。活跃人工问题按 need identity 保持挂载，滚出视口不丢草稿。
+  延迟 idle 通知必须读取当前 scrollTop；测量引擎尚未观察到新位置时，不得用旧位置补偿。
+- `npm run check:chat-window` 用真实 Chrome 验证前插、动态尺寸、嵌套恢复与草稿，以及
+  固定视口的 1,000/10,000 条普通/混合消息。每次分页后挂载 entry 不超过 80；三轮各
+  20 个字符的输入下一帧 P95 中位数不超过 100 ms。夹具必须断言滚动区域和输入框都在
+  视口内；React Profiler 的 actualDuration 是 render 工作，不是 DOM commit 或 paint。

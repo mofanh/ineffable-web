@@ -57,6 +57,12 @@ jobs:
       - name: Chat browser
         run: npm run check:chat-browser
 
+      - name: Long conversation windows and input ownership
+        run: |
+          npm run check:chat-window
+          npm run check:input-progress
+          npm run check:run-observations
+
       - name: Image attachments and delayed send
         run: npm run check:images
 
