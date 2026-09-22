@@ -1117,10 +1117,18 @@ export const WebNodeList = React.memo(function WebNodeList({
     () => ({ prefersReducedMotion, onSubmitUserInput, activeHumanNeedId, accessToken, onImageReference }),
     [onSubmitUserInput, prefersReducedMotion, activeHumanNeedId, accessToken, onImageReference]
   )
-  const pinnedKeys = React.useMemo(() => activeHumanNeedId ? nodes.filter((node) =>
-    node.pluginId === DEFAULT_WEB_PLUGIN_ID && node.renderer === "tool" && node.payload != null &&
-    ((node.payload as ToolWebNodePayload).tool.needId ?? (node.payload as ToolWebNodePayload).tool.protocolId) === activeHumanNeedId
-  ).map(webNodeKey) : [], [activeHumanNeedId, nodes])
+  const pinnedKeys = React.useMemo(() => activeHumanNeedId ? nodes.filter((node) => {
+    // Declared plugin envelopes pass the common gate without promising the
+    // renderer's private payload shape. Keep malformed nodes in its fallback.
+    const payload = node.payload
+    if (node.pluginId !== DEFAULT_WEB_PLUGIN_ID || node.renderer !== "tool" ||
+      !payload || typeof payload !== "object" || !("tool" in payload)) return false
+    const tool = payload.tool
+    if (!tool || typeof tool !== "object") return false
+    const needId = "needId" in tool ? tool.needId : undefined
+    const protocolId = "protocolId" in tool ? tool.protocolId : undefined
+    return (needId ?? protocolId) === activeHumanNeedId
+  }).map(webNodeKey) : [], [activeHumanNeedId, nodes])
   return <div className="text-sm">
     <ChatRowWindow nested items={nodes} getKey={webNodeKey} estimateSize={estimateWebNode} gap={12} pinnedKeys={pinnedKeys}>
       {(node) => <WebNodeItem node={node} context={context} />}

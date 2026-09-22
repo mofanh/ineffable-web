@@ -139,9 +139,7 @@ export function ChatRowWindow<T>({ items, getKey, estimateSize, gap, pinnedKeys 
   }, [])
   React.useImperativeHandle(windowRef, () => ({ restoreAnchor: restoreOwnAnchor }), [restoreOwnAnchor])
 
-  if (nested && items.length <= 40) return <div ref={rootRef} className="flex flex-col" style={{ gap }}>
-    {items.map((item, index) => <div key={getKey(item)} data-window-key={getKey(item)}>{children(item, index)}</div>)}
-  </div>
+  const windowed = !nested || items.length > 40
   // A nested list corrects changes within the visible assistant. Its parent owns
   // changes to assistants wholly above the viewport, preventing double adjustment.
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
@@ -155,20 +153,23 @@ export function ChatRowWindow<T>({ items, getKey, estimateSize, gap, pinnedKeys 
     const bounds = root.getBoundingClientRect()
     return (!nested || (bounds.top < fold && bounds.bottom > fold)) && item.end <= scroller.scrollTop
   }
-  const rows = virtualizer.getVirtualItems()
+  const rows = windowed ? virtualizer.getVirtualItems() : keys.map((key, index) => ({ key, index, start: 0, end: 0 }))
   let previousEnd = 0
-  return <NestedWindows.Provider value={nestedWindows}><div ref={rootRef} data-chat-row-window style={{ overflowAnchor: "none" }}>
+  // Preserve the provider, keyed fragment and row hierarchy across the size
+  // threshold, so a pinned question retains its selection, draft and focus.
+  return <NestedWindows.Provider value={nestedWindows}><div ref={rootRef} data-chat-row-window
+    className={windowed ? undefined : "flex flex-col"} style={{ overflowAnchor: "none", gap: windowed ? undefined : gap }}>
     {rows.map((row) => {
-      const start = row.start - scrollMargin
+      const start = windowed ? row.start - scrollMargin : 0
       const space = Math.max(0, start - previousEnd)
-      previousEnd = row.end - scrollMargin
+      previousEnd = windowed ? row.end - scrollMargin : 0
       return <React.Fragment key={row.key}>
         {space > 0 && <div aria-hidden style={{ height: space }} />}
-        <div ref={virtualizer.measureElement} data-index={row.index} data-window-key={row.key} style={{ display: "flow-root" }}>
+        <div ref={windowed ? virtualizer.measureElement : undefined} data-index={row.index} data-window-key={row.key} style={{ display: "flow-root" }}>
           {children(items[row.index], row.index)}
         </div>
       </React.Fragment>
     })}
-    <div aria-hidden style={{ height: Math.max(0, virtualizer.getTotalSize() - previousEnd) }} />
+    {windowed && <div aria-hidden style={{ height: Math.max(0, virtualizer.getTotalSize() - previousEnd) }} />}
   </div></NestedWindows.Provider>
 }

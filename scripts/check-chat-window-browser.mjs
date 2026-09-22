@@ -62,6 +62,31 @@ try {
   const nestedTop = await page.locator('[data-chat-row-key="node-200"]').evaluate((row) => row.getBoundingClientRect().top - row.closest('[data-chat-scroll-region]').getBoundingClientRect().top)
   assert.ok(Math.abs(nestedTop - 30) < 2, `nested node identity restores measured offset: ${nestedTop}`)
   assert.equal(await answer.inputValue(), "draft survives both virtual windows")
+  await page.evaluate(() => window.chatWindowFixture.human(40))
+  await page.waitForFunction(() => document.querySelector("[data-human-node-count]").dataset.humanNodeCount === "40")
+  await page.getByRole("radio").last().click()
+  const draft = "draft survives canonical prepend and size threshold"
+  await answer.fill(draft)
+  for (const count of [41, 40]) {
+    await page.evaluate(count => count === 41 ? window.chatWindowFixture.prependHuman() : window.chatWindowFixture.trimHuman(), count)
+    await page.waitForFunction(count => Number(document.querySelector("[data-human-node-count]").dataset.humanNodeCount) === count, count)
+    await settle()
+    assert.equal(await page.getByRole("radio").last().getAttribute("aria-checked"), "true")
+    assert.equal(await answer.inputValue(), draft, `draft survives ${count} nodes`)
+    assert.ok(await answer.evaluate(input => input === document.activeElement), "threshold retains focus")
+  }
+  for (const payload of [{}, { tool: null }]) {
+    await page.evaluate(payload => window.chatWindowFixture.malformed(payload), payload)
+    await page.evaluate(() => window.chatWindowFixture.restore("human-entry", 0, { key: "bad-declared-tool", top: 30 }))
+    await page.getByText("Safe fallback", { exact: true }).waitFor({ state: "attached" })
+    assert.ok(await page.locator("[data-chat-entry-role]").count() > 1, "invalid declared tool preserves peers")
+    assert.equal(await answer.inputValue(), draft, "malformed plugin cannot remove the active question")
+  }
+  await page.getByRole("button", { name: /提交选择|Submit answer/i }).click()
+  const submitted = await page.evaluate(() => window.chatWindowFixture.submission())
+  assert.equal(submitted.needId, "need")
+  assert.equal(submitted.runId, "human-run")
+  assert.ok(submitted.input.includes(draft), "unchanged draft reaches the answer command")
   assert.deepEqual(errors, [])
   console.log("bounded entry/node windows, prepend, restore and pinned human draft passed")
 } finally { await browser?.close(); await server.close() }

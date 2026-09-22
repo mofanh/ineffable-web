@@ -526,6 +526,8 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
   DOM，不复制 timeline reducer。动态高度变化只由对应窗口补偿一次。
 - 滚动快照保存外层 entry 与可见内层 node identity/偏移，先挂载再校准；恢复绑定当前
   会话组件，用户滚动取消恢复。活跃人工问题按 need identity 保持挂载，滚出视口不丢草稿。
+  小列表与虚拟窗口使用稳定的 Provider/row 层级，跨阈值不重挂人工回答；pin 身份提取也
+  校验声明式节点 payload，异常值继续由单节点 renderer fallback 隔离，不能令聊天整体崩溃。
   延迟 idle 通知必须读取当前 scrollTop；测量引擎尚未观察到新位置时，不得用旧位置补偿。
 - `npm run check:chat-window` 用真实 Chrome 验证前插、动态尺寸、嵌套恢复与草稿，以及
   固定视口的 1,000/10,000 条普通/混合消息。每次分页后挂载 entry 不超过 80；三轮各
