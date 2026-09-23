@@ -42,6 +42,27 @@ try {
     const fixture = await installShellFixture(page, open)
     await page.goto(`${url}/channels`)
     await waitForShell(page)
+    if (open) {
+      // The eager chat mount has its own async initialization. On slower CI
+      // runners its final state updates can land inside the first left toggle,
+      // even though the toggle did not cause those renders.
+      await page.locator('[data-side="right"] textarea').first().waitFor()
+      await page.waitForLoadState("networkidle")
+      const chatSettled = await page.evaluate(async () => {
+        let lastRenders = window.__shellRenders.chat
+        let idleSince = performance.now()
+        const deadline = idleSince + 10_000
+        while (performance.now() - idleSince < 300 && performance.now() < deadline) {
+          await new Promise(resolve => setTimeout(resolve, 50))
+          if (window.__shellRenders.chat !== lastRenders) {
+            lastRenders = window.__shellRenders.chat
+            idleSince = performance.now()
+          }
+        }
+        return performance.now() - idleSince >= 300
+      })
+      assert.ok(chatSettled, "chat initialization settles before measuring left toggles")
+    }
     const initialApi = apiRequests(fixture.requests)
     const scenario = { open, requests: fixture.requests.length, api: initialApi.map(r => r.path), toggles: [] }
     results.scenarios.push(scenario)
