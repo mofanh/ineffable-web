@@ -554,7 +554,6 @@ function SidebarMenuButton({
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
-  const { isCompact, state } = useSidebar()
 
   const button = (
     <Comp
@@ -580,14 +579,15 @@ function SidebarMenuButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== "collapsed" || isCompact}
-        {...tooltip}
-      />
+      <SidebarMenuTooltip {...tooltip} />
     </Tooltip>
   )
+}
+
+// Only tooltip visibility depends on the sidebar state, not the workspace row.
+function SidebarMenuTooltip(props: React.ComponentProps<typeof TooltipContent>) {
+  const { isCompact, state } = useSidebar()
+  return <TooltipContent side="right" align="center" hidden={state !== "collapsed" || isCompact} {...props} />
 }
 
 function SidebarMenuAction({

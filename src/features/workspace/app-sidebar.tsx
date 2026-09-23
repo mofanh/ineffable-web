@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useApiResource } from "@/lib/app/use-api-resource"
 
 import { NavSecondary } from "@/components/nav-secondary"
 import { defaultPath, navigation } from "@/routes/navigation"
@@ -782,7 +783,13 @@ function WorkspaceAccountSwitcher({
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const logoVariant = useLogoVariant({ mode: "rotate" })
-  const { accessToken, currentUser, logout } = useAuthSession()
+  const { accessToken, currentSessionId, currentUser, logout } = useAuthSession()
+  const invitations = useApiResource({
+    enabled: Boolean(accessToken),
+    cacheKey: ["workspace-invitations", currentSessionId],
+    load: React.useCallback(() => listIncomingWorkspaceInvitations(accessToken!), [accessToken]),
+  })
+  const pendingInvitationCount = invitations.data?.invitations?.length ?? 0
   const { currentWorkspace, workspaces } = useWorkspaceSession()
   const location = useLocation()
   const navigate = useNavigate()
@@ -799,7 +806,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   )
   const [isTreeLoading, setIsTreeLoading] = React.useState(false)
   const [treeError, setTreeError] = React.useState<string | null>(null)
-  const [pendingInvitationCount, setPendingInvitationCount] = React.useState(0)
   const loadedWorkspaceTreeKeyRef = React.useRef("")
   const reportActionError = React.useCallback(
     (caught: unknown, fallbackMessage: string, title: string) => {
@@ -926,31 +932,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       cancelled = true
     }
   }, [accessToken, refreshWorkspaceTrees, workspaceTreeKey, workspaces.length])
-
-  React.useEffect(() => {
-    if (!accessToken) {
-      setPendingInvitationCount(0)
-      return
-    }
-
-    let cancelled = false
-
-    void listIncomingWorkspaceInvitations(accessToken)
-      .then((response) => {
-        if (!cancelled) {
-          setPendingInvitationCount(response.invitations.length)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPendingInvitationCount(0)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken])
 
   React.useEffect(() => {
     const handleWorkspaceObjectsChanged = (event: Event) => {

@@ -42,6 +42,9 @@ jobs:
       - name: Owned channel recovery experience
         run: npm run check:channels
 
+      - name: Shell loading and sidebar interaction
+        run: npm run check:shell-performance
+
       - name: Internationalization
         run: npm run i18n:check
 
@@ -73,3 +76,6 @@ jobs:
         env:
           VITE_GATEWAY_API_BASE_URL: ""
         run: npm run build
+
+      - name: Production shell behavior
+        run: npm run check:shell-performance -- --production

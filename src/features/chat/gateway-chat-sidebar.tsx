@@ -1,5 +1,5 @@
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
-import { IMAGE_REFERENCE_REQUEST, type ImageReferenceRequest } from "@/lib/image-reference-events"
+import { IMAGE_REFERENCE_REQUEST, IMAGE_REFERENCE_TARGET_PROBE, IMAGE_REFERENCE_TARGET_READY, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
 import { canAnalyzeImageInput } from "./model/capability-catalog-selection";
 import { WorkspaceImagePicker } from "@/features/chat/components/workspace-image-picker"
@@ -420,19 +420,30 @@ export function GatewayChatSidebar({
     observedSendViewRef.current = { session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
   }
   const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? `new:${newDraftGeneration}`}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
+  const imageReferenceSelectionVersion = getConversationSelectionIdentity().version
   React.useEffect(() => {
+    const ownsSelection = () => {
+      const current = getConversationSelectionIdentity()
+      return current.sessionId === currentSessionId && current.version === imageReferenceSelectionVersion
+    }
     const acceptReference = (event: Event) => {
       const request = event as ImageReferenceRequest
       if (request.defaultPrevented || !imageDraft.enabled || imageDraft.items.length >= 4 ||
           request.detail.sessionId !== currentSessionId ||
-          getConversationSelectionIdentity().sessionId !== currentSessionId) return
+          request.detail.version !== imageReferenceSelectionVersion || !ownsSelection()) return
       imageDraft.addReference(request.detail.image)
       request.preventDefault()
       setOpen(true)
     }
+    const probe = (event: Event) => { if (ownsSelection()) event.preventDefault() }
     window.addEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
-    return () => window.removeEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
-  }, [currentSessionId, getConversationSelectionIdentity, imageDraft, setOpen])
+    window.addEventListener(IMAGE_REFERENCE_TARGET_PROBE, probe)
+    window.dispatchEvent(new Event(IMAGE_REFERENCE_TARGET_READY))
+    return () => {
+      window.removeEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
+      window.removeEventListener(IMAGE_REFERENCE_TARGET_PROBE, probe)
+    }
+  }, [currentSessionId, getConversationSelectionIdentity, imageReferenceSelectionVersion, imageDraft, setOpen])
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")

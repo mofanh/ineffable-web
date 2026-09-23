@@ -239,6 +239,17 @@ return (
 
 ## 多会话运行状态
 
+- 侧栏宽度动画由 CSS 执行，ResizeObserver 只将稳定后的左侧边界提交到壳层；快速反向、
+  transition cancel 和断点切换仍需更新右栏可调整范围。导航/聊天边界保持 memo，文件行不为
+  tooltip 可见性订阅整个 Sidebar context，避免展开/折叠重绘完整业务树。
+- 聊天首次关闭时延后挂载，桌面上首次打开后保留已挂载实例，关闭/重开保留草稿和运行订阅。
+  Workspace 图片引用等待首次挂载只做 UI readiness 握手；图片仍由发起组件持有，提交仍由
+  唯一 composer 同步接受。跨等待冻结 session/selection version，卸载、切换身份/会话、
+  超时后不得迟到投递，也不在壳层建立附件队列。
+- 刷新请求分析区分 Vite 源码模块、开发 StrictMode 重放和 Gateway API。邀请角标与通知页
+  使用同一 session 作用域资源缓存。`npm run check:shell-performance` 验证实际壳层的渲染
+  次数、动画帧、请求增量与引用身份；build 后加 `-- --production` 验证生产包。
+
 - 会话标题编辑复用 Gateway rename 接口，不调用模型；编辑器按 conversation identity 隔离，
   每次打开/关闭递增请求代次，迟到保存结果不能关闭或覆盖新编辑草稿。
   同会话重命名请求串行提交，成功后用 canonical title 更新列表并使旧列表读取失效；

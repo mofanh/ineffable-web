@@ -29,15 +29,16 @@ import type { Workspace } from "@/features/workspace/api/workspace-api"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, Suspense, lazy, useCallback, useEffect, useState } from "react"
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties, SetStateAction } from "react"
 import { PanelRightIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 
+const NavigationSidebar = memo(AppSidebar)
 const RightSidebar = lazy(async () => ({
-  default: (await import("@/components/right-sidebar")).RightSidebar,
+  default: memo((await import("@/components/right-sidebar")).RightSidebar),
 }))
 
 export function AppShell() {
@@ -71,6 +72,11 @@ function AppShellContent() {
     startRightSidebarResize,
     handleRightSidebarResizeKeyDown,
   } = useRightSidebarResize(leftSidebarRight)
+  const [hasOpenedChat, setHasOpenedChat] = useState(isRightSidebarOpen)
+
+  useEffect(() => {
+    if (isRightSidebarOpen) setHasOpenedChat(true)
+  }, [isRightSidebarOpen])
 
   const setRightSidebarOpen = useCallback(
     (value: SetStateAction<boolean>) => {
@@ -91,6 +97,8 @@ function AppShellContent() {
     )
 
     function updateLeftSidebarRight() {
+      // CSS owns the intermediate widths; only publish the settled boundary.
+      if (leftSidebarGap?.getAnimations().some(animation => animation.playState === "running")) return
       const nextRight = leftSidebarGap?.getBoundingClientRect().right ?? 0
       setLeftSidebarRight(Math.max(0, Math.round(nextRight)))
     }
@@ -105,11 +113,13 @@ function AppShellContent() {
       resizeObserver?.observe(leftSidebarGap)
     }
     leftSidebarGap?.addEventListener("transitionend", updateLeftSidebarRight)
+    leftSidebarGap?.addEventListener("transitioncancel", updateLeftSidebarRight)
     window.addEventListener("resize", updateLeftSidebarRight)
 
     return () => {
       resizeObserver?.disconnect()
       leftSidebarGap?.removeEventListener("transitionend", updateLeftSidebarRight)
+      leftSidebarGap?.removeEventListener("transitioncancel", updateLeftSidebarRight)
       window.removeEventListener("resize", updateLeftSidebarRight)
     }
   }, [isCompactLayout])
@@ -135,7 +145,7 @@ function AppShellContent() {
   return (
     <div className="relative flex min-h-svh w-full bg-sidebar">
       <SidebarProvider className="min-w-0">
-        <AppSidebar />
+        <NavigationSidebar />
         <SidebarInset>
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 bg-background px-4">
             <div className="flex min-w-0 items-center gap-2">
@@ -244,12 +254,14 @@ function AppShellContent() {
           } as CSSProperties
         }
       >
-        <Suspense fallback={<RightSidebarLoading />}>
-          <RightSidebar
-            isFullScreen={isRightSidebarFullScreen}
-            onFullScreenChange={setIsRightSidebarFullScreen}
-          />
-        </Suspense>
+        {isRightSidebarOpen || hasOpenedChat ? (
+          <Suspense fallback={<RightSidebarLoading />}>
+            <RightSidebar
+              isFullScreen={isRightSidebarFullScreen}
+              onFullScreenChange={setIsRightSidebarFullScreen}
+            />
+          </Suspense>
+        ) : null}
       </SidebarProvider>
     </div>
   )
