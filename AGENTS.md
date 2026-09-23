@@ -246,6 +246,9 @@ return (
   Workspace 图片引用等待首次挂载只做 UI readiness 握手；图片仍由发起组件持有，提交仍由
   唯一 composer 同步接受。跨等待冻结 session/selection version，卸载、切换身份/会话、
   超时后不得迟到投递，也不在壳层建立附件队列。
+  选择快照的同步 ref 负责即时 fencing，同一快照经 context 发布只读投影；列表恢复和
+  Workspace hydration 自动替换选择、重复选择当前会话/空间都必须推进并发布 version。
+  已挂载接收者按其渲染快照校验，不能等待无关重绘恢复，也不能接受替代会话的迟到意图。
 - 刷新请求分析区分 Vite 源码模块、开发 StrictMode 重放和 Gateway API。邀请角标与通知页
   使用同一 session 作用域资源缓存。`npm run check:shell-performance` 验证实际壳层的渲染
   次数、动画帧、请求增量与引用身份；build 后加 `-- --production` 验证生产包。

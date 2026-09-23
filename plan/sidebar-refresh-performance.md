@@ -12,3 +12,7 @@ Active。Web 基线 `6b1f55c`。用户报告刷新请求多、左侧导航/Works
 验收：侧栏宽度动画不逐帧重渲染整个 shell/聊天/文件树；开关不产生目录或模型重读；首次关闭时延后聊天初始化，邀请并发读取复用现有资源缓存，显式刷新仍读取新结果；完整 lint/i18n/build、受影响行为/架构和新增浏览器门禁通过。聊天打开时开发 StrictMode 的既有直接 effect 重放单独报告，不禁用 StrictMode 或改变授权/实时恢复的读取语义。
 
 补充回归：首次懒加载期间图片引用正常完成；改变选择/身份或离开图片页后丢弃；超时无迟到补投递且可重试；已挂载 receiver 在选择变更至 effect 更新之间拒绝跨草稿写入。性能夹具固定两空间共 200 个根文件，development/production 使用同一实际路由与模拟 Gateway，旧基线作负对照。
+
+审计 P2：外部入口重复选择当前会话会只更新 selection ref，已挂载图片接收者等待无关重绘才能重新确认 owner。整改在 AppSession 将同一 version 发布为只读 context 投影，保留 ref 的同步屏障；新增同值选择后立即引用回归，并定向独立复核。
+
+审计 P1：列表恢复可以自动替换失效选择，却未增加 version，首次聊天加载期间的图片意图可能进入替代会话草稿。实际浏览器中首次 bootstrap 被 RequireAuth 阻塞，因此回归使用已完成 bootstrap 后的真实列表刷新与延迟 chunk 交错；`715a179` 确实把旧引用投到替代草稿，整改后拒绝且允许新引用。所有用户选择、列表 reconciliation、Workspace hydration 与登录失效统一更新 AppSession 的同一选择快照（同步 ref + React 投影）；receiver 只认可已渲染快照版本。

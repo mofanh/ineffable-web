@@ -398,6 +398,7 @@ export function GatewayChatSidebar({
     currentConversationId,
     createConversation,
     getConversationSelectionIdentity,
+    selectionVersion: imageReferenceSelectionVersion,
     selectConversation,
     refreshConversations,
     renameConversation,
@@ -420,7 +421,6 @@ export function GatewayChatSidebar({
     observedSendViewRef.current = { session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
   }
   const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? `new:${newDraftGeneration}`}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
-  const imageReferenceSelectionVersion = getConversationSelectionIdentity().version
   React.useEffect(() => {
     const ownsSelection = () => {
       const current = getConversationSelectionIdentity()

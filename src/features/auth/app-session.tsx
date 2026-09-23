@@ -68,6 +68,7 @@ type WorkspaceSessionContextValue = {
 type ConversationSessionContextValue = {
   conversations: Conversation[]
   currentConversationId: string | null
+  selectionVersion: number
   refreshConversations: () => Promise<void>
   renameConversation: (conversationId: string, title: string) => Promise<void>
   createConversation: (title: string, options?: { select?: boolean }) => Promise<Conversation>
@@ -190,17 +191,31 @@ export function AppSessionProvider({
   )
   const [currentUser, setCurrentUser] = React.useState<AppUser | null>(null)
   const [workspaces, setWorkspaces] = React.useState<Workspace[]>([])
-  const [currentWorkspaceId, setCurrentWorkspaceId] = React.useState<
-    string | null
-  >(() => readStorage(STORAGE_KEYS.workspaceId) || null)
   const [conversations, setConversations] = React.useState<Conversation[]>([])
-  const [currentConversationId, setCurrentConversationId] = React.useState<
-    string | null
-  >(() => readStorage(STORAGE_KEYS.conversationId) || null)
+  const [selection, setSelection] = React.useState(() => ({
+    workspaceId: readStorage(STORAGE_KEYS.workspaceId) || null,
+    conversationId: readStorage(STORAGE_KEYS.conversationId) || null,
+    version: 0,
+  }))
+  const { workspaceId: currentWorkspaceId, conversationId: currentConversationId, version: selectionVersion } = selection
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
   const refreshAppDataPromiseRef = React.useRef<Promise<void> | null>(null)
   const initialBootstrapStartedRef = React.useRef(false)
-  const conversationSelectionVersionRef = React.useRef(0)
+  const conversationSelectionRef = React.useRef(selection)
+  const updateConversationSelection = React.useCallback((
+    patch: Partial<{ workspaceId: string | null; conversationId: string | null }>,
+    explicitIntent = false,
+  ) => {
+    const current = conversationSelectionRef.current
+    const next = { ...current, ...patch }
+    if (!explicitIntent && next.workspaceId === current.workspaceId && next.conversationId === current.conversationId) return
+    // One selection snapshot owns both the synchronous fence and its React
+    // projection. Automatic replacement and explicit same-value selection must
+    // both invalidate work bound to the previous selection.
+    next.version = current.version + 1
+    conversationSelectionRef.current = next
+    setSelection(next)
+  }, [])
   const conversationRefreshRequestRef = React.useRef(0)
   const sessionGenerationRef = React.useRef(0)
   const sessionIdentityRef = React.useRef(currentSessionId)
@@ -213,19 +228,17 @@ export function AppSessionProvider({
     sessionGenerationRef.current += 1
     sessionIdentityRef.current = identity
     conversationRefreshRequestRef.current += 1
-    conversationSelectionVersionRef.current += 1
+    updateConversationSelection({ workspaceId: null, conversationId: null }, true)
     refreshAppDataPromiseRef.current = null
     clearApiResourceCache()
     setIsBootstrapping(false)
     setCurrentUser(null)
     setWorkspaces([])
-    setCurrentWorkspaceId(null)
     setConversations([])
-    setCurrentConversationId(null)
     writeStorage(STORAGE_KEYS.workspaceId, null)
     writeStorage(STORAGE_KEYS.conversationId, null)
     writeStorage(STORAGE_KEYS.newConversationDraft, null)
-  }, [])
+  }, [updateConversationSelection])
 
   const clearSession = React.useCallback(() => {
     invalidateSession(null)
@@ -236,9 +249,7 @@ export function AppSessionProvider({
     setCurrentSessionId(null)
     setCurrentUser(null)
     setWorkspaces([])
-    setCurrentWorkspaceId(null)
     setConversations([])
-    setCurrentConversationId(null)
     writeStorage(STORAGE_KEYS.accessToken, null)
     writeStorage(STORAGE_KEYS.refreshToken, null)
     writeStorage(STORAGE_KEYS.accessExpiresAt, null)
@@ -298,11 +309,11 @@ export function AppSessionProvider({
       const identity = sessionIdentityRef.current
       const requestId = ++conversationRefreshRequestRef.current
       const selectionVersionAtRequest =
-        conversationSelectionVersionRef.current
+        conversationSelectionRef.current.version
 
       if (!token) {
         setConversations([])
-        setCurrentConversationId(null)
+        updateConversationSelection({ conversationId: null })
         writeStorage(STORAGE_KEYS.conversationId, null)
         return
       }
@@ -317,27 +328,25 @@ export function AppSessionProvider({
           requestId,
           latestRequestId: conversationRefreshRequestRef.current,
           selectionVersionAtRequest,
-          currentSelectionVersion: conversationSelectionVersionRef.current,
+          currentSelectionVersion: conversationSelectionRef.current.version,
         })
       ) {
         return
       }
 
       setConversations(response.conversations)
-      setCurrentConversationId((current) => {
-        const nextId = reconcileConversationSelection({
-          currentConversationId: current,
-          availableConversationIds: response.conversations.map(
-            (conversation) => conversation.id,
-          ),
-          preserveNewConversationDraft:
-            readStorage(STORAGE_KEYS.newConversationDraft) === "true",
-        })
-        writeStorage(STORAGE_KEYS.conversationId, nextId)
-        return nextId
+      const nextId = reconcileConversationSelection({
+        currentConversationId: conversationSelectionRef.current.conversationId,
+        availableConversationIds: response.conversations.map(
+          (conversation) => conversation.id,
+        ),
+        preserveNewConversationDraft:
+          readStorage(STORAGE_KEYS.newConversationDraft) === "true",
       })
+      updateConversationSelection({ conversationId: nextId })
+      writeStorage(STORAGE_KEYS.conversationId, nextId)
     },
-    [accessToken, isCurrentSession],
+    [accessToken, isCurrentSession, updateConversationSelection],
   )
 
   const hydrateWithToken = React.useCallback(
@@ -353,17 +362,17 @@ export function AppSessionProvider({
 
       const nextWorkspaceId = chooseWorkspaceId(
         nextWorkspaces,
-        currentWorkspaceId,
+        conversationSelectionRef.current.workspaceId,
         me.current_workspace_id,
       )
 
-      setCurrentWorkspaceId(nextWorkspaceId)
+      updateConversationSelection({ workspaceId: nextWorkspaceId })
       writeStorage(STORAGE_KEYS.workspaceId, nextWorkspaceId)
       setStatus("authenticated")
 
       await refreshConversations(nextWorkspaceId, token)
     },
-    [currentWorkspaceId, refreshConversations, isCurrentSession],
+    [refreshConversations, isCurrentSession, updateConversationSelection],
   )
 
   const refreshAppData = React.useCallback(() => {
@@ -558,10 +567,9 @@ export function AppSessionProvider({
   }, [accessToken, clearSession, currentWorkspaceId, currentSessionId, isCurrentSession])
 
   const selectWorkspace = React.useCallback(async (workspaceId: string) => {
-    conversationSelectionVersionRef.current += 1
-    setCurrentWorkspaceId(workspaceId)
+    updateConversationSelection({ workspaceId }, true)
     writeStorage(STORAGE_KEYS.workspaceId, workspaceId)
-  }, [])
+  }, [updateConversationSelection])
 
   const createConversationForWorkspace = React.useCallback(
     async (title: string, options?: { select?: boolean }) => {
@@ -571,7 +579,7 @@ export function AppSessionProvider({
 
       const generation = sessionGenerationRef.current
       const sessionIdentity = sessionIdentityRef.current
-      const selectionVersion = conversationSelectionVersionRef.current
+      const selectionVersion = conversationSelectionRef.current.version
       const conversation = await createConversation(accessToken, { title })
 
       if (generation !== sessionGenerationRef.current || sessionIdentity !== sessionIdentityRef.current) {
@@ -585,28 +593,26 @@ export function AppSessionProvider({
         ]
         return next
       })
-      if (options?.select !== false && selectionVersion === conversationSelectionVersionRef.current) {
-        conversationSelectionVersionRef.current += 1
-        setCurrentConversationId(conversation.id)
+      if (options?.select !== false && selectionVersion === conversationSelectionRef.current.version) {
+        updateConversationSelection({ conversationId: conversation.id }, true)
         writeStorage(STORAGE_KEYS.conversationId, conversation.id)
         writeStorage(STORAGE_KEYS.newConversationDraft, null)
       }
       return conversation
     },
-    [accessToken],
+    [accessToken, updateConversationSelection],
   )
 
   const selectConversation = React.useCallback(
     (conversationId: string | null) => {
-      conversationSelectionVersionRef.current += 1
-      setCurrentConversationId(conversationId)
+      updateConversationSelection({ conversationId }, true)
       writeStorage(STORAGE_KEYS.conversationId, conversationId)
       writeStorage(
         STORAGE_KEYS.newConversationDraft,
         conversationId == null ? "true" : null,
       )
     },
-    [],
+    [updateConversationSelection],
   )
 
   const refreshConversationList = React.useCallback(
@@ -666,13 +672,14 @@ export function AppSessionProvider({
 
   const getConversationSelectionIdentity = React.useCallback(() => ({
     sessionId: sessionIdentityRef.current,
-    version: conversationSelectionVersionRef.current,
+    version: conversationSelectionRef.current.version,
   }), [])
 
   const conversationValue = React.useMemo<ConversationSessionContextValue>(
     () => ({
       conversations,
       currentConversationId,
+      selectionVersion,
       refreshConversations: refreshConversationList,
       renameConversation,
       createConversation: createConversationForWorkspace,
@@ -683,6 +690,7 @@ export function AppSessionProvider({
       conversations,
       createConversationForWorkspace,
       currentConversationId,
+      selectionVersion,
       refreshConversationList,
       renameConversation,
       selectConversation,

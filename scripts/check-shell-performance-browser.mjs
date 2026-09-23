@@ -16,7 +16,7 @@ const instrumented = new Map([
   ["src/features/workspace/app-sidebar.tsx", ["export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {", "navigation"]],
   ["src/features/chat/gateway-chat-sidebar.tsx", ["}: GatewayChatSidebarProps) {", "chat"]],
 ])
-const baselineFiles = new Set([...instrumented.keys(), "src/components/ui/sidebar.tsx", "src/features/workspace/components/workspace-image-preview.tsx", "src/lib/image-reference-events.ts"])
+const baselineFiles = new Set([...instrumented.keys(), "src/features/auth/app-session.tsx", "src/components/ui/sidebar.tsx", "src/features/workspace/components/workspace-image-preview.tsx", "src/lib/image-reference-events.ts"])
 const server = production
   ? await preview({ preview: { host: "127.0.0.1", port: 0 } })
   : await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0, watch: null, hmr: false }, plugins: [{ name: "shell-measure", enforce: "pre", transform(source, id) {
@@ -26,7 +26,7 @@ const server = production
     if (counter) code = code.replace(counter[0], `${counter[0]}\nwindow.__shellRenders.${counter[1]}++;`)
     // Only expose the real selection command in this test build; it still updates
     // the production identity/version used by both sender and receiver.
-    if (path === "src/features/auth/app-session.tsx") code = code.replace("<AuthSessionContext.Provider value={authValue}>", "<AuthSessionContext.Provider value={authValue}>{(window.__shellSelectConversation = selectConversation, window.__shellSelection = getConversationSelectionIdentity, null)}")
+    if (path === "src/features/auth/app-session.tsx") code = code.replace("<AuthSessionContext.Provider value={authValue}>", "<AuthSessionContext.Provider value={authValue}>{(window.__shellSelectConversation = selectConversation, window.__shellSelection = getConversationSelectionIdentity, window.__shellRefreshConversations = refreshConversationList, null)}")
     if (path === "src/features/chat/gateway-chat-sidebar.tsx") code = code.replace("onStartNewChat={startNewChat}", "onStartNewChat={(window.__shellStartNewChat = startNewChat)}")
     return { code, map: null }
   } }] })
@@ -115,22 +115,41 @@ try {
 
   // Reference handoff must survive a real first lazy mount and reject a selection
   // change while that chunk is still unavailable. No image is queued in the shell.
-  for (const scenario of production ? ["success"] : ["success", "selection", "session", "unmount", "timeout"]) {
+  for (const scenario of production ? ["success"] : ["reconcile", "success", "selection", "session", "unmount", "timeout"]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
     const fixture = await installShellFixture(page, false)
     let release, started = false
     const hold = new Promise(resolve => { release = resolve })
+    let releaseList
+    if (scenario === "reconcile") {
+      const listHold = new Promise(resolve => { releaseList = resolve })
+      let listReads = 0
+      await page.addInitScript(() => localStorage.setItem("ineffable.chat.conversation_id", "removed-conversation"))
+      await page.route("**/gateway/v1/conversations/list*", async route => {
+        if (++listReads === 1) return route.fulfill({ json: { conversations: [{ id: "removed-conversation", title: "Old conversation", created_at: "2026-09-23T00:00:00Z", updated_at: "2026-09-23T00:00:00Z" }] } })
+        await listHold
+        await route.fulfill({ json: { conversations: [] } })
+      })
+    }
     if (!production) await page.route("**/src/components/right-sidebar.tsx*", async route => {
       started = true; await hold; await route.continue()
     })
     await page.goto(`${url}/workspace/${workspace}/objects/${imageId}`)
     const reference = page.getByRole("button", { name: "Use as reference", exact: true })
     const attachments = page.getByRole("button", { name: "Remove attachment", exact: true })
+    if (scenario === "reconcile") {
+      await reference.waitFor()
+      await page.evaluate(() => { void window.__shellRefreshConversations() })
+    }
     await reference.click()
     if (!production) {
       const deadline = Date.now() + 10_000
       while (!started && Date.now() < deadline) await page.waitForTimeout(20)
       assert.ok(started, "reference opens the previously unloaded composer")
+      if (scenario === "reconcile") {
+        releaseList()
+        await page.waitForFunction(() => localStorage.getItem("ineffable.chat.conversation_id") === null)
+      }
       if (scenario === "selection") await page.evaluate(() => window.__shellSelectConversation(null))
       if (scenario === "session") await page.evaluate(() => {
         localStorage.setItem("ineffable.auth.session_id", "fixture-session-b")
@@ -162,6 +181,12 @@ try {
         await attachments.waitFor({ state: "hidden" })
         await reference.click()
         await attachments.waitFor()
+        await attachments.click()
+        await page.waitForLoadState("networkidle")
+        await page.evaluate(() => window.__shellSelectConversation(null))
+        await reference.click()
+        await attachments.waitFor({ timeout: 2_000 })
+        assert.equal(await page.evaluate(() => window.__shellNotifications.length), 0, "selecting the same draft republishes its owner without waiting for unrelated rerenders")
       }
     } else {
       if (scenario !== "unmount") await page.waitForFunction(() => [...document.querySelectorAll("button")].some(b => b.textContent === "Use as reference" && !b.disabled))
