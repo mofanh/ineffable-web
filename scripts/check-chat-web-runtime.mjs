@@ -1,4 +1,4 @@
-import { buildToolView } from "../src/features/chat/chat-pane-state.ts"
+import { buildToolView, getPaneBlocks, hasAgentPaneContent } from "../src/features/chat/chat-pane-state.ts"
 import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history.ts"
 import assert from "node:assert/strict"
 
@@ -180,6 +180,41 @@ assert.equal(
   "stable sibling must retain its WebNode identity"
 )
 assert.notEqual(firstProjection[1], secondProjection[1])
+
+const blankBlock = { id: "text-blank", type: "text", content: "\n  \n" }
+const paneWithBlankText = {
+  ...pane,
+  blockOrder: [firstBlock.id, blankBlock.id, tailBlock.id],
+  blocks: { ...pane.blocks, [blankBlock.id]: blankBlock },
+}
+const visibleProjection = projectionCache.project(paneWithBlankText, {
+  streaming: true,
+  canRespondToUserInput: false,
+})
+assert.deepEqual(visibleProjection.map((item) => item.nodeId), [firstBlock.id, tailBlock.id])
+assert.equal(visibleProjection[1].status, "running")
+assert.deepEqual(getPaneBlocks(paneWithBlankText).map((block) => block.id), [firstBlock.id, tailBlock.id])
+assert.equal(hasAgentPaneContent({
+  ...paneWithBlankText,
+  blockOrder: [blankBlock.id],
+}), false)
+const visibleBlank = { ...blankBlock, content: "Now visible" }
+const projectionAfterText = projectionCache.project(
+  { ...paneWithBlankText, blocks: { ...paneWithBlankText.blocks, [blankBlock.id]: visibleBlank } },
+  { streaming: true, canRespondToUserInput: false }
+)
+assert.deepEqual(
+  projectionAfterText.map((item) => item.nodeId),
+  [firstBlock.id, blankBlock.id, tailBlock.id]
+)
+const imageOnlyBlock = { ...blankBlock, images: [{ version_id: "image-version" }] }
+assert.equal(
+  projectionCache.project(
+    { ...paneWithBlankText, blocks: { ...paneWithBlankText.blocks, [blankBlock.id]: imageOnlyBlock } },
+    { streaming: true, canRespondToUserInput: false }
+  ).length,
+  3
+)
 
 const subagent = {
   ...pane,

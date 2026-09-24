@@ -4,7 +4,7 @@ import type {
   ThinkBlock,
   ToolCallView,
 } from "../chat-pane-state.ts"
-import { hasAgentPaneContent } from "../chat-pane-state.ts"
+import { hasAgentPaneContent, isRenderablePaneBlock } from "../chat-pane-state.ts"
 import type { SubagentView } from "../gateway-chat-types.ts"
 import {
   WEB_NODE_SCHEMA_VERSION,
@@ -78,9 +78,12 @@ export class WebNodeProjectionCache {
     options: ProjectPaneOptions,
     subagents?: SubagentProjection
   ) {
-    const lastBlockId = pane.blockOrder.at(-1)
-    const liveNodeIds = new Set(pane.blockOrder)
-    const nodes = pane.blockOrder.flatMap((blockId) => {
+    const visibleBlockIds = pane.blockOrder.filter((blockId) =>
+      isRenderablePaneBlock(pane.blocks[blockId])
+    )
+    const lastBlockId = visibleBlockIds.at(-1)
+    const liveNodeIds = new Set(visibleBlockIds)
+    const nodes = visibleBlockIds.flatMap((blockId) => {
       const block = pane.blocks[blockId]
       if (!block) return []
       const tool = block.type === "tool" ? pane.tools[block.toolId] : undefined

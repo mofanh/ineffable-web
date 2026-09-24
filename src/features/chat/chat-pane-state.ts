@@ -480,8 +480,16 @@ export function createEmptyAgentPane(): AgentPaneState {
   }
 }
 
+export function isRenderablePaneBlock(block: PaneBlock | undefined): block is PaneBlock {
+  if (!block) return false
+  if (block.type !== "text") return true
+  return block.content.trim().length > 0 || (block.images?.length ?? 0) > 0
+}
+
 export function getPaneBlocks(pane: AgentPaneState) {
-  return pane.blockOrder.map((blockId) => pane.blocks[blockId]).filter(Boolean)
+  return pane.blockOrder
+    .map((blockId) => pane.blocks[blockId])
+    .filter(isRenderablePaneBlock)
 }
 
 export function getLatestToolByName(pane: AgentPaneState, name: string) {
@@ -495,7 +503,7 @@ export function getLatestToolByName(pane: AgentPaneState, name: string) {
 }
 
 export function hasAgentPaneContent(pane: AgentPaneState) {
-  return Boolean(pane.blockOrder.length)
+  return pane.blockOrder.some((blockId) => isRenderablePaneBlock(pane.blocks[blockId]))
 }
 
 export function applyTextDeltaToPane(pane: AgentPaneState, chunk: string) {
