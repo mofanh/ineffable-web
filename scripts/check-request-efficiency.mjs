@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import ts from "typescript"
 import { ConversationPageLoader } from "../src/features/chat/model/conversation-page-loader.ts"
-import { AgentDescriptorDirectory, AgentDescriptorSearchBudget } from "../src/features/chat/model/agent-descriptor-directory.ts"
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const loader = new ConversationPageLoader()
 let calls = 0
@@ -116,54 +115,4 @@ canonicalQuestion.resolve({ messages: [{ id: "question" }], next_seq: 4 })
 await awaitingRefresh
 assert.deepEqual(visibleEntries, [{ id: "question" }])
 
-let clock = 0, searches = 0, fail = false
-const missing = Error("missing")
-const directory = new AgentDescriptorDirectory(async () => {
-  searches++
-  if (fail) throw Error("offline")
-  throw missing
-}, error => error === missing, () => clock)
-const spaces = [{ id: "a", name: "A" }]
-assert.equal(searches, 0)
-assert.deepEqual(await directory.load(spaces), [])
-assert.deepEqual(await directory.load(spaces), [])
-assert.equal(searches, 1)
-clock = 30_001
-await directory.load(spaces); assert.equal(searches, 2)
-directory.invalidate("a"); fail = true
-await assert.rejects(directory.load(spaces), /offline/)
-await Promise.resolve(); fail = false
-await directory.load(spaces); assert.equal(searches, 4)
-
-const stale = deferred(); let loads = 0
-const changing = new AgentDescriptorDirectory(() => ++loads === 1 ? stale.promise : Promise.resolve({ matches: [{ object: { kind: "file", path: "system/agents/new.md", name: "new" } }] }), () => false)
-const staleLoad = changing.load(spaces)
-changing.invalidate("a")
-assert.equal((await changing.load(spaces))[0].label, "new")
-stale.resolve({ matches: [] }); await staleLoad
-assert.equal((await changing.load(spaces))[0].label, "new")
-// Repeated mutation invalidations share a directory-wide concurrency budget.
-let active = 0, peak = 0
-const outstanding = []
-const budget = new AgentDescriptorSearchBudget()
-const searchBounded = async () => {
-  active++; peak = Math.max(peak, active)
-  const pending = deferred(); outstanding.push(pending)
-  try { return await pending.promise } finally { active-- }
-}
-const bounded = new AgentDescriptorDirectory(searchBounded, () => false, Date.now, budget)
-const four = ["a", "b", "c", "d"].map(id => ({ id, name: id }))
-const batches = [bounded.load(four)]
-for (let i = 0; i < 3; i++) { bounded.invalidate("a"); batches.push(bounded.load(four)) }
-const replacement = new AgentDescriptorDirectory(searchBounded, () => false, Date.now, budget)
-batches.push(replacement.load(four))
-assert.equal(active, 4)
-let settled = false
-const done = Promise.all(batches).then(() => { settled = true })
-while (!settled) {
-  outstanding.splice(0).forEach(item => item.resolve({ matches: [] }))
-  await new Promise(resolve => setImmediate(resolve))
-}
-await done
-assert.equal(peak, 4); assert.equal(active, 0)
-console.log("Request efficiency checks passed: production callbacks, handoff freshness, auth isolation, retry, lazy/negative cache and invalidation")
+console.log("Request efficiency checks passed: production callbacks, handoff freshness, auth isolation and retry")

@@ -5,22 +5,20 @@ import { SidebarProvider } from "../src/components/ui/sidebar"
 import { TooltipProvider } from "../src/components/ui/tooltip"
 import "../src/lib/i18n/i18n"
 import "../src/index.css"
-import { useAgentDescriptors } from "../src/features/chat/model/use-agent-descriptors"
 import { dispatchWorkspaceObjectsChanged } from "../src/lib/workspace-events"
 const noop = () => {}
 function Fixture() {
   const [composer, setComposer] = React.useState("")
+  const [scope, setScope] = React.useState("chat-a")
   const [token, setToken] = React.useState("fixture-a")
-  const descriptors = useAgentDescriptors(token, [{ id: "workspace-a", name: "A" }, { id: "workspace-b", name: "B" }])
   React.useEffect(() => { Object.assign(window, { efficiencyFixture: {
-    setToken, change: () => dispatchWorkspaceObjectsChanged({ workspaceId: "workspace-a", action: "write_file" })
-  } }) }, [])
+    setToken, setScope, setComposer, getComposer: () => composer, change: () => dispatchWorkspaceObjectsChanged({ workspaceId: "11111111-1111-1111-1111-111111111111", action: "write_file" })
+  } }) }, [composer])
   return <SidebarProvider><TooltipProvider><ChatComposer
     isFullScreen={false} composer={composer} error={null} isSending={false} isSubmittingInput={false}
     canPromoteToGuided={false} canResumePreInputQueue={false} blockedPreInputRunStatus={null}
-    pendingQueueAction="idle" preInputQueue={[]} agentDescriptorOptions={descriptors.options}
-    agentDescriptorsLoading={descriptors.loading} agentDescriptorsError={descriptors.error}
-    onAgentMenuOpenChange={descriptors.setOpen} onAgentDescriptorsRetry={descriptors.refresh} modelOptions={[]}
+    pendingQueueAction="idle" preInputQueue={[]} accessToken={token} fileReferenceScope={scope} workspaces={[{ id: "11111111-1111-1111-1111-111111111111", name: "A" }, { id: "22222222-2222-2222-2222-222222222222", name: "B" }]}
+    modelOptions={[]}
     isModelCatalogLoaded={true} selectedModelProfileId="" sandboxOptions={[]} isRefreshingSandboxOptions={false} selectedSandboxEnvironmentId=""
     capabilityExposureSelection={null} capabilityExposurePolicy={null} capabilityExposureDraftStatus="idle"
     capabilityCatalog={[]} capabilityCatalogStatus="idle" onCapabilityCatalogRefresh={noop}

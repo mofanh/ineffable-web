@@ -1,3 +1,7 @@
+import { WorkspaceFileMenu, type FileMenuHandle } from "./workspace-file-menu"
+import { WorkspaceFileTags } from "./workspace-file-tags"
+import { fileMentionAt, splitFileReferences, joinFileReferences, mergeReferences, normalizeReferencePaste, referenceUri, MAX_FILE_REFERENCES, type WorkspaceFileReference } from "@/lib/workspace-file-reference"
+import { notify } from "@/lib/app/notifications"
 import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
 import { Notice } from "@/components/app/notice"
 import { sandboxDeliveryPresentation } from "@/features/chat/model/sandbox-delivery-presentation"
@@ -28,10 +32,8 @@ import type {
 import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
-  AtSignIcon,
   BotIcon,
   BoxIcon,
-  FileTextIcon,
   GripVerticalIcon,
   GitBranchIcon,
   LoaderCircleIcon,
@@ -46,13 +48,6 @@ export type PreInputQueueItem = {
   id: string
   content: string
   status?: "queued" | "promoting" | "deleting"
-}
-
-export type AgentDescriptorOption = {
-  workspaceId: string
-  workspaceName: string
-  path: string
-  label: string
 }
 
 export type ModelProfileOption = {
@@ -81,11 +76,10 @@ type ChatComposerProps = {
   blockedPreInputRunStatus: string | null
   pendingQueueAction: "idle" | "resuming" | "clearing"
   preInputQueue: PreInputQueueItem[]
-  agentDescriptorsLoading?: boolean
-  agentDescriptorsError?: string | null
-  onAgentMenuOpenChange?: (open: boolean) => void
-  onAgentDescriptorsRetry?: () => void
-  agentDescriptorOptions: AgentDescriptorOption[]
+  fileReferenceScope?: string
+  accessToken?: string | null
+  workspaces?: { id: string; name: string }[]
+  currentWorkspaceId?: string
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
   selectedModelProfileId: string
@@ -130,11 +124,7 @@ export function ChatComposer({
   blockedPreInputRunStatus,
   pendingQueueAction,
   preInputQueue,
-  agentDescriptorOptions,
-  agentDescriptorsLoading = false,
-  agentDescriptorsError,
-  onAgentMenuOpenChange,
-  onAgentDescriptorsRetry,
+  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope,
   modelOptions,
   isModelCatalogLoaded,
   selectedModelProfileId,
@@ -169,7 +159,16 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const scrollBoundaryRef = useChatScrollBoundary<HTMLDivElement>()
   const { t } = useTranslation()
-  const [isAgentMenuOpen, setIsAgentMenuOpen] = React.useState(false)
+  const [menuScope, setMenuScope] = React.useState<string | null>(null)
+  const scope = `${accessToken}:${fileReferenceScope}:${currentWorkspaceId}`
+  const [cursor, setCursor] = React.useState(0)
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const menuRef = React.useRef<FileMenuHandle>(null)
+  const composing = React.useRef(false)
+  const draft = React.useMemo(() => splitFileReferences(composer), [composer])
+  const trigger = fileMentionAt(draft.text, cursor)
+  const showFileMenu = menuScope === scope && Boolean(trigger) && Boolean(accessToken)
+  const editable = !isSubmittingInput && !inputDisabledReason
   const modelPickerOptions = React.useMemo<ComposerSingleSelectOption[]>(
     () =>
       modelOptions.map((option) => ({
@@ -231,98 +230,46 @@ export function ChatComposer({
 
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
     status === "promoting" || status === "deleting"
-  const agentTrigger = React.useMemo(() => {
-    const match = composer.match(/(^|\s)@([^\s@]*)$/)
-    if (!match || match.index == null) {
-      return null
-    }
-
-    return {
-      query: match[2].toLowerCase(),
-      start: match.index + match[1].length,
-    }
-  }, [composer])
-  const filteredAgentOptions = React.useMemo(() => {
-    if (!agentTrigger?.query) {
-      return agentDescriptorOptions
-    }
-
-    return agentDescriptorOptions.filter((option) => {
-      const haystack = `${option.workspaceName} ${option.label} ${option.path}`.toLowerCase()
-      return haystack.includes(agentTrigger.query)
-    })
-  }, [agentDescriptorOptions, agentTrigger])
-  const groupedAgentOptions = React.useMemo(
-    () =>
-      filteredAgentOptions.reduce<
-        { workspaceId: string; workspaceName: string; options: AgentDescriptorOption[] }[]
-      >((groups, option) => {
-        const group = groups.find((item) => item.workspaceId === option.workspaceId)
-        if (group) {
-          group.options.push(option)
-          return groups
-        }
-
-        groups.push({
-          workspaceId: option.workspaceId,
-          workspaceName: option.workspaceName,
-          options: [option],
-        })
-        return groups
-      }, []),
-    [filteredAgentOptions]
-  )
-  const shouldShowAgentMenu = isAgentMenuOpen && Boolean(agentTrigger)
-  React.useEffect(() => {
-    onAgentMenuOpenChange?.(shouldShowAgentMenu)
-    return () => onAgentMenuOpenChange?.(false)
-  }, [shouldShowAgentMenu, onAgentMenuOpenChange])
-  const hasAgentFiles = agentDescriptorOptions.length > 0
-  const hasFilteredAgentFiles = filteredAgentOptions.length > 0
-  const agentMenuHint = hasAgentFiles
-    ? t("chat.composer.searchAgents")
-    : t("chat.composer.createAgentHint")
-
-  function handleComposerValueChange(value: string) {
-    onComposerChange(value)
-    setIsAgentMenuOpen(/(^|\s)@([^\s@]*)$/.test(value))
+  function updateText(value: string, position: number) {
+    onComposerChange(joinFileReferences(value, draft.references))
+    setCursor(position)
+    setMenuScope(fileMentionAt(value, position) ? scope : null)
   }
-
-  function insertAgentDescriptor(option: AgentDescriptorOption) {
-    const mention = `@agent(${option.workspaceId}:${option.path})`
-    if (!agentTrigger) {
-      const trimmedEnd = composer.replace(/\s+$/, "")
-      onComposerChange(trimmedEnd ? `${trimmedEnd}\n${mention} ` : `${mention} `)
-      setIsAgentMenuOpen(false)
-      return
-    }
-
-    onComposerChange(`${composer.slice(0, agentTrigger.start)}${mention} `)
-    setIsAgentMenuOpen(false)
+  function addReferences(references: WorkspaceFileReference[], text: string, position: number) {
+    if (!editable) return
+    const merged = mergeReferences(draft.references, references)
+    if (merged.length > MAX_FILE_REFERENCES) { notify.error({ title: t("fileReferences.limit") }); return }
+    onComposerChange(joinFileReferences(text, merged))
+    setMenuScope(null)
+    setCursor(position)
+    const textarea = textareaRef.current
+    // The element is scoped by conversation; a late frame cannot focus another draft.
+    window.requestAnimationFrame(() => { if (textarea?.isConnected) { textarea.focus(); textarea.setSelectionRange(position, position) } })
   }
-
+  function selectReference(reference: WorkspaceFileReference) {
+    if (!trigger) return
+    addReferences([reference], draft.text.slice(0, trigger.start) + draft.text.slice(trigger.end), trigger.start)
+  }
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Escape" && shouldShowAgentMenu) {
-      event.preventDefault()
-      setIsAgentMenuOpen(false)
-      return
+    if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (showFileMenu) {
+      if (event.key === "Escape") { event.preventDefault(); setMenuScope(null); return }
+      if (menuRef.current?.keyDown(event)) { event.preventDefault(); return }
+      // Loading/empty menus must never accidentally submit on selection keys.
+      if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); return }
     }
-
     onComposerKeyDown(event)
   }
-
-  function handleAgentOptionMouseDown(event: React.MouseEvent<HTMLButtonElement>) {
+  function handleReferencePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    if (!editable) return
+    const normalized = normalizeReferencePaste(event.clipboardData.getData("text/plain"), window.location.origin)
+    const pasted = splitFileReferences(normalized)
+    if (!pasted.references.length) return
     event.preventDefault()
-  }
-
-  function handleComposerFocus() {
-    if (agentTrigger) {
-      setIsAgentMenuOpen(true)
-    }
-  }
-
-  function handleComposerBlur() {
-    window.setTimeout(() => setIsAgentMenuOpen(false), 120)
+    event.stopPropagation()
+    const start = event.currentTarget.selectionStart
+    const end = event.currentTarget.selectionEnd
+    addReferences(pasted.references, draft.text.slice(0, start) + pasted.text + draft.text.slice(end), start + pasted.text.length)
   }
 
   const delivery = sandboxDeliveryPresentation(sandboxOptions.find((option) => option.environmentId === selectedSandboxEnvironmentId)?.resultDelivery)
@@ -451,87 +398,27 @@ export function ChatComposer({
         {inputDisabledReason && <Notice>{inputDisabledReason}</Notice>}
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
-        {shouldShowAgentMenu ? (
-          <div className="overflow-hidden rounded-2xl border border-sidebar-border bg-popover text-popover-foreground shadow-lg">
-            <div className="px-3.5 py-2 text-sm font-medium">
-              {t("chat.composer.add")}
-            </div>
-            <div className="space-y-1 px-2 pb-2">
-              <div className="flex items-center gap-2 rounded-xl bg-sidebar-accent/60 px-2.5 py-2 text-sm">
-                <AtSignIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="shrink-0 font-medium">
-                  {t("chat.composer.agentDescriptor")}
-                </span>
-                <span className="min-w-0 truncate text-muted-foreground">
-                  {agentMenuHint}
-                </span>
-              </div>
-
-              <div className="px-1 pt-1 text-xs font-medium text-muted-foreground">
-                {t("chat.composer.agentFiles")}
-              </div>
-
-              <div className="max-h-64 overflow-y-auto">
-                {agentDescriptorsLoading ? (
-                  <div className="px-3 py-4 text-sm text-muted-foreground" role="status">{t("common.loading")}</div>
-                ) : agentDescriptorsError ? (
-                  <div className="px-3 py-4 text-sm" role="alert">
-                    <p>{agentDescriptorsError}</p>
-                    <Button variant="ghost" size="sm" onMouseDown={handleAgentOptionMouseDown} onClick={onAgentDescriptorsRetry}>{t("common.retry")}</Button>
-                  </div>
-                ) : hasFilteredAgentFiles ? (
-                  groupedAgentOptions.map((group) => (
-                    <div key={group.workspaceId} className="py-1">
-                      <div className="px-2 py-1 text-[11px] font-medium uppercase text-muted-foreground">
-                        {group.workspaceName}
-                      </div>
-                      {group.options.map((option) => (
-                        <button
-                          key={`${option.workspaceId}:${option.path}`}
-                          type="button"
-                          className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none"
-                          onMouseDown={handleAgentOptionMouseDown}
-                          onClick={() => insertAgentDescriptor(option)}
-                        >
-                          <FileTextIcon className="size-4 shrink-0 text-muted-foreground" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium">
-                              {option.label}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {option.path}
-                            </span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-3 py-4 text-sm text-muted-foreground">
-                    {hasAgentFiles
-                      ? t("chat.composer.noMatchingAgents")
-                      : t("chat.composer.noAgents")}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : null}
+        {showFileMenu && <WorkspaceFileMenu key={scope} ref={menuRef} accessToken={accessToken!} workspaces={workspaces} currentWorkspaceId={currentWorkspaceId} query={trigger?.query ?? ""} onSelect={selectReference} />}
 
         <InputGroup
           className="h-auto overflow-hidden rounded-[26px] border border-sidebar-border/90 bg-background shadow-[0_10px_32px_-20px_rgba(15,23,42,0.45)] transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-[0_14px_38px_-20px_rgba(15,23,42,0.5)] dark:shadow-[0_12px_34px_-22px_rgba(0,0,0,0.8)]"
           ref={scrollBoundaryRef}
         >
           {imageCount > 0 ? <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0">{imageAttachments}</InputGroupAddon> : null}
+          {draft.references.length > 0 && <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0"><WorkspaceFileTags accessToken={accessToken} references={draft.references} onRemove={editable ? uri => onComposerChange(joinFileReferences(draft.text, draft.references.filter(ref => referenceUri(ref) !== uri))) : undefined} /></InputGroupAddon>}
           <InputGroupTextarea
+            key={scope}
+            ref={textareaRef}
             data-chat-scroll-region
             aria-label={t("chat.composer.messageLabel")}
             placeholder={t("chat.composer.placeholder")}
             rows={2}
-            value={composer}
-            onChange={(event) => handleComposerValueChange(event.target.value)}
-            onFocus={handleComposerFocus}
-            onBlur={handleComposerBlur}
+            value={draft.text}
+            onChange={(event) => updateText(event.target.value, event.target.selectionStart)}
+            onSelect={event => setCursor(event.currentTarget.selectionStart)}
+            onPaste={handleReferencePaste}
+            onCompositionStart={() => { composing.current = true }}
+            onCompositionEnd={() => { composing.current = false }}
             onKeyDown={handleComposerKeyDown}
             readOnly={isSubmittingInput || Boolean(inputDisabledReason)}
             aria-busy={isSubmittingInput}

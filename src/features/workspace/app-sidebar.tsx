@@ -1,4 +1,5 @@
-"use client"
+import { referenceMarkdown } from "@/lib/workspace-file-reference"
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu"
 
 import * as React from "react"
 import { useApiResource } from "@/lib/app/use-api-resource"
@@ -196,6 +197,7 @@ function EntryIcon({ item }: { item: SidebarEntry }) {
 }
 
 type WorkspaceObjectAction =
+  | "copy-reference"
   | "new-file"
   | "new-folder"
   | "copy-link"
@@ -245,6 +247,9 @@ function WorkspaceObjectMenu({
         </SidebarMenuAction>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="start" className="w-56">
+        {item.object?.kind === "file" && <DropdownMenuItem disabled={!item.object.current_version_id} onClick={() => onAction("copy-reference", item)}>
+          <LinkIcon /><span>{t("fileReferences.copy")}</span>
+        </DropdownMenuItem>}
         <DropdownMenuItem onClick={() => onAction("copy-link", item)}>
           <LinkIcon />
           <span>{t("sidebar.actions.copyLink")}</span>
@@ -371,6 +376,7 @@ function SidebarEntryButton({
     item.depth === 2 ? "pl-12" : item.depth === 1 ? "pl-7" : undefined
 
   return (
+    <ContextMenu><ContextMenuTrigger asChild disabled={item.object?.kind !== "file"}>
     <SidebarMenuItem>
       <SidebarMenuButton
         type="button"
@@ -390,7 +396,12 @@ function SidebarEntryButton({
       ) : item.workspaceId && !item.more ? (
         <WorkspaceObjectMenu item={item} onAction={onAction} />
       ) : null}
-    </SidebarMenuItem>
+    </SidebarMenuItem></ContextMenuTrigger>
+    {item.object?.kind === "file" && <ContextMenuContent>
+      <ContextMenuItem disabled={!item.object.current_version_id} onSelect={() => onAction("copy-reference", item)}>{t("fileReferences.copy")}</ContextMenuItem>
+      <ContextMenuItem onSelect={() => onAction("copy-link", item)}>{t("sidebar.actions.copyLink")}</ContextMenuItem>
+    </ContextMenuContent>}
+    </ContextMenu>
   )
 }
 
@@ -1205,6 +1216,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }
 
       try {
+        if (action === "copy-reference") {
+          if (!item.object?.current_version_id || !navigator.clipboard) throw new Error(t("fileReferences.copyFailed"))
+          const text = referenceMarkdown({ workspaceId: workspace.id, objectId: item.object.id, versionId: item.object.current_version_id, label: `${workspace.name}/${item.object.path}` }, window.location.origin)
+          await navigator.clipboard.writeText(text)
+          notify.success({ title: t("fileReferences.copied") })
+          return
+        }
         if (action === "new-file" || action === "new-folder") {
           await createObject({
             workspace,

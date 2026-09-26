@@ -1,6 +1,13 @@
 export const resources = {
   "zh-CN": {
     translation: {
+      fileReferences: {
+        unavailable: "文件引用已失效或无访问权限", version: "引用版本：{{version}}", previewUnavailable: "此版本暂时无法预览（可能不是文本格式）。", openCurrent: "打开当前文件",
+        title: "Workspace 文件", workspace: "选择空间", up: "上一级", firstPage: "第一页",
+        hint: "输入 @ 搜索文件；文件夹可展开", empty: "没有可引用的文件", remove: "移除引用 {{name}}",
+        limit: "一条消息最多引用 32 个文件", copy: "复制文件引用", copied: "已复制，可粘贴到会话中引用",
+        copyFailed: "无法复制文件引用，请检查剪贴板权限及文件版本",
+      },
       channels: {
         deliveryReason: {
           invalid_message: "回复格式不受支持",
@@ -1848,6 +1855,13 @@ export const resources = {
   },
   "en-US": {
     translation: {
+      fileReferences: {
+        unavailable: "File reference is unavailable or access was denied", version: "Referenced version: {{version}}", previewUnavailable: "This version cannot be previewed here (it may not be text).", openCurrent: "Open current file",
+        title: "Workspace files", workspace: "Select workspace", up: "Up", firstPage: "First page",
+        hint: "Type @ to search; open folders to browse", empty: "No files to reference", remove: "Remove reference {{name}}",
+        limit: "A message can reference up to 32 files", copy: "Copy file reference", copied: "Reference copied. Paste it into a conversation.",
+        copyFailed: "Cannot copy reference. Check clipboard permissions and the file version.",
+      },
       channels: {
         deliveryReason: {
           invalid_message: "Unsupported reply format",

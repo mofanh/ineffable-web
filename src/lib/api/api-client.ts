@@ -849,7 +849,7 @@ export function statWorkspacePath(accessToken: string, workspaceId: string, path
 export function searchWorkspacePaths(accessToken: string, workspaceId: string, path: string, query: string, cursor?: string) {
   const params = new URLSearchParams({ path, query, limit: "100" })
   if (cursor) params.set("cursor", cursor)
-  return requestApiJson<{ matches: { object: Pick<WorkspaceObject, "id" | "path" | "name" | "kind"> }[]; next_cursor: string | null }>(
+  return requestApiJson<{ matches: { object: Pick<WorkspaceObject, "id" | "workspace_id" | "path" | "name" | "kind" | "current_version_id"> }[]; next_cursor: string | null }>(
     `/gateway/v1/workspaces/${workspaceId}/search?${params}`, { accessToken, workspaceId })
 }
 

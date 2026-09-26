@@ -1,3 +1,5 @@
+import { splitFileReferences } from "@/lib/workspace-file-reference"
+import { WorkspaceFileTags } from "./workspace-file-tags"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { copyTextToClipboard } from "@/lib/app/clipboard"
 import { getCurrentLocale } from "@/lib/i18n/i18n"
@@ -430,6 +432,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
             Boolean(answerText)
 
           if (entry.role === "user") {
+            const fileDraft = splitFileReferences(entry.content)
             const progressLabel = inputProgressLabel(entry.inputProgress, entry.deliveryStatus)
             return (
               <div
@@ -451,8 +454,9 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                           {entry.inputProgress.automation_source.summary && <span className="block line-clamp-2 text-sm text-muted-foreground">{entry.inputProgress.automation_source.summary}</span>}
                           <span className="block text-xs text-muted-foreground group-open:hidden">{t("presentation.instruction")}</span>
                         </summary>
-                        <p className="mt-3 whitespace-pre-wrap wrap-break-word">{entry.content}</p>
-                      </details> : <p className="whitespace-pre-wrap wrap-break-word">{entry.content}</p>}
+                        <p className="mt-3 whitespace-pre-wrap wrap-break-word">{fileDraft.text}</p>
+                      </details> : <p className="whitespace-pre-wrap wrap-break-word">{fileDraft.text}</p>}
+                      <WorkspaceFileTags accessToken={accessToken} references={fileDraft.references.filter(ref => !entry.images?.some(image => image.version_id === ref.versionId))} />
                     </div> : null}
                   </div>
                   {progressLabel ? <InputStatusIcon label={progressLabel} phase={entry.inputProgress?.phase ?? entry.deliveryStatus} /> : null}

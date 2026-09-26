@@ -8,7 +8,6 @@ import { ImageAttachments } from "@/features/chat/components/image-attachments"
 import type { ImageReference } from "@/lib/api/images"
 import { useRunObservationAccess } from "@/features/chat/use-run-observation-access"
 import { RunObservationPanel } from "@/features/chat/components/run-observation-panel"
-import { useAgentDescriptors } from "@/features/chat/model/use-agent-descriptors"
 import { ConversationPageLoader } from "@/features/chat/model/conversation-page-loader"
 import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
@@ -506,7 +505,6 @@ export function GatewayChatSidebar({
   const [trialVerdictBusy, setTrialVerdictBusy] = React.useState<
     "accept" | "rollback" | null
   >(null)
-  const agentDescriptors = useAgentDescriptors(accessToken, workspaces)
 
   const reportChatError = React.useCallback(
     (
@@ -4423,11 +4421,10 @@ export function GatewayChatSidebar({
         blockedPreInputRunStatus={blockedPreInputRunStatus}
         pendingQueueAction={pendingQueueAction}
         preInputQueue={preInputQueue}
-        agentDescriptorOptions={agentDescriptors.options}
-        agentDescriptorsLoading={agentDescriptors.loading}
-        agentDescriptorsError={agentDescriptors.error}
-        onAgentMenuOpenChange={agentDescriptors.setOpen}
-        onAgentDescriptorsRetry={agentDescriptors.refresh}
+        accessToken={accessToken}
+        workspaces={workspaces}
+        currentWorkspaceId={currentWorkspace?.id}
+        fileReferenceScope={currentConversationId ?? "new"}
         modelOptions={modelOptions}
         isModelCatalogLoaded={isModelCatalogLoaded}
         selectedModelProfileId={selectedModelProfileId}

@@ -1,4 +1,5 @@
 import { AppSidebar } from "../src/features/workspace/app-sidebar"
+import { AppToaster } from "../src/components/app/app-toaster"
 import { createRoot } from "react-dom/client"
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom"
 import { AppHeaderProvider, useAppHeader } from "../src/app/shell/app-header-context"
@@ -23,5 +24,5 @@ function Harness() {
 }
 await i18n.changeLanguage(new URLSearchParams(location.search).get("lang") || "en")
 createRoot(document.getElementById("root")!).render(<MemoryRouter initialEntries={[`/workspace/${workspace}/objects/image`]}>
-  <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><Harness /></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
+  <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><Harness /><AppToaster /></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
 </MemoryRouter>)

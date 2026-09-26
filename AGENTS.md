@@ -268,7 +268,7 @@ return (
 ## Agent Run 前端运行时
 
 - 首屏与未完成首屏时的页面激活补拉共享同登录态、会话的在途最新页请求；操作、生命周期和已观测新事件后的刷新默认读取新快照，包括没有 watermark 的 AwaitingHuman、失败及队列操作。刷新屏障立即登记，后续普通读取共享新快照；仍按原会话与请求 generation 投影，不缓存完成后的历史页。
-- Agent 文件选择器只在打开 @ 菜单时搜索 system/agents，目录查询最多四个并发；成功与缺失目录短缓存按认证和空间目录隔离。文件变化失效对应空间，其他错误明确展示并可重试，不能伪装成没有文件。
+- Workspace 文件选择器只在打开 @ 菜单时按空间/目录/关键词分页读取；不全量扫描。查询按认证、会话和查询代次隔离，错误明确展示并可重试。文件引用的唯一草稿是 canonical composer 正文中的 workspace://workspace/object/version；@、同源复制引用粘贴共用该表示，发送后由 Gateway 鉴权并固定版本，图片复用现有 images。引用文件不自动激活 Agent/Skill。
 
 - `runtime/conversation-run-reducer.ts` 只根据 canonical lifecycle event 更新业务状态；
   transport EOF、断线和重连只能更新 connection state，不能生成 completed/failed。
