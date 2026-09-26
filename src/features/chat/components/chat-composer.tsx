@@ -1,6 +1,7 @@
+import type { ImageReference } from "@/lib/image-reference"
 import { WorkspaceFileMenu, type FileMenuHandle } from "./workspace-file-menu"
 import { WorkspaceFileTags } from "./workspace-file-tags"
-import { fileMentionAt, splitFileReferences, joinFileReferences, mergeReferences, normalizeReferencePaste, referenceUri, MAX_FILE_REFERENCES, type WorkspaceFileReference } from "@/lib/workspace-file-reference"
+import { referenceMatchesImage, fileMentionAt, splitFileReferences, joinFileReferences, mergeReferences, normalizeReferencePaste, referenceUri, MAX_FILE_REFERENCES, type WorkspaceFileReference } from "@/lib/workspace-file-reference"
 import { notify } from "@/lib/app/notifications"
 import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
 import { Notice } from "@/components/app/notice"
@@ -63,6 +64,7 @@ type ChatComposerProps = {
   inputDisabledReason?: string
   imageActions?: React.ReactNode
   imageAttachments?: React.ReactNode
+  attachedImages?: ImageReference[]
   imageCount?: number
   imagesReady?: boolean
   onImageFiles?: (files: File[]) => void
@@ -113,7 +115,7 @@ type ChatComposerProps = {
 }
 
 export function ChatComposer({
-  imageActions, imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
+  attachedImages = [], imageActions, imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
   isFullScreen,
   composer,
   error,
@@ -166,6 +168,7 @@ export function ChatComposer({
   const menuRef = React.useRef<FileMenuHandle>(null)
   const composing = React.useRef(false)
   const draft = React.useMemo(() => splitFileReferences(composer), [composer])
+  const visibleFileReferences = draft.references.filter(ref => !attachedImages.some(image => referenceMatchesImage(ref, image)))
   const trigger = fileMentionAt(draft.text, cursor)
   const showFileMenu = menuScope === scope && Boolean(trigger) && Boolean(accessToken)
   const editable = !isSubmittingInput && !inputDisabledReason
@@ -237,7 +240,7 @@ export function ChatComposer({
   }
   function addReferences(references: WorkspaceFileReference[], text: string, position: number) {
     if (!editable) return
-    const merged = mergeReferences(draft.references, references)
+    const merged = mergeReferences(draft.references, references.filter(ref => !attachedImages.some(image => referenceMatchesImage(ref, image))))
     if (merged.length > MAX_FILE_REFERENCES) { notify.error({ title: t("fileReferences.limit") }); return }
     onComposerChange(joinFileReferences(text, merged))
     setMenuScope(null)
@@ -405,7 +408,7 @@ export function ChatComposer({
           ref={scrollBoundaryRef}
         >
           {imageCount > 0 ? <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0">{imageAttachments}</InputGroupAddon> : null}
-          {draft.references.length > 0 && <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0"><WorkspaceFileTags accessToken={accessToken} references={draft.references} onRemove={editable ? uri => onComposerChange(joinFileReferences(draft.text, draft.references.filter(ref => referenceUri(ref) !== uri))) : undefined} /></InputGroupAddon>}
+          {visibleFileReferences.length > 0 && <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0"><WorkspaceFileTags accessToken={accessToken} references={visibleFileReferences} onRemove={editable ? uri => onComposerChange(joinFileReferences(draft.text, draft.references.filter(ref => referenceUri(ref) !== uri))) : undefined} /></InputGroupAddon>}
           <InputGroupTextarea
             key={scope}
             ref={textareaRef}

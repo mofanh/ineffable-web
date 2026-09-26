@@ -4,6 +4,9 @@ const a = { workspaceId: "11111111-1111-1111-1111-111111111111", objectId: "2222
 const b = { ...a, workspaceId: "44444444-4444-4444-4444-444444444444", objectId: "55555555-5555-5555-5555-555555555555", label: "空间 B/报告 [中文](1).pdf" }
 const text = "比较这些资料，保留后面的文字。"
 assert.deepEqual(splitFileReferences(joinFileReferences(text, [a, b, a])), { text, references: [a, b] })
+for (const body of ["line\n", "line\n\n", "\n", "", "line\nnext line\n"]) {
+  assert.equal(splitFileReferences(joinFileReferences(body, [a, b])).text, body, "references preserve user newlines")
+}
 assert.deepEqual(mergeReferences([a], [b, a]), [a, b])
 const copied = `${referenceMarkdown(a, "https://local.test")} and ${referenceMarkdown(b, "https://local.test")}`
 assert.deepEqual(splitFileReferences(normalizeReferencePaste(copied, "https://local.test")).references, [a, b])

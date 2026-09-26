@@ -1,4 +1,5 @@
 /** Canonical content is the only draft/persistence owner for file references. */
+import type { ImageReference } from "./image-reference"
 export type WorkspaceFileReference = {
   workspaceId: string
   objectId: string
@@ -11,6 +12,13 @@ export const MAX_FILE_REFERENCES = 32
 
 export function referenceUri(ref: WorkspaceFileReference) {
   return `workspace://${ref.workspaceId}/${ref.objectId}/${ref.versionId}`
+}
+export function referenceMatchesImage(ref: WorkspaceFileReference, image: ImageReference) {
+  return ref.workspaceId === image.workspace_id && ref.objectId === image.object_id && ref.versionId === image.version_id
+}
+export function removeImageFileReference(content: string, image: ImageReference) {
+  const draft = splitFileReferences(content)
+  return joinFileReferences(draft.text, draft.references.filter(ref => !referenceMatchesImage(ref, image)))
 }
 export function parseReferenceUri(uri: string, label = ""): WorkspaceFileReference | null {
   const match = uri.match(uriPattern)
@@ -30,13 +38,18 @@ export function mergeReferences(...groups: WorkspaceFileReference[][]) {
 }
 export function splitFileReferences(content: string) {
   const references: WorkspaceFileReference[] = []
+  const rawReferences: string[] = []
   const text = content.replace(/\[((?:\\.|[^\]\\])*)\]\((workspace:\/\/[^\s)]+)\)/g, (whole, label: string, uri: string) => {
     const ref = parseReferenceUri(uri, label.replace(/\\([\\[\]])/g, "$1"))
     if (!ref) return whole
     references.push(ref)
+    rawReferences.push(whole)
     return ""
   })
-  return { text: references.length ? text.replace(/\n+$/, "") : text, references: mergeReferences(references) }
+  // Strip only our serialized footer. User-authored trailing newlines are data:
+  // trimming them here would make Enter stop working once a file is attached.
+  const footer = `\n\n${rawReferences.join("\n")}`
+  return { text: rawReferences.length && content.endsWith(footer) ? content.slice(0, -footer.length) : text, references: mergeReferences(references) }
 }
 export function joinFileReferences(text: string, references: WorkspaceFileReference[]) {
   return references.length ? `${text}\n\n${mergeReferences(references).map(ref => referenceMarkdown(ref)).join("\n")}` : text

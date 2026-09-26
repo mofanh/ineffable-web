@@ -1,3 +1,4 @@
+import { removeImageFileReference } from "@/lib/workspace-file-reference"
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
 import { IMAGE_REFERENCE_REQUEST, IMAGE_REFERENCE_TARGET_PROBE, IMAGE_REFERENCE_TARGET_READY, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
@@ -4404,11 +4405,16 @@ export function GatewayChatSidebar({
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 
       <ChatComposer
+        attachedImages={imageDraft.images}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}
         onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}
         imageActions={accessToken && currentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${currentWorkspace.id}`} accessToken={accessToken} workspaceId={currentWorkspace.id} disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onSelect={imageDraft.addReference} renderTrigger={(open) => <ImageAttachmentActions disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onFiles={imageDraft.addFiles} onWorkspace={open} />} /> : <ImageAttachmentActions disabled onFiles={imageDraft.addFiles} />}
-        imageAttachments={<ImageAttachments items={imageDraft.items} accessToken={accessToken} onRemove={imageDraft.remove} onRetry={(item) => { void imageDraft.retry(item) }} />}
+        imageAttachments={<ImageAttachments items={imageDraft.items} accessToken={accessToken} onRemove={id => {
+          const image = imageDraft.items.find(item => item.id === id)?.image
+          if (image) setComposer(removeImageFileReference(composer, image))
+          imageDraft.remove(id)
+        }} onRetry={(item) => { void imageDraft.retry(item) }} />}
         isFullScreen={isFullScreen}
         composer={composer}
         error={error}

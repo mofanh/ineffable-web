@@ -19,6 +19,7 @@ try {
     requests.push(url)
     const query = url.searchParams.get("query")
     const objects = [{ id: object, workspace_id: id, kind: "file", path: query ? `资料/${query}.pdf` : "报告 [中文](1).md", name: "报告", current_version_id: version }]
+    if (query === "many") for (let index = 1; index <= 25; index++) objects.push({ ...objects[0], id: `33333333-3333-3333-3333-${String(index).padStart(12, "0")}`, path: `many-${index}.md` })
     if (url.searchParams.get("path") === "" && !query && !url.searchParams.has("cursor")) objects.unshift({ id: "folder", workspace_id: id, kind: "folder", path: "folder", name: "folder", current_version_id: null })
     await new Promise(resolve => setTimeout(resolve, delay))
     await route.fulfill({ status: failed ? 503 : 200, contentType: "application/json", body: JSON.stringify(failed ? { error: "fixture offline" } : { objects, matches: objects.map(object => ({ object })), next_cursor: url.searchParams.has("cursor") ? null : "page-two" }) })
@@ -48,6 +49,8 @@ try {
   assert.equal(await input.inputValue(), "前文  后文", "middle completion preserves suffix")
   await page.locator("[data-workspace-file-tags]").getByRole("link").waitFor()
   assert.match(await page.evaluate(() => window.efficiencyFixture.getComposer()), /workspace:\/\//)
+  await input.fill("第一行\n")
+  assert.equal(await input.inputValue(), "第一行\n", "typing a new line after attaching does not lose it")
   const origin = new URL(page.url()).origin
   const copied = `[B/报告](${origin}/workspace/${b}/objects/${object}?version=${version})`
   async function paste(text) { await input.evaluate((el, text) => { const data = new DataTransfer(); data.setData("text/plain", text); el.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data })) }, text) }
@@ -66,6 +69,30 @@ try {
   await input.dispatchEvent("compositionend")
   await input.press("Escape")
   assert.equal(await page.locator("[data-workspace-file-menu]").count(), 0)
+  await input.fill("@many")
+  await page.getByRole("option", { name: "many-25.md", exact: true }).waitFor()
+  for (let index = 0; index < 18; index++) await input.press("ArrowDown")
+  assert.equal(await page.getByRole("listbox").getByRole("option", { selected: true }).innerText(), "many-18.md")
+  assert.ok(await page.getByRole("listbox").evaluate(list => {
+    const option = list.querySelector('[aria-selected="true"]'), a = list.getBoundingClientRect(), b = option.getBoundingClientRect()
+    return b.top >= a.top && b.bottom <= a.bottom && list.scrollTop > 0
+  }), "keyboard selection scrolls into view")
+  await input.press("Escape")
+  const image = { workspace_id: a, object_id: object, version_id: version, mime_type: "image/png", width: 1, height: 1, size_bytes: 68 }
+  const imageCopy = `[A/image.png](${origin}/workspace/${a}/objects/${object}?version=${version})`
+  for (const imageFirst of [true, false]) {
+    await page.evaluate(() => window.efficiencyFixture.setComposer(""))
+    await page.waitForFunction(() => window.efficiencyFixture.getComposer() === "")
+    if (imageFirst) await page.evaluate(image => window.efficiencyFixture.addImage(image), image)
+    if (imageFirst) await page.getByRole("button", { name: "Remove test image", exact: true }).waitFor()
+    await paste(imageCopy)
+    if (!imageFirst) await page.evaluate(image => window.efficiencyFixture.addImage(image), image)
+    await page.waitForFunction(() => document.querySelectorAll("[data-workspace-file-tags] a").length === 0)
+    assert.equal(await page.getByRole("button", { name: "Remove test image", exact: true }).count(), 1)
+    assert.equal(await page.locator("[data-workspace-file-tags] a").count(), 0, "both addition orders share one image display")
+    await page.getByRole("button", { name: "Remove test image", exact: true }).click()
+    assert.doesNotMatch(await page.evaluate(() => window.efficiencyFixture.getComposer()), /workspace:\/\//, "removal clears any canonical pointer so send cannot restore the image")
+  }
   await input.fill("@again")
   await page.getByRole("option", { name: "资料/again.pdf", exact: true }).waitFor()
   failed = true

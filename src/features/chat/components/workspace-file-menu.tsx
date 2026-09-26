@@ -44,9 +44,18 @@ export const WorkspaceFileMenu = React.forwardRef<FileMenuHandle, {
   const setCursor = (value: string | undefined) => setPageCursor(value ? { query, value } : undefined)
   const [revision, retry] = React.useReducer(n => n + 1, 0)
   const [selected, setSelected] = React.useState(0)
+  const listRef = React.useRef<HTMLDivElement>(null)
   const key = JSON.stringify([accessToken, workspaceId, path, query, cursor, revision])
   const [result, setResult] = React.useState<{ key: string; objects: Entry[]; next: string | null; error?: string }>()
   const current = result?.key === key ? result : undefined
+  React.useLayoutEffect(() => {
+    const list = listRef.current
+    const option = list?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (!list || !option) return
+    const outer = list.getBoundingClientRect(), inner = option.getBoundingClientRect()
+    if (inner.top < outer.top) list.scrollTop -= outer.top - inner.top
+    else if (inner.bottom > outer.bottom) list.scrollTop += inner.bottom - outer.bottom
+  }, [current, selected])
   React.useEffect(() => {
     const changed = (event: Event) => {
       if ((event as WorkspaceObjectsChangedEvent).detail.workspaceId === workspaceId) { setPageCursor(undefined); retry() }
@@ -88,7 +97,7 @@ export const WorkspaceFileMenu = React.forwardRef<FileMenuHandle, {
     </div>
     <p className="mb-1 truncate text-xs text-muted-foreground">{path || "/"} · {t("fileReferences.hint")}</p>
     {!workspaces.length ? <Notice>{t("fileReferences.empty")}</Notice> : !current ? <p role="status">{t("common.loading")}</p> : current.error ? <Notice tone="error">{current.error}<Button type="button" variant="ghost" onClick={retry}>{t("common.retry")}</Button></Notice> : <>
-      <div role="listbox" aria-label={t("fileReferences.title")} className="max-h-56 overflow-y-auto">
+      <div ref={listRef} role="listbox" aria-label={t("fileReferences.title")} className="max-h-56 overflow-y-auto">
         {current.objects.map((entry, index) => <button type="button" role="option" aria-selected={index === selected} key={entry.id} disabled={entry.kind !== "folder" && !entry.current_version_id} onMouseDown={event => event.preventDefault()} onClick={() => choose(entry)} className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent ${index === selected ? "bg-accent" : ""}`}>
           {entry.kind === "folder" ? <FolderIcon className="size-4 shrink-0" /> : <FileIcon className="size-4 shrink-0" />}<span className="min-w-0 truncate" title={entry.path}>{entry.path}</span>
         </button>)}
