@@ -1,7 +1,8 @@
 import * as React from "react"
 import { useTranslation } from "react-i18next"
-import { FileIcon, FolderIcon } from "lucide-react"
+import { FileIcon, FolderIcon, LayersIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Notice } from "@/components/app/notice"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { listWorkspaceDirectory, searchWorkspacePaths, type WorkspaceObject } from "@/lib/api/api-client"
@@ -89,10 +90,20 @@ export const WorkspaceFileMenu = React.forwardRef<FileMenuHandle, {
   } }))
   return <div className="rounded-xl border bg-popover p-2 shadow-lg" data-workspace-file-menu>
     <div className="flex items-center gap-2 pb-2">
-      <label className="sr-only" htmlFor="file-reference-space">{t("fileReferences.workspace")}</label>
-      <select id="file-reference-space" className="min-w-0 flex-1 rounded border bg-background px-2 py-1 text-sm" value={workspaceId} onChange={event => { setWorkspaceId(event.target.value); setPath(""); setCursor(undefined) }}>
-        {[...workspaces].sort((a, b) => Number(b.id === currentWorkspaceId) - Number(a.id === currentWorkspaceId)).map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
-      </select>
+      <Select value={workspaceId} onValueChange={value => { setWorkspaceId(value); setPath(""); setCursor(undefined) }}>
+        <SelectTrigger aria-label={t("fileReferences.workspace")} disabled={!workspaces.length} className="h-9 min-w-0 flex-1 border-transparent bg-muted/50 px-2.5 shadow-none hover:bg-muted data-[state=open]:bg-muted">
+          <LayersIcon className="size-4 shrink-0 text-muted-foreground" />
+          <SelectValue className="min-w-0 flex-1 truncate text-left font-medium" placeholder={t("fileReferences.workspace")} />
+        </SelectTrigger>
+        <SelectContent position="popper" align="start" sideOffset={4} collisionPadding={12} className="w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-24px)] rounded-xl p-1 shadow-lg">
+          <SelectGroup>
+            <SelectLabel className="px-2 pb-1.5 pt-1">{t("fileReferences.workspace")}</SelectLabel>
+            {[...workspaces].sort((a, b) => Number(b.id === currentWorkspaceId) - Number(a.id === currentWorkspaceId)).map(workspace => <SelectItem key={workspace.id} value={workspace.id} title={workspace.name} className="min-h-9 rounded-lg pl-2 data-[state=checked]:bg-accent data-[state=checked]:font-medium [&>span:last-child]:min-w-0">
+              <span className="truncate">{workspace.name}</span>
+            </SelectItem>)}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
       {path && <Button type="button" size="sm" variant="ghost" onClick={() => { setPath(path.split("/").slice(0, -1).join("/")); setCursor(undefined) }}>{t("fileReferences.up")}</Button>}
     </div>
     <p className="mb-1 truncate text-xs text-muted-foreground">{path || "/"} · {t("fileReferences.hint")}</p>
