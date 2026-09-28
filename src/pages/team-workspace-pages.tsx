@@ -327,7 +327,7 @@ export function CreateTeamWorkspacePage() {
 export function TeamWorkspaceMembersPage() {
   const { t } = useTranslation();
   const { workspaceId } = useParams();
-  const { accessToken, currentSessionId } = useAuthSession();
+  const { accessToken, currentSessionId, currentUser } = useAuthSession();
   const { currentWorkspace, workspaces } = useWorkspaceSession();
   const [query, setQuery] = React.useState("");
   const [inviteEmail, setInviteEmail] = React.useState("");
@@ -384,6 +384,7 @@ export function TeamWorkspaceMembersPage() {
     state: memberState,
   } = memberResource;
   const members = memberData?.members ?? [];
+  const isOwner = members.some(member => member.user_id === currentUser?.id && member.role === "owner" && member.status === "active");
   const invitations = memberData?.invitations ?? [];
   const usage = memberData?.usage ?? null;
 
@@ -724,7 +725,7 @@ export function TeamWorkspaceMembersPage() {
                         })}
                       >
                         {[
-                          ...(member.role === "owner" ? ["owner"] : []),
+                          ...(isOwner || member.role === "owner" ? ["owner"] : []),
                           ...roleOptions,
                         ].map((role) => (
                           <option key={role} value={role}>

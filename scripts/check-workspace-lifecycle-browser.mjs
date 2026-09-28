@@ -45,10 +45,13 @@ try {
     localStorage.setItem("ineffable.auth.session_id", "fixture-session")
     localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
   })
+  let promoted = false
   await app.route("**/gateway/v1/**", async route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith("auth/me")) return route.fulfill({ json: { user: { id: "actor", role: "user", status: "active" }, workspaces: [personal, team] } })
     if (path.endsWith("/workspaces/archived")) return route.fulfill({ json: { workspaces: [] } })
+    if (path.endsWith("/members")) return route.fulfill({ json: { members: [{ id: "owner-row", user_id: "actor", role: "owner", status: "active" }, { id: "member-row", user_id: "next-owner", role: promoted ? "owner" : "member", status: "active" }] } })
+    if (path.endsWith("/members/next-owner") && route.request().method() === "PATCH") { promoted = route.request().postDataJSON().role === "owner"; return route.fulfill({ json: { membership: { user_id: "next-owner", role: "owner" } } }) }
     return route.fulfill({ json: { conversations: [], invitations: [], objects: [], profiles: [], providers: [], next_cursor: null } })
   })
   await app.goto(`http://127.0.0.1:${server.httpServer.address().port}/team-spaces/new`)
@@ -56,6 +59,11 @@ try {
   await app.getByRole("heading", { name: "Archived spaces", exact: true }).waitFor()
   await app.getByText("No archived spaces", { exact: true }).waitFor()
   assert.ok(app.url().endsWith("/team-spaces/archived"), "production sidebar navigates to the actual archived route")
+  await app.goto(`http://127.0.0.1:${server.httpServer.address().port}/team-spaces/${team.id}/members`)
+  const nextOwnerRole = app.locator('select[aria-label*="next-owner"]')
+  await nextOwnerRole.selectOption("owner")
+  await app.waitForFunction(() => document.querySelector('select[aria-label*="next-owner"]')?.disabled)
+  assert.equal(promoted, true, "owner can grant ownership before leaving")
   await app.close()
   const openMenu = () => page.getByRole("button", { name: /Team lifecycle.*actions|actions.*Team lifecycle/i }).click()
   await openMenu()
