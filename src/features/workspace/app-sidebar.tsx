@@ -326,6 +326,7 @@ function TeamWorkspaceMenu({
   const { run, pending } = useWorkspaceLifecycle()
   const members = useApiResource({ enabled: open && Boolean(accessToken && item.workspaceId), load: React.useCallback(() => listWorkspaceMembers(accessToken!, item.workspaceId!), [accessToken, item.workspaceId]) })
   const owner = members.data?.members.some(member => member.user_id === currentUser?.id && member.role === "owner" && member.status === "active")
+  const lastOwner = owner && members.data?.members.filter(member => member.role === "owner" && member.status === "active").length === 1
 
 
   return (
@@ -362,7 +363,7 @@ function TeamWorkspaceMenu({
         <DropdownMenuSeparator />
         {members.error && <DropdownMenuItem onSelect={event => { event.preventDefault(); void members.reload() }}>{t("common.retry")}</DropdownMenuItem>}
         {owner && <DropdownMenuItem disabled={pending} onClick={() => void run(item.workspaceId!, item.title, "archive")}><Trash2Icon /><span>{t("workspaceLifecycle.archive")}</span></DropdownMenuItem>}
-        <DropdownMenuItem disabled={pending} onClick={() => void run(item.workspaceId!, item.title, "leave")}><span>{t("workspaceLifecycle.leave")}</span></DropdownMenuItem>
+        <DropdownMenuItem disabled={pending || !members.data || lastOwner} title={lastOwner ? t("workspaceLifecycle.lastOwner") : undefined} onClick={() => void run(item.workspaceId!, item.title, "leave")}><span>{lastOwner ? t("workspaceLifecycle.transferFirst") : t("workspaceLifecycle.leave")}</span></DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -1562,7 +1563,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           onSelectEntry={setSelectedEntryId}
         />
         <SidebarSeparator />
-        <SidebarMenu className="px-2"><SidebarMenuItem><SidebarMenuButton asChild><Link to="/team-spaces/archived">{t("workspaceLifecycle.archived")}</Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
+        <SidebarMenu className="px-2"><SidebarMenuItem><SidebarMenuButton asChild isActive={location.pathname === "/team-spaces/archived"}><Link to="/team-spaces/archived">{t("workspaceLifecycle.archived")}</Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
         <SpaceSection
           title={t("sidebar.sections.team")}
           entries={teamSpaceEntries}

@@ -294,6 +294,9 @@ function getWorkspaceBreadcrumbs(
   workspaces: Workspace[],
   t: TFunction
 ): BreadcrumbEntry[] | null {
+  if (pathname === "/team-spaces/archived") {
+    return [{ label: t("shell.breadcrumbs.teamSpaces") }, { label: t("workspaceLifecycle.archived") }]
+  }
   if (pathname === "/team-spaces/new") {
     return [
       { label: t("shell.breadcrumbs.teamSpaces") },

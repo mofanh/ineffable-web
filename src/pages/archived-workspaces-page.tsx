@@ -39,6 +39,7 @@ function ArchivedFiles({ workspace, onRestored }: { workspace: Workspace; onRest
   const members = useApiResource({ enabled: Boolean(accessToken), load: React.useCallback(() => listWorkspaceMembers(accessToken!, workspace.id), [accessToken, workspace.id]) })
   const files = useApiResource({ enabled: Boolean(accessToken), load: React.useCallback(() => listWorkspaceDirectory(accessToken!, workspace.id, path, cursor), [accessToken, workspace.id, path, cursor]) })
   const owner = members.data?.members.some(member => member.user_id === currentUser?.id && member.role === "owner" && member.status === "active")
+  const lastOwner = owner && members.data?.members.filter(member => member.role === "owner" && member.status === "active").length === 1
   async function download(file: WorkspaceObject) {
     if (!accessToken || !currentSessionId || !file.current_version_id || downloading) return
     setDownloading(true)
@@ -55,7 +56,7 @@ function ArchivedFiles({ workspace, onRestored }: { workspace: Workspace; onRest
   return <section className="space-y-4 rounded-xl border p-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="min-w-0 truncate font-medium">{workspace.name}</h2><div className="flex gap-2">
       {owner && <Button disabled={pending} onClick={() => void run(workspace.id, workspace.name, "restore", onRestored)}>{t("workspaceLifecycle.restore")}</Button>}
-      <Button variant="outline" disabled={pending} onClick={() => void run(workspace.id, workspace.name, "leave", onRestored)}>{t("workspaceLifecycle.leave")}</Button>
+      <Button variant="outline" disabled={pending || !members.data || lastOwner} title={lastOwner ? t("workspaceLifecycle.lastOwner") : undefined} onClick={() => void run(workspace.id, workspace.name, "leave", onRestored)}>{lastOwner ? t("workspaceLifecycle.transferFirst") : t("workspaceLifecycle.leave")}</Button>
     </div></div>
     <Notice>{t("workspaceLifecycle.readOnly")}</Notice>
     <div className="flex items-center gap-2"><span className="min-w-0 truncate text-sm text-muted-foreground">/{path}</span>{path && <Button variant="ghost" onClick={() => { setPath(path.split("/").slice(0, -1).join("/")); setCursor(undefined); setPreview(undefined) }}>{t("fileReferences.up")}</Button>}</div>
