@@ -548,3 +548,8 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
   固定视口的 1,000/10,000 条普通/混合消息。每次分页后挂载 entry 不超过 80；三轮各
   20 个字符的输入下一帧 P95 中位数不超过 100 ms。夹具必须断言滚动区域和输入框都在
   视口内；React Profiler 的 actualDuration 是 render 工作，不是 DOM commit 或 paint。
+
+团队空间归档/恢复/退出复用 Workspace 生命周期 API 与统一确认弹窗，菜单角色来自实际成员身份。
+默认侧栏只含活跃空间；已归档页面独立读取目录，保留文件下载和精确版本预览。归档仍占存储，
+恢复不自动重启任务，Automation 用服务端 pause_reason 展示暂停原因。异步操作冻结登录身份与路由，
+权限由后端最终裁决，不通过隐藏按钮替代。运行 npm run check:workspace-lifecycle 覆盖主交互。

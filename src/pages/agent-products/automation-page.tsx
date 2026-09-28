@@ -769,6 +769,7 @@ export function AutomationPage() {
                   {triggerKindLabel(automation.trigger_kind)}
                 </Badge>
               </div>
+              {automation.pause_reason === "workspace_archived" && <Notice>{t("workspaceLifecycle.taskPaused")}</Notice>}
               {automation.runtime_config ? <button type="button" className="mt-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => startEditAutomation(automation)}>
                 {t("automation.runtime.title")} · {automation.runtime_config.model_profile_id} · {t(`chat.composer.capabilityMode.${automation.runtime_config.capability_exposure.mode}`)}
               </button> : null}

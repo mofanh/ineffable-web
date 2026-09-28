@@ -230,6 +230,7 @@ export type AutomationRuntimeConfig = {
 }
 
 export type Automation = {
+  pause_reason?: string | null
   updated_at?: string
   runtime_config: AutomationRuntimeConfig | null
   id: string

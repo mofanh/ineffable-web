@@ -1,6 +1,10 @@
 export const resources = {
   "zh-CN": {
     translation: {
+      workspaceLifecycle: {
+        archived: "已归档空间", archive: "归档空间", restore: "恢复空间", leave: "退出空间", saved: "空间状态已更新", failed: "操作失败", refreshFailed: "操作已成功，但列表刷新失败，请刷新页面", empty: "没有已归档空间", readOnly: "归档空间只读，文件仍占用存储额度。恢复空间后，自动任务需要手动重新启用。", archiveTitle: "归档 {{name}}？", restoreTitle: "恢复 {{name}}？", leaveTitle: "退出 {{name}}？", archiveHint: "所有成员将只能查看和导出文件；关联自动任务暂停。文件和成员关系保留，存储仍计入额度。所有者可恢复空间。", restoreHint: "恢复成员使用权限。已暂停的自动任务不会自动重新启用。", leaveHint: "你将失去空间文件访问权，其他成员不受影响。最后一位所有者需要先转交所有权。", download: "下载文件", taskPaused: "因团队空间归档而暂停；恢复空间后可手动启用任务。",
+      },
+
       fileReferences: {
         unavailable: "文件引用已失效或无访问权限", version: "引用版本：{{version}}", previewUnavailable: "此版本暂时无法预览（可能不是文本格式）。", openCurrent: "打开当前文件",
         title: "Workspace 文件", workspace: "选择空间", up: "上一级", firstPage: "第一页",
@@ -1855,6 +1859,10 @@ export const resources = {
   },
   "en-US": {
     translation: {
+      workspaceLifecycle: {
+        archived: "Archived spaces", archive: "Archive space", restore: "Restore space", leave: "Leave space", saved: "Workspace updated", failed: "Action failed", refreshFailed: "Action succeeded, but the list could not refresh. Reload the page.", empty: "No archived spaces", readOnly: "Archived spaces are read-only and still count toward storage. Automations must be enabled manually after restoring the space.", archiveTitle: "Archive {{name}}?", restoreTitle: "Restore {{name}}?", leaveTitle: "Leave {{name}}?", archiveHint: "Members can only view and export files. Linked automations pause. Files and memberships are retained and still count toward storage. Owners can restore the space.", restoreHint: "Restore member access. Paused automations will not restart automatically.", leaveHint: "You will lose access to files. Other members are unaffected. The last owner must transfer ownership first.", download: "Download file", taskPaused: "Paused because its workspace was archived. Restore the space, then enable this task manually.",
+      },
+
       fileReferences: {
         unavailable: "File reference is unavailable or access was denied", version: "Referenced version: {{version}}", previewUnavailable: "This version cannot be previewed here (it may not be text).", openCurrent: "Open current file",
         title: "Workspace files", workspace: "Select workspace", up: "Up", firstPage: "First page",

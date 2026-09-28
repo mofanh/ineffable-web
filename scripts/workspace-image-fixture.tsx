@@ -1,3 +1,4 @@
+import ArchivedWorkspacesPage from "../src/pages/archived-workspaces-page"
 import { AppSidebar } from "../src/features/workspace/app-sidebar"
 import { AppToaster } from "../src/components/app/app-toaster"
 import { createRoot } from "react-dom/client"
@@ -15,6 +16,7 @@ const workspace = "00000000-0000-0000-0000-000000000001"
 function Harness() {
   const { headerContent } = useAppHeader()
   const navigate = useNavigate()
+  if (new URLSearchParams(location.search).has("lifecycle")) return <SidebarProvider><TooltipProvider><AppSidebar /><Routes><Route path="/team-spaces/archived" element={<ArchivedWorkspacesPage />} /><Route path="*" element={<div />} /></Routes></TooltipProvider></SidebarProvider>
   if (new URLSearchParams(location.search).has("tree")) return <SidebarProvider><TooltipProvider><AppSidebar /></TooltipProvider></SidebarProvider>
   return <><button onClick={() => navigate(`/workspace/${workspace}/objects/text`)}>Open text</button>
     <button onClick={() => navigate(`/workspace/${workspace}/objects/image`)}>Open image</button>

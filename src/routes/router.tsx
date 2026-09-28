@@ -17,6 +17,7 @@ import {
   loadSystemUsersModule,
 } from "@/routes/route-modules"
 
+const ArchivedWorkspacesPage = lazy(() => import("@/pages/archived-workspaces-page"))
 const App = lazy(() => import("@/App"))
 const AccountPage = lazy(async () => ({
   default: (await import("@/pages/account-pages")).AccountPage,
@@ -187,6 +188,7 @@ export const router = createBrowserRouter([
         path: "workspace/:workspaceId/objects/:objectId?",
         element: <WorkspaceObjectEditorPage />,
       },
+      { path: "team-spaces/archived", element: <ArchivedWorkspacesPage /> },
       {
         path: "team-spaces/new",
         element: <CreateTeamWorkspacePage />,
