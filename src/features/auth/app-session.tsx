@@ -56,7 +56,7 @@ type AuthSessionContextValue = {
     email_verification_code: string
   }) => Promise<void>
   logout: () => Promise<void>
-  refreshAppData: () => Promise<void>
+  refreshAppData: (options?: { fresh?: boolean }) => Promise<boolean>
 }
 
 type WorkspaceSessionContextValue = {
@@ -199,7 +199,7 @@ export function AppSessionProvider({
   }))
   const { workspaceId: currentWorkspaceId, conversationId: currentConversationId, version: selectionVersion } = selection
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
-  const refreshAppDataPromiseRef = React.useRef<Promise<void> | null>(null)
+  const refreshAppDataPromiseRef = React.useRef<Promise<boolean> | null>(null)
   const initialBootstrapStartedRef = React.useRef(false)
   const conversationSelectionRef = React.useRef(selection)
   const updateConversationSelection = React.useCallback((
@@ -375,10 +375,10 @@ export function AppSessionProvider({
     [refreshConversations, isCurrentSession, updateConversationSelection],
   )
 
-  const refreshAppData = React.useCallback(() => {
-    if (!captureAuthSession(accessToken)()) return Promise.resolve()
+  const refreshAppData = React.useCallback((options?: { fresh?: boolean }): Promise<boolean> => {
+    if (!captureAuthSession(accessToken)()) return Promise.resolve(false)
     if (refreshAppDataPromiseRef.current) {
-      return refreshAppDataPromiseRef.current
+      return options?.fresh ? refreshAppDataPromiseRef.current.then(() => refreshAppData()) : refreshAppDataPromiseRef.current
     }
 
     const generation = sessionGenerationRef.current
@@ -386,20 +386,22 @@ export function AppSessionProvider({
     const run = (async () => {
       if (!accessToken) {
         clearSession()
-        return
+        return false
       }
 
       setIsBootstrapping(true)
 
       try {
         await hydrateWithToken(accessToken)
+        return isCurrentSession(generation, identity)
       } catch {
-        if (!isCurrentSession(generation, identity)) return
+        if (!isCurrentSession(generation, identity)) return false
         if (!readStorage(STORAGE_KEYS.accessToken)) {
           clearSession()
         } else {
-          setStatus("loading")
+          setStatus(current => current === "authenticated" ? current : "loading")
         }
+        return false
       } finally {
         if (isCurrentSession(generation, identity)) setIsBootstrapping(false)
       }

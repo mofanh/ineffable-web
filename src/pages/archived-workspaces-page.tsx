@@ -15,7 +15,7 @@ import { WorkspaceFileTags } from "@/features/chat/components/workspace-file-tag
 export default function ArchivedWorkspacesPage() {
   const { t } = useTranslation()
   const { accessToken, currentSessionId } = useAuthSession()
-  const resource = useApiResource({ enabled: Boolean(accessToken), load: React.useCallback(() => listArchivedWorkspaces(accessToken!), [accessToken]) })
+  const resource = useApiResource({ enabled: Boolean(accessToken), cacheKey: ["archived-workspaces", currentSessionId], staleTime: 0, load: React.useCallback(() => listArchivedWorkspaces(accessToken!), [accessToken]) })
   const [selected, setSelected] = React.useState<string>()
   const workspace = resource.data?.workspaces.find(space => space.id === selected)
   return <AppPage title={t("workspaceLifecycle.archived")} description={t("workspaceLifecycle.readOnly")}>

@@ -10,7 +10,7 @@ try {
   const page = await browser.newPage(); const errors = []; page.on("pageerror", e => errors.push(e.message))
   const team = { id: "00000000-0000-0000-0000-000000000002", name: "Team lifecycle", workspace_type: "team", owner_user_id: "actor", status: "active" }
   const personal = { ...team, id: "00000000-0000-0000-0000-000000000001", name: "Personal", workspace_type: "personal" }
-  let archived = false, left = false, deny = false; const actions = []
+  let archived = false, left = false, deny = false, failRefresh = false, mutationDelay = 0; const actions = []
   await page.addInitScript(() => {
     localStorage.setItem("ineffable.auth.access_token", "fixture-token")
     localStorage.setItem("ineffable.auth.session_id", "fixture-session")
@@ -19,12 +19,14 @@ try {
   await page.route("**/gateway/v1/**", async route => {
     const path = new URL(route.request().url()).pathname
     let body = { conversations: [], invitations: [], objects: [], next_cursor: null }
+    if (path.endsWith("auth/me") && failRefresh) { await route.fulfill({ status: 503, json: { error: "refresh offline" } }); return }
     if (path.endsWith("auth/me")) body = { user: { id: "actor", role: "user", status: "active" }, workspaces: [personal, ...(!archived && !left ? [team] : [])] }
     else if (path.endsWith("/workspaces/archived")) body = { workspaces: archived && !left ? [{ ...team, status: "archived" }] : [] }
     else if (path.endsWith("/members")) body = { members: [{ user_id: "actor", role: "owner", status: "active" }] }
     else if (path.endsWith("/directory")) body = { objects: [{ id: "file", kind: "file", name: "retained.txt", path: "retained.txt", current_version_id: "version" }], next_cursor: null }
     else if (/\/(archive|restore|leave)$/.test(path)) {
       const action = path.split("/").at(-1); actions.push(action)
+      if (mutationDelay) await new Promise(resolve => setTimeout(resolve, mutationDelay))
       if (deny) { await route.fulfill({ status: 403, json: { error: "permission changed" } }); return }
       if (action === "archive") archived = true
       if (action === "restore") archived = false
@@ -61,5 +63,24 @@ try {
   await page.getByRole("alertdialog").getByRole("button", { name: "Leave space", exact: true }).click()
   await page.waitForFunction(() => !document.body.innerText.includes("Team lifecycle"))
   assert.equal(left, true); assert.deepEqual(errors, [])
+  // A route switch fences navigation, but must not drop the global workspace reconciliation.
+  left = false; mutationDelay = 500
+  await page.reload(); await openMenu()
+  await page.getByRole("menuitem", { name: "Archive space", exact: true }).click()
+  await page.getByRole("alertdialog").getByRole("button", { name: "Archive space", exact: true }).click()
+  await page.getByRole("link", { name: "Archived spaces", exact: true }).click()
+  await page.getByRole("heading", { name: "Archived spaces", exact: true }).waitFor()
+  await page.getByRole("button", { name: team.name, exact: true }).waitFor()
+  await page.waitForFunction(() => !document.querySelector('[data-slot="sidebar-menu-action"][aria-label*="Team lifecycle"]'))
+  assert.equal(archived, true)
+  // A committed mutation remains a success, with a distinct refresh failure message.
+  archived = false; mutationDelay = 0
+  await page.reload(); await openMenu()
+  await page.getByRole("menuitem", { name: "Archive space", exact: true }).click()
+  failRefresh = true
+  await page.getByRole("alertdialog").getByRole("button", { name: "Archive space", exact: true }).click()
+  await page.getByText("Action succeeded, but the list could not refresh. Reload the page.", { exact: true }).waitFor()
+  assert.equal(archived, true)
+  assert.deepEqual(errors, [])
   console.log("Workspace lifecycle browser checks passed: archive/cancel, readonly browse/download, denied restore, restore and leave")
 } finally { await browser?.close(); await server.close() }
