@@ -51,7 +51,7 @@ try {
   deny = true
   await page.getByRole("button", { name: "Restore space", exact: true }).click()
   await page.getByRole("alertdialog").getByRole("button", { name: "Restore space", exact: true }).click()
-  await page.getByText("permission changed", { exact: false }).waitFor()
+  await page.getByText("permission changed", { exact: true }).waitFor()
   assert.equal(archived, true)
   deny = false
   await page.getByRole("button", { name: "Restore space", exact: true }).click()
