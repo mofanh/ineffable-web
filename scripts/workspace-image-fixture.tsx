@@ -1,8 +1,7 @@
-import ArchivedWorkspacesPage from "../src/pages/archived-workspaces-page"
 import { AppSidebar } from "../src/features/workspace/app-sidebar"
 import { AppToaster } from "../src/components/app/app-toaster"
 import { createRoot } from "react-dom/client"
-import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom"
+import { createMemoryRouter, RouterProvider, Routes, Route, useNavigate } from "react-router-dom"
 import { AppHeaderProvider, useAppHeader } from "../src/app/shell/app-header-context"
 import { AppSessionProvider } from "../src/features/auth/app-session"
 import { WorkspaceObjectEditorPage } from "../src/pages/workspace-object-editor-page"
@@ -16,7 +15,6 @@ const workspace = "00000000-0000-0000-0000-000000000001"
 function Harness() {
   const { headerContent } = useAppHeader()
   const navigate = useNavigate()
-  if (new URLSearchParams(location.search).has("lifecycle")) return <SidebarProvider><TooltipProvider><AppSidebar /><Routes><Route path="/team-spaces/archived" element={<ArchivedWorkspacesPage />} /><Route path="*" element={<div />} /></Routes></TooltipProvider></SidebarProvider>
   if (new URLSearchParams(location.search).has("tree")) return <SidebarProvider><TooltipProvider><AppSidebar /></TooltipProvider></SidebarProvider>
   return <><button onClick={() => navigate(`/workspace/${workspace}/objects/text`)}>Open text</button>
     <button onClick={() => navigate(`/workspace/${workspace}/objects/image`)}>Open image</button>
@@ -25,6 +23,7 @@ function Harness() {
     </main><SidebarProvider><TooltipProvider><GatewayChatSidebar isFullScreen onFullScreenChange={() => {}} /></TooltipProvider></SidebarProvider></div></>
 }
 await i18n.changeLanguage(new URLSearchParams(location.search).get("lang") || "en")
-createRoot(document.getElementById("root")!).render(<MemoryRouter initialEntries={[`/workspace/${workspace}/objects/image`]}>
+const router = createMemoryRouter([{path: "*", element:
   <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><Harness /><AppToaster /></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
-</MemoryRouter>)
+}], { initialEntries: [`/workspace/${workspace}/objects/image`] })
+createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />)

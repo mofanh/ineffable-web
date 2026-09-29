@@ -59,8 +59,14 @@ export function getApiResourceEntry(key: string) {
   return entry
 }
 
-export function clearApiResourceCache() {
+export function clearApiResourceCache(cacheKey?: readonly unknown[]) {
   clearEpoch++
+  if (cacheKey) {
+    const key = JSON.stringify(cacheKey)
+    const entry = apiResourceCache.get(key)
+    if (entry?.clear()) apiResourceCache.delete(key)
+    return
+  }
   for (const [key, entry] of apiResourceCache) {
     // Keep active subscribers on the same entry; new readers must share their owner.
     if (entry.clear()) apiResourceCache.delete(key)
@@ -88,7 +94,12 @@ export function loadApiResource<T>(entry: ApiResourceEntry, load: () => Promise<
   }, error => {
     if (!canCommit()) return null
     entry.inFlight = undefined
-    entry.publish({ error, state: entry.getSnapshot().data !== undefined ? "success" : "error" })
+    const status = error && typeof error === "object" && "status" in error ? error.status : undefined
+    if (status === 401 || status === 403 || status === 404) {
+      entry.publish({ data: undefined, error, state: "error", updatedAt: 0 })
+    } else {
+      entry.publish({ error, state: entry.getSnapshot().data !== undefined ? "success" : "error" })
+    }
     return null
   })
   entry.inFlight = promise

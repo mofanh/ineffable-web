@@ -183,9 +183,10 @@ export async function requestApiJson<T>(
   })
 
   if (!response.ok) {
+    const detail = await response.clone().json().catch(() => null) as { reason?: unknown } | null
     const message = await parseApiError(response)
     assertSession()
-    throw createApiError(message, response.status)
+    throw new ApiRequestError(message, { status: response.status, cause: typeof detail?.reason === "string" ? { reason: detail.reason } : undefined })
   }
 
   const body = (await response.json()) as T

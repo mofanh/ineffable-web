@@ -1,5 +1,7 @@
 import { useWorkspaceLifecycle } from "./hooks/use-workspace-lifecycle"
-import { listWorkspaceMembers } from "@/lib/api/api-client"
+import { useActionScope } from "@/lib/app/use-action-scope"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { LanguageMenu } from "@/components/language-menu"
 import { referenceMarkdown } from "@/lib/workspace-file-reference"
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu"
 
@@ -44,8 +46,9 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { LanguageMenu } from "@/components/language-menu"
+import { Button } from "@/components/ui/button"
+import { useWorkspaceAccess } from "@/features/workspace/hooks/use-workspace-access"
+import { SettingsIcon } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { IneffableLogo } from "@/components/ineffable-logo"
@@ -84,9 +87,7 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import {
-  BadgeCheckIcon,
   BellIcon,
-  BotIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -97,20 +98,15 @@ import {
   FileTextIcon,
   FolderInputIcon,
   FolderPlusIcon,
-  GitBranchIcon,
-  KeyRoundIcon,
   LinkIcon,
   LogOutIcon,
   MoreHorizontalIcon,
-  PackageIcon,
   PencilIcon,
   PlusIcon,
-  ShieldIcon,
   Trash2Icon,
   UserPlusIcon,
   UsersIcon,
   ZapIcon,
-  SmartphoneIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -126,51 +122,11 @@ const primaryNavItems: Array<{
     path: string
   }>
 }> = [
-  { id: "channels", titleKey: "channels.title", icon: SmartphoneIcon, path: "/channels" },
   {
     id: "automation",
     titleKey: "sidebar.navigation.automation",
     icon: ZapIcon,
     path: "/automation",
-  },
-  {
-    id: "agent-nodes",
-    titleKey: "sidebar.navigation.agentNodes",
-    icon: GitBranchIcon,
-    path: "/agent-nodes",
-  },
-  {
-    id: "models",
-    titleKey: "sidebar.navigation.models",
-    icon: BotIcon,
-    path: "/models",
-  },
-]
-
-const systemManagementNavItems = [
-  {
-    id: "system-models",
-    titleKey: "sidebar.navigation.modelManagement",
-    icon: BotIcon,
-    path: "/system/models",
-  },
-  {
-    id: "system-plans",
-    titleKey: "sidebar.navigation.planManagement",
-    icon: PackageIcon,
-    path: "/system/plans",
-  },
-  {
-    id: "system-secrets",
-    titleKey: "sidebar.navigation.secretManagement",
-    icon: KeyRoundIcon,
-    path: "/system/secrets",
-  },
-  {
-    id: "system-users",
-    titleKey: "sidebar.navigation.userManagement",
-    icon: UsersIcon,
-    path: "/system/users",
   },
 ]
 
@@ -234,9 +190,12 @@ function WorkspaceObjectMenu({
   onAction: (action: WorkspaceObjectAction, item: SidebarEntry) => void
 }) {
   const { t } = useTranslation()
+  const [open, setOpen] = React.useState(false)
+  const { access } = useWorkspaceAccess(item.workspaceId, open)
+  const canWrite = access?.can_write === true
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <SidebarMenuAction
           showOnHover
@@ -261,7 +220,7 @@ function WorkspaceObjectMenu({
           <span>{t("sidebar.actions.openNewTab")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {item.kind === "folder" ? (
+        {canWrite && item.kind === "folder" ? (
           <>
             <DropdownMenuItem onClick={() => onAction("new-file", item)}>
               <FilePlusIcon />
@@ -274,19 +233,19 @@ function WorkspaceObjectMenu({
             <DropdownMenuSeparator />
           </>
         ) : null}
-        {!item.isWorkspaceRoot ? (
+        {canWrite && !item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("duplicate", item)}>
             <CopyIcon />
             <span>{t("sidebar.actions.duplicate")}</span>
           </DropdownMenuItem>
         ) : null}
-        {!item.isWorkspaceRoot ? (
+        {canWrite && !item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("rename", item)}>
             <PencilIcon />
             <span>{t("sidebar.actions.rename")}</span>
           </DropdownMenuItem>
         ) : null}
-        {!item.isWorkspaceRoot ? (
+        {canWrite && !item.isWorkspaceRoot ? (
           <DropdownMenuItem onClick={() => onAction("move", item)}>
             <FolderInputIcon />
             <span>{t("sidebar.actions.move")}</span>
@@ -296,7 +255,7 @@ function WorkspaceObjectMenu({
           <DownloadIcon />
           <span>{t("sidebar.actions.export")}</span>
         </DropdownMenuItem>
-        {!item.isWorkspaceRoot ? (
+        {canWrite && !item.isWorkspaceRoot ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -321,12 +280,11 @@ function TeamWorkspaceMenu({
   onAction: (action: TeamWorkspaceAction, item: SidebarEntry) => void
 }) {
   const { t } = useTranslation()
-  const { accessToken, currentUser } = useAuthSession()
   const [open, setOpen] = React.useState(false)
   const { run, pending } = useWorkspaceLifecycle()
-  const members = useApiResource({ enabled: open && Boolean(accessToken && item.workspaceId), load: React.useCallback(() => listWorkspaceMembers(accessToken!, item.workspaceId!), [accessToken, item.workspaceId]) })
-  const owner = members.data?.members.some(member => member.user_id === currentUser?.id && member.role === "owner" && member.status === "active")
-  const lastOwner = owner && members.data?.members.filter(member => member.role === "owner" && member.status === "active").length === 1
+  const resource = useWorkspaceAccess(item.workspaceId, open)
+  const access = resource.access
+  const lastOwner = access?.last_owner
 
 
   return (
@@ -352,18 +310,18 @@ function TeamWorkspaceMenu({
           <span>{t("sidebar.actions.openNewTab")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onAction("invite-members", item)}>
+        {access?.can_manage_members && <DropdownMenuItem onClick={() => onAction("invite-members", item)}>
           <UserPlusIcon />
           <span>{t("sidebar.actions.inviteMembers")}</span>
-        </DropdownMenuItem>
+        </DropdownMenuItem>}
         <DropdownMenuItem onClick={() => onAction("manage-members", item)}>
           <UsersIcon />
           <span>{t("sidebar.actions.manageMembers")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {members.error && <DropdownMenuItem onSelect={event => { event.preventDefault(); void members.reload() }}>{t("common.retry")}</DropdownMenuItem>}
-        {owner && <DropdownMenuItem disabled={pending} onClick={() => void run(item.workspaceId!, item.title, "archive")}><Trash2Icon /><span>{t("workspaceLifecycle.archive")}</span></DropdownMenuItem>}
-        <DropdownMenuItem disabled={pending || !members.data || lastOwner} title={lastOwner ? t("workspaceLifecycle.lastOwner") : undefined} onClick={() => void run(item.workspaceId!, item.title, "leave")}><span>{lastOwner ? t("workspaceLifecycle.transferFirst") : t("workspaceLifecycle.leave")}</span></DropdownMenuItem>
+        {resource.error && <DropdownMenuItem onSelect={event => { event.preventDefault(); void resource.reload() }}>{t("common.retry")}</DropdownMenuItem>}
+        {access?.can_archive && <DropdownMenuItem disabled={pending} onClick={() => void run(item.workspaceId!, item.title, "archive")}><Trash2Icon /><span>{t("workspaceLifecycle.archive")}</span></DropdownMenuItem>}
+        <DropdownMenuItem disabled={pending || !access?.can_leave} title={lastOwner ? t("workspaceLifecycle.lastOwner") : undefined} onClick={() => void run(item.workspaceId!, item.title, "leave")}><span>{lastOwner ? t("workspaceLifecycle.transferFirst") : t("workspaceLifecycle.leave")}</span></DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -636,7 +594,7 @@ function SpaceSection({
     <SidebarGroup className="gap-1.5 py-2">
       <div className="flex h-8 items-center gap-1 px-2">
         <SidebarGroupLabel className="h-auto min-w-0 flex-1 px-0 py-1 text-xs font-semibold tracking-normal text-sidebar-foreground/55">
-          {title}
+          {createMode === "team" ? <Link to="/team-spaces" className="hover:text-sidebar-foreground">{title}</Link> : title}
         </SidebarGroupLabel>
         {actionMenu}
         {canCreate && createMode === "team" ? (
@@ -762,12 +720,6 @@ function WorkspaceAccountSwitcher({
         </DropdownMenuLabel>
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link to="/account">
-              <BadgeCheckIcon />
-              <span>{t("sidebar.account.accountDevices")}</span>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
             <Link to="/notifications">
               <BellIcon />
               <span>{t("sidebar.account.invitations")}</span>
@@ -817,6 +769,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { currentWorkspace, workspaces } = useWorkspaceSession()
   const location = useLocation()
   const navigate = useNavigate()
+  const captureActionScope = useActionScope(`${currentSessionId}:${location.key}`)
   const [selectedEntryId, setSelectedEntryId] = React.useState("")
   const [workspaceTrees, setWorkspaceTrees] = React.useState<WorkspaceTreeMap>({})
   const [directoryPages, setDirectoryPages] = React.useState<Record<string, Record<string, string | null>>>({})
@@ -846,28 +799,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     () => workspaces.map((workspace) => workspace.id).sort().join("|"),
     [workspaces]
   )
-  const effectivePrimaryNavItems = React.useMemo(() => {
-    if (currentUser?.role !== "admin") {
-      return primaryNavItems
-    }
-
-    return [
-      ...primaryNavItems,
-      {
-        id: "system-management",
-        titleKey: "sidebar.navigation.systemManagement",
-        icon: ShieldIcon,
-        path: "/system/models",
-        children: systemManagementNavItems,
-      },
-    ]
-  }, [currentUser?.role])
 
   React.useEffect(() => {
     const match = location.pathname.match(/^\/workspace\/[^/]+\/objects\/([^/]+)/)
     if (match?.[1]) {
       setSelectedEntryId(decodeURIComponent(match[1]))
-    }
+    } else setSelectedEntryId("")
   }, [location.pathname])
 
   const refreshWorkspaceTrees = React.useCallback(
@@ -1075,7 +1012,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (!accessToken) {
         return
       }
-
+      const isCurrent = captureActionScope()
       const name = window.prompt(
         kind === "file"
           ? t("workspace.sidebarFeedback.fileName")
@@ -1100,14 +1037,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 parent_id: parentId ?? null,
               })
 
-        setSelectedEntryId(response.object.id)
-        if (response.object.kind === "file") {
+        if (isCurrent()) setSelectedEntryId(response.object.id)
+        if (isCurrent() && response.object.kind === "file") {
           void navigate(`/workspace/${workspace.id}/objects/${response.object.id}`)
         }
-        await refreshWorkspaceTrees({
+        void refreshWorkspaceTrees({
           workspaceIds: [workspace.id],
           showLoading: false,
         })
+        if (!isCurrent()) return
         notify.success({
           title:
             kind === "file"
@@ -1116,6 +1054,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           description: response.object.name,
         })
       } catch (error) {
+        if (!isCurrent()) return
         reportActionError(
           error,
           t("workspace.sidebarFeedback.createFailed"),
@@ -1123,7 +1062,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )
       }
     },
-    [accessToken, navigate, refreshWorkspaceTrees, reportActionError, t]
+    [accessToken, captureActionScope, navigate, refreshWorkspaceTrees, reportActionError, t]
   )
 
   const duplicateObject = React.useCallback(
@@ -1227,6 +1166,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (!workspace) {
         return
       }
+      const isCurrent = captureActionScope()
 
       try {
         if (action === "copy-reference") {
@@ -1248,7 +1188,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         const url =
           item.object?.kind === "file" && item.workspaceId
             ? `${window.location.origin}/workspace/${item.workspaceId}/objects/${item.object.id}`
-            : `${window.location.origin}${window.location.pathname}?workspace=${item.workspaceId}&object=${item.object?.id ?? item.id}`
+            : `${window.location.origin}/workspace/${item.workspaceId}/objects?${new URLSearchParams({ path: item.object?.path ?? "" })}`
         if (action === "copy-link") {
           await navigator.clipboard?.writeText(url)
           notify.info({ title: t("workspace.sidebarFeedback.linkCopied") })
@@ -1330,7 +1270,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             item.object.id,
             { name: normalizedName }
           )
-          setSelectedEntryId(response.object.id)
+          if (isCurrent()) setSelectedEntryId(response.object.id)
           await refreshWorkspaceTrees({
             workspaceIds: [item.workspaceId],
             showLoading: false,
@@ -1368,7 +1308,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             item.object.id,
             { parent_id: targetFolder?.id ?? null }
           )
-          setSelectedEntryId(response.object.id)
+          if (isCurrent()) setSelectedEntryId(response.object.id)
           await refreshWorkspaceTrees({
             workspaceIds: [item.workspaceId],
             showLoading: false,
@@ -1389,7 +1329,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             confirmLabel: t("workspace.feedback.delete"),
             variant: "destructive",
           })
-          if (!confirmed) {
+          if (!confirmed || !isCurrent()) {
             return
           }
 
@@ -1404,6 +1344,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           notify.success({ title: t("workspace.sidebarFeedback.deleted") })
         }
       } catch (error) {
+        if (!isCurrent()) return
         reportActionError(
           error,
           t("workspace.sidebarFeedback.actionFailed"),
@@ -1413,6 +1354,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     },
     [
       accessToken,
+      captureActionScope,
       createObject,
       duplicateObject,
       refreshWorkspaceTrees,
@@ -1439,7 +1381,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return
         }
         void navigator.clipboard?.writeText(
-          `${window.location.origin}?workspace=${selectedTeam.id}`
+          `${window.location.origin}/workspace/${selectedTeam.id}/objects`
         )
         notify.info({ title: t("workspace.sidebarFeedback.teamLinkCopied") })
         return
@@ -1451,7 +1393,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           return
         }
         window.open(
-          `${window.location.origin}?workspace=${selectedTeam.id}`,
+          `${window.location.origin}/workspace/${selectedTeam.id}/objects`,
           "_blank",
           "noopener,noreferrer"
         )
@@ -1559,11 +1501,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent className="px-0">
         <PrimaryNav
-          items={effectivePrimaryNavItems}
+          items={primaryNavItems}
           onSelectEntry={setSelectedEntryId}
         />
         <SidebarSeparator />
-        <SidebarMenu className="px-2"><SidebarMenuItem><SidebarMenuButton asChild isActive={location.pathname === "/team-spaces/archived"}><Link to="/team-spaces/archived">{t("workspaceLifecycle.archived")}</Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
         <SpaceSection
           title={t("sidebar.sections.team")}
           entries={teamSpaceEntries}
@@ -1572,6 +1513,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           error={treeError}
           canCreate
           createMode="team"
+          actionMenu={<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={t("interaction.spaceMenu")}><MoreHorizontalIcon /></Button></DropdownMenuTrigger><DropdownMenuContent>
+            <DropdownMenuItem asChild><Link to="/team-spaces">{t("interaction.manageSpaces")}</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild><Link to="/team-spaces?status=archived">{t("workspaceLifecycle.archived")}</Link></DropdownMenuItem>
+          </DropdownMenuContent></DropdownMenu>}
           selectedEntryId={selectedEntryId}
           onSelectEntry={setSelectedEntryId}
           onOpenEntry={openEntry}
@@ -1612,6 +1557,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ) : null}
       </SidebarContent>
       <SidebarFooter className="gap-2">
+        <SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild isActive={location.pathname === "/settings"}><Link to="/settings"><SettingsIcon /><span>{t("interaction.settings")}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
         <SidebarSeparator className="mx-0" />
         <SidebarMenu>
           <SidebarMenuItem>

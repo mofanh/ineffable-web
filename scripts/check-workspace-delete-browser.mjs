@@ -29,6 +29,8 @@ try {
       let status = 200
       if (url.pathname.endsWith("auth/me")) body = { user: { id: "actor", email: "actor@example.com", display_name: "Actor", role: "user", status: "active" }, workspaces: [{ id: "w", name: "Workspace", workspace_type: "personal" }] }
       else if (url.pathname.includes("conversations/list")) body = { conversations: [] }
+      else if (url.pathname.endsWith("/directory")) body = { objects: [], next_cursor: null }
+      else if (url.pathname.endsWith("/access")) body = { workspace: { id: "w", name: "Workspace", workspace_type: "personal", status: "active" }, membership: { role: "owner" }, can_write: true }
       else if (url.pathname.endsWith("latest-file")) {
         latestReads++
         assert.equal(url.searchParams.get("excluded_id"), "a")

@@ -57,6 +57,8 @@ import {
 } from "@/lib/api/api-client"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
+import { useActionScope } from "@/lib/app/use-action-scope"
+import { invalidateApiResourceCache } from "@/lib/app/api-resource-cache"
 import { notify } from "@/lib/app/notifications"
 import { useApiResource } from "@/lib/app/use-api-resource"
 import { i18n, normalizeLanguage } from "@/lib/i18n/i18n"
@@ -417,6 +419,7 @@ export function AutomationPage() {
   }
 
   function startEditAutomation(automation: Automation) {
+    if (pendingActions.current.has(automation.id) || actionStates[automation.id]) return
     editorGeneration.current += 1
     setSaving(false)
     setError(null)
@@ -550,84 +553,46 @@ export function AutomationPage() {
     }
   }
 
-  async function handleArchiveAutomation(automation: Automation) {
-    const confirmed = await confirm({
-      title: t("automation.feedback.archiveTitle", { name: automation.name }),
-      description: t("automation.feedback.archiveDescription"),
-      confirmLabel: t("automation.feedback.archive"),
-      variant: "destructive",
-    })
-    if (!confirmed) {
-      return
-    }
+  const captureActionScope = useActionScope(`${currentSessionId}:automations`)
+  const pendingActions = React.useRef(new Set<string>())
+  const [actionStates, setActionStates] = React.useState<Record<string, "pending" | "uncertain">>({})
+  React.useEffect(() => { pendingActions.current.clear(); setActionStates({}) }, [currentSessionId])
 
-    setSaving(true)
-    setError(null)
+  async function runAction(automation: Automation, action: "archive" | "toggle" | "run") {
+    if (pendingActions.current.has(automation.id) || actionStates[automation.id] === "uncertain") return
+    const isCurrent = captureActionScope()
+    pendingActions.current.add(automation.id)
+    let submitted = false
     try {
-      await deleteAutomation(accessToken, automation.id)
-      if (editingAutomation?.id === automation.id) closeAutomationDialog()
-      notify.success({
-        title: t("automation.feedback.archived"),
-        description: automation.name,
-      })
-      await reload()
-    } catch (err) {
-      reportActionError(
-        err,
-        t("automation.feedback.archiveFailed"),
-        t("automation.feedback.archiveFailedTitle"),
-      )
+      if (action === "archive" && !await confirm({ title: t("automation.feedback.archiveTitle", { name: automation.name }), description: t("automation.feedback.archiveDescription"), confirmLabel: t("automation.feedback.archive"), variant: "destructive" })) return
+      if (!isCurrent()) return
+      setActionStates(current => ({ ...current, [automation.id]: "pending" }))
+      submitted = true
+      if (action === "archive") await deleteAutomation(accessToken, automation.id)
+      else if (action === "toggle") await updateAutomation(accessToken, automation.id, { status: automation.status === "active" ? "inactive" : "active" })
+      else {
+        const response = await runAutomation(accessToken, automation.id)
+        if (isCurrent()) setLastRunConversationId(response.conversation_id)
+      }
+      invalidateApiResourceCache(["automations", currentSessionId])
+      if (!isCurrent()) return
+      if (action === "archive" && editingAutomation?.id === automation.id) closeAutomationDialog()
+      notify.success({ title: t(action === "run" ? "interaction.receivedTask" : action === "archive" ? "automation.feedback.archived" : automation.status === "active" ? "automation.feedback.paused" : "automation.feedback.enabled"), description: automation.name })
+      // The write has settled; refreshing is a separate observable read.
+      void reload()
+    } catch (caught) {
+      if (!isCurrent()) return
+      const failure = normalizeAppError(caught)
+      reportActionError(caught, t("automation.feedback.statusFailed"), t("automation.feedback.statusFailedTitle"))
+      if (submitted && (!failure.status || failure.status >= 500)) setActionStates(current => ({ ...current, [automation.id]: "uncertain" }))
     } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleToggleAutomation(automation: Automation) {
-    setSaving(true)
-    setError(null)
-    try {
-      await updateAutomation(accessToken, automation.id, {
-        status: automation.status === "active" ? "inactive" : "active",
-      })
-      notify.success({
-        title:
-          automation.status === "active"
-            ? t("automation.feedback.paused")
-            : t("automation.feedback.enabled"),
-        description: automation.name,
-      })
-      await reload()
-    } catch (err) {
-      reportActionError(
-        err,
-        t("automation.feedback.statusFailed"),
-        t("automation.feedback.statusFailedTitle"),
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleRunAutomation(automation: Automation) {
-    setSaving(true)
-    setError(null)
-    setLastRunConversationId(null)
-    try {
-      const response = await runAutomation(accessToken, automation.id)
-      setLastRunConversationId(response.conversation_id)
-      notify.success({
-        title: t("automation.feedback.runStarted"),
-        description: automation.name,
-      })
-      await reload()
-    } catch (err) {
-      reportActionError(
-        err,
-        t("automation.feedback.runFailed"),
-        t("automation.feedback.runFailedTitle"),
-      )
-    } finally {
-      setSaving(false)
+      if (isCurrent()) {
+        pendingActions.current.delete(automation.id)
+        setActionStates(current => {
+          if (current[automation.id] !== "pending") return current
+          const next = { ...current }; delete next[automation.id]; return next
+        })
+      }
     }
   }
 
@@ -770,6 +735,7 @@ export function AutomationPage() {
                 </Badge>
               </div>
               {automation.pause_reason === "workspace_archived" && <Notice>{t("workspaceLifecycle.taskPaused")}</Notice>}
+              {actionStates[automation.id] === "uncertain" && <Notice tone="warning">{t("interaction.pendingResult")}</Notice>}
               {automation.runtime_config ? <button type="button" className="mt-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => startEditAutomation(automation)}>
                 {t("automation.runtime.title")} · {automation.runtime_config.model_profile_id} · {t(`chat.composer.capabilityMode.${automation.runtime_config.capability_exposure.mode}`)}
               </button> : null}
@@ -840,8 +806,8 @@ export function AutomationPage() {
               <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
                 <Button
                   size="sm"
-                  disabled={saving || automation.status !== "active"}
-                  onClick={() => void handleRunAutomation(automation)}
+                  disabled={Boolean(actionStates[automation.id]) || automation.status !== "active"}
+                  onClick={() => void runAction(automation, "run")}
                 >
                   <Play className="size-3.5" />
                   {t("automation.page.runNow")}
@@ -850,6 +816,7 @@ export function AutomationPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => startEditAutomation(automation)}
+                  disabled={Boolean(actionStates[automation.id])}
                 >
                   <Edit3 className="size-3.5" />
                   {t("automation.page.edit")}
@@ -857,8 +824,8 @@ export function AutomationPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={saving}
-                  onClick={() => void handleToggleAutomation(automation)}
+                  disabled={Boolean(actionStates[automation.id])}
+                  onClick={() => void runAction(automation, "toggle")}
                 >
                   {automation.status === "active"
                     ? t("automation.page.pause")
@@ -867,8 +834,8 @@ export function AutomationPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  disabled={saving}
-                  onClick={() => void handleArchiveAutomation(automation)}
+                  disabled={Boolean(actionStates[automation.id])}
+                  onClick={() => void runAction(automation, "archive")}
                 >
                   <Trash2 className="size-3.5" />
                   {t("automation.feedback.archive")}

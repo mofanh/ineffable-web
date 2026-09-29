@@ -17,7 +17,8 @@ import {
   loadSystemUsersModule,
 } from "@/routes/route-modules"
 
-const ArchivedWorkspacesPage = lazy(() => import("@/pages/archived-workspaces-page"))
+const TeamWorkspaceDirectoryPage = lazy(() => import("@/pages/team-workspace-directory-page"))
+const SettingsPage = lazy(() => import("@/pages/settings-page"))
 const App = lazy(() => import("@/App"))
 const AccountPage = lazy(async () => ({
   default: (await import("@/pages/account-pages")).AccountPage,
@@ -117,7 +118,7 @@ const routeElements: Record<string, React.ReactElement> = {
   "/docs/get-started": <Navigate to="/automation" replace />,
   "/docs/tutorials": <Navigate to="/automation" replace />,
   "/docs/changelog": <Navigate to="/automation" replace />,
-  "/settings": <Navigate to="/account" replace />,
+  "/settings": <SettingsPage />,
   "/settings/general": <Navigate to="/account" replace />,
   "/settings/team": <Navigate to="/account" replace />,
   "/settings/billing": <Navigate to="/account" replace />,
@@ -188,7 +189,8 @@ export const router = createBrowserRouter([
         path: "workspace/:workspaceId/objects/:objectId?",
         element: <WorkspaceObjectEditorPage />,
       },
-      { path: "team-spaces/archived", element: <ArchivedWorkspacesPage /> },
+      { path: "team-spaces", element: <TeamWorkspaceDirectoryPage /> },
+      { path: "team-spaces/archived", element: <Navigate to="/team-spaces?status=archived" replace /> },
       {
         path: "team-spaces/new",
         element: <CreateTeamWorkspacePage />,

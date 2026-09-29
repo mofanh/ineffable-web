@@ -2121,6 +2121,7 @@ export async function streamConversationSend(
       environment_id?: string
     }
     agent_iteration_requested?: boolean
+    runtime_overrides?: { workspace: { mode: "selected"; value: string } | { mode: "disabled" } }
     capability_exposure?: CapabilityExposureSelection
   },
   options: {

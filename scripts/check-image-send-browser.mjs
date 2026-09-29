@@ -43,6 +43,7 @@ try {
       else if(path.endsWith("/image-preview"))return route.fulfill({contentType:"image/png",body:png})
       else if(path.endsWith("/send")) {
         sends.push(route.request().postDataJSON())
+        assert.deepEqual(sends.at(-1).runtime_overrides, { workspace: { mode: "selected", value: "00000000-0000-0000-0000-000000000001" } }, "the displayed execution workspace is frozen into the submitted input")
         if(["late-ack","logout-ack","session-ack"].includes(scenario)) await new Promise(resolve=>{releaseSend=resolve})
         if(["navigate","late-ack","logout-ack","session-ack"].includes(scenario)) return route.fulfill({contentType:"text/event-stream",body:`data: ${JSON.stringify({type:"event",event:{seq:1,event:"model.text.delta",content:"OLD_STREAM_OUTPUT",run_id:"run",metadata:{conversation_id:"created",scope:"main",execution_epoch:1}}})}\n\n`})
         body={status:"queued",queue_len:1,pending_id:1,message_id:"message",conversation_id:"created"}
@@ -101,9 +102,10 @@ try {
     assert.ok(releaseCreate,"creation must be in flight")
     if(scenario==="remount") {
       holdRefresh=true
+      const originalComposer = await composer.elementHandle()
       await page.getByRole("button",{name:"Refresh account",exact:true}).click()
-      await composer.waitFor({state:"detached"})
       await waitUntil(()=>releaseRefresh,"refresh must be in flight")
+      assert.equal(await originalComposer.evaluate(element => element.isConnected), true, "background refresh preserves composer and in-flight submission")
       holdRefresh=false;releaseRefresh()
       await composer.waitFor()
     }

@@ -18,11 +18,15 @@ import {
   SaveIcon,
   Trash2Icon,
 } from "lucide-react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useBlocker, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 
 import { useAppHeader } from "@/app/shell/app-header-context"
-import { AppDialog, EmptyState } from "@/components/app"
+import { AppDialog, DataState, Notice, EmptyState } from "@/components/app"
+import { useWorkspaceAccess } from "@/features/workspace/hooks/use-workspace-access"
+import { useWorkspaceLifecycle } from "@/features/workspace/hooks/use-workspace-lifecycle"
+import { WorkspaceDirectory } from "@/features/workspace/components/workspace-directory"
+import { WorkspaceStatusActions } from "@/features/workspace/components/workspace-status-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,7 +39,6 @@ import {
 import { Switch } from "@/components/ui/switch"
 import {
   useAuthSession,
-  useWorkspaceSession,
 } from "@/features/auth/app-session"
 import {
   createWorkspaceFile,
@@ -63,6 +66,7 @@ import {
   type WorkspaceObjectsChangedEvent,
 } from "@/lib/workspace-events"
 import { normalizeAppError } from "@/lib/app/api-errors"
+import { useActionScope } from "@/lib/app/use-action-scope"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
@@ -224,6 +228,7 @@ function HistoryModal({
   onClose,
   onPreview,
   onRestore,
+  canRestore,
 }: {
   open: boolean
   object: WorkspaceObject | null
@@ -232,6 +237,7 @@ function HistoryModal({
   previewVersion: WorkspaceObjectVersion | null
   previewContent: string | null
   isPreviewLoading: boolean
+  canRestore: boolean
   onClose: () => void
   onPreview: (targetVersion: WorkspaceObjectVersion) => void
   onRestore: (targetVersion: WorkspaceObjectVersion) => void
@@ -300,7 +306,7 @@ function HistoryModal({
                   })
                 : t("workspace.history.select")}
             </div>
-            {previewVersion && previewVersion.id !== version?.id ? (
+            {canRestore && previewVersion && previewVersion.id !== version?.id ? (
               <Button type="button" variant="outline" size="sm" onClick={() => onRestore(previewVersion)}>
                 <RotateCcwIcon />
                 {t("workspace.history.restore")}
@@ -319,10 +325,16 @@ function HistoryModal({
 export function WorkspaceObjectEditorPage() {
   const { t } = useTranslation()
   const { workspaceId, objectId } = useParams()
+  const [directoryParams] = useSearchParams()
+  const directoryPath = directoryParams.get("path") ?? ""
   const navigate = useNavigate()
   const { setHeaderContent } = useAppHeader()
-  const { accessToken, currentUser } = useAuthSession()
-  const { workspaces } = useWorkspaceSession()
+  const { accessToken, currentUser, currentSessionId } = useAuthSession()
+  const captureScope = useActionScope(`${currentSessionId}:${workspaceId}:${objectId}`)
+  const accessResource = useWorkspaceAccess(workspaceId)
+  const { run: runLifecycle, pending: lifecyclePending } = useWorkspaceLifecycle()
+  const access = accessResource.access
+  const canWrite = access?.can_write === true
   const [object, setObject] = React.useState<WorkspaceObject | null>(null)
   const [version, setVersion] = React.useState<WorkspaceObjectVersion | null>(null)
   const [content, setContent] = React.useState("")
@@ -339,21 +351,44 @@ export function WorkspaceObjectEditorPage() {
   const [isHistoryOpen, setIsHistoryOpen] = React.useState(false)
   const [isFullWidth, setIsFullWidth] = React.useState(false)
   const [isCompact, setIsCompact] = React.useState(false)
+  const [createUncertain, setCreateUncertain] = React.useState(false)
   const [now, setNow] = React.useState(() => Date.now())
   const ignoredWorkspaceEventKeysRef = React.useRef(new Set<string>())
   const contentLoadRequestRef = React.useRef(0)
+  const previewRequestRef = React.useRef(0)
   const currentObjectRouteRef = React.useRef("")
-  currentObjectRouteRef.current = `${workspaceId}:${objectId}`
+  currentObjectRouteRef.current = `${currentSessionId}:${workspaceId}:${objectId}`
 
-  const workspace = workspaces.find((candidate) => candidate.id === workspaceId)
+  const workspace = access?.workspace
   const isDirty = content !== savedContent
+  const dirtyRef = React.useRef(isDirty); dirtyRef.current = isDirty
+  const accessStatus = accessResource.error?.status
+  React.useLayoutEffect(() => {
+    if (accessStatus !== 401 && accessStatus !== 403 && accessStatus !== 404) return
+    contentLoadRequestRef.current += 1
+    previewRequestRef.current += 1
+    setObject(null); setVersion(null); setVersions([]); setPreviewVersion(null); setPreviewContent(null)
+    setIsHistoryOpen(false); setIsEditing(false)
+    if (!dirtyRef.current) { setContent(""); setSavedContent("") }
+  }, [accessStatus])
+  const loadedScopeRef = React.useRef("")
+  const contentScope = `${currentSessionId}:${workspaceId}:${objectId}`
+  const blocker = useBlocker(({currentLocation, nextLocation}) => isDirty && currentLocation.pathname !== nextLocation.pathname)
+  React.useEffect(() => {
+    if (!isDirty) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = "" }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [isDirty])
   const breadcrumbParts = React.useMemo(() => {
-    const pathParts = (object?.path || object?.name || t("workspace.labels.file"))
+    const pathParts = (objectId ? object?.path || object?.name || t("workspace.labels.file") : directoryPath)
       .split("/")
       .filter(Boolean)
-
-    return [getWorkspaceLabel(workspace), ...pathParts]
-  }, [object?.name, object?.path, t, workspace])
+    const base = `/workspace/${workspaceId}/objects`
+    return [{ label: getWorkspaceLabel(workspace), path: base }, ...pathParts.map((label, index) => ({
+      label, path: `${base}?${new URLSearchParams({ path: pathParts.slice(0, index + 1).join("/") })}`,
+    }))]
+  }, [directoryPath, objectId, object?.name, object?.path, t, workspace, workspaceId])
   const statusLabel = isSaving
     ? t("workspace.saveState.saving")
     : isDirty
@@ -377,18 +412,20 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
+    const isCurrent = captureScope()
     const response = await listWorkspaceObjectVersions(accessToken, workspaceId, objectId)
-    setVersions(response.versions)
-  }, [accessToken, objectId, workspaceId])
+    if (isCurrent()) setVersions(response.versions)
+  }, [accessToken, captureScope, objectId, workspaceId])
 
   const openRemainingFile = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) return
-    const route = `${workspaceId}:${objectId}`
+    const route = `${currentSessionId}:${workspaceId}:${objectId}`
     const requestId = ++contentLoadRequestRef.current
     setObject(null)
     setVersion(null)
     setIsEditing(false)
     setIsHistoryOpen(false)
+    setIsSaving(false)
     setError(null)
     setIsLoading(true)
     const isCurrent = () => currentObjectRouteRef.current === route && contentLoadRequestRef.current === requestId
@@ -401,14 +438,14 @@ export function WorkspaceObjectEditorPage() {
     } finally {
       if (isCurrent()) setIsLoading(false)
     }
-  }, [accessToken, navigate, objectId, reportActionError, t, workspaceId])
+  }, [accessToken, currentSessionId, navigate, objectId, reportActionError, t, workspaceId])
 
   const loadContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) {
       return
     }
 
-    const route = `${workspaceId}:${objectId}`
+    const route = `${currentSessionId}:${workspaceId}:${objectId}`
     setIsLoading(true)
     setError(null)
     setSaveState("idle")
@@ -459,15 +496,19 @@ export function WorkspaceObjectEditorPage() {
         setIsLoading(false)
       }
     }
-  }, [accessToken, objectId, openRemainingFile, reportActionError, t, workspaceId])
+  }, [accessToken, currentSessionId, objectId, openRemainingFile, reportActionError, t, workspaceId])
 
   React.useEffect(() => {
-    setObject(null)
-    setIsEditing(false)
-    setIsHistoryOpen(false)
+    if (loadedScopeRef.current === contentScope && dirtyRef.current) return
+    if (loadedScopeRef.current !== contentScope) {
+      loadedScopeRef.current = contentScope
+      setObject(null); setVersion(null); setContent(""); setSavedContent(""); setVersions([])
+      setCreateUncertain(false)
+      setIsEditing(false); setIsHistoryOpen(false); setIsSaving(false); setIsPreviewLoading(false)
+    }
     void loadContent()
     return () => { contentLoadRequestRef.current += 1 }
-  }, [loadContent])
+  }, [contentScope, loadContent])
 
   React.useEffect(() => {
     const interval = window.setInterval(() => {
@@ -522,10 +563,11 @@ export function WorkspaceObjectEditorPage() {
   }, [isDirty, loadContent, object?.path, objectId, openRemainingFile, t, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
-    if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty) {
+    if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty || !canWrite || isSaving) {
       return
     }
 
+    const isCurrent = captureScope()
     setIsSaving(true)
     setError(null)
     setSaveState("idle")
@@ -536,12 +578,16 @@ export function WorkspaceObjectEditorPage() {
         mime_type: object.mime_type || "text/plain",
         expected_version_id: version.id,
       })
+      if (!isCurrent()) {
+        dispatchWorkspaceObjectsChanged({ workspaceId, objectId, path: response.object.path, action: "write_file", versionId: response.version.id, source: "user" })
+        return false
+      }
       setObject(response.object)
       setVersion(response.version)
       setSavedContent(content)
       setSaveState("saved")
       setNow(Date.now())
-      await loadVersions()
+      void loadVersions().catch(() => { if (isCurrent()) notify.error({ title: t("workspaceLifecycle.refreshFailed") }) })
       ignoredWorkspaceEventKeysRef.current.add(`write_file:${objectId}:${response.version.id}`)
       dispatchWorkspaceObjectsChanged({
         workspaceId,
@@ -551,19 +597,22 @@ export function WorkspaceObjectEditorPage() {
         versionId: response.version.id,
         source: "user",
       })
+      return true
     } catch (saveError) {
+      if (!isCurrent()) return false
       const message = reportActionError(
         saveError,
         t("workspace.feedback.saveFailed"),
         t("workspace.feedback.saveFailedTitle"),
       )
-      if (message.toLowerCase().includes("conflict")) {
+      if (normalizeAppError(saveError).status === 409 || message.toLowerCase().includes("conflict")) {
         setSaveState("conflict")
       }
+      return false
     } finally {
-      setIsSaving(false)
+      if (isCurrent()) setIsSaving(false)
     }
-  }, [accessToken, content, isDirty, loadVersions, object, objectId, reportActionError, t, version, workspaceId])
+  }, [accessToken, canWrite, isSaving, captureScope, content, isDirty, loadVersions, object, objectId, reportActionError, t, version, workspaceId])
 
   const previewHistoricalVersion = React.useCallback(
     async (targetVersion: WorkspaceObjectVersion) => {
@@ -571,31 +620,36 @@ export function WorkspaceObjectEditorPage() {
         return
       }
 
+      const isCurrent = captureScope()
+      const request = ++previewRequestRef.current
       setIsPreviewLoading(true)
       setError(null)
       try {
         const response = await getWorkspaceObjectVersionContent(accessToken, workspaceId, targetVersion.id)
+        if (!isCurrent() || request !== previewRequestRef.current) return
         setPreviewVersion(targetVersion)
         setPreviewContent(response.content)
       } catch (previewError) {
+        if (!isCurrent() || request !== previewRequestRef.current) return
         reportActionError(
           previewError,
           t("workspace.feedback.previewFailed"),
           t("workspace.feedback.previewFailedTitle"),
         )
       } finally {
-        setIsPreviewLoading(false)
+        if (isCurrent() && request === previewRequestRef.current) setIsPreviewLoading(false)
       }
     },
-    [accessToken, reportActionError, t, workspaceId]
+    [accessToken, captureScope, reportActionError, t, workspaceId]
   )
 
   const restoreHistoricalVersion = React.useCallback(
     async (targetVersion: WorkspaceObjectVersion) => {
-      if (!accessToken || !workspaceId || !objectId || !version) {
+      if (!accessToken || !workspaceId || !objectId || !version || !canWrite || isSaving) {
         return
       }
 
+      const isCurrent = captureScope()
       const confirmed = await confirm({
         title: t("workspace.feedback.restoreTitle", {
           version: targetVersion.version_no,
@@ -603,23 +657,33 @@ export function WorkspaceObjectEditorPage() {
         description: t("workspace.feedback.restoreDescription"),
         confirmLabel: t("workspace.feedback.restoreConfirm"),
       })
-      if (!confirmed) {
+      if (!confirmed || !isCurrent()) {
         return
       }
 
       setIsSaving(true)
       setError(null)
       setSaveState("idle")
+      let committed = false
       try {
         const response = await restoreWorkspaceObjectVersion(accessToken, workspaceId, objectId, {
           version_id: targetVersion.id,
           expected_version_id: version.id,
         })
-        const contentResponse = await getWorkspaceDocument(
+        committed = true
+        if (!isCurrent()) {
+          dispatchWorkspaceObjectsChanged({ workspaceId, objectId, path: response.object.path, action: "restore_file", versionId: response.version.id, source: "user" })
+          return
+        }
+        ignoredWorkspaceEventKeysRef.current.add(`restore_file:${objectId}:${response.version.id}`)
+        dispatchWorkspaceObjectsChanged({ workspaceId, objectId, path: response.object.path, action: "restore_file", versionId: response.version.id, source: "user" })
+        setSaveState("saved")
+        const contentResponse = await getWorkspaceObjectVersionContent(
           accessToken,
           workspaceId,
-          objectId
+          response.version.id
         )
+        if (!isCurrent()) return
         setObject(response.object)
         setVersion(response.version)
         setContent(contentResponse.content)
@@ -627,16 +691,7 @@ export function WorkspaceObjectEditorPage() {
         setPreviewVersion(null)
         setPreviewContent(null)
         setSaveState("saved")
-        await loadVersions()
-        ignoredWorkspaceEventKeysRef.current.add(`restore_file:${objectId}:${response.version.id}`)
-        dispatchWorkspaceObjectsChanged({
-          workspaceId,
-          objectId,
-          path: response.object.path,
-          action: "restore_file",
-          versionId: response.version.id,
-          source: "user",
-        })
+        void loadVersions().catch(() => { if (isCurrent()) notify.error({ title: t("workspaceLifecycle.refreshFailed") }) })
         notify.success({
           title: t("workspace.feedback.restored"),
           description: t("workspace.feedback.restoredDescription", {
@@ -644,6 +699,8 @@ export function WorkspaceObjectEditorPage() {
           }),
         })
       } catch (restoreError) {
+        if (!isCurrent()) return
+        if (committed) { setError(t("workspaceLifecycle.refreshFailed")); return }
         const message = reportActionError(
           restoreError,
           t("workspace.feedback.restoreFailed"),
@@ -653,17 +710,18 @@ export function WorkspaceObjectEditorPage() {
           setSaveState("conflict")
         }
       } finally {
-        setIsSaving(false)
+        if (isCurrent()) setIsSaving(false)
       }
     },
-    [accessToken, loadVersions, objectId, reportActionError, t, version, workspaceId]
+    [accessToken, canWrite, isSaving, captureScope, loadVersions, objectId, reportActionError, t, version, workspaceId]
   )
 
   const saveAsFile = React.useCallback(async () => {
-    if (!accessToken || !workspaceId || !object) {
+    if (!accessToken || !workspaceId || !object || !canWrite || isSaving || createUncertain) {
       return
     }
 
+    const isCurrent = captureScope()
     const defaultName = object.name.includes(".")
       ? object.name.replace(
           /(\.[^.]+)$/,
@@ -694,21 +752,25 @@ export function WorkspaceObjectEditorPage() {
         versionId: response.version.id,
         source: "user",
       })
+      if (!isCurrent()) return
       notify.success({
         title: t("workspace.feedback.fileCreated"),
         description: response.object.name,
       })
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (saveAsError) {
+      if (!isCurrent()) return
+      const failure = normalizeAppError(saveAsError)
+      if (!failure.status || failure.status >= 500) setCreateUncertain(true)
       reportActionError(
         saveAsError,
         t("workspace.feedback.saveAsFailed"),
         t("workspace.feedback.saveAsFailedTitle"),
       )
     } finally {
-      setIsSaving(false)
+      if (isCurrent()) setIsSaving(false)
     }
-  }, [accessToken, content, navigate, object, reportActionError, t, workspaceId])
+  }, [accessToken, canWrite, createUncertain, isSaving, captureScope, content, navigate, object, reportActionError, t, workspaceId])
 
   const duplicateObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -767,7 +829,7 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
-    const route = `${workspaceId}:${objectId}`
+    const route = `${currentSessionId}:${workspaceId}:${objectId}`
     const generation = contentLoadRequestRef.current
     try {
       const response = await renameMoveWorkspaceObject(accessToken, workspaceId, object.id, { name: normalizedName })
@@ -793,7 +855,7 @@ export function WorkspaceObjectEditorPage() {
         t("workspace.feedback.renameFailedTitle"),
       )
     }
-  }, [accessToken, object, objectId, reportActionError, t, workspaceId])
+  }, [accessToken, currentSessionId, object, objectId, reportActionError, t, workspaceId])
 
   const moveObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {
@@ -851,14 +913,14 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
-    const route = `${workspaceId}:${object.id}`
+    const route = `${currentSessionId}:${workspaceId}:${object.id}`
     const confirmed = await confirm({
       title: t("workspace.feedback.deleteTitle", { name: object.name }),
       description: t("workspace.feedback.deleteDescription"),
       confirmLabel: t("workspace.feedback.delete"),
       variant: "destructive",
     })
-    if (!confirmed) {
+    if (!confirmed || currentObjectRouteRef.current !== route) {
       return
     }
 
@@ -879,7 +941,7 @@ export function WorkspaceObjectEditorPage() {
         t("workspace.feedback.deleteFailedTitle"),
       )
     }
-  }, [accessToken, object, reportActionError, t, workspaceId])
+  }, [accessToken, currentSessionId, object, reportActionError, t, workspaceId])
 
   const copyLink = React.useCallback(async () => {
     if (!workspaceId || !object) {
@@ -909,26 +971,14 @@ export function WorkspaceObjectEditorPage() {
   }, [object, savedContent])
 
   React.useEffect(() => {
-    if (!workspaceId || !objectId) {
+    if (!workspaceId || !access) {
       setHeaderContent(null)
       return
     }
 
     setHeaderContent({
-      leading: (
-        <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-          {breadcrumbParts.map((part, index) => {
-            const isLast = index === breadcrumbParts.length - 1
-            return (
-              <React.Fragment key={`${part}-${index}`}>
-                <span className={cn("min-w-0 truncate", isLast && "font-semibold text-foreground")}>{part}</span>
-                {!isLast ? <span className="shrink-0 text-muted-foreground/70">/</span> : null}
-              </React.Fragment>
-            )
-          })}
-        </div>
-      ),
-      trailing: object && !isLoading ? (
+      breadcrumbs: breadcrumbParts,
+      trailing: object && access && !isLoading ? (
         <div className="flex shrink-0 items-center gap-1.5">
           <span
             className={cn(
@@ -949,7 +999,7 @@ export function WorkspaceObjectEditorPage() {
           >
             {getActorInitial(object?.updated_by_actor_id, currentUser?.display_name?.[0] ?? "U")}
           </div>
-          {!isWorkspaceImage(object.mime_type) ? <Button
+          {canWrite && !isWorkspaceImage(object.mime_type) ? <Button
             type="button"
             variant={isEditing ? "secondary" : "ghost"}
             size="icon-sm"
@@ -967,7 +1017,7 @@ export function WorkspaceObjectEditorPage() {
           >
             <PencilIcon />
           </Button> : null}
-          {isEditing && isDirty ? (
+          {canWrite && isEditing && isDirty ? (
             <>
               <Button
                 type="button"
@@ -1043,40 +1093,45 @@ export function WorkspaceObjectEditorPage() {
                 <Switch checked={isCompact} onCheckedChange={setIsCompact} className="ml-auto" />
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {!isWorkspaceImage(object.mime_type) ? <DropdownMenuItem className="gap-2 rounded-md" onClick={duplicateObject}>
+              {canWrite && !isWorkspaceImage(object.mime_type) ? <DropdownMenuItem className="gap-2 rounded-md" onClick={duplicateObject}>
                 <CopyPlusIcon />
                 <span>{t("workspace.actions.duplicate")}</span>
               </DropdownMenuItem> : null}
-              <DropdownMenuItem className="gap-2 rounded-md" onClick={moveObject}>
+              {canWrite && <DropdownMenuItem className="gap-2 rounded-md" onClick={moveObject}>
                 <FolderInputIcon />
                 <span>{t("workspace.actions.move")}</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 rounded-md" onClick={renameObject}>
+              </DropdownMenuItem>}
+              {canWrite && <DropdownMenuItem className="gap-2 rounded-md" onClick={renameObject}>
                 <FilePenIcon />
                 <span>{t("workspace.actions.rename")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
               {!isWorkspaceImage(object.mime_type) ? <DropdownMenuItem className="gap-2 rounded-md" onClick={exportObject}>
                 <DownloadIcon />
                 <span>{t("workspace.actions.export")}</span>
               </DropdownMenuItem> : null}
               <DropdownMenuSeparator />
-              <DropdownMenuItem
+              {canWrite && <DropdownMenuItem
                 className="gap-2 rounded-md text-destructive focus:text-destructive"
                 onClick={deleteObject}
               >
                 <Trash2Icon />
                 <span>{t("workspace.actions.delete")}</span>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
+              <WorkspaceStatusActions access={access} run={runLifecycle} pending={lifecyclePending} />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      ) : null,
+      ) : !objectId && access.workspace.workspace_type === "team" ? <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={t("interaction.spaceMenu")}><MoreHorizontalIcon /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><WorkspaceStatusActions access={access} run={runLifecycle} pending={lifecyclePending} /></DropdownMenuContent></DropdownMenu> : null,
     })
 
     return () => {
       setHeaderContent(null)
     }
   }, [
+    access,
+    runLifecycle,
+    lifecyclePending,
+    canWrite,
     breadcrumbParts,
     copyLink,
     currentUser?.display_name,
@@ -1104,16 +1159,34 @@ export function WorkspaceObjectEditorPage() {
     workspaceId,
   ])
 
-  if (!workspaceId || !objectId) {
+  const navigationGuard = (<AppDialog open={blocker.state === "blocked"} title={t("interaction.unsavedTitle")} description={t("interaction.unsavedHint")} onOpenChange={open => { if (!open && blocker.state === "blocked" && !isSaving) blocker.reset() }}>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" disabled={isSaving} onClick={() => blocker.state === "blocked" && blocker.reset()}>{t("common.cancel")}</Button>
+          <Button variant="outline" disabled={isSaving} onClick={() => blocker.state === "blocked" && blocker.proceed()}>{t("workspace.actions.discard")}</Button>
+          <Button disabled={isSaving || !canWrite} onClick={async () => { if (await saveContent() && blocker.state === "blocked") blocker.proceed() }}>{t("workspace.actions.save")}</Button>
+        </div>
+      </AppDialog>)
+
+  if (!workspaceId || !access) {
+    return <div className="p-6">{navigationGuard}<DataState state={accessResource.error ? "error" : accessResource.state} error={accessResource.error} onRetry={accessResource.reload}><span /></DataState>{isDirty && <Button variant="outline" onClick={() => downloadTextFile("draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button>}</div>
+  }
+  if (!objectId) {
     return (
-      <div className="flex min-h-[calc(100svh-5rem)] items-center justify-center text-sm text-muted-foreground">
-        {t("workspace.preview.selectFile")}
-      </div>
+      <section className="space-y-4 px-4 py-6 sm:px-8">
+        {!canWrite && <Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>}
+        <WorkspaceDirectory workspaceId={workspaceId} />
+      </section>
     )
   }
 
   return (
     <section className="flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden bg-background">
+      {!canWrite && <div className="p-4"><Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>
+        {isDirty && <div className="mt-2"><p className="text-sm">{t("interaction.draftRetained")}</p><Button variant="outline" onClick={() => downloadTextFile(object?.name ?? "draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button></div>}
+      </div>}
+      {navigationGuard}
+      {createUncertain && <Notice tone="warning">{t("interaction.uncertainCreate")}</Notice>}
+      {accessResource.error && <Notice tone="warning">{t("interaction.refreshUnavailable")} <Button variant="link" onClick={() => void accessResource.reload()}>{t("common.retry")}</Button></Notice>}
       {error ? (
         <div
           className={cn(
@@ -1129,7 +1202,7 @@ export function WorkspaceObjectEditorPage() {
             </span>
             {saveState === "conflict" ? (
               <span className="flex items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => void loadContent()}>
+                <Button type="button" variant="outline" size="sm" onClick={async () => { if (await confirm({ title: t("interaction.unsavedTitle"), description: t("interaction.reloadDiscard"), confirmLabel: t("workspace.actions.reload") })) void loadContent() }}>
                   <RefreshCwIcon />
                   {t("workspace.actions.reload")}
                 </Button>
@@ -1156,7 +1229,7 @@ export function WorkspaceObjectEditorPage() {
           />
         ) : isWorkspaceImage(object.mime_type) ? (
           <WorkspaceImagePreview key={`${accessToken}:${object.id}:${object.current_version_id}`} object={object} />
-        ) : isEditing ? (
+        ) : isEditing && canWrite ? (
           <React.Suspense
             fallback={
               <div
@@ -1181,6 +1254,7 @@ export function WorkspaceObjectEditorPage() {
       </div>
 
       <HistoryModal
+        canRestore={canWrite && !isSaving}
         open={isHistoryOpen}
         object={object}
         version={version}

@@ -28,6 +28,7 @@ try {
       const path = new URL(route.request().url()).pathname
       let body = { items: [], profiles: [], environments: [], conversations: [], events: [], next_seq: 0 }
       if (path.endsWith("auth/me")) body = { user: { id: "actor", role: "user", status: "active" }, workspaces: [{ id: workspace, workspace_type: "personal", name: "Workspace" }], current_workspace_id: workspace }
+      else if (path.endsWith("/access")) body = { workspace: { id: workspace, workspace_type: "personal", name: "Workspace", status: "active" }, membership: { role: "owner" }, can_write: true }
       else if (path.includes("workspace-objects/") && path.endsWith("/versions")) {
         const id = path.split("workspace-objects/")[1].split("/")[0]
         body = { object: object(id), versions: [{ id: object(id).current_version_id, version_no: 1 }] }

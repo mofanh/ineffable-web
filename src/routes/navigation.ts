@@ -61,6 +61,8 @@ type RouteMetaDefinition = {
 }
 
 const routeMetaDefinitions: RouteMetaDefinition[] = [
+  { path: "/settings", titleKey: "interaction.settings", breadcrumbs: [{ labelKey: "interaction.settings" }] },
+  { path: "/team-spaces", titleKey: "shell.breadcrumbs.teamSpaces", breadcrumbs: [{ labelKey: "shell.breadcrumbs.teamSpaces" }] },
   { path: "/channels", titleKey: "channels.title", breadcrumbs: [{ labelKey: "channels.title" }] },
   {
     path: "/models",
@@ -132,7 +134,7 @@ function resolveRouteMeta(definition: RouteMetaDefinition): RouteMeta {
   return {
     path: definition.path,
     title: i18n.t(definition.titleKey),
-    breadcrumbs: definition.breadcrumbs.map((breadcrumb) => ({
+    breadcrumbs: [...(["/account", "/channels", "/models", "/agent-nodes"].includes(definition.path) || definition.path.startsWith("/system/") ? [{ labelKey: "interaction.settings", path: "/settings" }] : []), ...definition.breadcrumbs].map((breadcrumb) => ({
       label: i18n.t(breadcrumb.labelKey),
       path: breadcrumb.path,
     })),

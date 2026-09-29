@@ -161,19 +161,19 @@ function AppShellContent() {
               {headerContent?.leading ? (
                 headerContent.leading
               ) : (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    {breadcrumbs.map((crumb, index) => {
-                      const isLast = index === breadcrumbs.length - 1
+                <Breadcrumb className="min-w-0 overflow-hidden">
+                  <BreadcrumbList className="flex-nowrap">
+                    {(headerContent?.breadcrumbs ?? breadcrumbs).map((crumb, index, items) => {
+                      const isLast = index === items.length - 1
 
                       return (
                         <Fragment key={`${crumb.label}-${index}`}>
-                          <BreadcrumbItem>
+                          <BreadcrumbItem className="min-w-0 shrink">
                             {isLast ? (
-                              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                              <BreadcrumbPage className="truncate" title={crumb.label}>{crumb.label}</BreadcrumbPage>
                             ) : crumb.path ? (
                               <BreadcrumbLink asChild>
-                                <Link to={crumb.path}>{crumb.label}</Link>
+                                <Link className="truncate" title={crumb.label} to={crumb.path}>{crumb.label}</Link>
                               </BreadcrumbLink>
                             ) : (
                               <BreadcrumbPage>{crumb.label}</BreadcrumbPage>

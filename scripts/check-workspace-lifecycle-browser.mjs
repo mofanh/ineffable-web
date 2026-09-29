@@ -2,117 +2,162 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { chromium } from "playwright-core"
 import { createServer } from "vite"
-const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
+const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
 const server = await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0 } })
 let browser
 try {
   await server.listen(); browser = await chromium.launch({ executablePath, headless: true })
-  const page = await browser.newPage(); const errors = []; page.on("pageerror", e => errors.push(e.message))
+  const page = await browser.newPage({ viewport: { width: 1500, height: 950 } })
+  page.setDefaultTimeout(10000)
+  const errors = []; page.on("pageerror", e => errors.push(e.message))
   const team = { id: "00000000-0000-0000-0000-000000000002", name: "Team lifecycle", workspace_type: "team", owner_user_id: "actor", status: "active" }
   const personal = { ...team, id: "00000000-0000-0000-0000-000000000001", name: "Personal", workspace_type: "personal" }
-  let archived = false, left = false, deny = false, failRefresh = false, mutationDelay = 0, soleOwner = true; const actions = []
+  let archived = false, left = false, denied = false, failRefresh = false, soleOwner = true, role = "owner", siteRole = "user", created = 0, invites = 0, loseCreate = false
+  const actions = []
+  const space = () => ({ ...team, status: archived ? "archived" : "active", archived_at: archived ? "2026-09-29T00:00:00Z" : null })
+  const file = id => ({ id, workspace_id: team.id, kind: "file", name: `${id}.txt`, path: `${id}.txt`, mime_type: "text/plain", current_version_id: `v-${id}` })
   await page.addInitScript(() => {
-    localStorage.setItem("ineffable.auth.access_token", "fixture-token")
-    localStorage.setItem("ineffable.auth.session_id", "fixture-session")
-    localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
-  })
-  await page.route("**/gateway/v1/**", async route => {
-    const path = new URL(route.request().url()).pathname
-    let body = { conversations: [], invitations: [], objects: [], next_cursor: null }
-    if (path.endsWith("auth/me") && failRefresh) { await route.fulfill({ status: 503, json: { error: "refresh offline" } }); return }
-    if (path.endsWith("auth/me")) body = { user: { id: "actor", role: "user", status: "active" }, workspaces: [personal, ...(!archived && !left ? [team] : [])] }
-    else if (path.endsWith("/workspaces/archived")) body = { workspaces: archived && !left ? [{ ...team, status: "archived" }] : [] }
-    else if (path.endsWith("/members")) body = { members: [{ user_id: "actor", role: "owner", status: "active" }, ...(!soleOwner ? [{ user_id: "other-owner", role: "owner", status: "active" }] : [])] }
-    else if (path.endsWith("/directory")) body = { objects: [{ id: "file", kind: "file", name: "retained.txt", path: "retained.txt", current_version_id: "version" }], next_cursor: null }
-    else if (/\/(archive|restore|leave)$/.test(path)) {
-      const action = path.split("/").at(-1); actions.push(action)
-      if (mutationDelay) await new Promise(resolve => setTimeout(resolve, mutationDelay))
-      if (deny) { await route.fulfill({ status: 403, json: { error: "permission changed" } }); return }
-      if (action === "archive") archived = true
-      if (action === "restore") archived = false
-      if (action === "leave") left = true
-      body = { workspace: team }
-    } else if (path.endsWith("/raw")) { await route.fulfill({ contentType: "text/plain", body: "retained bytes" }); return }
-    await route.fulfill({ json: body })
-  })
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/workspace-image-fixture.html?lifecycle=1`)
-  // Use the production Router/AppShell too, rather than only the isolated fixture routes.
-  const app = await browser.newPage()
-  app.on("pageerror", error => errors.push(error.message))
-  await app.addInitScript(() => {
     localStorage.setItem("ineffable.ui.language", "en-US")
     localStorage.setItem("ineffable.auth.access_token", "fixture-token")
     localStorage.setItem("ineffable.auth.session_id", "fixture-session")
     localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
+    localStorage.setItem("ineffable.chat.new_conversation_draft", "true")
   })
-  let promoted = false
-  await app.route("**/gateway/v1/**", async route => {
-    const path = new URL(route.request().url()).pathname
-    if (path.endsWith("auth/me")) return route.fulfill({ json: { user: { id: "actor", role: "user", status: "active" }, workspaces: [personal, team] } })
-    if (path.endsWith("/workspaces/archived")) return route.fulfill({ json: { workspaces: [] } })
-    if (path.endsWith("/members")) return route.fulfill({ json: { members: [{ id: "owner-row", user_id: "actor", role: "owner", status: "active" }, { id: "member-row", user_id: "next-owner", role: promoted ? "owner" : "member", status: "active" }] } })
-    if (path.endsWith("/members/next-owner") && route.request().method() === "PATCH") { promoted = route.request().postDataJSON().role === "owner"; return route.fulfill({ json: { membership: { user_id: "next-owner", role: "owner" } } }) }
-    return route.fulfill({ json: { conversations: [], invitations: [], objects: [], profiles: [], providers: [], next_cursor: null } })
+  await page.route("**/gateway/v1/**", async route => {
+    const url = new URL(route.request().url()), path = url.pathname, method = route.request().method()
+    let body = { conversations: [], invitations: [], objects: [], profiles: [], providers: [], environments: [], items: [], next_cursor: null }
+    if (path.endsWith("auth/me")) {
+      if (failRefresh) return route.fulfill({ status: 503, json: { error: "refresh offline" } })
+      body = { user: { id: "actor", email: "actor@example.com", role: siteRole, status: "active" }, workspaces: [personal, ...(!archived && !left ? [team] : [])] }
+    } else if (path.endsWith("/access")) {
+      if (left) return route.fulfill({ status: 403, json: { error: "membership removed" } })
+      body = { workspace: space(), membership: { user_id: "actor", role, status: "active" }, can_write: !archived && role !== "viewer", can_manage_members: !archived && ["owner", "admin"].includes(role), can_archive: !archived && role === "owner", can_restore: archived && role === "owner", can_leave: role !== "owner" || !soleOwner, last_owner: role === "owner" && soleOwner }
+    } else if (path === "/gateway/v1/workspaces/directory") body = { entries: !left && (url.searchParams.get("status") === "archived") === archived ? [{ workspace: space(), role }] : [] }
+    else if (path.endsWith("/members")) body = { members: [{ id: "owner-row", user_id: "actor", role, status: "active" }, { id: "member-row", user_id: "next-owner", role: soleOwner ? "member" : "owner", status: "active" }] }
+    else if (path.endsWith("/members/next-owner") && method === "PATCH") { soleOwner = false; body = { membership: { user_id: "next-owner", role: "owner" } } }
+    else if (path.endsWith("/directory")) body = { objects: [file("a"), file("b")], next_cursor: null }
+    else if (path.endsWith("/workspaces/create") && method === "POST") { created++; if (loseCreate) return route.abort("failed"); body = { workspace: team } }
+    else if (path.endsWith("/invitations") && method === "POST") { invites++; body = { invitation: { id: "invited", email: "guest@example.com", role: "member", status: "pending" }, invite_url: "https://example.com/invite/one", email_error: "mail offline" } }
+    else if (/\/(archive|restore|leave)$/.test(path)) {
+      const action = path.split("/").at(-1); actions.push(action)
+      if (denied) return route.fulfill({ status: 403, json: { error: "permission changed" } })
+      if (action === "archive") archived = true
+      if (action === "restore") archived = false
+      if (action === "leave") left = true
+      body = { workspace: space() }
+    } else if (path.includes("/workspace-objects/")) {
+      const id = path.split("/workspace-objects/")[1].split("/")[0]
+      body = { object: file(id), version: { id: `v-${id}`, version_no: 1 }, versions: [{ id: `v-${id}`, version_no: 1 }], content: `Content ${id.toUpperCase()}` }
+    } else if (path.endsWith("/raw")) return route.fulfill({ contentType: "text/plain", body: "retained bytes" })
+    await route.fulfill({ json: body })
   })
-  await app.goto(`http://127.0.0.1:${server.httpServer.address().port}/team-spaces/new`)
-  await app.getByRole("link", { name: "Archived spaces", exact: true }).click()
-  await app.getByRole("heading", { name: "Archived spaces", exact: true }).waitFor()
-  await app.getByText("No archived spaces", { exact: true }).waitFor()
-  assert.ok(app.url().endsWith("/team-spaces/archived"), "production sidebar navigates to the actual archived route")
-  await app.goto(`http://127.0.0.1:${server.httpServer.address().port}/team-spaces/${team.id}/members`)
-  const nextOwnerRole = app.locator('select[aria-label*="next-owner"]')
-  await nextOwnerRole.selectOption("owner")
-  await app.waitForFunction(() => document.querySelector('select[aria-label*="next-owner"]')?.disabled)
-  assert.equal(promoted, true, "owner can grant ownership before leaving")
-  await app.close()
-  const openMenu = () => page.getByRole("button", { name: /Team lifecycle.*actions|actions.*Team lifecycle/i }).click()
-  await openMenu()
-  await page.getByRole("menuitem", { name: "Transfer ownership before leaving", exact: true }).waitFor()
-  assert.equal(await page.getByRole("menuitem", { name: "Transfer ownership before leaving", exact: true }).getAttribute("data-disabled"), "", "last owner cannot start leaving")
-  await page.getByRole("menuitem", { name: "Archive space", exact: true }).click()
-  await page.getByRole("alertdialog").getByRole("button", { name: /Cancel/ }).click()
-  assert.deepEqual(actions, [], "cancel does not mutate")
-  await openMenu(); await page.getByRole("menuitem", { name: "Archive space", exact: true }).click()
+  const origin = `http://127.0.0.1:${server.httpServer.address().port}`
+  const openFile = () => page.goto(`${origin}/workspace/${team.id}/objects/a`)
+  const openAction = async name => {
+    if (!await page.getByRole("menuitem", { name, exact: true }).isVisible()) await page.getByRole("button", { name: "File actions", exact: true }).click()
+    await page.getByRole("menuitem", { name, exact: true }).click()
+  }
+  const sidebar = () => page.locator('[data-slot="sidebar"]').first()
+  await page.goto(`${origin}/settings`)
+  await page.getByRole("heading", { name: "Settings", exact: true }).waitFor()
+  assert.equal(await sidebar().getByText("Archived spaces", { exact: true }).count(), 0)
+  for (const path of ["/models", "/channels", "/agent-nodes", "/system/users"]) assert.equal(await sidebar().locator(`a[href="${path}"]`).count(), 0)
+  assert.equal(await page.locator('a[href="/system/users"]').count(), 0)
+  for (const path of ["/account", "/models", "/channels", "/agent-nodes"]) assert.ok(await page.locator(`main a[href="${path}"]`).count())
+  siteRole = "admin"; await page.reload(); await page.locator('a[href="/system/users"]').waitFor()
+  assert.equal(await sidebar().locator('a[href="/system/users"]').count(), 0); siteRole = "user"
+  await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
+  assert.equal(await page.locator('nav[aria-label="breadcrumb"]').count(), 1)
+  await page.goto(`${origin}/workspace/${team.id}/objects?path=notes/sub`)
+  await page.locator('nav[aria-label="breadcrumb"]').getByText("sub", { exact: true }).waitFor()
+  await page.locator('nav[aria-label="breadcrumb"]').getByRole("link", { name: "notes", exact: true }).click()
+  assert.ok(page.url().endsWith("?path=notes"))
+  assert.equal(await page.getByRole("button", { name: "Up one level", exact: true }).count(), 0)
+  assert.equal(await page.getByRole("heading", { name: team.name, exact: true }).count(), 0)
+  await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
+  await page.evaluate(() => { window.__editorBeforeRefresh = document.querySelector("main") })
+  await openAction("Archive space")
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel", exact: true }).click()
+  assert.deepEqual(actions, [])
+  await openAction("Archive space")
   await page.getByRole("alertdialog").getByRole("button", { name: "Archive space", exact: true }).click()
-  await page.getByRole("link", { name: "Archived spaces", exact: true }).click()
-  await page.getByRole("button", { name: team.name, exact: true }).click()
-  await page.getByRole("button", { name: "retained.txt", exact: true }).waitFor()
-  const download = page.waitForEvent("download")
-  await page.getByRole("button", { name: "Download file", exact: true }).click()
-  assert.equal((await download).suggestedFilename(), "retained.txt")
-  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).count(), 0)
-  deny = true
-  await page.getByRole("button", { name: "Restore space", exact: true }).click()
+  await page.getByRole("button", { name: "File actions", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Restore space", exact: true }).waitFor()
+  assert.ok(page.url().endsWith(`/workspace/${team.id}/objects/a`))
+  assert.equal(await page.getByRole("button", { name: "Edit file", exact: true }).count(), 0)
+  assert.equal(await page.evaluate(() => window.__editorBeforeRefresh === document.querySelector("main")), true)
+  await page.getByText("You are the last owner. Restore the space before managing ownership.", { exact: true }).waitFor()
+  denied = true
+  await openAction("Restore space")
   await page.getByRole("alertdialog").getByRole("button", { name: "Restore space", exact: true }).click()
   await page.getByText("permission changed", { exact: true }).waitFor()
-  assert.equal(archived, true)
-  deny = false
-  await page.getByRole("button", { name: "Restore space", exact: true }).click()
+  assert.equal(archived, true); denied = false
+  await page.goto(`${origin}/team-spaces/archived`)
+  await page.locator(`main a[href="/workspace/${team.id}/objects"]`).first().waitFor()
+  assert.ok(page.url().endsWith("/team-spaces?status=archived"))
+  await page.reload(); await page.locator(`main a[href="/workspace/${team.id}/objects"]`).first().click()
+  await page.locator(`main a[href="/workspace/${team.id}/objects/a"]`).click()
+  await page.getByText("Content A", { exact: true }).waitFor()
+  await openAction("Restore space")
   await page.getByRole("alertdialog").getByRole("button", { name: "Restore space", exact: true }).click()
-  await page.getByText("No archived spaces", { exact: true }).waitFor()
-  soleOwner = false
-  await openMenu(); await page.getByRole("menuitem", { name: "Leave space", exact: true }).click()
-  await page.getByRole("alertdialog").getByRole("button", { name: "Leave space", exact: true }).click()
-  await page.waitForFunction(() => !document.body.innerText.includes("Team lifecycle"))
-  assert.equal(left, true); assert.deepEqual(errors, [])
-  // A route switch fences navigation, but must not drop the global workspace reconciliation.
-  left = false; mutationDelay = 500
-  await page.reload(); await openMenu()
-  await page.getByRole("menuitem", { name: "Archive space", exact: true }).click()
+  await page.getByRole("button", { name: "Edit file", exact: true }).waitFor()
+  await page.goto(`${origin}/team-spaces/${team.id}/members`)
+  await page.locator('select[aria-label*="next-owner"]').selectOption("owner")
+  assert.equal(soleOwner, true)
+  await page.getByRole("alertdialog").getByRole("button", { name: "Confirm", exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('select[aria-label*="next-owner"]')?.value === "owner")
+  assert.equal(soleOwner, false)
+  role = "viewer"; await page.reload(); await page.getByText("next-owner", { exact: true }).waitFor()
+  assert.equal(await page.getByRole("button", { name: "Send invitation", exact: true }).count(), 0)
+  assert.equal(await page.locator('select[aria-label*="next-owner"]').isDisabled(), true)
+  await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
+  assert.equal(await page.getByRole("button", { name: "Edit file", exact: true }).count(), 0)
+  role = "owner"; await page.reload()
+  await page.getByRole("button", { name: "Edit file", exact: true }).click()
+  await page.locator('.cm-content[contenteditable="true"]').fill("My unsaved draft")
+  await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click()
+  assert.ok((await page.locator(".cm-content").textContent()).includes("My unsaved draft"))
+  await openAction("Archive space")
   await page.getByRole("alertdialog").getByRole("button", { name: "Archive space", exact: true }).click()
-  await page.getByRole("link", { name: "Archived spaces", exact: true }).click()
-  await page.getByRole("heading", { name: "Archived spaces", exact: true }).waitFor()
-  await page.getByRole("button", { name: team.name, exact: true }).waitFor()
-  await page.waitForFunction(() => !document.querySelector('[data-slot="sidebar-menu-action"][aria-label*="Team lifecycle"]'))
-  assert.equal(archived, true)
-  // A committed mutation remains a success, with a distinct refresh failure message.
-  archived = false; mutationDelay = 0
-  await page.reload(); await openMenu()
-  await page.getByRole("menuitem", { name: "Archive space", exact: true }).click()
-  failRefresh = true
+  await page.getByRole("button", { name: "Export draft", exact: true }).waitFor()
+  const draftDownload = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Export draft", exact: true }).click()
+  assert.equal((await draftDownload).suggestedFilename(), "a.txt")
+  await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Discard changes", exact: true }).click()
+  await page.getByRole("heading", { name: "Settings", exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => localStorage.getItem("ineffable.auth.workspace_id")), personal.id, "browsing and lifecycle actions never replace execution workspace")
+  archived = false
+  await page.goto(`${origin}/team-spaces/new`)
+  await page.locator("#team-workspace-name").fill("Team lifecycle")
+  await page.locator('main button[type="submit"]').click()
+  await page.waitForURL(`${origin}/team-spaces/${team.id}/members`)
+  assert.equal(created, 1)
+  await page.locator('main input[type="email"]').fill("guest@example.com")
+  await page.locator('main form button').click()
+  await page.getByText("The invitation was created, but the email was not delivered. You can share the invitation link below.", { exact: true }).waitFor()
+  assert.equal(invites, 1); assert.equal(created, 1)
+  loseCreate = true
+  await page.goto(`${origin}/team-spaces/new`)
+  await page.locator("#team-workspace-name").fill("Uncertain create")
+  await page.locator('main button[type="submit"]').click()
+  await page.waitForFunction(() => document.querySelector('main button[type="submit"]')?.disabled)
+  await page.getByText("The submission result is unknown. Check the list before creating again.", { exact: true }).waitFor()
+  assert.equal(created, 2)
+  for (const width of [320, 390, 768, 1200]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(`${origin}/settings`)
+    await page.getByRole("heading", { name: "Settings", exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `settings fits ${width}px`)
+  }
+  await page.setViewportSize({ width: 1500, height: 950 })
+  await openFile(); await openAction("Leave space")
+  await page.getByRole("alertdialog").getByRole("button", { name: "Leave space", exact: true }).click()
+  await page.waitForURL(`${origin}/team-spaces`); assert.equal(left, true); left = false
+  await openFile(); await openAction("Archive space"); failRefresh = true
   await page.getByRole("alertdialog").getByRole("button", { name: "Archive space", exact: true }).click()
   await page.getByText("Action succeeded, but the list could not refresh. Reload the page.", { exact: true }).waitFor()
-  assert.equal(archived, true)
-  assert.deepEqual(errors, [])
-  console.log("Workspace lifecycle browser checks passed: archive/cancel, readonly browse/download, denied restore, restore and leave")
+  assert.equal(archived, true); assert.deepEqual(errors, [])
+  console.log("PASS interaction lifecycle: clean sidebar/settings, archive deep links, readonly roles, handoff, dirty navigation, leave, refresh failure")
 } finally { await browser?.close(); await server.close() }

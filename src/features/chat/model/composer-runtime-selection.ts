@@ -8,30 +8,15 @@ export type CanonicalComposerRuntimeSelection = {
   sandboxEnvironmentId: string | null
 }
 
-export function resolveAvailableComposerModelProfileId(
-  modelProfileId: string,
-  catalogLoaded: boolean,
-  availableModelProfileIds: readonly string[]
-) {
-  if (!modelProfileId || !catalogLoaded) {
-    return modelProfileId
-  }
-  return availableModelProfileIds.includes(modelProfileId) ? modelProfileId : ""
-}
-
 export function resolveConfirmedComposerModelProfileId(
   modelProfileId: string,
   catalogLoaded: boolean,
   availableModelProfileIds: readonly string[]
 ) {
-  if (!catalogLoaded) {
+  if (!catalogLoaded || !availableModelProfileIds.includes(modelProfileId)) {
     return ""
   }
-  return resolveAvailableComposerModelProfileId(
-    modelProfileId,
-    true,
-    availableModelProfileIds
-  )
+  return modelProfileId
 }
 
 type SelectionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
@@ -164,57 +149,4 @@ export function reconcileCanonicalComposerRuntimeSelection(
     return true
   }
   return false
-}
-
-export function reconcileAvailableCanonicalComposerRuntimeSelection(
-  storage: SelectionStorage,
-  conversationId: string,
-  selection: CanonicalComposerRuntimeSelection,
-  catalogLoaded: boolean,
-  availableModelProfileIds: readonly string[]
-) {
-  const modelProfileId = resolveAvailableComposerModelProfileId(
-    selection.modelProfileId,
-    catalogLoaded,
-    availableModelProfileIds
-  )
-  if (modelProfileId !== selection.modelProfileId) {
-    clearUnavailableComposerRuntimeSelectionField(
-      storage,
-      conversationId,
-      "model"
-    )
-  }
-  const availableSelection = { ...selection, modelProfileId }
-  return {
-    selection: availableSelection,
-    shouldApply: reconcileCanonicalComposerRuntimeSelection(
-      storage,
-      conversationId,
-      availableSelection
-    ),
-  }
-}
-
-export function clearUnavailableComposerRuntimeSelectionField(
-  storage: SelectionStorage,
-  conversationId: string | null | undefined,
-  field: "model" | "sandbox"
-) {
-  const selection = readCachedComposerRuntimeSelection(storage, conversationId)
-  const next = {
-    ...selection,
-    ...(field === "model"
-      ? { modelProfileId: "" }
-      : { sandboxEnvironmentId: "" }),
-  }
-  if (conversationId) {
-    if (readComposerRuntimeSelectionDraft(storage, conversationId)) {
-      writeComposerRuntimeSelectionDraft(storage, conversationId, next)
-    } else {
-      commitAcceptedComposerRuntimeSelection(storage, conversationId, next)
-    }
-  } else {
-    writeRecentComposerRuntimeSelection(storage, next)
-  }
 }

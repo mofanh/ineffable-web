@@ -20,3 +20,12 @@ for (const fails of [false, true]) {
   assert.equal(reads, 1)
 }
 console.log("auth cache isolation checks passed")
+
+for (const status of [403, 404, 503]) {
+  const entry = getApiResourceEntry(`permission-${status}`)
+  await loadApiResource(entry, async () => "protected content", true, 0)
+  await loadApiResource(entry, async () => { throw Object.assign(new Error("read failed"), { status }) }, true, 0)
+  assert.equal(entry.getSnapshot().data, status === 503 ? "protected content" : undefined,
+    "authority rejection clears cached data; temporary outage retains it with an error")
+  assert.ok(entry.getSnapshot().error)
+}

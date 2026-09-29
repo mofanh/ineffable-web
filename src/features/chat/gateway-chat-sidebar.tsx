@@ -1,4 +1,7 @@
 import { removeImageFileReference } from "@/lib/workspace-file-reference"
+import { Link } from "react-router-dom"
+import { FolderIcon } from "lucide-react"
+import { ComposerSingleSelect } from "@/features/chat/components/composer-single-select"
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
 import { IMAGE_REFERENCE_REQUEST, IMAGE_REFERENCE_TARGET_PROBE, IMAGE_REFERENCE_TARGET_READY, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
@@ -115,11 +118,9 @@ import {
   subscribeAgentEvolutionChanged,
 } from "@/features/chat/model/agent-evolution-invalidation"
 import {
-  clearUnavailableComposerRuntimeSelectionField,
   commitAcceptedComposerRuntimeSelection,
   readCachedComposerRuntimeSelection,
-  reconcileAvailableCanonicalComposerRuntimeSelection,
-  resolveAvailableComposerModelProfileId,
+  reconcileCanonicalComposerRuntimeSelection,
   resolveConfirmedComposerModelProfileId,
   writeComposerRuntimeSelectionDraft,
   writeRecentComposerRuntimeSelection,
@@ -393,6 +394,8 @@ export function GatewayChatSidebar({
     accessToken,
     currentSessionId,
     currentWorkspace,
+    selectedWorkspaceId,
+    selectWorkspace,
     workspaces,
     conversations,
     currentConversationId,
@@ -1205,19 +1208,7 @@ export function GatewayChatSidebar({
       window.localStorage,
       currentConversationId
     )
-    const availableModelProfileId = resolveAvailableComposerModelProfileId(
-      cachedSelection.modelProfileId,
-      modelProfilesLoadedRef.current,
-      modelProfilesRef.current.map((profile) => profile.id)
-    )
-    if (availableModelProfileId !== cachedSelection.modelProfileId) {
-      clearUnavailableComposerRuntimeSelectionField(
-        window.localStorage,
-        currentConversationId,
-        "model"
-      )
-    }
-    setSelectedModelProfileId(availableModelProfileId)
+    setSelectedModelProfileId(cachedSelection.modelProfileId)
     setSelectedSandboxEnvironmentId(cachedSelection.sandboxEnvironmentId)
   }, [currentConversationId])
 
@@ -1241,22 +1232,6 @@ export function GatewayChatSidebar({
         modelProfilesLoadedRef.current = true
         setModelProfiles(response.profiles)
         setIsModelCatalogLoaded(true)
-        setSelectedModelProfileId((current) => {
-          if (
-            !current ||
-            response.profiles.some((profile) => profile.id === current)
-          ) {
-            return current
-          }
-          if (typeof window !== "undefined") {
-            clearUnavailableComposerRuntimeSelectionField(
-              window.localStorage,
-              currentConversationIdRef.current,
-              "model"
-            )
-          }
-          return ""
-        })
       })
       .catch(() => {
         // Preserve the last successful catalog and selection on transient failure.
@@ -1331,20 +1306,6 @@ export function GatewayChatSidebar({
         sandboxOptionsRef.current = nextOptions
         sandboxOptionsLoadedRef.current = true
         setSandboxOptions(nextOptions)
-        setSelectedSandboxEnvironmentId((current) => {
-          if (
-            !current ||
-            nextOptions.some((option) => option.environmentId === current)
-          ) {
-            return current
-          }
-          clearUnavailableComposerRuntimeSelectionField(
-            window.localStorage,
-            currentConversationIdRef.current,
-            "sandbox"
-          )
-          return ""
-        })
       } catch {
         // Keep the last successful options when an explicit refresh fails.
       } finally {
@@ -1975,47 +1936,15 @@ export function GatewayChatSidebar({
         )
         if (latestRuntimeSelection) {
           const storage = typeof window !== "undefined" ? window.localStorage : null
-          const reconciliation = storage
-            ? reconcileAvailableCanonicalComposerRuntimeSelection(
-              storage,
-              conversationId,
-              latestRuntimeSelection,
-              modelProfilesLoadedRef.current,
-              modelProfilesRef.current.map((profile) => profile.id)
-            )
-            : {
-                selection: {
-                  ...latestRuntimeSelection,
-                  modelProfileId: resolveAvailableComposerModelProfileId(
-                    latestRuntimeSelection.modelProfileId,
-                    modelProfilesLoadedRef.current,
-                    modelProfilesRef.current.map((profile) => profile.id)
-                  ),
-                },
-                shouldApply: true,
-              }
-          if (
-            reconciliation.selection.modelProfileId !==
-            latestRuntimeSelection.modelProfileId
-          ) {
-            setSelectedModelProfileId("")
+          const reconciliation = {
+            selection: latestRuntimeSelection,
+            shouldApply: !storage || reconcileCanonicalComposerRuntimeSelection(storage, conversationId, latestRuntimeSelection),
           }
           if (reconciliation.shouldApply) {
-            const sandboxIsAvailable =
-              latestRuntimeSelection.sandboxEnvironmentId == null ||
-              !latestRuntimeSelection.sandboxEnvironmentId ||
-              !sandboxOptionsLoadedRef.current ||
-              sandboxOptionsRef.current.some(
-                (option) =>
-                  option.environmentId ===
-                  latestRuntimeSelection.sandboxEnvironmentId
-              )
             setSelectedModelProfileId(reconciliation.selection.modelProfileId)
             if (latestRuntimeSelection.sandboxEnvironmentId != null) {
               setSelectedSandboxEnvironmentId(
-                sandboxIsAvailable
-                  ? latestRuntimeSelection.sandboxEnvironmentId
-                  : ""
+                latestRuntimeSelection.sandboxEnvironmentId
               )
             }
           }
@@ -3531,6 +3460,9 @@ export function GatewayChatSidebar({
     if (!accessToken || (!content.trim() && images.length === 0)) {
       return
     }
+    if (selectedWorkspaceId && !currentWorkspace) { setError(i18n.t("interaction.unavailableWorkspace")); return false }
+    if (selectedModelProfileId && (!modelProfilesLoadedRef.current || !modelProfilesRef.current.some(model => model.id === selectedModelProfileId))) { setError(i18n.t("interaction.unavailableModel")); return false }
+    if (selectedSandboxEnvironmentId && (!sandboxOptionsLoadedRef.current || !sandboxOptionsRef.current.some(option => option.environmentId === selectedSandboxEnvironmentId))) { setError(i18n.t("interaction.unavailableEnvironment")); return false }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
       selectedModelProfileId,
       modelProfilesLoadedRef.current,
@@ -3557,6 +3489,7 @@ export function GatewayChatSidebar({
         : undefined
     const submissionAgentEvolutionWorkspaceId =
       resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const submissionRuntimeOverrides = { workspace: selectedWorkspaceId ? { mode: "selected" as const, value: selectedWorkspaceId } : { mode: "disabled" as const } }
 
     if (mode === "guided") {
       const targetConversationId = submissionConversationId
@@ -3582,6 +3515,7 @@ export function GatewayChatSidebar({
             model_profile_id: submissionModelProfileId || undefined,
             sandbox: sandboxPayload,
             agent_iteration_requested: iterationRequestedForSubmission,
+            runtime_overrides: submissionRuntimeOverrides,
             capability_exposure: submissionCapabilityExposure,
           },
           {
@@ -3777,6 +3711,7 @@ export function GatewayChatSidebar({
           model_profile_id: submissionModelProfileId || undefined,
           sandbox: sandboxPayload,
           agent_iteration_requested: iterationRequestedForSubmission,
+          runtime_overrides: submissionRuntimeOverrides,
           capability_exposure: submissionCapabilityExposure,
         },
         {
@@ -4337,6 +4272,7 @@ export function GatewayChatSidebar({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
       <ChatSidebarHeader
+        manageAgentPath={currentConversationId ? `/agent-nodes?conversation=${encodeURIComponent(currentConversationId)}` : undefined}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
@@ -4405,6 +4341,13 @@ export function GatewayChatSidebar({
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 
       <ChatComposer
+        modelPickerFooter={<Link to="/models">{i18n.t("interaction.viewModels")}</Link>}
+        workspaceControls={
+          <ComposerSingleSelect value={selectedWorkspaceId ?? ""} options={[
+            ...workspaces.map(space => ({ value: space.id, label: space.name })),
+            ...(selectedWorkspaceId && !currentWorkspace ? [{ value: selectedWorkspaceId, label: i18n.t("interaction.unavailableWorkspace") }] : []),
+          ]} icon={<FolderIcon className="size-3" />} label={i18n.t("interaction.runtimeWorkspace")} placeholder={i18n.t("interaction.runtimeWorkspace")} emptyLabel={i18n.t("interaction.unavailableWorkspace")} onValueChange={value => { if (workspaces.some(space => space.id === value)) void selectWorkspace(value) }} />
+        }
         attachedImages={imageDraft.images}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}

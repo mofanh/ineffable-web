@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next"
+import { useSearchParams } from "react-router-dom"
 import { i18n } from "@/lib/i18n/i18n"
 import * as React from "react"
 import { GitBranchIcon, RefreshCcwIcon } from "lucide-react"
@@ -47,6 +48,7 @@ export function AgentNodeManagementPage() {
   const { currentWorkspace } = useWorkspaceSession()
   const { conversations, currentConversationId } = useConversationSession()
   const [selectedConversationId, setSelectedConversationId] = React.useState("")
+  const [searchParams, setSearchParams] = useSearchParams()
   const [projection, setProjection] =
     React.useState<AgentEvolutionProjection | null>(null)
   const [projectionTargetKey, setProjectionTargetKey] = React.useState("")
@@ -56,7 +58,7 @@ export function AgentNodeManagementPage() {
   const [errorTargetKey, setErrorTargetKey] = React.useState("")
   const requestIdRef = React.useRef(0)
 
-  const targetConversationId = resolveAgentNodeTargetConversationId(
+  const targetConversationId = searchParams.get("conversation") || resolveAgentNodeTargetConversationId(
     selectedConversationId,
     currentConversationId,
     conversations.map((conversation) => conversation.id)
@@ -173,7 +175,7 @@ export function AgentNodeManagementPage() {
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Select
             value={targetConversationId || undefined}
-            onValueChange={setSelectedConversationId}
+            onValueChange={value => { setSearchParams({ conversation: value }); setSelectedConversationId(value) }}
             disabled={conversations.length === 0 || isMutationBusy}
           >
             <SelectTrigger className="w-full min-w-0 sm:w-64">

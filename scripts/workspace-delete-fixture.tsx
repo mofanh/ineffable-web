@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client"
-import { MemoryRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom"
+import { createMemoryRouter, RouterProvider, Routes, Route, useNavigate, useLocation } from "react-router-dom"
 import { AppHeaderProvider, useAppHeader } from "../src/app/shell/app-header-context"
 import { AppSessionProvider } from "../src/features/auth/app-session"
 import { WorkspaceObjectEditorPage } from "../src/pages/workspace-object-editor-page"
@@ -18,8 +18,7 @@ function Harness() {
   </>
 }
 await i18n.changeLanguage("en")
-createRoot(document.getElementById("root")!).render(
-  <MemoryRouter initialEntries={["/workspace/w/objects/b", "/workspace/w/objects/a"]}>
+const router = createMemoryRouter([{path: "*", element:
     <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><Harness /></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
-  </MemoryRouter>
-)
+}], { initialEntries: ["/workspace/w/objects/b", "/workspace/w/objects/a"] })
+createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />)

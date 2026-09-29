@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router-dom"
 import { ConversationTitleEditor } from "./conversation-title-editor"
 import { useTranslation } from "react-i18next"
 
@@ -8,6 +9,8 @@ import { useChatScrollBoundary } from "@/features/chat/components/chat-scroll-bo
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -29,6 +32,7 @@ import {
 } from "lucide-react"
 
 type ChatSidebarHeaderProps = {
+  manageAgentPath?: string
   bindStatus: string
   selectedConversationId: string | null
   selectedConversationTitle: string
@@ -151,6 +155,7 @@ function runtimeStatusBadge(status: ConversationRuntimeStatus) {
 }
 
 export function ChatSidebarHeader({
+  manageAgentPath,
   bindStatus,
   selectedConversationId,
   selectedConversationTitle,
@@ -332,6 +337,7 @@ export function ChatSidebarHeader({
                 )}
               </div>
             </div>
+            {manageAgentPath && <><DropdownMenuSeparator /><DropdownMenuItem asChild><Link to={manageAgentPath} onClick={() => setOpen(false)}>{t("interaction.manageAgent")}</Link></DropdownMenuItem></>}
           </DropdownMenuContent>
         </DropdownMenu>
 

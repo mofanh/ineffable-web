@@ -11,7 +11,6 @@ import {
   Trash2Icon,
   UserPlusIcon,
   UsersIcon,
-  XIcon,
 } from "lucide-react";
 
 import {
@@ -24,7 +23,6 @@ import {
   DataTableHeader,
   DataTableShell,
   FormField,
-  FormSection,
   Notice,
   StatusBadge,
 } from "@/components/app";
@@ -57,6 +55,8 @@ import { notify } from "@/lib/app/notifications";
 import { useApiResource } from "@/lib/app/use-api-resource";
 import { getCurrentLocale, i18n, normalizeLanguage } from "@/lib/i18n/i18n";
 import { defaultPath } from "@/routes/navigation";
+import { useActionScope } from "@/lib/app/use-action-scope";
+import { getWorkspaceAccess } from "@/features/workspace/api/workspace-lifecycle";
 
 const roleOptions = ["admin", "member", "viewer"] as const;
 const purposeOptions = [
@@ -106,229 +106,75 @@ function initials(value: string) {
 export function CreateTeamWorkspacePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { accessToken, refreshAppData } = useAuthSession();
-  const { selectWorkspace } = useWorkspaceSession();
+  const { accessToken, currentSessionId, refreshAppData } = useAuthSession();
+  const captureScope = useActionScope(`${currentSessionId}:create-team`);
   const [teamName, setTeamName] = React.useState("");
-  const [purpose, setPurpose] =
-    React.useState<(typeof purposeOptions)[number]>("Engineering");
-  const [memberEmail, setMemberEmail] = React.useState("");
-  const [members, setMembers] = React.useState<string[]>([]);
+  const [purpose, setPurpose] = React.useState<(typeof purposeOptions)[number]>("Engineering");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [uncertain, setUncertain] = React.useState(false);
+  const busy = React.useRef(false);
 
-  const addMember = React.useCallback(() => {
-    const email = memberEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) {
-      setError(t("team.create.invalidEmail"));
-      return;
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!accessToken || busy.current || uncertain || !teamName.trim()) return;
+    const isCurrent = captureScope();
+    busy.current = true; setIsSubmitting(true); setError(null);
+    try {
+      const created = await createWorkspace(accessToken, {
+        name: teamName.trim(), slug: slugify(teamName.trim()), plan: "free", settings_json: { purpose },
+      });
+      // Creation is complete. Invitations are a separate action on the created team.
+      void refreshAppData({ fresh: true }).then(ok => {
+        if (!ok && isCurrent()) notify.error({ title: t("workspaceLifecycle.refreshFailed") });
+      });
+      if (!isCurrent()) return;
+      notify.success({ title: t("team.create.success"), description: created.workspace.name });
+      navigate(`/team-spaces/${created.workspace.id}/members`);
+    } catch (caught) {
+      if (!isCurrent()) return;
+      const failure = normalizeAppError(caught);
+      setError(failure.message);
+      setUncertain(!failure.status || failure.status >= 500);
+    } finally {
+      busy.current = false;
+      if (isCurrent()) setIsSubmitting(false);
     }
-    setMembers((current) =>
-      current.includes(email) ? current : [...current, email].slice(0, 20),
-    );
-    setMemberEmail("");
-    setError(null);
-  }, [memberEmail, t]);
+  }
 
-  const submit = React.useCallback(
-    async (event: React.FormEvent) => {
-      event.preventDefault();
-      if (!accessToken) return;
-      const name = teamName.trim();
-      if (!name) {
-        setError(t("team.create.nameRequired"));
-        return;
-      }
-
-      setIsSubmitting(true);
-      setError(null);
-      try {
-        const created = await createWorkspace(accessToken, {
-          name,
-          slug: slugify(name),
-          plan: "free",
-          settings_json: { purpose },
-        });
-        const workspaceId = created.workspace.id;
-        const inviteBaseUrl = `${window.location.origin}/workspace-invitations`;
-        await Promise.all(
-          members.map((email) =>
-            inviteWorkspaceMember(accessToken, workspaceId, {
-              email,
-              role: "member",
-              invite_base_url: inviteBaseUrl,
-            }),
-          ),
-        );
-        await refreshAppData();
-        await selectWorkspace(workspaceId);
-        notify.success({
-          title: t("team.create.success"),
-          description: t("team.create.successDescription", { name }),
-        });
-        navigate(`/team-spaces/${workspaceId}/members`);
-      } catch (err) {
-        const appError = normalizeAppError(err, {
-          fallbackMessage: t("team.create.failed"),
-        });
-        setError(appError.message);
-        notify.error({
-          title: t("team.create.failedTitle"),
-          description: appError.message,
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [
-      accessToken,
-      members,
-      navigate,
-      purpose,
-      refreshAppData,
-      selectWorkspace,
-      t,
-      teamName,
-    ],
-  );
-
-  return (
-    <AppPage
-      title={t("team.create.title")}
-      description={t("team.create.description")}
-    >
-      <form
-        onSubmit={submit}
-        className="max-w-2xl space-y-7 rounded-xl border bg-card p-5 sm:p-6"
-      >
+  return <AppPage title={t("team.create.title")} description={t("interaction.createTeamHint")}>
+    <form onSubmit={submit} className="max-w-2xl space-y-5 rounded-xl border bg-card p-5 sm:p-6">
+      <fieldset disabled={isSubmitting || uncertain} className="space-y-5">
         <FormField htmlFor="team-workspace-name" label={t("team.create.name")}>
-          <Input
-            id="team-workspace-name"
-            value={teamName}
-            onChange={(event) => setTeamName(event.target.value)}
-            placeholder={t("team.create.namePlaceholder")}
-            autoComplete="organization"
-            className="h-10"
-          />
+          <Input id="team-workspace-name" value={teamName} onChange={event => setTeamName(event.target.value)} placeholder={t("team.create.namePlaceholder")} autoComplete="organization" />
         </FormField>
-
-        <FormSection
-          title={t("team.create.purpose")}
-          description={t("team.create.purposeDescription")}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {purposeOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setPurpose(option)}
-                className={[
-                  "flex h-14 items-center gap-3 rounded-lg border px-4 text-left text-sm transition-colors",
-                  purpose === option
-                    ? "border-foreground bg-muted text-foreground"
-                    : "border-border bg-muted/35 text-muted-foreground hover:bg-muted/60",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "size-4 rounded-full border",
-                    purpose === option
-                      ? "border-4 border-foreground"
-                      : "border-border",
-                  ].join(" ")}
-                />
-                {t(`team.purpose.${option}`)}
-              </button>
-            ))}
-          </div>
-        </FormSection>
-
-        <FormSection>
-          <div className="flex items-center justify-between gap-3">
-            <label className="text-xs font-semibold uppercase tracking-normal text-foreground">
-              {t("team.create.initialMembers")}
-            </label>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {t("team.create.memberCount", { count: members.length })}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              value={memberEmail}
-              onChange={(event) => setMemberEmail(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  addMember();
-                }
-              }}
-              placeholder={t("team.create.memberEmail")}
-              type="email"
-              className="h-11 bg-muted/40"
-            />
-            <Button
-              type="button"
-              onClick={addMember}
-              variant="secondary"
-              className="h-11 px-5"
-            >
-              {t("team.create.add")}
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {members.map((email) => (
-              <div
-                key={email}
-                className="flex items-center justify-between rounded-lg border border-border bg-muted/35 p-3"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-xs font-bold text-white">
-                    {initials(email)}
-                  </div>
-                  <span className="truncate text-sm">{email}</span>
-                </div>
-                <Button
-                  type="button"
-                  onClick={() =>
-                    setMembers((current) =>
-                      current.filter((item) => item !== email),
-                    )
-                  }
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("team.create.removeMember", { email })}
-                >
-                  <XIcon className="size-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </FormSection>
-
-        {error ? <Notice tone="error">{error}</Notice> : null}
-
-        <div className="flex justify-end gap-3 border-t border-border pt-6">
-          <Button type="button" onClick={() => navigate(-1)} variant="ghost">
-            {t("team.create.cancel")}
-          </Button>
-          <AsyncButton
-            type="submit"
-            isLoading={isSubmitting}
-            loadingLabel={t("team.create.creating")}
-            className="px-8"
-          >
-            {t("team.create.submit")}
-          </AsyncButton>
-        </div>
-      </form>
-    </AppPage>
-  );
+        <FormField label={t("team.create.purpose")}>
+          <select className="h-10 w-full rounded-md border bg-background px-3" value={purpose} onChange={event => setPurpose(event.target.value as typeof purpose)}>
+            {purposeOptions.map(option => <option key={option} value={option}>{t(`team.purpose.${option}`)}</option>)}
+          </select>
+        </FormField>
+      </fieldset>
+      {error && <Notice tone="error">{error}</Notice>}
+      {uncertain && <Notice tone="warning">{t("interaction.uncertainCreate")}</Notice>}
+      <div className="flex justify-end gap-3">
+        <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => navigate("/team-spaces")}>{t("common.cancel")}</Button>
+        <AsyncButton type="submit" isLoading={isSubmitting} disabled={uncertain || !teamName.trim()} loadingLabel={t("team.create.creating")}>{t("team.create.submit")}</AsyncButton>
+      </div>
+    </form>
+  </AppPage>;
 }
 
 export function TeamWorkspaceMembersPage() {
+  const { workspaceId } = useParams();
+  const { currentSessionId } = useAuthSession();
+  return <TeamWorkspaceMembers key={`${currentSessionId}:${workspaceId}`} />;
+}
+
+function TeamWorkspaceMembers() {
   const { t } = useTranslation();
   const { workspaceId } = useParams();
   const { accessToken, currentSessionId, currentUser } = useAuthSession();
-  const { currentWorkspace, workspaces } = useWorkspaceSession();
+  const { currentWorkspace } = useWorkspaceSession();
   const [query, setQuery] = React.useState("");
   const [inviteEmail, setInviteEmail] = React.useState("");
   const [inviteRole, setInviteRole] = React.useState("member");
@@ -346,29 +192,20 @@ export function TeamWorkspaceMembersPage() {
   >(null);
 
   const targetWorkspaceId = workspaceId || currentWorkspace?.id || "";
-  const targetWorkspace =
-    workspaces.find((workspace) => workspace.id === targetWorkspaceId) ??
-    currentWorkspace;
 
+  const captureScope = useActionScope(`${currentSessionId}:${targetWorkspaceId}`);
   const loadMemberResource = React.useCallback(async () => {
-    if (!accessToken || !targetWorkspaceId) {
-      return {
-        members: [] as WorkspaceMembership[],
-        invitations: [] as WorkspaceInvitation[],
-        usage: null as WorkspaceUsage | null,
-      };
-    }
-
-    const [memberResponse, invitationResponse, usageResponse] =
-      await Promise.all([
-        listWorkspaceMembers(accessToken, targetWorkspaceId),
-        listWorkspaceInvitations(accessToken, targetWorkspaceId),
-        getWorkspaceUsage(accessToken, targetWorkspaceId),
-      ]);
+    const access = await getWorkspaceAccess(accessToken!, targetWorkspaceId);
+    const memberResponse = await listWorkspaceMembers(accessToken!, targetWorkspaceId);
+    const [invitationResponse, usageResponse] = await Promise.allSettled([
+      access.can_manage_members ? listWorkspaceInvitations(accessToken!, targetWorkspaceId) : Promise.resolve({ invitations: [] as WorkspaceInvitation[] }),
+      access.workspace.status === "active" ? getWorkspaceUsage(accessToken!, targetWorkspaceId) : Promise.resolve({ usage: null as WorkspaceUsage | null }),
+    ]);
     return {
-      members: memberResponse.members,
-      invitations: invitationResponse.invitations,
-      usage: usageResponse.usage,
+      access, members: memberResponse.members,
+      invitations: invitationResponse.status === "fulfilled" ? invitationResponse.value.invitations : [],
+      usage: usageResponse.status === "fulfilled" ? usageResponse.value.usage : null,
+      detailsFailed: invitationResponse.status === "rejected" || usageResponse.status === "rejected",
     };
   }, [accessToken, targetWorkspaceId]);
   const memberResource = useApiResource({
@@ -384,6 +221,10 @@ export function TeamWorkspaceMembersPage() {
     state: memberState,
   } = memberResource;
   const members = memberData?.members ?? [];
+  const targetWorkspace = memberData?.access.workspace;
+  const canManage = !memberLoadError && memberData?.access.can_manage_members === true;
+  const [inviteUncertain, setInviteUncertain] = React.useState(false);
+  const [emailError, setEmailError] = React.useState(false);
   const isOwner = members.some(member => member.user_id === currentUser?.id && member.role === "owner" && member.status === "active");
   const invitations = memberData?.invitations ?? [];
   const usage = memberData?.usage ?? null;
@@ -391,7 +232,8 @@ export function TeamWorkspaceMembersPage() {
   const submitInvite = React.useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
-      if (!accessToken || !targetWorkspaceId) return;
+      if (!accessToken || !targetWorkspaceId || !canManage || isInviting || inviteUncertain) return;
+      const isCurrent = captureScope();
       const email = inviteEmail.trim().toLowerCase();
       if (!email) {
         setActionError(
@@ -413,32 +255,40 @@ export function TeamWorkspaceMembersPage() {
             invite_base_url: `${window.location.origin}/workspace-invitations`,
           },
         );
+        if (!isCurrent()) return;
         setLastInviteUrl(response.invite_url);
+        setEmailError(Boolean(response.email_error));
         setInviteEmail("");
         await reloadMembers();
+        if (!isCurrent()) return;
         notify.success({
-          title: t("team.members.inviteSent"),
+          title: t(response.email_error ? "interaction.inviteCreated" : "team.members.inviteSent"),
           description: t("team.members.inviteSentDescription", { email }),
         });
       } catch (err) {
+        if (!isCurrent()) return;
         const appError = normalizeAppError(err, {
           fallbackMessage: t("team.members.inviteFailed"),
         });
         setActionError(appError);
+        setInviteUncertain(!appError.status || appError.status >= 500);
         notify.error({
           title: t("team.members.inviteFailedTitle"),
           description: appError.message,
         });
       } finally {
-        setIsInviting(false);
+        if (isCurrent()) setIsInviting(false);
       }
     },
-    [accessToken, inviteEmail, inviteRole, reloadMembers, t, targetWorkspaceId],
+    [accessToken, canManage, captureScope, inviteEmail, inviteRole, inviteUncertain, isInviting, reloadMembers, t, targetWorkspaceId],
   );
 
   const updateMemberRole = React.useCallback(
     async (member: WorkspaceMembership, role: string) => {
-      if (!accessToken || !targetWorkspaceId) return;
+      if (!accessToken || !targetWorkspaceId || !canManage) return;
+      const isCurrent = captureScope();
+      if (role === "owner" && !await confirm({ title: t("interaction.grantOwner"), description: t("interaction.grantOwnerHint"), confirmLabel: t("common.confirm") })) return;
+      if (!isCurrent()) return;
       setActionError(null);
       setUpdatingMemberId(member.id);
       try {
@@ -449,6 +299,7 @@ export function TeamWorkspaceMembersPage() {
           role,
         );
         await reloadMembers();
+        if (!isCurrent()) return;
         notify.success({
           title: t("team.members.roleUpdated"),
           description: t("team.members.roleUpdatedDescription", {
@@ -456,6 +307,7 @@ export function TeamWorkspaceMembersPage() {
           }),
         });
       } catch (err) {
+        if (!isCurrent()) return;
         const appError = normalizeAppError(err, {
           fallbackMessage: t("team.members.roleUpdateFailed"),
         });
@@ -465,22 +317,23 @@ export function TeamWorkspaceMembersPage() {
           description: appError.message,
         });
       } finally {
-        setUpdatingMemberId(null);
+        if (isCurrent()) setUpdatingMemberId(null);
       }
     },
-    [accessToken, reloadMembers, t, targetWorkspaceId],
+    [accessToken, canManage, captureScope, reloadMembers, t, targetWorkspaceId],
   );
 
   const removeMember = React.useCallback(
     async (member: WorkspaceMembership) => {
-      if (!accessToken || !targetWorkspaceId) return;
+      if (!accessToken || !targetWorkspaceId || !canManage) return;
+      const isCurrent = captureScope();
       const confirmed = await confirm({
         title: t("team.members.removeTitle"),
         description: t("team.members.removeDescription"),
         confirmLabel: t("team.members.removeConfirm"),
         variant: "destructive",
       });
-      if (!confirmed) return;
+      if (!confirmed || !isCurrent()) return;
 
       setActionError(null);
       setRemovingMemberId(member.id);
@@ -491,8 +344,10 @@ export function TeamWorkspaceMembersPage() {
           member.user_id,
         );
         await reloadMembers();
+        if (!isCurrent()) return;
         notify.success({ title: t("team.members.removed") });
       } catch (err) {
+        if (!isCurrent()) return;
         const appError = normalizeAppError(err, {
           fallbackMessage: t("team.members.removeFailed"),
         });
@@ -502,15 +357,16 @@ export function TeamWorkspaceMembersPage() {
           description: appError.message,
         });
       } finally {
-        setRemovingMemberId(null);
+        if (isCurrent()) setRemovingMemberId(null);
       }
     },
-    [accessToken, reloadMembers, t, targetWorkspaceId],
+    [accessToken, canManage, captureScope, reloadMembers, t, targetWorkspaceId],
   );
 
   const revokeInvitation = React.useCallback(
     async (invitation: WorkspaceInvitation) => {
-      if (!accessToken || !targetWorkspaceId) return;
+      if (!accessToken || !targetWorkspaceId || !canManage) return;
+      const isCurrent = captureScope();
       const confirmed = await confirm({
         title: t("team.members.revokeTitle"),
         description: t("team.members.revokeDescription", {
@@ -519,7 +375,7 @@ export function TeamWorkspaceMembersPage() {
         confirmLabel: t("team.members.revokeConfirm"),
         variant: "destructive",
       });
-      if (!confirmed) return;
+      if (!confirmed || !isCurrent()) return;
 
       setActionError(null);
       setRevokingInvitationId(invitation.id);
@@ -530,8 +386,10 @@ export function TeamWorkspaceMembersPage() {
           invitation.id,
         );
         await reloadMembers();
+        if (!isCurrent()) return;
         notify.success({ title: t("team.members.revoked") });
       } catch (err) {
+        if (!isCurrent()) return;
         const appError = normalizeAppError(err, {
           fallbackMessage: t("team.members.revokeFailed"),
         });
@@ -541,10 +399,10 @@ export function TeamWorkspaceMembersPage() {
           description: appError.message,
         });
       } finally {
-        setRevokingInvitationId(null);
+        if (isCurrent()) setRevokingInvitationId(null);
       }
     },
-    [accessToken, reloadMembers, t, targetWorkspaceId],
+    [accessToken, canManage, captureScope, reloadMembers, t, targetWorkspaceId],
   );
 
   const filteredMembers = members.filter((member) => {
@@ -593,7 +451,7 @@ export function TeamWorkspaceMembersPage() {
         />
       </div>
 
-      <section className="overflow-hidden rounded-xl border">
+      {canManage && <section className="overflow-hidden rounded-xl border">
         <div className="border-b bg-muted/20 px-4 py-3">
           <h2 className="font-medium">{t("team.members.inviteMembers")}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -605,6 +463,7 @@ export function TeamWorkspaceMembersPage() {
           className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_140px_auto]"
         >
           <Input
+            disabled={isInviting || inviteUncertain}
             value={inviteEmail}
             onChange={(event) => setInviteEmail(event.target.value)}
             placeholder={t("team.members.memberEmail")}
@@ -613,6 +472,7 @@ export function TeamWorkspaceMembersPage() {
             aria-label={t("team.members.memberEmail")}
           />
           <select
+            disabled={isInviting || inviteUncertain}
             value={inviteRole}
             onChange={(event) => setInviteRole(event.target.value)}
             className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -625,6 +485,7 @@ export function TeamWorkspaceMembersPage() {
             ))}
           </select>
           <AsyncButton
+            disabled={inviteUncertain}
             className="h-10"
             isLoading={isInviting}
             loadingLabel={t("team.members.sending")}
@@ -633,7 +494,10 @@ export function TeamWorkspaceMembersPage() {
             {t("team.members.sendInvite")}
           </AsyncButton>
         </form>
-      </section>
+      </section>}
+      {memberData?.detailsFailed && <Notice tone="warning">{t("interaction.detailsFailed")} <Button variant="link" onClick={() => void reloadMembers()}>{t("common.retry")}</Button></Notice>}
+      {emailError && <Notice tone="warning">{t("interaction.emailFailed")}</Notice>}
+      {inviteUncertain && <Notice tone="warning">{t("interaction.uncertainCreate")}</Notice>}
 
       {lastInviteUrl ? (
         <Button
@@ -717,7 +581,7 @@ export function TeamWorkspaceMembersPage() {
                         }}
                         className="h-8 w-32 rounded border border-border bg-background px-2 text-sm"
                         disabled={
-                          member.role === "owner" ||
+                          !canManage || member.role === "owner" ||
                           updatingMemberId === member.id
                         }
                         aria-label={t("team.members.changeRole", {
@@ -751,7 +615,7 @@ export function TeamWorkspaceMembersPage() {
                         onClick={() => void removeMember(member)}
                         isLoading={removingMemberId === member.id}
                         loadingLabel={t("team.members.removing")}
-                        disabled={member.role === "owner"}
+                        disabled={!canManage || member.role === "owner" || member.user_id === currentUser?.id}
                       >
                         <Trash2Icon className="size-4" />
                         <span className="hidden @[32rem]/table:inline">
@@ -926,7 +790,7 @@ export function WorkspaceNotificationsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { accessToken, currentSessionId, refreshAppData } = useAuthSession();
-  const { selectWorkspace } = useWorkspaceSession();
+  const captureScope = useActionScope(`${currentSessionId}:invitations`);
   const [actionError, setActionError] = React.useState<AppError | null>(null);
   const [acceptingId, setAcceptingId] = React.useState<string | null>(null);
 
@@ -950,7 +814,8 @@ export function WorkspaceNotificationsPage() {
 
   const acceptInvitation = React.useCallback(
     async (item: IncomingWorkspaceInvitation) => {
-      if (!accessToken) return;
+      if (!accessToken || acceptingId) return;
+      const isCurrent = captureScope();
 
       setAcceptingId(item.invitation.id);
       setActionError(null);
@@ -959,9 +824,9 @@ export function WorkspaceNotificationsPage() {
           accessToken,
           item.invitation.id,
         );
-        await refreshAppData();
-        await selectWorkspace(response.workspace.id);
-        await reloadInvitations();
+        void refreshAppData({ fresh: true });
+        void reloadInvitations();
+        if (!isCurrent()) return;
         notify.success({
           title: t("team.notifications.joined"),
           description: t("team.notifications.joinedDescription", {
@@ -970,6 +835,7 @@ export function WorkspaceNotificationsPage() {
         });
         navigate(`/team-spaces/${response.workspace.id}/members`);
       } catch (err) {
+        if (!isCurrent()) return;
         const appError = normalizeAppError(err, {
           fallbackMessage: t("team.notifications.acceptFailed"),
         });
@@ -979,7 +845,7 @@ export function WorkspaceNotificationsPage() {
           description: appError.message,
         });
       } finally {
-        setAcceptingId(null);
+        if (isCurrent()) setAcceptingId(null);
       }
     },
     [
@@ -987,7 +853,8 @@ export function WorkspaceNotificationsPage() {
       navigate,
       refreshAppData,
       reloadInvitations,
-      selectWorkspace,
+      acceptingId,
+      captureScope,
       t,
     ],
   );
@@ -1065,8 +932,9 @@ export function AcceptWorkspaceInvitationPage() {
   const { t } = useTranslation();
   const { token } = useParams();
   const navigate = useNavigate();
-  const { accessToken, refreshAppData } = useAuthSession();
-  const { selectWorkspace } = useWorkspaceSession();
+  const { accessToken, currentSessionId, refreshAppData } = useAuthSession();
+  const captureScope = useActionScope(`${currentSessionId}:${token}`);
+  const [acceptedWorkspaceId, setAcceptedWorkspaceId] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<
     "idle" | "accepting" | "accepted" | "error"
   >("idle");
@@ -1076,14 +944,16 @@ export function AcceptWorkspaceInvitationPage() {
   );
 
   const accept = React.useCallback(async () => {
-    if (!accessToken || !token) return;
+    if (!accessToken || !token || status === "accepting") return;
+    const isCurrent = captureScope();
     setStatus("accepting");
     setError(null);
     try {
       const response = await acceptWorkspaceInvitation(accessToken, token);
+      void refreshAppData({ fresh: true });
+      if (!isCurrent()) return;
       setWorkspaceName(response.workspace.name);
-      await refreshAppData();
-      await selectWorkspace(response.workspace.id);
+      setAcceptedWorkspaceId(response.workspace.id);
       setStatus("accepted");
       notify.success({
         title: t("team.invitation.accepted"),
@@ -1092,6 +962,7 @@ export function AcceptWorkspaceInvitationPage() {
         }),
       });
     } catch (err) {
+      if (!isCurrent()) return;
       setStatus("error");
       const appError = normalizeAppError(err, {
         fallbackMessage: t("team.invitation.failed"),
@@ -1102,7 +973,7 @@ export function AcceptWorkspaceInvitationPage() {
         description: appError.message,
       });
     }
-  }, [accessToken, refreshAppData, selectWorkspace, t, token]);
+  }, [accessToken, refreshAppData, captureScope, status, t, token]);
 
   return (
     <AppPage
@@ -1159,7 +1030,7 @@ export function AcceptWorkspaceInvitationPage() {
           {status === "accepted" ? (
             <Button
               type="button"
-              onClick={() => navigate(defaultPath)}
+              onClick={() => navigate(acceptedWorkspaceId ? `/workspace/${acceptedWorkspaceId}/objects` : defaultPath)}
               className="h-12 w-full gap-2"
             >
               {t("team.invitation.enter")}

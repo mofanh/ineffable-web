@@ -1,6 +1,8 @@
 import * as React from "react"
+import type { BreadcrumbEntry } from "@/routes/navigation"
 
 type AppHeaderContent = {
+  breadcrumbs?: BreadcrumbEntry[]
   leading?: React.ReactNode
   trailing?: React.ReactNode
 }

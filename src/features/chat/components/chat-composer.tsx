@@ -82,6 +82,8 @@ type ChatComposerProps = {
   accessToken?: string | null
   workspaces?: { id: string; name: string }[]
   currentWorkspaceId?: string
+  workspaceControls?: React.ReactNode
+  modelPickerFooter?: React.ReactNode
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
   selectedModelProfileId: string
@@ -126,7 +128,7 @@ export function ChatComposer({
   blockedPreInputRunStatus,
   pendingQueueAction,
   preInputQueue,
-  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope,
+  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, workspaceControls, modelPickerFooter,
   modelOptions,
   isModelCatalogLoaded,
   selectedModelProfileId,
@@ -174,7 +176,7 @@ export function ChatComposer({
   const editable = !isSubmittingInput && !inputDisabledReason
   const modelPickerOptions = React.useMemo<ComposerSingleSelectOption[]>(
     () =>
-      modelOptions.map((option) => ({
+      [...modelOptions.map((option) => ({
         value: option.id,
         label: option.displayName,
         searchText: [
@@ -198,12 +200,13 @@ export function ChatComposer({
             ) : null}
           </>
         ),
-      })),
-    [modelOptions, t]
+      })), ...(selectedModelProfileId && !modelOptions.some(option => option.id === selectedModelProfileId) ? [{ value: selectedModelProfileId, label: t("interaction.unavailableModel") }] : [])],
+    [modelOptions, selectedModelProfileId, t]
   )
 
   const sandboxPickerOptions = React.useMemo<ComposerSingleSelectOption[]>(
     () => [
+      ...(selectedSandboxEnvironmentId && !sandboxOptions.some(option => option.environmentId === selectedSandboxEnvironmentId) ? [{ value: selectedSandboxEnvironmentId, label: t("interaction.unavailableEnvironment") }] : []),
       {
         value: "__disabled__",
         label: t("chat.composer.noSandbox"),
@@ -228,7 +231,7 @@ export function ChatComposer({
         ),
       })),
     ],
-    [sandboxOptions, t]
+    [sandboxOptions, selectedSandboxEnvironmentId, t]
   )
 
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
@@ -433,9 +436,11 @@ export function ChatComposer({
           >
             {imageActions}
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
+              {workspaceControls && <div className="flex w-fit min-w-0 max-w-28 shrink">{workspaceControls}</div>}
               <div className="flex w-fit min-w-0 max-w-40 shrink">
-                {modelOptions.length > 0 ? (
+                {modelOptions.length > 0 || selectedModelProfileId ? (
                   <ComposerSingleSelect
+                    footer={modelPickerFooter}
                     value={selectedModelProfileId}
                     options={modelPickerOptions}
                     icon={

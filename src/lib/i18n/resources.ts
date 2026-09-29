@@ -1,6 +1,19 @@
 export const resources = {
   "zh-CN": {
     translation: {
+      interaction: {
+        suspendedSpace: "空间已停用，请联系管理员处理。", ownerChanged: "空间所有者已变化，请刷新后重试。", spaceQuota: "恢复后将超出空间数量额度，请先调整其他空间或套餐。", credentialUnknown: "轮换结果尚未确认，旧凭据可能已失效。一次性凭据无法找回；确认影响后，可再次显式轮换。",
+        settings: "设置", settingsHint: "管理账号、连接和高级功能。", account: "账号与偏好", models: "模型与能力", connections: "连接与渠道", advanced: "高级",
+        createTeamHint: "先创建空间，随后在成员管理中邀请团队成员。", uncertainCreate: "暂时无法确认是否已提交。请先返回列表核对，避免重复创建。",
+        inviteCreated: "邀请已创建", emailFailed: "邀请已创建，但邮件未送达。可以复制下方邀请链接发送给对方。", detailsFailed: "部分详情暂未加载，成员信息仍可查看。",
+        grantOwner: "授予所有者权限？", grantOwnerHint: "对方将获得空间的完整管理权限。你仍保留所有者身份，之后可自行退出。",
+        spaceFilter: "空间状态", activeSpaces: "使用中", openSpace: "打开空间", spaceMenu: "团队空间菜单", manageSpaces: "管理团队空间", emptyDirectory: "此目录没有文件",
+        archivedOwner: "你是最后一位所有者。需先恢复空间，再在成员管理中交接所有权。", readOnly: "你可以查看此空间的文件，目前没有编辑权限。",
+        unsavedTitle: "有未保存的修改", unsavedHint: "保存后离开，或放弃修改继续。", reloadDiscard: "重新加载将放弃当前草稿。",
+        draftRetained: "未保存的草稿已保留，可以导出后处理。", exportDraft: "导出草稿", refreshUnavailable: "暂时无法更新权限，写操作已暂停。请重试。",
+        unavailableWorkspace: "当前工作空间已不可用，请明确选择可用空间后再发送。", unavailableEnvironment: "所选运行环境不可用，请重新选择。", unavailableModel: "所选模型不可用，请重新选择。",
+        runtimeWorkspace: "工作空间", pendingResult: "请求结果尚未确认，请刷新核对后再操作。", receivedTask: "执行请求已接收", manageAgent: "管理当前 Agent", viewModels: "查看可用模型",
+      },
       workspaceLifecycle: {
         lastOwner: "你是最后一位所有者，请先将其他成员设为所有者，再退出空间。", transferFirst: "退出前需转交所有权",
         archived: "已归档空间", archive: "归档空间", restore: "恢复空间", leave: "退出空间", saved: "空间状态已更新", failed: "操作失败", refreshFailed: "操作已成功，但列表刷新失败，请刷新页面", empty: "没有已归档空间", readOnly: "归档空间只读，文件仍占用存储额度。恢复空间后，自动任务需要手动重新启用。", archiveTitle: "归档 {{name}}？", restoreTitle: "恢复 {{name}}？", leaveTitle: "退出 {{name}}？", archiveHint: "所有成员将只能查看和导出文件；关联自动任务暂停。文件和成员关系保留，存储仍计入额度。所有者可恢复空间。", restoreHint: "恢复成员使用权限。已暂停的自动任务不会自动重新启用。", leaveHint: "你将失去空间文件访问权，其他成员不受影响。最后一位所有者需要先转交所有权。", download: "下载文件", taskPaused: "因团队空间归档而暂停；恢复空间后可手动启用任务。",
@@ -1860,6 +1873,19 @@ export const resources = {
   },
   "en-US": {
     translation: {
+      interaction: {
+        suspendedSpace: "This space is suspended. Contact an administrator.", ownerChanged: "The workspace owner changed. Refresh before retrying.", spaceQuota: "Restoring would exceed the workspace limit. Review other spaces or your plan first.", credentialUnknown: "The rotation result is unconfirmed; the old credential may be invalid. A one-time credential cannot be recovered. Review the impact before explicitly rotating again.",
+        settings: "Settings", settingsHint: "Manage your account, connections and advanced features.", account: "Account and preferences", models: "Models and capabilities", connections: "Connections and channels", advanced: "Advanced",
+        createTeamHint: "Create the space first, then invite your team from member management.", uncertainCreate: "The submission result is unknown. Check the list before creating again.",
+        inviteCreated: "Invitation created", emailFailed: "The invitation was created, but the email was not delivered. You can share the invitation link below.", detailsFailed: "Some details could not load. Member information is still available.",
+        grantOwner: "Grant owner access?", grantOwnerHint: "This member will have full control of the space. You remain an owner and can leave afterward.",
+        spaceFilter: "Space status", activeSpaces: "Active", openSpace: "Open space", spaceMenu: "Team spaces menu", manageSpaces: "Manage team spaces", emptyDirectory: "This folder has no files",
+        archivedOwner: "You are the last owner. Restore the space before managing ownership.", readOnly: "You can view files in this space, but cannot edit them.",
+        unsavedTitle: "Unsaved changes", unsavedHint: "Save before leaving, or discard your changes.", reloadDiscard: "Reloading will discard your current draft.",
+        draftRetained: "Your unsaved draft is retained and can be exported.", exportDraft: "Export draft", refreshUnavailable: "Permissions could not be refreshed. Writes are paused. Please retry.",
+        unavailableWorkspace: "Your selected workspace is unavailable. Choose an available space before sending.", unavailableEnvironment: "The selected environment is unavailable. Choose another environment.", unavailableModel: "The selected model is unavailable. Choose another model.",
+        runtimeWorkspace: "Workspace", pendingResult: "The request result is not confirmed. Refresh and verify before acting again.", receivedTask: "Execution request received", manageAgent: "Manage current Agent", viewModels: "View available models",
+      },
       workspaceLifecycle: {
         lastOwner: "You are the last owner. Make another member an owner before leaving.", transferFirst: "Transfer ownership before leaving",
         archived: "Archived spaces", archive: "Archive space", restore: "Restore space", leave: "Leave space", saved: "Workspace updated", failed: "Action failed", refreshFailed: "Action succeeded, but the list could not refresh. Reload the page.", empty: "No archived spaces", readOnly: "Archived spaces are read-only and still count toward storage. Automations must be enabled manually after restoring the space.", archiveTitle: "Archive {{name}}?", restoreTitle: "Restore {{name}}?", leaveTitle: "Leave {{name}}?", archiveHint: "Members can only view and export files. Linked automations pause. Files and memberships are retained and still count toward storage. Owners can restore the space.", restoreHint: "Restore member access. Paused automations will not restart automatically.", leaveHint: "You will lose access to files. Other members are unaffected. The last owner must transfer ownership first.", download: "Download file", taskPaused: "Paused because its workspace was archived. Restore the space, then enable this task manually.",

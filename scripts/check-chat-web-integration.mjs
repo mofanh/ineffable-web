@@ -56,12 +56,9 @@ import {
 } from "../src/features/chat/model/canonical-message-event.ts"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list.tsx"
 import {
-  clearUnavailableComposerRuntimeSelectionField,
   commitAcceptedComposerRuntimeSelection,
   readCachedComposerRuntimeSelection,
-  reconcileAvailableCanonicalComposerRuntimeSelection,
   reconcileCanonicalComposerRuntimeSelection,
-  resolveAvailableComposerModelProfileId,
   resolveConfirmedComposerModelProfileId,
   writeCanonicalComposerRuntimeSelection,
   writeComposerRuntimeSelectionDraft,
@@ -443,63 +440,18 @@ writeComposerRuntimeSelectionDraft(selectionStorage, conversationId, {
   modelProfileId: "removed-model",
   sandboxEnvironmentId: "removed-sandbox",
 })
-clearUnavailableComposerRuntimeSelectionField(
-  selectionStorage,
-  conversationId,
-  "model"
-)
-clearUnavailableComposerRuntimeSelectionField(
-  selectionStorage,
-  conversationId,
-  "sandbox"
-)
 assert.deepEqual(
   readCachedComposerRuntimeSelection(selectionStorage, conversationId),
-  { modelProfileId: "", sandboxEnvironmentId: "" },
-  "removed options must be cleared inside the draft instead of reappearing after refresh"
+  { modelProfileId: "removed-model", sandboxEnvironmentId: "removed-sandbox" },
+  "unavailable choices remain explicit drafts until the user changes them"
 )
-assert.equal(
-  resolveAvailableComposerModelProfileId(
-    "removed-model",
-    true,
-    ["available-model"]
-  ),
-  "",
-  "a loaded model catalog must reject a cached model that is no longer available"
-)
-assert.equal(
-  resolveAvailableComposerModelProfileId(
-    "cached-model",
-    false,
-    []
-  ),
-  "cached-model",
-  "an unresolved model catalog must not erase a cached selection prematurely"
-)
-const staleModelConversationId = "conversation-with-stale-model"
-writeComposerRuntimeSelectionDraft(
-  selectionStorage,
-  staleModelConversationId,
-  { modelProfileId: "removed-model", sandboxEnvironmentId: "sandbox-a" }
-)
-const staleModelReconciliation =
-  reconcileAvailableCanonicalComposerRuntimeSelection(
-    selectionStorage,
-    staleModelConversationId,
-    { modelProfileId: "removed-model", sandboxEnvironmentId: "sandbox-a" },
-    true,
-    ["available-model"]
-  )
-assert.equal(staleModelReconciliation.selection.modelProfileId, "")
-assert.equal(staleModelReconciliation.shouldApply, true)
-assert.deepEqual(
-  readCachedComposerRuntimeSelection(
-    selectionStorage,
-    staleModelConversationId
-  ),
-  { modelProfileId: "", sandboxEnvironmentId: "sandbox-a" },
-  "canonical history must not write a removed model back after conversation-switch cleanup"
-)
+assert.equal(resolveConfirmedComposerModelProfileId("removed-model", true, ["available-model"]), "")
+assert.equal(reconcileCanonicalComposerRuntimeSelection(selectionStorage, conversationId, {
+  modelProfileId: "removed-model", sandboxEnvironmentId: "removed-sandbox",
+}), true)
+assert.deepEqual(readCachedComposerRuntimeSelection(selectionStorage, conversationId), {
+  modelProfileId: "removed-model", sandboxEnvironmentId: "removed-sandbox",
+}, "canonical recovery preserves unavailable runtime choices")
 assert.equal(
   resolveConfirmedComposerModelProfileId("cached-model", false, []),
   "",

@@ -61,6 +61,7 @@ type AuthSessionContextValue = {
 
 type WorkspaceSessionContextValue = {
   workspaces: Workspace[]
+  selectedWorkspaceId: string | null
   currentWorkspace: Workspace | null
   selectWorkspace: (workspaceId: string) => Promise<void>
 }
@@ -360,7 +361,8 @@ export function AppSessionProvider({
       setCurrentUser(me.user)
       setWorkspaces(nextWorkspaces)
 
-      const nextWorkspaceId = chooseWorkspaceId(
+      // A refresh must not silently move an existing execution selection to another space.
+      const nextWorkspaceId = conversationSelectionRef.current.workspaceId ?? chooseWorkspaceId(
         nextWorkspaces,
         conversationSelectionRef.current.workspaceId,
         me.current_workspace_id,
@@ -652,6 +654,7 @@ export function AppSessionProvider({
   const workspaceValue = React.useMemo<WorkspaceSessionContextValue>(
     () => ({
       workspaces,
+      selectedWorkspaceId: currentWorkspaceId,
       currentWorkspace:
         workspaces.find((workspace) => workspace.id === currentWorkspaceId) ??
         null,
@@ -754,7 +757,7 @@ export function useAppSession(): AppSessionContextValue {
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { status, isBootstrapping } = useAuthSession()
+  const { status } = useAuthSession()
   const location = useLocation()
   const returnTo = `${location.pathname}${location.search}${location.hash}`
 
@@ -762,7 +765,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     rememberReturnPath(returnTo)
   }, [returnTo])
 
-  if (status === "loading" || isBootstrapping) {
+  if (status === "loading") {
     return <FullPageLoading />
   }
 
@@ -780,11 +783,11 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const { status, isBootstrapping, currentUser } = useAuthSession()
+  const { status, currentUser } = useAuthSession()
   const location = useLocation()
   const returnTo = `${location.pathname}${location.search}${location.hash}`
 
-  if (status === "loading" || isBootstrapping) {
+  if (status === "loading") {
     return <FullPageLoading />
   }
 
