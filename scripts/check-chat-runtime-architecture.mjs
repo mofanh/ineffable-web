@@ -119,7 +119,7 @@ assert.match(agentEvolutionInvalidation, /CustomEvent<AgentEvolutionChangedDetai
 assert.doesNotMatch(chatHeader, /Runtime Lab|onOpenAgentEvolution/)
 assert.match(
   sidebar,
-  /if \(!accessToken \|\| !currentWorkspace\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,
+  /if \(!accessToken \|\| \(selectedWorkspaceId && !currentWorkspace\)\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,
   "workspace hydration must keep sandbox availability pending instead of publishing an authoritative empty catalog"
 )
 assert.match(
