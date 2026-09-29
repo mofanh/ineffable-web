@@ -25,6 +25,7 @@ import {
 } from "@/features/chat/api/chat-api"
 import { AgentNodeManagementView } from "@/features/chat/components/agent-evolution-panel"
 import { subscribeAgentEvolutionChanged } from "@/features/chat/model/agent-evolution-invalidation"
+import { readCachedComposerRuntimeSelection } from "@/features/chat/model/composer-runtime-selection"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import {
   agentNodeManagementTargetKey,
@@ -45,7 +46,7 @@ function iterationModeLabel(mode: AgentEvolutionProjection["effective_mode"]) {
 export function AgentNodeManagementPage() {
   useTranslation()
   const { accessToken } = useAuthSession()
-  const { currentWorkspace } = useWorkspaceSession()
+  const { currentWorkspace, workspaces } = useWorkspaceSession()
   const { conversations, currentConversationId } = useConversationSession()
   const [selectedConversationId, setSelectedConversationId] = React.useState("")
   const [searchParams, setSearchParams] = useSearchParams()
@@ -63,7 +64,11 @@ export function AgentNodeManagementPage() {
     currentConversationId,
     conversations.map((conversation) => conversation.id)
   )
-  const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+  const draftWorkspace = readCachedComposerRuntimeSelection(window.localStorage, targetConversationId).workspaceId
+  const knownWorkspace = workspaces.find(space => space.id === draftWorkspace)
+  const workspaceId = searchParams.has("workspace") ? searchParams.get("workspace") || undefined
+    : draftWorkspace === undefined ? resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    : knownWorkspace ? resolveAgentEvolutionWorkspaceId(knownWorkspace) : draftWorkspace || undefined
   const targetKey = agentNodeManagementTargetKey(
     targetConversationId,
     workspaceId

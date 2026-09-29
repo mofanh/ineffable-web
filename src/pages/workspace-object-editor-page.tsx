@@ -718,7 +718,10 @@ export function WorkspaceObjectEditorPage() {
         })
       } catch (restoreError) {
         if (!isCurrent()) return
-        if (committed) { setError(t("workspaceLifecycle.refreshFailed")); return }
+        if (committed) {
+          reportActionError(restoreError, t("workspaceLifecycle.refreshFailed"), t("workspaceLifecycle.refreshFailed"))
+          return
+        }
         const message = reportActionError(
           restoreError,
           t("workspace.feedback.restoreFailed"),
@@ -795,6 +798,7 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
+    const isCurrent = captureScope()
     try {
       const generation = contentLoadRequestRef.current
       const siblings: WorkspaceObject[] = []
@@ -828,13 +832,14 @@ export function WorkspaceObjectEditorPage() {
       if (generation !== contentLoadRequestRef.current) return
       navigate(`/workspace/${workspaceId}/objects/${response.object.id}`)
     } catch (duplicateError) {
+      if (!isCurrent()) return
       reportActionError(
         duplicateError,
         t("workspace.feedback.copyFailed"),
         t("workspace.feedback.copyFailedTitle"),
       )
     }
-  }, [accessToken, navigate, object, reportActionError, savedContent, t, workspaceId])
+  }, [accessToken, captureScope, navigate, object, reportActionError, savedContent, t, workspaceId])
 
   const renameObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object || object.id !== objectId) {
@@ -885,6 +890,7 @@ export function WorkspaceObjectEditorPage() {
       return
     }
 
+    const isCurrent = captureScope()
     const generation = contentLoadRequestRef.current
     try {
     const normalizedPath = targetPath.trim().replace(/^\/+|\/+$/g, "")
@@ -918,13 +924,14 @@ export function WorkspaceObjectEditorPage() {
         description: response.object.path,
       })
     } catch (moveError) {
+      if (!isCurrent()) return
       reportActionError(
         moveError,
         t("workspace.feedback.moveFailed"),
         t("workspace.feedback.moveFailedTitle"),
       )
     }
-  }, [accessToken, object, reportActionError, t, workspaceId])
+  }, [accessToken, captureScope, object, reportActionError, t, workspaceId])
 
   const deleteObject = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !object) {

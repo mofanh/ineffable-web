@@ -10,7 +10,7 @@ const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 try {
   await server.listen()
   browser=await chromium.launch({executablePath,headless:true})
-  for (const scenario of ["normal", "new-draft", "navigate", "session-helper", "remount", "late-ack", "logout-ack", "session-ack", "workspace-draft"]) {
+  for (const scenario of ["normal", "new-draft", "navigate", "session-helper", "remount", "late-ack", "logout-ack", "session-ack", "workspace-draft", "human-none"]) {
     console.log(`image send scenario: ${scenario}`)
     const page=await browser.newPage({viewport:{width:1200,height:900}})
     const errors=[];page.on("pageerror",e=>errors.push(e.message))
@@ -27,21 +27,26 @@ try {
       while(!condition()&&Date.now()<deadline) await page.waitForTimeout(20)
       assert.ok(condition(),message)
     }
-    const conversation=id=>({id,title:id,current_run:null,metadata_json:{}})
+    const conversation=id=>({id,title:id,current_run: scenario === "human-none" && id === "first" ? { id:"existing-run",status:"awaiting_human",is_live:false,is_streaming:false,accepts_guided_input:false,pending_need:{kind:"user_input",need_id:"existing-need",questions:[{id:"q",question:"Confirm the existing task",options:[{label:"Continue the original task"}]}]}} : null,metadata_json:{}})
+    const resumes = []
     await page.route("**/gateway/v1/**",async route=>{
       const url=new URL(route.request().url());const path=url.pathname
       let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
       if(path.endsWith("auth/me")) { if(holdRefresh) await new Promise(resolve=>{releaseRefresh=resolve});body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:"00000000-0000-0000-0000-000000000001",name:"Workspace",kind:"personal"},...(scenario === "workspace-draft" ? [{id:"00000000-0000-0000-0000-000000000002",name:"Workspace B",kind:"team"}] : [])],current_workspace_id:"00000000-0000-0000-0000-000000000001"}}
-      else if(path.endsWith("conversations/list"))body={conversations:[...(created?[conversation("created")]:[]),...(scenario === "workspace-draft" ? [conversation("first")] : []),conversation("other")]}
+      else if(path.endsWith("conversations/list"))body={conversations:[...(created?[conversation("created")]:[]),...(["workspace-draft","human-none"].includes(scenario) ? [conversation("first")] : []),conversation("other")]}
       else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});created=true;body=conversation("created")}
       else if(path.endsWith("conversations/get"))body=conversation(url.searchParams.get("conversation_id"))
       else if(path.endsWith("/directory"))body={objects:[],next_cursor:null}
-      else if(path.endsWith("/messages"))body={messages:[],next_seq:0,page:{has_older:false,before:null}}
+      else if(path.endsWith("/messages"))body={messages: scenario === "human-none" ? [{id:"canonical-wait",conversation_id:"first",run_id:"existing-run",role:"assistant",message_type:"text",content:"Waiting for your answer",timeline_seq:1,timeline_unit_id:"canonical-wait",canonical_seq:1,metadata_json:{},created_at:"2026-09-29T00:00:00Z",updated_at:"2026-09-29T00:00:00Z"}] : [],next_seq:0,page:{has_older:false,before:null}}
       else if(path.endsWith("models/profiles"))body={profiles:[{id:"vision",display_name:"Vision",supports_vision:true,is_default:true,enabled:true},{id:"vision-b",display_name:"Vision B",supports_vision:true,enabled:true}]}
       else if(path.endsWith("sandbox/environments"))body={providers:[{provider_id:"a",display_name:"Sandbox A",status:"online"},{provider_id:"b",display_name:"Sandbox B",status:"online"}],environments:[{environment_id:"sandbox-a",provider_id:"a",status:"ready"},{environment_id:"sandbox-b",provider_id:"b",status:"ready"}]}
       else if(path.endsWith("/images")){uploads++;body={image:{workspace_id:"00000000-0000-0000-0000-000000000001",object_id:`00000000-0000-0000-0001-00000000000${uploads}`,version_id:`00000000-0000-0000-0002-00000000000${uploads}`,mime_type:"image/png",width:1,height:1,size_bytes:png.length}}}
       else if(path.endsWith("/image-preview"))return route.fulfill({contentType:"image/png",body:png})
-      else if(path.endsWith("/send")) {
+      else if(path.endsWith("/runs/resume")) {
+        resumes.push(route.request().postDataJSON())
+        assert.equal(route.request().headers()["x-tenant-id"],undefined,"resume must use the persisted run scope, not the composer draft")
+        return route.fulfill({status:409,json:{error:"fixture resume observed"}})
+      } else if(path.endsWith("/send")) {
         sends.push(route.request().postDataJSON())
         assert.deepEqual(sends.at(-1).runtime_overrides, { workspace: { mode: "selected", value: "00000000-0000-0000-0000-000000000001" } }, "the displayed execution workspace is frozen into the submitted input")
         if(["late-ack","logout-ack","session-ack"].includes(scenario)) await new Promise(resolve=>{releaseSend=resolve})
@@ -55,6 +60,20 @@ try {
     await page.getByLabel("New conversation",{exact:true}).click()
     await page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.getAttribute("aria-label")==="Add images")?.disabled)
     const composer=page.locator("textarea")
+    if (scenario === "human-none") {
+      await page.getByRole("button", {name:"Select first",exact:true}).click()
+      await page.getByText("Confirm the existing task", {exact:true}).waitFor()
+      await page.getByRole("button", {name:/^Workspace:/}).click()
+      await page.getByRole("option", {name:"None",exact:true}).click()
+      await page.getByRole("radio", {name:"Continue the original task",exact:false}).click()
+      await page.getByRole("button", {name:"Submit answer",exact:true}).click()
+      await page.getByText("fixture resume observed", {exact:false}).first().waitFor()
+      assert.equal(resumes.length,1)
+      assert.equal(resumes[0].run_id,"existing-run")
+      assert.equal(resumes[0].resolution.need_id,"existing-need")
+      assert.deepEqual(errors,[])
+      await page.close(); continue
+    }
     if (scenario === "workspace-draft") {
       const choose = async label => { await page.getByRole("button", {name: /^Workspace:/}).click(); await page.getByRole("option", {name: label, exact:true}).click() }
       await page.getByRole("button", {name:"Select first",exact:true}).click()

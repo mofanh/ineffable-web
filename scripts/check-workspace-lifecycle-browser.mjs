@@ -15,7 +15,7 @@ try {
   const personal = { ...team, id: "00000000-0000-0000-0000-000000000001", name: "Personal", workspace_type: "personal" }
   let archived = false, left = false, denied = false, failRefresh = false, soleOwner = true, role = "owner", siteRole = "user", created = 0, invites = 0, loseCreate = false
   const actions = []
-  let accessFailure = 0, rejectSave = false, accessRequests = 0
+  let accessFailure = 0, rejectSave = false, accessRequests = 0, revokeAfterRestore = false, releaseStat
   const space = () => ({ ...team, status: archived ? "archived" : "active", archived_at: archived ? "2026-09-29T00:00:00Z" : null })
   const file = id => ({ id, workspace_id: team.id, kind: "file", name: `${id}.txt`, path: `${id}.txt`, mime_type: "text/plain", current_version_id: `v-${id}` })
   await page.addInitScript(() => {
@@ -49,10 +49,18 @@ try {
       if (action === "restore") archived = false
       if (action === "leave") left = true
       body = { workspace: space() }
+    } else if (path.endsWith("/stat")) {
+      await new Promise(resolve => { releaseStat = resolve })
+      return route.fulfill({ status: 403, json: { error: "A membership removed" } })
+    } else if (path.includes("/workspace-object-versions/")) {
+      if (left) return route.fulfill({ status: 403, json: { error: "membership removed" } })
+      body = { object: file("a"), version: { id: "v-old", version_no: 0 }, content: "Private historical text" }
+    } else if (path.endsWith("/restore-version")) {
+      left = revokeAfterRestore; body = { object: file("a"), version: { id: "v-restored", version_no: 3 } }
     } else if (path.includes("/workspace-objects/")) {
       if (rejectSave && method !== "GET") { left = true; return route.fulfill({ status: 403, json: { error: "membership removed" } }) }
       const id = path.split("/workspace-objects/")[1].split("/")[0]
-      body = { object: file(id), version: { id: `v-${id}`, version_no: 1 }, versions: [{ id: `v-${id}`, version_no: 1 }], content: `Content ${id.toUpperCase()}` }
+      body = { object: file(id), version: { id: `v-${id}`, version_no: 1 }, versions: [{ id: `v-${id}`, version_no: 1 }, { id: "v-old", version_no: 0 }], content: `Content ${id.toUpperCase()}` }
     } else if (path.endsWith("/raw")) return route.fulfill({ contentType: "text/plain", body: "retained bytes" })
     await route.fulfill({ json: body })
   })
@@ -103,6 +111,31 @@ try {
   await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
   await page.getByRole("dialog").getByRole("button", { name: "Discard changes", exact: true }).click()
   rejectSave = false; left = false
+  await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
+  await openAction("Version history")
+  await page.getByRole("button", { name: /v0/ }).click()
+  await page.getByText("Private historical text", { exact: true }).waitFor()
+  revokeAfterRestore = true
+  await page.getByRole("button", { name: "Restore this version", exact: true }).click()
+  await page.getByRole("button", { name: "Restore version", exact: true }).click()
+  await page.getByText("Private historical text", { exact: true }).waitFor({ state: "hidden" })
+  await sidebar().getByText(team.name, { exact: true }).waitFor({ state: "hidden" })
+  assert.equal(await page.getByText("Content A", { exact: true }).count(), 0)
+  left = false; revokeAfterRestore = false
+  await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
+  page.once("dialog", dialog => dialog.accept("folder"))
+  await openAction("Move to…")
+  while (!releaseStat) await page.waitForTimeout(10)
+  await sidebar().getByText("b.txt", { exact: true }).first().click()
+  await page.getByText("Content B", { exact: true }).waitFor()
+  await page.getByRole("button", { name: "Edit file", exact: true }).click()
+  await page.locator('.cm-content[contenteditable="true"]').fill("B draft")
+  const lateDenial = page.waitForResponse(response => response.url().includes("/stat"))
+  releaseStat(); await lateDenial; await page.waitForTimeout(100)
+  assert.equal(await page.locator('.cm-content[contenteditable="true"]').textContent(), "B draft")
+  assert.equal(await page.getByText("A membership removed", { exact: true }).count(), 0)
+  await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Discard changes", exact: true }).click()
   await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
   assert.equal(await page.locator('nav[aria-label="breadcrumb"]').count(), 1)
   await page.goto(`${origin}/workspace/${team.id}/objects?path=notes/sub`)

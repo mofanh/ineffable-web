@@ -1247,7 +1247,7 @@ export function GatewayChatSidebar({
   }, [accessToken])
 
   const refreshSandboxOptions = React.useCallback(() => {
-    if (!accessToken || !currentWorkspace) {
+    if (!accessToken || (selectedWorkspaceId && !currentWorkspace)) {
       sandboxOptionsRequestRef.current += 1
       sandboxOptionsInFlightRef.current = null
       sandboxOptionsRef.current = []
@@ -1262,7 +1262,7 @@ export function GatewayChatSidebar({
       return Promise.resolve()
     }
 
-    const requestKey = `${accessToken}:${currentWorkspace.id}`
+    const requestKey = `${accessToken}:${currentWorkspace?.id ?? "user"}`
     const inFlight = sandboxOptionsInFlightRef.current
     if (inFlight?.key === requestKey) {
       return inFlight.request
@@ -1280,7 +1280,7 @@ export function GatewayChatSidebar({
       try {
         const response = await listSandboxWorkspaceEnvironments(
           accessToken,
-          currentWorkspace.id
+          currentWorkspace?.id ?? null
         )
         if (sandboxOptionsRequestRef.current !== requestId) {
           return
@@ -1323,7 +1323,7 @@ export function GatewayChatSidebar({
     })()
     sandboxOptionsInFlightRef.current = { key: requestKey, requestId, request }
     return request
-  }, [accessToken, currentWorkspace])
+  }, [accessToken, currentWorkspace, selectedWorkspaceId])
 
   React.useEffect(() => {
     void refreshSandboxOptions()
@@ -3293,7 +3293,7 @@ export function GatewayChatSidebar({
   }
 
   async function handleResolveApproval(entryId: string, approved: boolean) {
-    if (!accessToken || !currentWorkspace) {
+    if (!accessToken) {
       return
     }
 
@@ -3321,11 +3321,11 @@ export function GatewayChatSidebar({
 
     try {
       if (approved) {
-        await approveSandboxApproval(accessToken, currentWorkspace.id, {
+        await approveSandboxApproval(accessToken, null, {
           approval_id: entry.approvalId,
         })
       } else {
-        await rejectSandboxApproval(accessToken, currentWorkspace.id, {
+        await rejectSandboxApproval(accessToken, null, {
           approval_id: entry.approvalId,
         })
       }
@@ -3349,7 +3349,7 @@ export function GatewayChatSidebar({
 
       const resumed = await resumeRunWithApproval(
         accessToken,
-        currentWorkspace.id,
+        null,
         {
           run_id: entry.runId,
           session_key: entry.sessionKey,
@@ -3380,7 +3380,7 @@ export function GatewayChatSidebar({
   }
 
   async function handleSubmitUserInput(response: AgentUserInputResponse) {
-    if (!accessToken || !currentWorkspace) {
+    if (!accessToken) {
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
 
@@ -3420,7 +3420,7 @@ export function GatewayChatSidebar({
     try {
       const resumed = await resumeRunWithUserInput(
         accessToken,
-        currentWorkspace.id,
+        null,
         {
           run_id: pendingTool.runId,
           session_key: pendingTool.sessionKey,
@@ -4284,7 +4284,7 @@ export function GatewayChatSidebar({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
       <ChatSidebarHeader
-        manageAgentPath={currentConversationId ? `/agent-nodes?conversation=${encodeURIComponent(currentConversationId)}` : undefined}
+        manageAgentPath={currentConversationId ? `/agent-nodes?${new URLSearchParams({ conversation: currentConversationId, workspace: resolveAgentEvolutionWorkspaceId(currentWorkspace) ?? "" })}` : undefined}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
