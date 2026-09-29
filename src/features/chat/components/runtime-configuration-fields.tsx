@@ -7,7 +7,8 @@ import { CapabilityExposurePicker } from "@/features/chat/components/capability-
 import { useApiResource } from "@/lib/app/use-api-resource"
 import { getCapabilityExposureDraft, listConversationCapabilityCatalog, listModelProfiles, listSandboxWorkspaceEnvironments, listWorkspaces, type AutomationRuntimeConfig } from "@/lib/api/api-client"
 
-export function RuntimeConfigurationFields({ accessToken, conversationId, value, onChange, title, description }: {
+export function RuntimeConfigurationFields({ accessToken, conversationId, value, onChange, title, description, allowWorkspaceBinding = true }: {
+  allowWorkspaceBinding?: boolean
   title?: string
   description?: string
   accessToken: string
@@ -17,13 +18,13 @@ export function RuntimeConfigurationFields({ accessToken, conversationId, value,
 }) {
   const { t } = useTranslation()
   const choices = useApiResource({
-    cacheKey: ["automation-runtime-choices", accessToken],
+    cacheKey: ["automation-runtime-choices", accessToken, allowWorkspaceBinding],
     load: React.useCallback(async () => {
       const [models, workspaces, policy] = await Promise.all([
-        listModelProfiles(accessToken), listWorkspaces(accessToken), getCapabilityExposureDraft(accessToken),
+        listModelProfiles(accessToken), allowWorkspaceBinding ? listWorkspaces(accessToken) : Promise.resolve({ workspaces: [] }), getCapabilityExposureDraft(accessToken),
       ])
       return { models: models.profiles, workspaces: workspaces.workspaces, policy: policy.capability_exposure_policy.policy }
-    }, [accessToken]),
+    }, [accessToken, allowWorkspaceBinding]),
     errorMessage: t("automation.runtime.loadFailed"),
   })
   const environments = useApiResource({
@@ -59,9 +60,9 @@ export function RuntimeConfigurationFields({ accessToken, conversationId, value,
     <FormField label={t("chat.composer.modelPickerLabel")}>
       <ComposerSingleSelect value={selectedModel} options={modelOptions} icon={<Bot className="size-4" />} label={t("chat.composer.modelPickerLabel")} placeholder={t("chat.composer.noModelSelected")} emptyLabel={t("chat.composer.noMatchingModels")} searchPlaceholder={t("chat.composer.modelSearch")} onValueChange={(model_profile_id) => onChange({ ...value, model_profile_id })} />
     </FormField>
-    <FormField label={t("automation.runtime.workspace")}>
+    {allowWorkspaceBinding && <FormField label={t("automation.runtime.workspace")}>
       <ComposerSingleSelect value={value.workspace_id ?? "__none__"} options={workspaceOptions} icon={<Folder className="size-4" />} label={t("automation.runtime.workspace")} placeholder={t("automation.runtime.none")} emptyLabel={t("automation.runtime.none")} onValueChange={(workspace) => onChange({ ...value, workspace_id: workspace === "__none__" ? null : workspace, sandbox: null })} />
-    </FormField>
+    </FormField>}
     <FormField label={t("chat.composer.sandboxPickerLabel")}>
       <ComposerSingleSelect value={value.sandbox?.environment_id ?? "__none__"} options={sandboxOptions} icon={<Box className="size-4" />} label={t("chat.composer.sandboxPickerLabel")} placeholder={t("automation.runtime.none")} emptyLabel={t("chat.composer.noMatchingSandboxes")} searchPlaceholder={t("chat.composer.sandboxSearch")} onValueChange={(environment_id) => onChange({ ...value, sandbox: environment_id === "__none__" ? null : { environment_id } })} />
     </FormField>

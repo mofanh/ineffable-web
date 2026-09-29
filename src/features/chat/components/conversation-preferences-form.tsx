@@ -29,11 +29,11 @@ function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: str
   const [saving, setSaving] = React.useState(false)
   const mounted = React.useRef(true)
   React.useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
-  const defaults = { model_profile_id: "", workspace_id: null, sandbox: null, capability_exposure: { mode: "smart" as const }, ...value.defaults_json }
+  const defaults = { model_profile_id: "", sandbox: null, capability_exposure: { mode: "smart" as const }, ...value.defaults_json, workspace_id: null }
   async function save() {
     setSaving(true)
     try {
-      await saveConversationPreferences(accessToken, { ...value, defaults_json: { ...value.defaults_json, model_profile_id: value.defaults_json.model_profile_id || undefined } })
+      await saveConversationPreferences(accessToken, { ...value, defaults_json: { ...value.defaults_json, workspace_id: null, model_profile_id: value.defaults_json.model_profile_id || undefined } })
       if (!mounted.current) return
       notify.success({ title: t("chat.header.saved") })
       onSaved()
@@ -45,7 +45,7 @@ function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: str
     <div className="grid gap-4 sm:grid-cols-2">
       <FormField label={t("chat.header.timezone")}><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => setValue({ ...value, timezone: e.target.value })} /></FormField>
     </div>
-    <AutomationRuntimeFields accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue({ ...value, defaults_json })} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
+    <AutomationRuntimeFields allowWorkspaceBinding={false} accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue({ ...value, defaults_json })} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
     <AsyncButton isLoading={saving} onClick={() => void save()}>{t("chat.header.savePreferences")}</AsyncButton>
   </div>
 }

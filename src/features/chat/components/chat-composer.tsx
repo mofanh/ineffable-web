@@ -82,7 +82,6 @@ type ChatComposerProps = {
   accessToken?: string | null
   workspaces?: { id: string; name: string }[]
   currentWorkspaceId?: string
-  workspaceControls?: React.ReactNode
   runtimeHint?: string
   modelPickerFooter?: React.ReactNode
   modelOptions: ModelProfileOption[]
@@ -129,7 +128,7 @@ export function ChatComposer({
   blockedPreInputRunStatus,
   pendingQueueAction,
   preInputQueue,
-  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, workspaceControls, modelPickerFooter, runtimeHint,
+  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, modelPickerFooter, runtimeHint,
   modelOptions,
   isModelCatalogLoaded,
   selectedModelProfileId,
@@ -438,7 +437,6 @@ export function ChatComposer({
           >
             {imageActions}
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
-              {workspaceControls && <div className="flex w-fit min-w-0 max-w-28 shrink">{workspaceControls}</div>}
               <div className="flex w-fit min-w-0 max-w-40 shrink">
                 {modelOptions.length > 0 || selectedModelProfileId ? (
                   <ComposerSingleSelect

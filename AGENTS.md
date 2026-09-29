@@ -561,14 +561,16 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
   原页面；团队生命周期属于团队菜单和目录。外观、语言保留在账号菜单，不在设置重复。
 - 位置导航只由顶部面包屑承担。资源页通过 AppHeaderContext 提供实际空间/路径，复用 Shell 的
   Breadcrumb renderer；正文不再复制空间标题、目录路径或“上一级”。操作归入原对象菜单。
-- 浏览文件、创建/接受团队和归档目录不会改变运行资源。Composer 的明确选择通过
-  `runtime_overrides.workspace` 进入原发送接口；模型、空间和环境失效须保留选择并阻止提交，
-  不静默回退。历史 run 的恢复参数仍由服务端原输入裁决。
-- 工作空间与模型/环境共用会话级 Composer 草稿、接收和 canonical 恢复规则；切到其他会话不能
-  覆盖原会话选择。引导输入沿用既有 run 的资源，UI 就近说明选择只用于普通发送或引导转入排队；
-  引导接收不提交下次发送草稿，也不能用其 fallback 配置冒充该 run 的实际配置。
-- 原 run 的人工回答/审批只绑定其 run/need，不要求下次发送的 Workspace 草稿有效；权限和资源仍由
-  服务端持久化输入裁决。会话的 Agent 管理链接同时固定 conversation 和 workspace，显式个人作用域不回退团队。
+- 普通聊天不选择或绑定单一 Workspace，Agent 的文件操作由真实 actor 的当前成员权限裁决。
+  每次普通发送显式提交 `runtime_overrides.workspace={mode:"disabled"}`，覆盖旧全局默认；
+  Composer 只保存模型/环境选择，不从旧 localStorage、历史输入或默认配置恢复 Workspace。
+  附件上传默认个人空间，@ 保留完整空间/对象/版本身份并支持跨空间引用；附件存储目标不是工具权限范围。
+- 浏览空间不影响聊天的模型/环境草稿。Sandbox 菜单使用用户有权资源的同一后端目录；
+  图片工具与模型原生图片输出都由 Gateway 在无绑定时选择个人存储，不能因此重新限制文件工具。
+  Automation/channel 的显式绑定与已有 run 恢复沿用持久化配置；引导输入沿用原 run，
+  下次发送的模型/环境草稿只用于普通输入或引导转入排队，不覆盖当前执行。
+- 原 run 的人工回答/审批只绑定其 run/need，不依赖当前浏览的 Workspace；权限和资源仍由
+  服务端持久化输入裁决。普通会话的 Agent 管理链接固定 conversation 和用户作用域；显式团队管理链接仍保持其 Workspace。
 - 已登录后台刷新不得卸载 Shell/编辑器/Composer。跨 await 的 UI 写回冻结 session、目标身份和
   页面代次；原对象写入可提交，迟到结果不得抢导航或覆盖新草稿。未保存导航使用保存/放弃/取消。
 - 权限来自 Workspace `/access` 展示投影。403/404 清除资源缓存展示；临时读取失败可保留只读内容，

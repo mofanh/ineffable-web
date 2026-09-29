@@ -100,8 +100,10 @@ assert.match(router, /["']\/agent-nodes["']/)
 assert.doesNotMatch(appSidebar, /sidebar\.navigation\.agentNodes/)
 assert.match(source("src/pages/settings-page.tsx"), /\/agent-nodes/)
 assert.match(agentNodePage, /getAgentEvolutionProjection/)
-assert.match(agentNodePage, /resolveAgentEvolutionWorkspaceId\(currentWorkspace\)/)
-assert.match(sidebar, /resolveAgentEvolutionWorkspaceId\(currentWorkspace\)/)
+assert.match(agentNodePage, /searchParams\.get\("workspace"\) \|\| undefined/)
+assert.doesNotMatch(agentNodePage, /readCachedComposerRuntimeSelection|useWorkspaceSession/)
+assert.match(sidebar, /submissionRuntimeOverrides = \{ workspace: \{ mode: "disabled" as const \} \}/)
+assert.doesNotMatch(sidebar, /workspaceControls|setWorkspaceDraft/)
 assert.match(agentNodePage, /<AgentNodeManagementView/)
 assert.match(agentNodePage, /matchesAgentNodeProjectionTarget/)
 assert.match(agentNodePage, /projectionTargetKey === targetKey/)
@@ -119,13 +121,13 @@ assert.match(agentEvolutionInvalidation, /CustomEvent<AgentEvolutionChangedDetai
 assert.doesNotMatch(chatHeader, /Runtime Lab|onOpenAgentEvolution/)
 assert.match(
   sidebar,
-  /if \(!accessToken \|\| \(selectedWorkspaceId && !currentWorkspace\)\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,
-  "workspace hydration must keep sandbox availability pending instead of publishing an authoritative empty catalog"
+  /if \(!accessToken\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,
+  "authentication hydration must keep sandbox availability pending instead of publishing an authoritative empty catalog"
 )
 assert.match(
   sidebar,
   /sandboxOptionsRequestRef\.current = requestId[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false[\s\S]{0,500}setIsRefreshingSandboxOptions\(true\)/,
-  "a workspace-scoped sandbox refresh must fence history reconciliation until its catalog arrives"
+  "a user-scoped sandbox refresh must fence history reconciliation until its catalog arrives"
 )
 assert.match(composerRuntimeSelection, /runtime-selection-draft/)
 assert.match(composerRuntimeSelection, /RUNTIME_SELECTION_DRAFT_VERSION/)

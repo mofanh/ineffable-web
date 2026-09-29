@@ -30,7 +30,7 @@ try {
     const url = new URL(route.request().url())
     const path = url.pathname
     let body = { items: [], profiles: [], environments: [], pending_inputs: [], events: [], next_seq: 0 }
-    if (path.endsWith("auth/me")) body = { user: { id: "owner", status: "active", role: "user" }, workspaces: [{ id: workspace, name: "Workspace", kind: "personal" }], current_workspace_id: workspace }
+    if (path.endsWith("auth/me")) body = { user: { id: "owner", status: "active", role: "user" }, workspaces: [{ id: workspace, name: "Workspace", workspace_type: "personal" }], current_workspace_id: workspace }
     else if (path.endsWith("conversations/preferences")) body = { timezone: "Asia/Shanghai", version: 0, defaults_json: {} }
     else if (path.endsWith("conversations/list")) body = { conversations: [root, old, task] }
     else if (path.endsWith("conversations/today")) { retiredCalls++; body = root }

@@ -32,7 +32,7 @@ try {
     await page.route("**/gateway/v1/**",async route=>{
       const url=new URL(route.request().url());const path=url.pathname
       let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
-      if(path.endsWith("auth/me")) { if(holdRefresh) await new Promise(resolve=>{releaseRefresh=resolve});body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:"00000000-0000-0000-0000-000000000001",name:"Workspace",kind:"personal"},...(scenario === "workspace-draft" ? [{id:"00000000-0000-0000-0000-000000000002",name:"Workspace B",kind:"team"}] : [])],current_workspace_id:"00000000-0000-0000-0000-000000000001"}}
+      if(path.endsWith("auth/me")) { if(holdRefresh) await new Promise(resolve=>{releaseRefresh=resolve});body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:"00000000-0000-0000-0000-000000000001",name:"Workspace",workspace_type:"personal"},...(scenario === "workspace-draft" ? [{id:"00000000-0000-0000-0000-000000000002",name:"Workspace B",workspace_type:"team"}] : [])],current_workspace_id:"00000000-0000-0000-0000-000000000001"}}
       else if(path.endsWith("conversations/list"))body={conversations:[...(created?[conversation("created")]:[]),...(["workspace-draft","human-none"].includes(scenario) ? [conversation("first")] : []),conversation("other")]}
       else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});created=true;body=conversation("created")}
       else if(path.endsWith("conversations/get"))body=conversation(url.searchParams.get("conversation_id"))
@@ -48,7 +48,7 @@ try {
         return route.fulfill({status:409,json:{error:"fixture resume observed"}})
       } else if(path.endsWith("/send")) {
         sends.push(route.request().postDataJSON())
-        assert.deepEqual(sends.at(-1).runtime_overrides, { workspace: { mode: "selected", value: "00000000-0000-0000-0000-000000000001" } }, "the displayed execution workspace is frozen into the submitted input")
+        assert.deepEqual(sends.at(-1).runtime_overrides, { workspace: { mode: "disabled" } }, "ordinary chat clears any old default workspace binding")
         if(["late-ack","logout-ack","session-ack"].includes(scenario)) await new Promise(resolve=>{releaseSend=resolve})
         if(["navigate","late-ack","logout-ack","session-ack"].includes(scenario)) return route.fulfill({contentType:"text/event-stream",body:`data: ${JSON.stringify({type:"event",event:{seq:1,event:"model.text.delta",content:"OLD_STREAM_OUTPUT",run_id:"run",metadata:{conversation_id:"created",scope:"main",execution_epoch:1}}})}\n\n`})
         body={status:"queued",queue_len:1,pending_id:1,message_id:"message",conversation_id:"created"}
@@ -63,11 +63,10 @@ try {
     if (scenario === "human-none") {
       await page.getByRole("button", {name:"Select first",exact:true}).click()
       await page.getByText("Confirm the existing task", {exact:true}).waitFor()
-      await page.getByRole("button", {name:/^Workspace:/}).click()
-      await page.getByRole("option", {name:"None",exact:true}).click()
+      assert.equal(await page.getByRole("button", {name:/^Workspace:/}).count(), 0)
       await page.getByRole("radio", {name:"Continue the original task",exact:false}).click()
       await page.getByRole("button", {name:"Submit answer",exact:true}).click()
-      await page.getByText("fixture resume observed", {exact:false}).first().waitFor()
+      await waitUntil(() => resumes.length === 1, "existing run must receive the answer without a composer workspace")
       assert.equal(resumes.length,1)
       assert.equal(resumes[0].run_id,"existing-run")
       assert.equal(resumes[0].resolution.need_id,"existing-need")
@@ -75,15 +74,19 @@ try {
       await page.close(); continue
     }
     if (scenario === "workspace-draft") {
-      const choose = async label => { await page.getByRole("button", {name: /^Workspace:/}).click(); await page.getByRole("option", {name: label, exact:true}).click() }
+      await page.evaluate(() => {
+        localStorage.setItem("ineffable.chat.workspace.first", "00000000-0000-0000-0000-000000000002")
+        localStorage.setItem("ineffable.chat.runtime-selection-draft.first", JSON.stringify({version:1,modelProfileId:"vision",sandboxEnvironmentId:"",workspaceId:"deleted-team"}))
+      })
       await page.getByRole("button", {name:"Select first",exact:true}).click()
-      await choose("Workspace B")
       await page.getByRole("button", {name:"Select other",exact:true}).click()
-      await choose("Workspace")
       await page.getByRole("button", {name:"Select first",exact:true}).click()
-      await page.getByRole("button", {name:"Workspace: Workspace B",exact:true}).waitFor()
       await page.reload()
-      await page.getByRole("button", {name:"Workspace: Workspace B",exact:true}).waitFor()
+      assert.equal(await page.getByRole("button", {name:/^Workspace:/}).count(), 0)
+      await composer.fill("USER_SCOPE_AFTER_OLD_BINDING")
+      await composer.press("Enter")
+      await waitUntil(() => sends.length === 1, "stale workspace preferences must not block ordinary sends")
+      assert.equal(sends[0].conversation_id,"first")
       assert.deepEqual(errors, [])
       await page.close(); continue
     }

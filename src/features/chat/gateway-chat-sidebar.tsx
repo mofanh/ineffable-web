@@ -1,7 +1,5 @@
 import { removeImageFileReference } from "@/lib/workspace-file-reference"
 import { Link } from "react-router-dom"
-import { FolderIcon } from "lucide-react"
-import { ComposerSingleSelect } from "@/features/chat/components/composer-single-select"
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
 import { IMAGE_REFERENCE_REQUEST, IMAGE_REFERENCE_TARGET_PROBE, IMAGE_REFERENCE_TARGET_READY, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
@@ -111,7 +109,6 @@ import { notifyWorkspaceOutputEvent } from "@/features/chat/model/workspace-tool
 import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
 import {
   agentNodeManagementTargetKey,
-  resolveAgentEvolutionWorkspaceId,
 } from "@/features/chat/model/agent-node-management"
 import {
   publishAgentEvolutionChanged,
@@ -393,7 +390,6 @@ export function GatewayChatSidebar({
   const {
     accessToken,
     currentSessionId,
-    selectedWorkspaceId: defaultWorkspaceId,
     workspaces,
     conversations,
     currentConversationId,
@@ -405,10 +401,8 @@ export function GatewayChatSidebar({
     renameConversation,
   } = useAppSession()
 
-  const [workspaceDraft, setWorkspaceDraft] = React.useState<{ conversationId: string | null; value: string | null } | null>(null)
-  const cachedWorkspaceId = typeof window === "undefined" ? undefined : readCachedComposerRuntimeSelection(window.localStorage, currentConversationId).workspaceId
-  const selectedWorkspaceId = workspaceDraft?.conversationId === currentConversationId ? workspaceDraft.value : cachedWorkspaceId === undefined ? defaultWorkspaceId : cachedWorkspaceId
-  const currentWorkspace = workspaces.find(space => space.id === selectedWorkspaceId) ?? null
+  // Storage for uploads is independent of the Agent's user-scoped Workspace access.
+  const attachmentWorkspace = workspaces.find(space => space.workspace_type === "personal") ?? null
 
   const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
   const submissionLifecycleRef = React.useRef(0)
@@ -417,16 +411,16 @@ export function GatewayChatSidebar({
     submissionLifecycleRef.current += 1
     return () => { submissionLifecycleRef.current += 1 }
   }, [])
-  const sendViewRef = React.useRef({ generation: 0, session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId })
-  const observedSendViewRef = React.useRef({ session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId })
-  if (observedSendViewRef.current.session !== currentSessionId || observedSendViewRef.current.workspace !== currentWorkspace?.id || observedSendViewRef.current.conversation !== currentConversationId) {
+  const sendViewRef = React.useRef({ generation: 0, session: currentSessionId, workspace: attachmentWorkspace?.id, conversation: currentConversationId })
+  const observedSendViewRef = React.useRef({ session: currentSessionId, workspace: attachmentWorkspace?.id, conversation: currentConversationId })
+  if (observedSendViewRef.current.session !== currentSessionId || observedSendViewRef.current.workspace !== attachmentWorkspace?.id || observedSendViewRef.current.conversation !== currentConversationId) {
     // A synchronous selection already fenced the old view. Its ensuing React
     // commit must not invalidate the send that initiated that same handoff.
-    const alreadySelected = sendViewRef.current.session === currentSessionId && sendViewRef.current.workspace === currentWorkspace?.id && sendViewRef.current.conversation === currentConversationId
-    sendViewRef.current = { generation: sendViewRef.current.generation + (alreadySelected ? 0 : 1), session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
-    observedSendViewRef.current = { session: currentSessionId, workspace: currentWorkspace?.id, conversation: currentConversationId }
+    const alreadySelected = sendViewRef.current.session === currentSessionId && sendViewRef.current.workspace === attachmentWorkspace?.id && sendViewRef.current.conversation === currentConversationId
+    sendViewRef.current = { generation: sendViewRef.current.generation + (alreadySelected ? 0 : 1), session: currentSessionId, workspace: attachmentWorkspace?.id, conversation: currentConversationId }
+    observedSendViewRef.current = { session: currentSessionId, workspace: attachmentWorkspace?.id, conversation: currentConversationId }
   }
-  const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? `new:${newDraftGeneration}`}:${currentWorkspace?.id}`, accessToken, currentWorkspace?.id, currentSessionId ?? "signed-out")
+  const imageDraft = useImageAttachments(`${currentSessionId}:${currentConversationId ?? `new:${newDraftGeneration}`}:${attachmentWorkspace?.id}`, accessToken, attachmentWorkspace?.id, currentSessionId ?? "signed-out")
   React.useEffect(() => {
     const ownsSelection = () => {
       const current = getConversationSelectionIdentity()
@@ -591,11 +585,7 @@ export function GatewayChatSidebar({
   const conversationSeqRef = React.useRef(new Map<string, number>())
   const currentConversationIdRef = React.useRef<string | null>(currentConversationId)
   const humanInputSubmissionGenerationRef = React.useRef(0)
-  const agentEvolutionWorkspaceIdRef = React.useRef(
-    resolveAgentEvolutionWorkspaceId(currentWorkspace)
-  )
-  agentEvolutionWorkspaceIdRef.current =
-    resolveAgentEvolutionWorkspaceId(currentWorkspace)
+  const agentEvolutionWorkspaceIdRef = React.useRef<string | undefined>(undefined)
   const hydratedConversationIdRef = React.useRef<string | null>(hydratedConversationId)
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
@@ -652,7 +642,7 @@ export function GatewayChatSidebar({
     "idle" | "resuming" | "clearing"
   >("idle")
   const [isSubmittingInput, setIsSubmittingInput] = React.useState(false)
-  React.useEffect(() => { setIsSubmittingInput(false) }, [currentSessionId, currentWorkspace?.id])
+  React.useEffect(() => { setIsSubmittingInput(false) }, [currentSessionId, attachmentWorkspace?.id])
   const [unreadConversationIds, setUnreadConversationIds] = React.useState(
     () => new Set<string>()
   )
@@ -753,7 +743,7 @@ export function GatewayChatSidebar({
 
   React.useEffect(() => {
     const conversationId = currentConversationId
-    const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const workspaceId = undefined
     const requestTargetKey = agentNodeManagementTargetKey(
       conversationId ?? "",
       workspaceId
@@ -822,12 +812,12 @@ export function GatewayChatSidebar({
     return () => {
       cancelled = true
     }
-  }, [accessToken, currentConversationId, currentWorkspace, reportChatError])
+  }, [accessToken, currentConversationId, reportChatError])
 
   const refreshAgentEvolution = React.useCallback(async () => {
     const conversationId = currentConversationIdRef.current
     if (!accessToken || !conversationId) return
-    const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const workspaceId = undefined
     const requestTargetKey = agentNodeManagementTargetKey(
       conversationId,
       workspaceId
@@ -865,7 +855,7 @@ export function GatewayChatSidebar({
         setIsAgentIterationLoading(false)
       }
     }
-  }, [accessToken, currentWorkspace])
+  }, [accessToken])
 
   function reconcileAgentIterationHandoff(
     conversationId: string,
@@ -945,7 +935,7 @@ export function GatewayChatSidebar({
 
   async function handleAgentIterationChange(requested: boolean) {
     const conversationId = currentConversationIdRef.current
-    const workspaceId = resolveAgentEvolutionWorkspaceId(currentWorkspace)
+    const workspaceId = undefined
     const requestTargetKey = agentNodeManagementTargetKey(
       conversationId ?? "",
       workspaceId
@@ -1096,7 +1086,7 @@ export function GatewayChatSidebar({
       accessToken,
       currentConversationId,
       selectedSandboxEnvironmentId || null,
-      currentWorkspace?.id,
+      null,
       selectedModelProfileId || null
     )
       .then((response) => {
@@ -1126,7 +1116,6 @@ export function GatewayChatSidebar({
     imageDraft.items.length,
     currentConversationId,
     selectedSandboxEnvironmentId,
-    currentWorkspace?.id,
     selectedModelProfileId,
   ])
 
@@ -1213,7 +1202,6 @@ export function GatewayChatSidebar({
     )
     setSelectedModelProfileId(cachedSelection.modelProfileId)
     setSelectedSandboxEnvironmentId(cachedSelection.sandboxEnvironmentId)
-    setWorkspaceDraft(cachedSelection.workspaceId === undefined ? null : { conversationId: currentConversationId, value: cachedSelection.workspaceId })
   }, [currentConversationId])
 
   React.useEffect(() => {
@@ -1247,22 +1235,17 @@ export function GatewayChatSidebar({
   }, [accessToken])
 
   const refreshSandboxOptions = React.useCallback(() => {
-    if (!accessToken || (selectedWorkspaceId && !currentWorkspace)) {
+    if (!accessToken) {
       sandboxOptionsRequestRef.current += 1
       sandboxOptionsInFlightRef.current = null
       sandboxOptionsRef.current = []
-      // During session bootstrap the conversation can already be selected while
-      // the workspace catalog is still hydrating. An absent workspace is not an
-      // authoritative empty sandbox catalog: treating it as one makes history
-      // restoration discard the persisted environment before the real catalog
-      // arrives.
       sandboxOptionsLoadedRef.current = false
       setSandboxOptions([])
       setIsRefreshingSandboxOptions(false)
       return Promise.resolve()
     }
 
-    const requestKey = `${accessToken}:${currentWorkspace?.id ?? "user"}`
+    const requestKey = `${accessToken}:user`
     const inFlight = sandboxOptionsInFlightRef.current
     if (inFlight?.key === requestKey) {
       return inFlight.request
@@ -1270,9 +1253,7 @@ export function GatewayChatSidebar({
 
     const requestId = sandboxOptionsRequestRef.current + 1
     sandboxOptionsRequestRef.current = requestId
-    // Fence conversation-history reconciliation while a workspace-scoped
-    // catalog is changing. The previous workspace's options cannot establish
-    // that a selection is unavailable in the next workspace.
+    // Only a completed user-scoped catalog can establish environment availability.
     sandboxOptionsLoadedRef.current = false
     setIsRefreshingSandboxOptions(true)
 
@@ -1280,7 +1261,7 @@ export function GatewayChatSidebar({
       try {
         const response = await listSandboxWorkspaceEnvironments(
           accessToken,
-          currentWorkspace?.id ?? null
+          null
         )
         if (sandboxOptionsRequestRef.current !== requestId) {
           return
@@ -1323,7 +1304,7 @@ export function GatewayChatSidebar({
     })()
     sandboxOptionsInFlightRef.current = { key: requestKey, requestId, request }
     return request
-  }, [accessToken, currentWorkspace, selectedWorkspaceId])
+  }, [accessToken])
 
   React.useEffect(() => {
     void refreshSandboxOptions()
@@ -1467,7 +1448,6 @@ export function GatewayChatSidebar({
       if (cancelled || currentConversationIdRef.current !== conversationId || runtimePreferenceRevisionRef.current !== revision) return
       if (defaults.model_profile_id) setSelectedModelProfileId(defaults.model_profile_id)
       if (Object.hasOwn(defaults, "sandbox")) setSelectedSandboxEnvironmentId(defaults.sandbox?.environment_id ?? "")
-      if (Object.hasOwn(defaults, "workspace_id") && readCachedComposerRuntimeSelection(window.localStorage, conversationId).workspaceId === undefined) setWorkspaceDraft({ conversationId, value: defaults.workspace_id ?? null })
       if (defaults.capability_exposure && !capabilityExposureDraftDirtyRef.current) setCapabilityExposureSelection(defaults.capability_exposure)
     }).catch(() => { /* Existing catalog and explicit choices remain usable. */ })
     return () => { cancelled = true }
@@ -1947,7 +1927,6 @@ export function GatewayChatSidebar({
           }
           if (reconciliation.shouldApply) {
             setSelectedModelProfileId(reconciliation.selection.modelProfileId)
-            if (latestRuntimeSelection.workspaceId !== undefined) setWorkspaceDraft({ conversationId, value: latestRuntimeSelection.workspaceId })
             if (latestRuntimeSelection.sandboxEnvironmentId != null) {
               setSelectedSandboxEnvironmentId(
                 latestRuntimeSelection.sandboxEnvironmentId
@@ -3466,7 +3445,6 @@ export function GatewayChatSidebar({
     if (!accessToken || (!content.trim() && images.length === 0)) {
       return
     }
-    if (selectedWorkspaceId && !currentWorkspace) { setError(i18n.t("interaction.unavailableWorkspace")); return false }
     if (selectedModelProfileId && (!modelProfilesLoadedRef.current || !modelProfilesRef.current.some(model => model.id === selectedModelProfileId))) { setError(i18n.t("interaction.unavailableModel")); return false }
     if (selectedSandboxEnvironmentId && (!sandboxOptionsLoadedRef.current || !sandboxOptionsRef.current.some(option => option.environmentId === selectedSandboxEnvironmentId))) { setError(i18n.t("interaction.unavailableEnvironment")); return false }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
@@ -3477,7 +3455,6 @@ export function GatewayChatSidebar({
     const submissionRuntimeSelection = {
       modelProfileId: submissionModelProfileId,
       sandboxEnvironmentId: selectedSandboxEnvironmentId,
-      workspaceId: selectedWorkspaceId,
     }
     const sandboxPayload = selectedSandboxEnvironmentId
       ? { environment_id: selectedSandboxEnvironmentId }
@@ -3495,8 +3472,8 @@ export function GatewayChatSidebar({
         ? agentIterationRequested
         : undefined
     const submissionAgentEvolutionWorkspaceId =
-      resolveAgentEvolutionWorkspaceId(currentWorkspace)
-    const submissionRuntimeOverrides = { workspace: selectedWorkspaceId ? { mode: "selected" as const, value: selectedWorkspaceId } : { mode: "disabled" as const } }
+      undefined
+    const submissionRuntimeOverrides = { workspace: { mode: "disabled" as const } }
 
     if (mode === "guided") {
       const targetConversationId = submissionConversationId
@@ -3583,7 +3560,7 @@ export function GatewayChatSidebar({
     }
 
     const controller = new AbortController()
-    const submissionOwner = { session: currentSessionId, workspace: currentWorkspace?.id }
+    const submissionOwner = { session: currentSessionId, workspace: attachmentWorkspace?.id }
     let submissionViewGeneration = sendViewRef.current.generation
     let submissionSelectionVersion = getConversationSelectionIdentity().version
     const submissionLifecycle = submissionLifecycleRef.current
@@ -3896,7 +3873,6 @@ export function GatewayChatSidebar({
       const selection = {
         modelProfileId: selectedModelProfileId,
         sandboxEnvironmentId: value,
-        workspaceId: selectedWorkspaceId,
       }
       if (currentConversationId) {
         writeComposerRuntimeSelectionDraft(
@@ -3910,15 +3886,6 @@ export function GatewayChatSidebar({
     }
   }
 
-  function handleWorkspaceChange(value: string) {
-    if (value && !workspaces.some(space => space.id === value)) return
-    runtimePreferenceRevisionRef.current += 1
-    setWorkspaceDraft({ conversationId: currentConversationId, value: value || null })
-    const selection = { modelProfileId: selectedModelProfileId, sandboxEnvironmentId: selectedSandboxEnvironmentId, workspaceId: value || null }
-    if (currentConversationId) writeComposerRuntimeSelectionDraft(window.localStorage, currentConversationId, selection)
-    else writeRecentComposerRuntimeSelection(window.localStorage, selection)
-  }
-
   function handleModelProfileChange(value: string) {
     runtimePreferenceRevisionRef.current += 1
     setSelectedModelProfileId(value)
@@ -3926,7 +3893,6 @@ export function GatewayChatSidebar({
       const selection = {
         modelProfileId: value,
         sandboxEnvironmentId: selectedSandboxEnvironmentId,
-        workspaceId: selectedWorkspaceId,
       }
       if (currentConversationId) {
         writeComposerRuntimeSelectionDraft(
@@ -4284,7 +4250,7 @@ export function GatewayChatSidebar({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
       <ChatSidebarHeader
-        manageAgentPath={currentConversationId ? `/agent-nodes?${new URLSearchParams({ conversation: currentConversationId, workspace: resolveAgentEvolutionWorkspaceId(currentWorkspace) ?? "" })}` : undefined}
+        manageAgentPath={currentConversationId ? `/agent-nodes?${new URLSearchParams({ conversation: currentConversationId, workspace: "" })}` : undefined}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
@@ -4354,19 +4320,12 @@ export function GatewayChatSidebar({
 
       <ChatComposer
         modelPickerFooter={<Link to="/models">{i18n.t("interaction.viewModels")}</Link>}
-        workspaceControls={
-          <ComposerSingleSelect value={selectedWorkspaceId ?? ""} options={[
-            { value: "", label: i18n.t("automation.runtime.none") },
-            ...workspaces.map(space => ({ value: space.id, label: space.name })),
-            ...(selectedWorkspaceId && !currentWorkspace ? [{ value: selectedWorkspaceId, label: i18n.t("interaction.unavailableWorkspace") }] : []),
-          ]} icon={<FolderIcon className="size-3" />} label={i18n.t("interaction.runtimeWorkspace")} placeholder={i18n.t("automation.runtime.none")} emptyLabel={i18n.t("interaction.unavailableWorkspace")} onValueChange={handleWorkspaceChange} />
-        }
         runtimeHint={selectedConversation?.current_run?.accepts_guided_input ? i18n.t("interaction.guidedRuntimeHint") : undefined}
         attachedImages={imageDraft.images}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}
         onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}
-        imageActions={accessToken && currentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${currentWorkspace.id}`} accessToken={accessToken} workspaceId={currentWorkspace.id} disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onSelect={imageDraft.addReference} renderTrigger={(open) => <ImageAttachmentActions disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onFiles={imageDraft.addFiles} onWorkspace={open} />} /> : <ImageAttachmentActions disabled onFiles={imageDraft.addFiles} />}
+        imageActions={accessToken && attachmentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${attachmentWorkspace.id}`} accessToken={accessToken} workspaceId={attachmentWorkspace.id} disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onSelect={imageDraft.addReference} renderTrigger={(open) => <ImageAttachmentActions disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onFiles={imageDraft.addFiles} onWorkspace={open} />} /> : <ImageAttachmentActions disabled onFiles={imageDraft.addFiles} />}
         imageAttachments={<ImageAttachments items={imageDraft.items} accessToken={accessToken} onRemove={id => {
           const image = imageDraft.items.find(item => item.id === id)?.image
           if (image) setComposer(removeImageFileReference(composer, image))
@@ -4386,7 +4345,7 @@ export function GatewayChatSidebar({
         preInputQueue={preInputQueue}
         accessToken={accessToken}
         workspaces={workspaces}
-        currentWorkspaceId={currentWorkspace?.id}
+        currentWorkspaceId={attachmentWorkspace?.id}
         fileReferenceScope={currentConversationId ?? "new"}
         modelOptions={modelOptions}
         isModelCatalogLoaded={isModelCatalogLoaded}

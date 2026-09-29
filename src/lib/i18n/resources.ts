@@ -13,7 +13,7 @@ export const resources = {
         unsavedTitle: "有未保存的修改", unsavedHint: "保存后离开，或放弃修改继续。", reloadDiscard: "重新加载将放弃当前草稿。",
         draftRetained: "未保存的草稿已保留，可以导出后处理。", exportDraft: "导出草稿", refreshUnavailable: "暂时无法更新权限，写操作已暂停。请重试。",
         unavailableWorkspace: "当前工作空间已不可用，请明确选择可用空间后再发送。", unavailableEnvironment: "所选运行环境不可用，请重新选择。", unavailableModel: "所选模型不可用，请重新选择。",
-        runtimeWorkspace: "工作空间", guidedRuntimeHint: "引导消息沿用当前任务原有的工作空间、模型和环境。这里的选择用于后续普通发送，或引导转入排队时。", pendingResult: "请求结果尚未确认，请刷新核对后再操作。", receivedTask: "执行请求已接收", manageAgent: "管理当前 Agent", viewModels: "查看可用模型",
+        guidedRuntimeHint: "引导消息沿用当前任务原有的工作空间、模型和环境。这里的选择用于后续普通发送，或引导转入排队时。", pendingResult: "请求结果尚未确认，请刷新核对后再操作。", receivedTask: "执行请求已接收", manageAgent: "管理当前 Agent", viewModels: "查看可用模型",
       },
       workspaceLifecycle: {
         lastOwner: "你是最后一位所有者，请先将其他成员设为所有者，再退出空间。", transferFirst: "退出前需转交所有权",
@@ -1886,7 +1886,7 @@ export const resources = {
         unsavedTitle: "Unsaved changes", unsavedHint: "Save before leaving, or discard your changes.", reloadDiscard: "Reloading will discard your current draft.",
         draftRetained: "Your unsaved draft is retained and can be exported.", exportDraft: "Export draft", refreshUnavailable: "Permissions could not be refreshed. Writes are paused. Please retry.",
         unavailableWorkspace: "Your selected workspace is unavailable. Choose an available space before sending.", unavailableEnvironment: "The selected environment is unavailable. Choose another environment.", unavailableModel: "The selected model is unavailable. Choose another model.",
-        runtimeWorkspace: "Workspace", guidedRuntimeHint: "Guided messages keep the running task’s workspace, model, and environment. These selections apply to normal sends, or if a guided message is queued.", pendingResult: "The request result is not confirmed. Refresh and verify before acting again.", receivedTask: "Execution request received", manageAgent: "Manage current Agent", viewModels: "View available models",
+        guidedRuntimeHint: "Guided messages keep the running task’s workspace, model, and environment. These selections apply to normal sends, or if a guided message is queued.", pendingResult: "The request result is not confirmed. Refresh and verify before acting again.", receivedTask: "Execution request received", manageAgent: "Manage current Agent", viewModels: "View available models",
       },
       workspaceLifecycle: {
         lastOwner: "You are the last owner. Make another member an owner before leaving.", transferFirst: "Transfer ownership before leaving",

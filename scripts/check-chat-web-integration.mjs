@@ -341,15 +341,12 @@ const selectionStorage = memorySelectionStorage()
 assert.deepEqual(findLatestConversationRuntimeSelection([
   { role: "user", metadata_json: { actor_user_id: "actor", model_profile_id: "model-a", workspace_id: "wa" } },
   { role: "user", metadata_json: { actor_user_id: "actor", model_profile_id: "model-b", workspace_id: "wb", input_progress: { kind: "guided" } } },
-]), { modelProfileId: "model-a", sandboxEnvironmentId: "", workspaceId: "wa" }, "guided fallback preferences are not the active run configuration")
-const workspaceSelectionStorage = memorySelectionStorage()
-writeComposerRuntimeSelectionDraft(workspaceSelectionStorage, "workspace-conversation-a", { modelProfileId: "model-a", sandboxEnvironmentId: "", workspaceId: "wa" })
-writeComposerRuntimeSelectionDraft(workspaceSelectionStorage, "workspace-conversation-b", { modelProfileId: "model-b", sandboxEnvironmentId: "", workspaceId: "wb" })
-assert.equal(readCachedComposerRuntimeSelection(workspaceSelectionStorage, "workspace-conversation-a").workspaceId, "wa", "workspace drafts must remain conversation scoped")
-commitAcceptedComposerRuntimeSelection(workspaceSelectionStorage, "workspace-conversation-a", { modelProfileId: "model-a", sandboxEnvironmentId: "", workspaceId: "wa" })
-writeComposerRuntimeSelectionDraft(workspaceSelectionStorage, "workspace-conversation-a", { modelProfileId: "model-a", sandboxEnvironmentId: "", workspaceId: null })
-assert.equal(reconcileCanonicalComposerRuntimeSelection(workspaceSelectionStorage, "workspace-conversation-a", { modelProfileId: "model-a", sandboxEnvironmentId: "", workspaceId: "wa" }), false)
-assert.equal(readCachedComposerRuntimeSelection(workspaceSelectionStorage, "workspace-conversation-a").workspaceId, null, "canonical refresh cannot override an explicit no-workspace draft")
+]), { modelProfileId: "model-a", sandboxEnvironmentId: "" }, "guided fallback preferences are not the active run configuration")
+const oldWorkspaceStorage = memorySelectionStorage()
+oldWorkspaceStorage.setItem("ineffable.chat.workspace.old", "revoked-team")
+oldWorkspaceStorage.setItem("ineffable.chat.runtime-selection-draft.old", JSON.stringify({ version: 1, modelProfileId: "model-a", sandboxEnvironmentId: "", workspaceId: "revoked-team" }))
+assert.deepEqual(readCachedComposerRuntimeSelection(oldWorkspaceStorage, "old"), { modelProfileId: "model-a", sandboxEnvironmentId: "" }, "old workspace bindings cannot re-enter a composer draft")
+assert.equal(reconcileCanonicalComposerRuntimeSelection(oldWorkspaceStorage, "old", { modelProfileId: "model-a", sandboxEnvironmentId: "" }), true, "retired workspace metadata cannot block model/sandbox reconciliation")
 selectionStorage.setItem(
   `ineffable.chat.runtime-selection-draft.${conversationId}`,
   JSON.stringify({
