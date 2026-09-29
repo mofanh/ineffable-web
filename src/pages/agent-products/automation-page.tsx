@@ -555,8 +555,31 @@ export function AutomationPage() {
 
   const captureActionScope = useActionScope(`${currentSessionId}:automations`)
   const pendingActions = React.useRef(new Set<string>())
+  const uncertainActions = React.useRef(new Map<string, "active" | "inactive" | "archive" | "run">())
   const [actionStates, setActionStates] = React.useState<Record<string, "pending" | "uncertain">>({})
-  React.useEffect(() => { pendingActions.current.clear(); setActionStates({}) }, [currentSessionId])
+  React.useEffect(() => { pendingActions.current.clear(); uncertainActions.current.clear(); setActionStates({}) }, [currentSessionId])
+
+  async function verifyActions(acknowledgeId?: string) {
+    const isCurrent = captureActionScope()
+    const response = await reload()
+    if (!response || !isCurrent()) return
+    const resolved = new Set<string>()
+    for (const [id, expected] of uncertainActions.current) {
+      const actual = response.automations.find(item => item.id === id)
+      if ((expected === "archive" && !actual) || actual?.status === expected) resolved.add(id)
+    }
+    if (acknowledgeId && !resolved.has(acknowledgeId)) {
+      const accepted = await confirm({ title: t("interaction.verifyResult"), description: t("interaction.verifyResultHint"), confirmLabel: t("common.confirm") })
+      if (!isCurrent() || !accepted) return
+      resolved.add(acknowledgeId)
+    }
+    for (const id of resolved) uncertainActions.current.delete(id)
+    setActionStates(current => {
+      const next = { ...current }
+      for (const id of resolved) delete next[id]
+      return next
+    })
+  }
 
   async function runAction(automation: Automation, action: "archive" | "toggle" | "run") {
     if (pendingActions.current.has(automation.id) || actionStates[automation.id] === "uncertain") return
@@ -584,7 +607,10 @@ export function AutomationPage() {
       if (!isCurrent()) return
       const failure = normalizeAppError(caught)
       reportActionError(caught, t("automation.feedback.statusFailed"), t("automation.feedback.statusFailedTitle"))
-      if (submitted && (!failure.status || failure.status >= 500)) setActionStates(current => ({ ...current, [automation.id]: "uncertain" }))
+      if (submitted && (!failure.status || failure.status >= 500)) {
+        uncertainActions.current.set(automation.id, action === "toggle" ? automation.status === "active" ? "inactive" : "active" : action)
+        setActionStates(current => ({ ...current, [automation.id]: "uncertain" }))
+      }
     } finally {
       if (isCurrent()) {
         pendingActions.current.delete(automation.id)
@@ -649,7 +675,7 @@ export function AutomationPage() {
         <Button
           variant="outline"
           disabled={saving || automationResource.isRefreshing}
-          onClick={() => void reload()}
+          onClick={() => void verifyActions()}
           aria-label={t("automation.page.refreshLabel")}
         >
           <RotateCw
@@ -663,8 +689,8 @@ export function AutomationPage() {
       <div className="flex justify-end"><Button onClick={startCreateAutomation} disabled={saving}><Plus className="size-4" />{t("automation.form.createTitle")}</Button></div>
 
       {lastRunConversationId ? (
-        <Notice tone="success" title={t("automation.feedback.runStarted")}>
-          {t("automation.page.runStartedDescription")} {" "}
+        <Notice tone="success" title={t("interaction.receivedTask")}>
+          {t("interaction.receivedTaskHint")} {" "}
           <Button
             variant="link"
             className="h-auto p-0"
@@ -735,7 +761,7 @@ export function AutomationPage() {
                 </Badge>
               </div>
               {automation.pause_reason === "workspace_archived" && <Notice>{t("workspaceLifecycle.taskPaused")}</Notice>}
-              {actionStates[automation.id] === "uncertain" && <Notice tone="warning">{t("interaction.pendingResult")}</Notice>}
+              {actionStates[automation.id] === "uncertain" && <Notice tone="warning">{t("interaction.pendingResult")} <Button variant="link" disabled={automationResource.isRefreshing} onClick={() => void verifyActions(automation.id)}>{t("interaction.verifyResult")}</Button></Notice>}
               {automation.runtime_config ? <button type="button" className="mt-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => startEditAutomation(automation)}>
                 {t("automation.runtime.title")} · {automation.runtime_config.model_profile_id} · {t(`chat.composer.capabilityMode.${automation.runtime_config.capability_exposure.mode}`)}
               </button> : null}

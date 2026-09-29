@@ -35,7 +35,7 @@ function Connections({ token, session }: { token: string; session: string }) {
   const [detail, setDetail] = React.useState<{ connection: ChannelConnection; value: ConnectionDetails } | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [uncertain, setUncertain] = React.useState(false)
-  const [uncertainRotation, setUncertainRotation] = React.useState<string | null>(null)
+  const [uncertainRotation, setUncertainRotation] = React.useState<Set<string>>(() => new Set())
   const [error, setError] = React.useState<AppError | null>(null)
   const generation = React.useRef(0)
   async function startCreate() {
@@ -86,12 +86,12 @@ function Connections({ token, session }: { token: string; session: string }) {
     setBusy(true); setError(null)
     try {
       if (kind !== "details") {
-        const accepted = await confirm({ title: t(`channels.${kind}`), description: t(kind === "rotate" && uncertainRotation === connection.id ? "interaction.credentialUnknown" : `channels.${kind}Hint`), confirmLabel: t(`channels.${kind}`), variant: "destructive" })
+        const accepted = await confirm({ title: t(`channels.${kind}`), description: t(kind === "rotate" && uncertainRotation.has(connection.id) ? "interaction.credentialUnknown" : `channels.${kind}Hint`), confirmLabel: t(`channels.${kind}`), variant: "destructive" })
         if (!accepted || !mounted.current || request !== generation.current) return
       }
       if (kind === "rotate") {
         const result = await rotateConnection(token, session, connection.id)
-        if (mounted.current && request === generation.current) { setIssued(result); setUncertainRotation(null) }
+        if (mounted.current && request === generation.current) { setIssued(result); setUncertainRotation(current => { const next = new Set(current); next.delete(connection.id); return next }) }
       } else if (kind === "delete") await deleteConnection(token, session, connection.id)
       else {
         const value = await connectionDetails(token, session, connection.id)
@@ -102,7 +102,7 @@ function Connections({ token, session }: { token: string; session: string }) {
       if (mounted.current && request === generation.current) {
         const failure = normalizeChannelError(e)
         setError(failure)
-        if (kind === "rotate" && channelSaveOutcomeUncertain(failure.status)) setUncertainRotation(connection.id)
+        if (kind === "rotate" && channelSaveOutcomeUncertain(failure.status)) setUncertainRotation(current => new Set(current).add(connection.id))
       }
     } finally { if (mounted.current && request === generation.current) setBusy(false) }
   }
@@ -129,7 +129,7 @@ function Connections({ token, session }: { token: string; session: string }) {
     {resource.error ? <ErrorState error={resource.error.message} onRetry={resource.reload} /> : null}
     {error && !draft ? <ErrorState error={error} /> : null}
     {!resource.data ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p> : resource.data.filter(c => c.protocol === "qqbot").length === 0 ? <EmptyState title={t("channels.empty")} description={t("channels.description")} /> : <div className="space-y-3">{resource.data.filter(c => c.protocol === "qqbot").map(connection => <div key={connection.id} className="rounded-xl border p-4 space-y-3">
-      {uncertainRotation === connection.id && <Notice tone="warning">{t("interaction.credentialUnknown")}</Notice>}
+      {uncertainRotation.has(connection.id) && <Notice tone="warning">{t("interaction.credentialUnknown")}</Notice>}
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><p className="font-medium break-words">{connection.display_name}</p><p className="text-sm text-muted-foreground">AppID · {connection.account_id}</p></div>
         <StatusBadge status={connection.enabled ? "active" : "disabled"} label={t(connection.enabled ? "channels.enabled" : "channels.disabled")} />
       </div>

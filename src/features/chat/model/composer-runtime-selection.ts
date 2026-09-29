@@ -1,11 +1,13 @@
 export type ComposerRuntimeSelection = {
   modelProfileId: string
   sandboxEnvironmentId: string
+  workspaceId?: string | null
 }
 
 export type CanonicalComposerRuntimeSelection = {
   modelProfileId: string
   sandboxEnvironmentId: string | null
+  workspaceId?: string | null
 }
 
 export function resolveConfirmedComposerModelProfileId(
@@ -35,6 +37,10 @@ function sandboxStorageKey(conversationId: string | null | undefined) {
   return `ineffable.chat.sandbox.${selectionScope(conversationId)}`
 }
 
+function workspaceStorageKey(conversationId: string | null | undefined) {
+  return `ineffable.chat.workspace.${selectionScope(conversationId)}`
+}
+
 function draftStorageKey(conversationId: string) {
   return `ineffable.chat.runtime-selection-draft.${conversationId}`
 }
@@ -58,6 +64,7 @@ export function readComposerRuntimeSelectionDraft(
     return {
       modelProfileId: value.modelProfileId,
       sandboxEnvironmentId: value.sandboxEnvironmentId,
+      ...(value.workspaceId === null || typeof value.workspaceId === "string" ? { workspaceId: value.workspaceId } : {}),
     }
   } catch {
     return null
@@ -76,6 +83,8 @@ export function readCachedComposerRuntimeSelection(
     modelProfileId: storage.getItem(modelStorageKey(conversationId)) ?? "",
     sandboxEnvironmentId:
       storage.getItem(sandboxStorageKey(conversationId)) ?? "",
+    ...(storage.getItem(workspaceStorageKey(conversationId)) !== null
+      ? { workspaceId: storage.getItem(workspaceStorageKey(conversationId)) || null } : {}),
   }
 }
 
@@ -98,6 +107,7 @@ export function writeRecentComposerRuntimeSelection(
 ) {
   storage.setItem(modelStorageKey(null), selection.modelProfileId)
   storage.setItem(sandboxStorageKey(null), selection.sandboxEnvironmentId)
+  if (selection.workspaceId !== undefined) storage.setItem(workspaceStorageKey(null), selection.workspaceId ?? "")
 }
 
 export function writeCanonicalComposerRuntimeSelection(
@@ -106,6 +116,7 @@ export function writeCanonicalComposerRuntimeSelection(
   selection: CanonicalComposerRuntimeSelection
 ) {
   storage.setItem(modelStorageKey(conversationId), selection.modelProfileId)
+  if (selection.workspaceId !== undefined) storage.setItem(workspaceStorageKey(conversationId), selection.workspaceId ?? "")
   if (selection.sandboxEnvironmentId != null) {
     storage.setItem(
       sandboxStorageKey(conversationId),
@@ -126,6 +137,7 @@ export function commitAcceptedComposerRuntimeSelection(
   if (
     !draft ||
     (draft.modelProfileId === selection.modelProfileId &&
+      draft.workspaceId === selection.workspaceId &&
       draft.sandboxEnvironmentId === selection.sandboxEnvironmentId)
   ) {
     storage.removeItem(draftStorageKey(conversationId))
@@ -143,6 +155,7 @@ export function reconcileCanonicalComposerRuntimeSelection(
   if (
     selection.sandboxEnvironmentId != null &&
     draft.modelProfileId === selection.modelProfileId &&
+    draft.workspaceId === selection.workspaceId &&
     draft.sandboxEnvironmentId === selection.sandboxEnvironmentId
   ) {
     storage.removeItem(draftStorageKey(conversationId))

@@ -25,6 +25,7 @@ export default function TeamWorkspaceDirectoryPage() {
       <div className="divide-y rounded-xl border">{resource.data?.entries.map(({workspace, role}) => <div key={workspace.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
         <Link to={`/workspace/${workspace.id}/objects`} className="min-w-0 flex-1 break-words font-medium hover:underline">{workspace.name}</Link>
         <span className="text-xs text-muted-foreground">{t(`team.role.${role}`)}</span>
+        {workspace.status === "suspended" && <span className="text-xs text-muted-foreground">{t("interaction.suspendedSpace")}</span>}
       </div>)}</div>
     </DataState>
   </AppPage>

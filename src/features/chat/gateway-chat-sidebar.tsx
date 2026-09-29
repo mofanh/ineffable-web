@@ -393,9 +393,7 @@ export function GatewayChatSidebar({
   const {
     accessToken,
     currentSessionId,
-    currentWorkspace,
-    selectedWorkspaceId,
-    selectWorkspace,
+    selectedWorkspaceId: defaultWorkspaceId,
     workspaces,
     conversations,
     currentConversationId,
@@ -406,6 +404,11 @@ export function GatewayChatSidebar({
     refreshConversations,
     renameConversation,
   } = useAppSession()
+
+  const [workspaceDraft, setWorkspaceDraft] = React.useState<{ conversationId: string | null; value: string | null } | null>(null)
+  const cachedWorkspaceId = typeof window === "undefined" ? undefined : readCachedComposerRuntimeSelection(window.localStorage, currentConversationId).workspaceId
+  const selectedWorkspaceId = workspaceDraft?.conversationId === currentConversationId ? workspaceDraft.value : cachedWorkspaceId === undefined ? defaultWorkspaceId : cachedWorkspaceId
+  const currentWorkspace = workspaces.find(space => space.id === selectedWorkspaceId) ?? null
 
   const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
   const submissionLifecycleRef = React.useRef(0)
@@ -1210,6 +1213,7 @@ export function GatewayChatSidebar({
     )
     setSelectedModelProfileId(cachedSelection.modelProfileId)
     setSelectedSandboxEnvironmentId(cachedSelection.sandboxEnvironmentId)
+    setWorkspaceDraft(cachedSelection.workspaceId === undefined ? null : { conversationId: currentConversationId, value: cachedSelection.workspaceId })
   }, [currentConversationId])
 
   React.useEffect(() => {
@@ -1463,6 +1467,7 @@ export function GatewayChatSidebar({
       if (cancelled || currentConversationIdRef.current !== conversationId || runtimePreferenceRevisionRef.current !== revision) return
       if (defaults.model_profile_id) setSelectedModelProfileId(defaults.model_profile_id)
       if (Object.hasOwn(defaults, "sandbox")) setSelectedSandboxEnvironmentId(defaults.sandbox?.environment_id ?? "")
+      if (Object.hasOwn(defaults, "workspace_id") && readCachedComposerRuntimeSelection(window.localStorage, conversationId).workspaceId === undefined) setWorkspaceDraft({ conversationId, value: defaults.workspace_id ?? null })
       if (defaults.capability_exposure && !capabilityExposureDraftDirtyRef.current) setCapabilityExposureSelection(defaults.capability_exposure)
     }).catch(() => { /* Existing catalog and explicit choices remain usable. */ })
     return () => { cancelled = true }
@@ -1942,6 +1947,7 @@ export function GatewayChatSidebar({
           }
           if (reconciliation.shouldApply) {
             setSelectedModelProfileId(reconciliation.selection.modelProfileId)
+            if (latestRuntimeSelection.workspaceId !== undefined) setWorkspaceDraft({ conversationId, value: latestRuntimeSelection.workspaceId })
             if (latestRuntimeSelection.sandboxEnvironmentId != null) {
               setSelectedSandboxEnvironmentId(
                 latestRuntimeSelection.sandboxEnvironmentId
@@ -3471,6 +3477,7 @@ export function GatewayChatSidebar({
     const submissionRuntimeSelection = {
       modelProfileId: submissionModelProfileId,
       sandboxEnvironmentId: selectedSandboxEnvironmentId,
+      workspaceId: selectedWorkspaceId,
     }
     const sandboxPayload = selectedSandboxEnvironmentId
       ? { environment_id: selectedSandboxEnvironmentId }
@@ -3556,13 +3563,7 @@ export function GatewayChatSidebar({
             },
           }
         )
-        if (typeof window !== "undefined") {
-          commitAcceptedComposerRuntimeSelection(
-            window.localStorage,
-            targetConversationId,
-            submissionRuntimeSelection
-          )
-        }
+        // Guided input belongs to the existing run; it does not commit next-send preferences.
         return true
       } catch (enqueueError) {
         if (!isCurrentGuidedSubmission()) {
@@ -3895,6 +3896,7 @@ export function GatewayChatSidebar({
       const selection = {
         modelProfileId: selectedModelProfileId,
         sandboxEnvironmentId: value,
+        workspaceId: selectedWorkspaceId,
       }
       if (currentConversationId) {
         writeComposerRuntimeSelectionDraft(
@@ -3908,6 +3910,15 @@ export function GatewayChatSidebar({
     }
   }
 
+  function handleWorkspaceChange(value: string) {
+    if (value && !workspaces.some(space => space.id === value)) return
+    runtimePreferenceRevisionRef.current += 1
+    setWorkspaceDraft({ conversationId: currentConversationId, value: value || null })
+    const selection = { modelProfileId: selectedModelProfileId, sandboxEnvironmentId: selectedSandboxEnvironmentId, workspaceId: value || null }
+    if (currentConversationId) writeComposerRuntimeSelectionDraft(window.localStorage, currentConversationId, selection)
+    else writeRecentComposerRuntimeSelection(window.localStorage, selection)
+  }
+
   function handleModelProfileChange(value: string) {
     runtimePreferenceRevisionRef.current += 1
     setSelectedModelProfileId(value)
@@ -3915,6 +3926,7 @@ export function GatewayChatSidebar({
       const selection = {
         modelProfileId: value,
         sandboxEnvironmentId: selectedSandboxEnvironmentId,
+        workspaceId: selectedWorkspaceId,
       }
       if (currentConversationId) {
         writeComposerRuntimeSelectionDraft(
@@ -4344,10 +4356,12 @@ export function GatewayChatSidebar({
         modelPickerFooter={<Link to="/models">{i18n.t("interaction.viewModels")}</Link>}
         workspaceControls={
           <ComposerSingleSelect value={selectedWorkspaceId ?? ""} options={[
+            { value: "", label: i18n.t("automation.runtime.none") },
             ...workspaces.map(space => ({ value: space.id, label: space.name })),
             ...(selectedWorkspaceId && !currentWorkspace ? [{ value: selectedWorkspaceId, label: i18n.t("interaction.unavailableWorkspace") }] : []),
-          ]} icon={<FolderIcon className="size-3" />} label={i18n.t("interaction.runtimeWorkspace")} placeholder={i18n.t("interaction.runtimeWorkspace")} emptyLabel={i18n.t("interaction.unavailableWorkspace")} onValueChange={value => { if (workspaces.some(space => space.id === value)) void selectWorkspace(value) }} />
+          ]} icon={<FolderIcon className="size-3" />} label={i18n.t("interaction.runtimeWorkspace")} placeholder={i18n.t("automation.runtime.none")} emptyLabel={i18n.t("interaction.unavailableWorkspace")} onValueChange={handleWorkspaceChange} />
         }
+        runtimeHint={selectedConversation?.current_run?.accepts_guided_input ? i18n.t("interaction.guidedRuntimeHint") : undefined}
         attachedImages={imageDraft.images}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}

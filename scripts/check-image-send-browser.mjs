@@ -10,7 +10,7 @@ const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 try {
   await server.listen()
   browser=await chromium.launch({executablePath,headless:true})
-  for (const scenario of ["normal", "new-draft", "navigate", "session-helper", "remount", "late-ack", "logout-ack", "session-ack"]) {
+  for (const scenario of ["normal", "new-draft", "navigate", "session-helper", "remount", "late-ack", "logout-ack", "session-ack", "workspace-draft"]) {
     console.log(`image send scenario: ${scenario}`)
     const page=await browser.newPage({viewport:{width:1200,height:900}})
     const errors=[];page.on("pageerror",e=>errors.push(e.message))
@@ -31,8 +31,8 @@ try {
     await page.route("**/gateway/v1/**",async route=>{
       const url=new URL(route.request().url());const path=url.pathname
       let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
-      if(path.endsWith("auth/me")) { if(holdRefresh) await new Promise(resolve=>{releaseRefresh=resolve});body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:"00000000-0000-0000-0000-000000000001",name:"Workspace",kind:"personal"}],current_workspace_id:"00000000-0000-0000-0000-000000000001"}}
-      else if(path.endsWith("conversations/list"))body={conversations:[...(created?[conversation("created")]:[]),conversation("other")]}
+      if(path.endsWith("auth/me")) { if(holdRefresh) await new Promise(resolve=>{releaseRefresh=resolve});body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:"00000000-0000-0000-0000-000000000001",name:"Workspace",kind:"personal"},...(scenario === "workspace-draft" ? [{id:"00000000-0000-0000-0000-000000000002",name:"Workspace B",kind:"team"}] : [])],current_workspace_id:"00000000-0000-0000-0000-000000000001"}}
+      else if(path.endsWith("conversations/list"))body={conversations:[...(created?[conversation("created")]:[]),...(scenario === "workspace-draft" ? [conversation("first")] : []),conversation("other")]}
       else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});created=true;body=conversation("created")}
       else if(path.endsWith("conversations/get"))body=conversation(url.searchParams.get("conversation_id"))
       else if(path.endsWith("/directory"))body={objects:[],next_cursor:null}
@@ -55,6 +55,19 @@ try {
     await page.getByLabel("New conversation",{exact:true}).click()
     await page.waitForFunction(()=>![...document.querySelectorAll("button")].find(b=>b.getAttribute("aria-label")==="Add images")?.disabled)
     const composer=page.locator("textarea")
+    if (scenario === "workspace-draft") {
+      const choose = async label => { await page.getByRole("button", {name: /^Workspace:/}).click(); await page.getByRole("option", {name: label, exact:true}).click() }
+      await page.getByRole("button", {name:"Select first",exact:true}).click()
+      await choose("Workspace B")
+      await page.getByRole("button", {name:"Select other",exact:true}).click()
+      await choose("Workspace")
+      await page.getByRole("button", {name:"Select first",exact:true}).click()
+      await page.getByRole("button", {name:"Workspace: Workspace B",exact:true}).waitFor()
+      await page.reload()
+      await page.getByRole("button", {name:"Workspace: Workspace B",exact:true}).waitFor()
+      assert.deepEqual(errors, [])
+      await page.close(); continue
+    }
     if(scenario==="session-helper") await page.getByRole("button",{name:"Create through session",exact:true}).click()
     else {
       await page.getByTitle("No model selected",{exact:true}).click()

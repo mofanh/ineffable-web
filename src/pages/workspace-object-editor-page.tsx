@@ -67,6 +67,7 @@ import {
 } from "@/lib/workspace-events"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { useActionScope } from "@/lib/app/use-action-scope"
+import { clearApiResourceCache, invalidateApiResourceCache } from "@/lib/app/use-api-resource"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
 import { cn } from "@/lib/utils"
@@ -329,7 +330,7 @@ export function WorkspaceObjectEditorPage() {
   const directoryPath = directoryParams.get("path") ?? ""
   const navigate = useNavigate()
   const { setHeaderContent } = useAppHeader()
-  const { accessToken, currentUser, currentSessionId } = useAuthSession()
+  const { accessToken, currentUser, currentSessionId, refreshAppData } = useAuthSession()
   const captureScope = useActionScope(`${currentSessionId}:${workspaceId}:${objectId}`)
   const accessResource = useWorkspaceAccess(workspaceId)
   const { run: runLifecycle, pending: lifecyclePending } = useWorkspaceLifecycle()
@@ -362,15 +363,22 @@ export function WorkspaceObjectEditorPage() {
   const workspace = access?.workspace
   const isDirty = content !== savedContent
   const dirtyRef = React.useRef(isDirty); dirtyRef.current = isDirty
-  const accessStatus = accessResource.error?.status
-  React.useLayoutEffect(() => {
-    if (accessStatus !== 401 && accessStatus !== 403 && accessStatus !== 404) return
+  const clearRestrictedContent = React.useCallback(() => {
     contentLoadRequestRef.current += 1
     previewRequestRef.current += 1
     setObject(null); setVersion(null); setVersions([]); setPreviewVersion(null); setPreviewContent(null)
     setIsHistoryOpen(false); setIsEditing(false)
-    if (!dirtyRef.current) { setContent(""); setSavedContent("") }
-  }, [accessStatus])
+    setIsLoading(false); setIsSaving(false); setIsPreviewLoading(false)
+    if (!dirtyRef.current) setContent("")
+    setSavedContent("")
+  }, [])
+  const accessStatus = accessResource.error?.status
+  React.useLayoutEffect(() => {
+    if (accessStatus === 401 || accessStatus === 403 || accessStatus === 404) {
+      clearRestrictedContent()
+      void refreshAppData({ fresh: true })
+    }
+  }, [accessStatus, clearRestrictedContent, refreshAppData])
   const loadedScopeRef = React.useRef("")
   const contentScope = `${currentSessionId}:${workspaceId}:${objectId}`
   const blocker = useBlocker(({currentLocation, nextLocation}) => isDirty && currentLocation.pathname !== nextLocation.pathname)
@@ -399,13 +407,19 @@ export function WorkspaceObjectEditorPage() {
 
   const reportActionError = React.useCallback((caught: unknown, fallbackMessage: string, title: string) => {
     const appError = normalizeAppError(caught, { fallbackMessage })
+    if (appError.status === 401 || appError.status === 403 || appError.status === 404) {
+      clearRestrictedContent()
+      clearApiResourceCache(["workspace-access", currentSessionId, workspaceId])
+      invalidateApiResourceCache(["workspace-access", currentSessionId, workspaceId])
+      void refreshAppData({ fresh: true })
+    }
     setError(appError.message)
     notify.error({
       title,
       description: appError.message,
     })
     return appError.message
-  }, [])
+  }, [clearRestrictedContent, currentSessionId, refreshAppData, workspaceId])
 
   const loadVersions = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) {
@@ -413,9 +427,13 @@ export function WorkspaceObjectEditorPage() {
     }
 
     const isCurrent = captureScope()
-    const response = await listWorkspaceObjectVersions(accessToken, workspaceId, objectId)
-    if (isCurrent()) setVersions(response.versions)
-  }, [accessToken, captureScope, objectId, workspaceId])
+    try {
+      const response = await listWorkspaceObjectVersions(accessToken, workspaceId, objectId)
+      if (isCurrent()) setVersions(response.versions)
+    } catch (caught) {
+      if (isCurrent()) reportActionError(caught, t("workspace.feedback.loadFailed"), t("workspaceLifecycle.refreshFailed"))
+    }
+  }, [accessToken, captureScope, objectId, reportActionError, t, workspaceId])
 
   const openRemainingFile = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) return
@@ -1185,6 +1203,7 @@ export function WorkspaceObjectEditorPage() {
         {isDirty && <div className="mt-2"><p className="text-sm">{t("interaction.draftRetained")}</p><Button variant="outline" onClick={() => downloadTextFile(object?.name ?? "draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button></div>}
       </div>}
       {navigationGuard}
+      {!object && isDirty && <Notice>{t("interaction.draftRetained")} <Button variant="outline" onClick={() => downloadTextFile("draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button></Notice>}
       {createUncertain && <Notice tone="warning">{t("interaction.uncertainCreate")}</Notice>}
       {accessResource.error && <Notice tone="warning">{t("interaction.refreshUnavailable")} <Button variant="link" onClick={() => void accessResource.reload()}>{t("common.retry")}</Button></Notice>}
       {error ? (
@@ -1225,7 +1244,7 @@ export function WorkspaceObjectEditorPage() {
           <EmptyState
             className="m-6"
             title={t("workspace.preview.selectFile")}
-            action={<Button variant="outline" onClick={() => void loadContent()}>{t("workspace.actions.reload")}</Button>}
+            action={<Button variant="outline" onClick={async () => { if (!isDirty || await confirm({ title: t("interaction.unsavedTitle"), description: t("interaction.reloadDiscard"), confirmLabel: t("workspace.actions.reload") })) void loadContent() }}>{t("workspace.actions.reload")}</Button>}
           />
         ) : isWorkspaceImage(object.mime_type) ? (
           <WorkspaceImagePreview key={`${accessToken}:${object.id}:${object.current_version_id}`} object={object} />

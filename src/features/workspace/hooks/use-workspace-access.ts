@@ -19,8 +19,9 @@ export function useWorkspaceAccess(workspaceId: string | undefined, enabled = tr
     return () => window.removeEventListener("focus", refresh)
   }, [enabled, reload])
   // Authority errors must not leave cached write permissions in use.
-  const access = resource.data && resource.error
+  const hasError = Boolean(resource.error)
+  const access = React.useMemo(() => resource.data && hasError
     ? { ...resource.data, can_write: false, can_manage_members: false, can_archive: false, can_restore: false, can_leave: false }
-    : resource.data
+    : resource.data, [resource.data, hasError])
   return { ...resource, access }
 }

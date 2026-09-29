@@ -32,6 +32,7 @@ export async function installShellFixture(page, open) {
     if (p.endsWith("/auth/me")) body = { user: { id: second ? "user-b" : "user", email: "fixture@example.test", display_name: second ? "Second owner" : "Fixture owner", role: "user", status: "active" }, workspaces, current_workspace_id: workspace }
     else if (p.endsWith("/conversations/list")) body = { conversations: [] }
     else if (p.endsWith("/channel-connections")) body = []
+    else if (p.endsWith("/access")) body = { workspace: workspaces.find(item => item.id === p.split("/").at(-2)), membership: { role: "owner" }, can_write: true }
     else if (p.endsWith("/directory")) {
       const id = p.split("/").at(-2)
       body = { workspace_id: id, next_cursor: null, objects: Array.from({ length: 100 }, (_, i) => ({ id: `${id}-${i}`, workspace_id: id, kind: "file", parent_id: null, name: `File ${i}.md`, path: `File ${i}.md`, created_at: "2026-09-23T00:00:00Z", updated_at: "2026-09-23T00:00:00Z" })) }

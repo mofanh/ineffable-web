@@ -550,6 +550,30 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
   视口内；React Profiler 的 actualDuration 是 render 工作，不是 DOM commit 或 paint。
 
 团队空间归档/恢复/退出复用 Workspace 生命周期 API 与统一确认弹窗，菜单角色来自实际成员身份。
-默认侧栏只含活跃空间；已归档页面独立读取目录，保留文件下载和精确版本预览。归档仍占存储，
+默认侧栏只含活跃空间；团队目录 `/team-spaces?status=archived` 筛选归档，文件始终复用
+`/workspace/:workspaceId/objects/:objectId?`，保留文件下载和精确版本预览。归档仍占存储，
 恢复不自动重启任务，Automation 用服务端 pause_reason 展示暂停原因。异步操作冻结登录身份与路由，
 权限由后端最终裁决，不通过隐藏按钮替代。运行 npm run check:workspace-lifecycle 覆盖主交互。
+
+## 工作台入口与交互连续性
+
+- 左栏只保留自动任务、活跃空间树、设置与账号。渠道、模型、Agent Node 和系统管理复用设置里的
+  原页面；团队生命周期属于团队菜单和目录。外观、语言保留在账号菜单，不在设置重复。
+- 位置导航只由顶部面包屑承担。资源页通过 AppHeaderContext 提供实际空间/路径，复用 Shell 的
+  Breadcrumb renderer；正文不再复制空间标题、目录路径或“上一级”。操作归入原对象菜单。
+- 浏览文件、创建/接受团队和归档目录不会改变运行资源。Composer 的明确选择通过
+  `runtime_overrides.workspace` 进入原发送接口；模型、空间和环境失效须保留选择并阻止提交，
+  不静默回退。历史 run 的恢复参数仍由服务端原输入裁决。
+- 工作空间与模型/环境共用会话级 Composer 草稿、接收和 canonical 恢复规则；切到其他会话不能
+  覆盖原会话选择。引导输入沿用既有 run 的资源，UI 就近说明选择只用于普通发送或引导转入排队；
+  引导接收不提交下次发送草稿，也不能用其 fallback 配置冒充该 run 的实际配置。
+- 已登录后台刷新不得卸载 Shell/编辑器/Composer。跨 await 的 UI 写回冻结 session、目标身份和
+  页面代次；原对象写入可提交，迟到结果不得抢导航或覆盖新草稿。未保存导航使用保存/放弃/取消。
+- 权限来自 Workspace `/access` 展示投影。403/404 清除资源缓存展示；临时读取失败可保留只读内容，
+  写权限暂停直到重新确认。归档时保留本地草稿供导出；最后 owner 必须交接，归档状态需先恢复。
+- 创建成功、邀请创建、邮件投递、列表刷新分别结算。未知非幂等提交不得直接重发；先核实已有记录。
+  一次性凭据丢失不可声称可找回，只能确认影响后重新轮换。低频管理链接放在对应模型/会话菜单。
+- 自动任务状态变更未知时，刷新可按目标状态核对；无法自动确定的执行需用户核实再解除操作限制，
+  核实不重发原请求。接收回执不得显示成已创建 run，不同渠道的未知轮换状态按连接身份独立保留。
+- 运行 `check:workspace-lifecycle`、`check:workspace-delete`、`check:auth-isolation`、`check:api-resource`
+  与相关 chat/automation/channels 门禁；mock HTTP 浏览器不代表真实 provider 或生产联调通过。

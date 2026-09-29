@@ -10,10 +10,12 @@ try {
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 } })
   page.setDefaultTimeout(10000)
   const errors = []; page.on("pageerror", e => errors.push(e.message))
+  page.on("console", message => { if (message.type() === "error" && /Maximum update depth/.test(message.text())) errors.push(message.text()) })
   const team = { id: "00000000-0000-0000-0000-000000000002", name: "Team lifecycle", workspace_type: "team", owner_user_id: "actor", status: "active" }
   const personal = { ...team, id: "00000000-0000-0000-0000-000000000001", name: "Personal", workspace_type: "personal" }
   let archived = false, left = false, denied = false, failRefresh = false, soleOwner = true, role = "owner", siteRole = "user", created = 0, invites = 0, loseCreate = false
   const actions = []
+  let accessFailure = 0, rejectSave = false, accessRequests = 0
   const space = () => ({ ...team, status: archived ? "archived" : "active", archived_at: archived ? "2026-09-29T00:00:00Z" : null })
   const file = id => ({ id, workspace_id: team.id, kind: "file", name: `${id}.txt`, path: `${id}.txt`, mime_type: "text/plain", current_version_id: `v-${id}` })
   await page.addInitScript(() => {
@@ -30,6 +32,8 @@ try {
       if (failRefresh) return route.fulfill({ status: 503, json: { error: "refresh offline" } })
       body = { user: { id: "actor", email: "actor@example.com", role: siteRole, status: "active" }, workspaces: [personal, ...(!archived && !left ? [team] : [])] }
     } else if (path.endsWith("/access")) {
+      accessRequests++
+      if (accessFailure) return route.fulfill({ status: accessFailure, json: { error: "access refresh failed" } })
       if (left) return route.fulfill({ status: 403, json: { error: "membership removed" } })
       body = { workspace: space(), membership: { user_id: "actor", role, status: "active" }, can_write: !archived && role !== "viewer", can_manage_members: !archived && ["owner", "admin"].includes(role), can_archive: !archived && role === "owner", can_restore: archived && role === "owner", can_leave: role !== "owner" || !soleOwner, last_owner: role === "owner" && soleOwner }
     } else if (path === "/gateway/v1/workspaces/directory") body = { entries: !left && (url.searchParams.get("status") === "archived") === archived ? [{ workspace: space(), role }] : [] }
@@ -46,6 +50,7 @@ try {
       if (action === "leave") left = true
       body = { workspace: space() }
     } else if (path.includes("/workspace-objects/")) {
+      if (rejectSave && method !== "GET") { left = true; return route.fulfill({ status: 403, json: { error: "membership removed" } }) }
       const id = path.split("/workspace-objects/")[1].split("/")[0]
       body = { object: file(id), version: { id: `v-${id}`, version_no: 1 }, versions: [{ id: `v-${id}`, version_no: 1 }], content: `Content ${id.toUpperCase()}` }
     } else if (path.endsWith("/raw")) return route.fulfill({ contentType: "text/plain", body: "retained bytes" })
@@ -60,12 +65,44 @@ try {
   const sidebar = () => page.locator('[data-slot="sidebar"]').first()
   await page.goto(`${origin}/settings`)
   await page.getByRole("heading", { name: "Settings", exact: true }).waitFor()
+  await sidebar().getByRole("button", { name: /actor@example.com/ }).click()
+  await page.getByRole("menuitem", { name: /Appearance/ }).hover()
+  await page.getByRole("menuitemradio", { name: "Dark", exact: true }).click()
+  await page.waitForFunction(() => document.documentElement.classList.contains("dark"))
+  assert.equal(await page.locator("main").getByText("Appearance", { exact: true }).count(), 0, "appearance has one home in the account menu")
   assert.equal(await sidebar().getByText("Archived spaces", { exact: true }).count(), 0)
   for (const path of ["/models", "/channels", "/agent-nodes", "/system/users"]) assert.equal(await sidebar().locator(`a[href="${path}"]`).count(), 0)
   assert.equal(await page.locator('a[href="/system/users"]').count(), 0)
   for (const path of ["/account", "/models", "/channels", "/agent-nodes"]) assert.ok(await page.locator(`main a[href="${path}"]`).count())
   siteRole = "admin"; await page.reload(); await page.locator('a[href="/system/users"]').waitFor()
   assert.equal(await sidebar().locator('a[href="/system/users"]').count(), 0); siteRole = "user"
+  await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
+  accessFailure = 503
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")))
+  await page.getByText("Permissions could not be refreshed. Writes are paused. Please retry.", { exact: false }).waitFor()
+  assert.equal(await page.getByText("Content A", { exact: true }).count(), 1)
+  assert.equal(await page.getByRole("button", { name: "Edit file", exact: true }).count(), 0)
+  await page.waitForTimeout(300)
+  assert.deepEqual(errors, [], "temporary permission errors must not cause a header render loop")
+  accessFailure = 0
+  await page.getByRole("button", { name: "Retry", exact: true }).click()
+  await page.getByRole("button", { name: "Edit file", exact: true }).waitFor()
+  await page.getByRole("button", { name: "Edit file", exact: true }).click()
+  await page.locator('.cm-content[contenteditable="true"]').fill("Retain my private draft")
+  rejectSave = true
+  const accessesBefore = accessRequests
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await page.getByRole("button", { name: "Export draft", exact: true }).waitFor()
+  await sidebar().getByText(team.name, { exact: true }).waitFor({ state: "hidden" })
+  assert.ok(accessRequests > accessesBefore, "object denial must refresh shared access")
+  assert.equal(await page.locator('.cm-content[contenteditable="true"]').count(), 0)
+  assert.equal(await page.locator("main").getByText("Content A", { exact: true }).count(), 0)
+  const revokedDraft = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Export draft", exact: true }).click()
+  assert.ok((await revokedDraft).suggestedFilename())
+  await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Discard changes", exact: true }).click()
+  rejectSave = false; left = false
   await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
   assert.equal(await page.locator('nav[aria-label="breadcrumb"]').count(), 1)
   await page.goto(`${origin}/workspace/${team.id}/objects?path=notes/sub`)
@@ -150,8 +187,12 @@ try {
     await page.goto(`${origin}/settings`)
     await page.getByRole("heading", { name: "Settings", exact: true }).waitFor()
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `settings fits ${width}px`)
+    if (process.env.INTERACTION_SCREENSHOTS) await page.screenshot({ path: `/tmp/interaction-settings-${width}.png` })
   }
   await page.setViewportSize({ width: 1500, height: 950 })
+  await page.goto(`${origin}/workspace/${team.id}/objects?path=notes/sub`)
+  await page.locator('nav[aria-label="breadcrumb"]').getByText("sub", { exact: true }).waitFor()
+  if (process.env.INTERACTION_SCREENSHOTS) await page.screenshot({ path: "/tmp/interaction-directory.png" })
   await openFile(); await openAction("Leave space")
   await page.getByRole("alertdialog").getByRole("button", { name: "Leave space", exact: true }).click()
   await page.waitForURL(`${origin}/team-spaces`); assert.equal(left, true); left = false

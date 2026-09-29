@@ -13,6 +13,7 @@ function Fixture() {
     <button onClick={() => void session.refreshAppData()}>Refresh account</button>
     <button onClick={() => void session.logout()}>Logout</button>
     <button onClick={() => session.selectConversation("other")}>Select other</button>
+    <button onClick={() => session.selectConversation("first")}>Select first</button>
     <button onClick={() => void session.createConversation("helper")}>Create through session</button>
   </div><RequireAuth><SidebarProvider><TooltipProvider><GatewayChatSidebar isFullScreen onFullScreenChange={() => {}} /></TooltipProvider></SidebarProvider></RequireAuth></>
 }

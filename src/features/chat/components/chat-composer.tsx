@@ -83,6 +83,7 @@ type ChatComposerProps = {
   workspaces?: { id: string; name: string }[]
   currentWorkspaceId?: string
   workspaceControls?: React.ReactNode
+  runtimeHint?: string
   modelPickerFooter?: React.ReactNode
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
@@ -128,7 +129,7 @@ export function ChatComposer({
   blockedPreInputRunStatus,
   pendingQueueAction,
   preInputQueue,
-  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, workspaceControls, modelPickerFooter,
+  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, workspaceControls, modelPickerFooter, runtimeHint,
   modelOptions,
   isModelCatalogLoaded,
   selectedModelProfileId,
@@ -404,6 +405,7 @@ export function ChatComposer({
         {inputDisabledReason && <Notice>{inputDisabledReason}</Notice>}
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
+        {runtimeHint && <p className="px-3 text-xs text-muted-foreground">{runtimeHint}</p>}
         {showFileMenu && <WorkspaceFileMenu key={scope} ref={menuRef} accessToken={accessToken!} workspaces={workspaces} currentWorkspaceId={currentWorkspaceId} query={trigger?.query ?? ""} onSelect={selectReference} />}
 
         <InputGroup

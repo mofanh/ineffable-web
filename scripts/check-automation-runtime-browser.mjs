@@ -63,6 +63,7 @@ try {
   let createAttempts = 0
   let releaseSave
   let saveStarted = false
+  let uncertainToggle = false, runAttempts = 0
   await editorPage.route("**/gateway/v1/**", async (route) => {
     const url = route.request().url()
     let body = {}
@@ -74,7 +75,12 @@ try {
       body={automation:{id:`new-${creations.length}`,...payload,conversation_id:payload.conversation_id??"created-conversation",status:"active"}}
       automations.push(body.automation)
     }
-    else if (route.request().method() === "PATCH") {
+    else if (url.endsWith("/run") && route.request().method() === "POST") {
+      runAttempts++
+      if (runAttempts === 1) return route.abort("failed")
+      body = { conversation_id: "conversation-a", input_receipt: { status: "queued" } }
+    } else if (route.request().method() === "PATCH") {
+      if (uncertainToggle) { automations[0].status = "inactive"; return route.abort("failed") }
       saveStarted = true
       await new Promise((resolve) => { releaseSave = resolve })
       body = { automation: automations[0] }
@@ -143,6 +149,19 @@ try {
       await editorPage.getByRole("button",{name:"Cancel",exact:true}).click()
     }
   }
+  uncertainToggle = true
+  await editorPage.getByRole("button", { name: "Pause", exact: true }).first().click()
+  await editorPage.getByText("The request result is not confirmed. Refresh and verify before acting again.", { exact: false }).waitFor()
+  await editorPage.getByRole("button", { name: "Refresh automations", exact: true }).click()
+  const enable = editorPage.getByRole("button", { name: "Enable", exact: true }).first()
+  await enable.waitFor(); assert.equal(await enable.isEnabled(), true)
+  await editorPage.getByRole("button", { name: "Run now", exact: true }).nth(1).click()
+  await editorPage.getByRole("button", { name: "Verify result", exact: true }).click()
+  await editorPage.getByRole("alertdialog").getByRole("button", { name: "Confirm", exact: true }).click()
+  assert.equal(runAttempts, 1, "verifying must never replay an unknown run request")
+  await editorPage.getByRole("button", { name: "Run now", exact: true }).nth(1).click()
+  await editorPage.getByText("Follow queue and execution progress in the linked conversation.", { exact: false }).waitFor()
+  assert.equal(await editorPage.getByText("Automation started", { exact: true }).count(), 0)
   await editorPage.close()
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }

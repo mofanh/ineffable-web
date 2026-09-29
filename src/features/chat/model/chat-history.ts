@@ -55,6 +55,7 @@ import { canonicalMessagesToGatewayEvents } from "@/features/chat/model/canonica
 export type ConversationRuntimeSelection = {
   modelProfileId: string
   sandboxEnvironmentId: string | null
+  workspaceId?: string | null
 }
 
 export function findLatestConversationRuntimeSelection(
@@ -65,6 +66,8 @@ export function findLatestConversationRuntimeSelection(
     if (message.role !== "user") continue
 
     const metadata = message.metadata_json
+    const progress = metadata?.input_progress
+    if (progress && typeof progress === "object" && "kind" in progress && progress.kind === "guided") continue
     const modelProfileId =
       typeof metadata?.model_profile_id === "string"
         ? metadata.model_profile_id.trim()
@@ -81,7 +84,9 @@ export function findLatestConversationRuntimeSelection(
         ? sandbox.environment_id.trim()
         : ""
 
-    return { modelProfileId, sandboxEnvironmentId }
+    // Current Gateway user input metadata includes the actor even when workspace is disabled.
+    const workspace = metadata?.workspace_id
+    return { modelProfileId, sandboxEnvironmentId, ...(typeof workspace === "string" ? { workspaceId: workspace } : metadata?.actor_user_id ? { workspaceId: null } : {}) }
   }
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
