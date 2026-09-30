@@ -2543,6 +2543,8 @@ export function getPendingInputs(
   return requestApiJson<{
     pending_inputs: PendingInputItem[]
     blocked_by_run_status: string | null
+    blocked_by_run_id: string | null
+    blocked_by_error_code: string | null
     can_resume: boolean
   }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs`,

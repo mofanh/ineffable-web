@@ -192,7 +192,7 @@ assert.match(sidebar, /res\.can_resume/)
 assert.match(sidebar, /resumePendingInputs\(accessToken, conversationId\)/)
 assert.match(sidebar, /clearPendingInputs\(accessToken, conversationId\)/)
 assert.match(chatComposer, /canResumePreInputQueue/)
-assert.match(chatComposer, /chat\.composer\.queueBlocked/)
+assert.match(chatComposer, /pendingQueueReasonKey\(blockedPreInputRunStatus, blockedPreInputErrorCode\)/)
 assert.match(
   sidebar,
   /function refreshFailedConversationProjection[\s\S]{0,400}refreshPendingInputsForConversation/,

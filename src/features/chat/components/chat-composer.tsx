@@ -1,3 +1,4 @@
+import { pendingQueueReasonKey } from "@/features/chat/model/pending-queue-presentation"
 import type { ImageReference } from "@/lib/image-reference"
 import { WorkspaceFileMenu, type FileMenuHandle } from "./workspace-file-menu"
 import { WorkspaceFileTags } from "./workspace-file-tags"
@@ -76,6 +77,7 @@ type ChatComposerProps = {
   canPromoteToGuided: boolean
   canResumePreInputQueue: boolean
   blockedPreInputRunStatus: string | null
+  blockedPreInputErrorCode?: string | null
   pendingQueueAction: "idle" | "resuming" | "clearing"
   preInputQueue: PreInputQueueItem[]
   fileReferenceScope?: string
@@ -125,6 +127,7 @@ export function ChatComposer({
   canPromoteToGuided,
   canResumePreInputQueue,
   blockedPreInputRunStatus,
+  blockedPreInputErrorCode,
   pendingQueueAction,
   preInputQueue,
   accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, modelPickerFooter,
@@ -297,7 +300,7 @@ export function ChatComposer({
               </span>
               {blockedPreInputRunStatus ? (
                 <span className="truncate text-amber-700 dark:text-amber-400">
-                  {t("chat.composer.queueBlocked")}
+                  {t(pendingQueueReasonKey(blockedPreInputRunStatus, blockedPreInputErrorCode))}
                 </span>
               ) : null}
             </div>

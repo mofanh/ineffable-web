@@ -1,3 +1,4 @@
+import { pendingQueueReasonKey } from "../src/features/chat/model/pending-queue-presentation.ts"
 import { ToolCallShell } from "../src/features/chat/components/tool-call-shell.tsx"
 import { parseWebToolResult, safeWebSourceUrl } from "../src/features/chat/model/web-tool-result.ts"
 import { ConversationWindowCache } from "../src/features/chat/model/conversation-window-cache.ts"
@@ -2602,3 +2603,11 @@ console.log("web search failure and cooldown rendering checks passed")
   assert.doesNotMatch(rendered, /搜索来源|search source/)
   await act(async () => { tree.unmount() })
 }
+
+assert.equal(pendingQueueReasonKey("streaming", "context_request_overflow"), "chat.composer.queueWaiting")
+assert.equal(pendingQueueReasonKey("awaiting_human"), "chat.composer.queueAwaitingHuman")
+assert.equal(pendingQueueReasonKey("failed", "context_storage_overflow"), "chat.composer.queueStorageOverflow")
+assert.equal(pendingQueueReasonKey("failed", "context_protected_overflow"), "chat.composer.queueInputOverflow")
+assert.equal(pendingQueueReasonKey("failed", "context_request_overflow"), "chat.composer.queueRequestOverflow")
+assert.equal(pendingQueueReasonKey("cancelled"), "chat.composer.queueStopped")
+assert.equal(pendingQueueReasonKey("failed", "untrusted provider content"), "chat.composer.queueBlocked")

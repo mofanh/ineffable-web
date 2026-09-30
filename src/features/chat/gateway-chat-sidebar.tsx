@@ -637,6 +637,7 @@ export function GatewayChatSidebar({
   const [blockedPreInputRunStatus, setBlockedPreInputRunStatus] = React.useState<
     string | null
   >(null)
+  const [blockedPreInputErrorCode, setBlockedPreInputErrorCode] = React.useState<string | null>(null)
   const [canResumePreInputQueue, setCanResumePreInputQueue] = React.useState(false)
   const [pendingQueueAction, setPendingQueueAction] = React.useState<
     "idle" | "resuming" | "clearing"
@@ -681,6 +682,7 @@ export function GatewayChatSidebar({
       setPreInputQueue([])
       setPendingQueueAction("idle")
       setBlockedPreInputRunStatus(null)
+      setBlockedPreInputErrorCode(null)
       setCanResumePreInputQueue(false)
       recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
@@ -1032,6 +1034,7 @@ export function GatewayChatSidebar({
         }))
       )
       setBlockedPreInputRunStatus(res.blocked_by_run_status)
+      setBlockedPreInputErrorCode(res.blocked_by_error_code ?? null)
       setCanResumePreInputQueue(res.can_resume)
     },
     [accessToken, reduceCurrentTimeline]
@@ -1320,6 +1323,7 @@ export function GatewayChatSidebar({
     if (!currentConversationId || !accessToken) {
       setPreInputQueue([])
       setBlockedPreInputRunStatus(null)
+      setBlockedPreInputErrorCode(null)
       setCanResumePreInputQueue(false)
       return
     }
@@ -2680,7 +2684,10 @@ export function GatewayChatSidebar({
       }
       return
     }
-    if (event.event.startsWith("pending_input_") && event.metadata?.replayed !== true) {
+    if ((event.event.startsWith("pending_input_") || event.event === "run.started") && event.metadata?.replayed !== true) {
+      // Invalidate older pending GETs synchronously; the new response owns queue and reason together.
+      pendingInputRequestRef.current += 1
+      void refreshPendingInputsForConversation(identity.conversationId).catch(() => {})
       void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
     }
 
@@ -4340,6 +4347,7 @@ export function GatewayChatSidebar({
         }
         canResumePreInputQueue={canResumePreInputQueue}
         blockedPreInputRunStatus={blockedPreInputRunStatus}
+        blockedPreInputErrorCode={blockedPreInputErrorCode}
         pendingQueueAction={pendingQueueAction}
         preInputQueue={preInputQueue}
         accessToken={accessToken}
