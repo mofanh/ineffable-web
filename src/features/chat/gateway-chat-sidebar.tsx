@@ -4320,7 +4320,6 @@ export function GatewayChatSidebar({
 
       <ChatComposer
         modelPickerFooter={<Link to="/models">{i18n.t("interaction.viewModels")}</Link>}
-        runtimeHint={selectedConversation?.current_run?.accepts_guided_input ? i18n.t("interaction.guidedRuntimeHint") : undefined}
         attachedImages={imageDraft.images}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}
