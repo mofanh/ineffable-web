@@ -2,8 +2,8 @@ import { useTranslation } from "react-i18next"
 import { StatusBadge } from "@/components/app"
 import type { ConnectionDetails } from "./api"
 
-const reasons = ["invalid_message", "reply_expired", "reply_limit_exceeded", "upstream_rejected", "not_started", "outcome_unknown", "lease_lost", "credentials_changed", "unspecified_failure"]
-const actions = ["view_conversation", "check_connection", "verify_delivery"]
+const reasons = ["invalid_message", "reply_expired", "reply_limit_exceeded", "upstream_rejected", "rate_limited", "send_permission_denied", "recipient_rejected", "recipient_unavailable", "not_started", "outcome_unknown", "lease_lost", "credentials_changed", "unspecified_failure"]
+const actions = ["view_conversation", "check_connection", "verify_delivery", "wait_for_quota", "check_recipient"]
 
 export function ChannelDeliverySummary({ deliveries }: Pick<ConnectionDetails, "deliveries">) {
   const { t } = useTranslation()

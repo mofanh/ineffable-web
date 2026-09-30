@@ -29,10 +29,14 @@ export const resources = {
       },
       channels: {
         deliveryReason: {
-          invalid_message: "回复格式不受支持",
+          invalid_message: "消息格式不受支持",
           reply_expired: "回复时限已过",
           reply_limit_exceeded: "回复次数已用完",
           upstream_rejected: "平台明确拒绝投递",
+          rate_limited: "平台发送频率或额度已达限制",
+          send_permission_denied: "机器人未获准主动发送",
+          recipient_rejected: "接收方已拒收机器人消息",
+          recipient_unavailable: "好友关系或群成员资格不可用",
           not_started: "投递尚未开始",
           outcome_unknown: "平台是否收件尚未确认",
           lease_lost: "连接中断，投递结果未确认",
@@ -42,7 +46,9 @@ export const resources = {
         deliveryRecovery: {
           view_conversation: "请在 Web 会话查看完整回复；需要继续时，可在渠道重新发送消息。",
           check_connection: "请核对连接配置和平台权限，然后发送新消息；系统不会自动重发原投递。",
-          verify_delivery: "请先在 QQ 核对是否已收到回复，避免重复操作；原投递不会自动重发。",
+          verify_delivery: "请先在 QQ 核对是否已收到消息，避免重复操作；原投递不会自动重发。",
+          wait_for_quota: "请等待平台额度恢复后再决定是否发送；系统不会自动重发。",
+          check_recipient: "请确认好友或群成员关系，并尊重接收方的消息设置；系统不会自动重发。",
         },
         secret: "AppSecret",
         secretKeep: "留空保留现有密钥",
@@ -1902,10 +1908,14 @@ export const resources = {
       },
       channels: {
         deliveryReason: {
-          invalid_message: "Unsupported reply format",
+          invalid_message: "Unsupported message format",
           reply_expired: "Reply window expired",
           reply_limit_exceeded: "Reply limit reached",
           upstream_rejected: "Platform rejected delivery",
+          rate_limited: "Platform sending limit reached",
+          send_permission_denied: "Bot is not permitted to send proactively",
+          recipient_rejected: "Recipient declined bot messages",
+          recipient_unavailable: "Friendship or group membership is unavailable",
           not_started: "Delivery did not start",
           outcome_unknown: "Delivery is not confirmed",
           lease_lost: "Connection interrupted before confirmation",
@@ -1915,7 +1925,9 @@ export const resources = {
         deliveryRecovery: {
           view_conversation: "Read the full reply in the Web conversation. Send a new channel message to continue.",
           check_connection: "Check the connection and platform permissions, then send a new message. The original delivery is not resent automatically.",
-          verify_delivery: "Check QQ for the reply before taking action. This delivery will not be resent automatically.",
+          verify_delivery: "Check QQ for the message before taking action. This delivery will not be resent automatically.",
+          wait_for_quota: "Wait for the platform limit to reset before deciding to send again. No automatic resend.",
+          check_recipient: "Check the friendship or group membership and respect the recipient’s message settings. No automatic resend.",
         },
         secret: "AppSecret",
         secretKeep: "Leave blank to keep the current secret",

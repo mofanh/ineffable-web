@@ -40,6 +40,10 @@ try {
    {status:"failed",count:2,error_category:"reply_expired",retryable:false,recovery_action:"view_conversation"},
    {status:"failed",count:3,error_category:"reply_limit_exceeded",retryable:false,recovery_action:"view_conversation"},
    {status:"failed",count:4,error_category:"upstream_rejected",retryable:false,recovery_action:"check_connection"},
+   {status:"failed",count:1,error_category:"rate_limited",retryable:false,recovery_action:"wait_for_quota"},
+   {status:"failed",count:1,error_category:"send_permission_denied",retryable:false,recovery_action:"check_connection"},
+   {status:"failed",count:1,error_category:"recipient_rejected",retryable:false,recovery_action:"check_recipient"},
+   {status:"failed",count:1,error_category:"recipient_unavailable",retryable:false,recovery_action:"check_recipient"},
   ]}
   else if(url.pathname.includes("/conversations/preferences")) body={timezone:"Asia/Shanghai",version:1,defaults_json:runtime}
   else if(url.pathname.includes("auth/me")) body={user:{id:"owner",display_name:"Owner"},workspaces:[]}
@@ -93,9 +97,14 @@ try {
  await page.getByText("Reply window expired",{exact:true}).waitFor()
  await page.getByText("Reply limit reached",{exact:true}).waitFor()
  await page.getByText("Platform rejected delivery",{exact:true}).waitFor()
- await page.getByText("Check QQ for the reply before taking action. This delivery will not be resent automatically.",{exact:true}).waitFor()
+ await page.getByText("Check QQ for the message before taking action. This delivery will not be resent automatically.",{exact:true}).waitFor()
  assert.equal(await page.locator('[data-delivery-category="outcome_unknown"] button').count(),0)
- assert.equal(await page.locator("[data-delivery-category]").count(),4)
+ for (const reason of ["Platform sending limit reached", "Bot is not permitted to send proactively", "Recipient declined bot messages", "Friendship or group membership is unavailable"]) {
+  await page.getByText(reason,{exact:true}).waitFor()
+ }
+ await page.getByText("Wait for the platform limit to reset before deciding to send again. No automatic resend.",{exact:true}).waitFor()
+ assert.equal(await page.locator("[data-delivery-category]").count(),8)
+ assert.equal(await page.locator("[data-delivery-category] button").count(),0)
 
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await page.evaluate(()=>{window.fixtureOpenCount=0;window.addEventListener("ineffable:right-sidebar:open",()=>window.fixtureOpenCount++)})
