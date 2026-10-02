@@ -8,7 +8,7 @@ import { useApiResource } from "@/lib/app/use-api-resource"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { listWorkspaceObjectVersions, type Workspace, type WorkspaceRuleSelection } from "@/lib/api/api-client"
 import { WorkspaceFileMenu } from "./workspace-file-menu"
-import { prepareWorkspaceRule } from "../model/workspace-rule-template"
+import { prepareWorkspaceRule, WorkspaceRulePathConflict } from "../model/workspace-rule-template"
 
 export function WorkspaceRuleField({ accessToken, workspaces, value, disabled, onChange, onBusyChange }: {
   accessToken: string; workspaces: Workspace[]; value: WorkspaceRuleSelection | null; disabled?: boolean
@@ -34,7 +34,7 @@ export function WorkspaceRuleField({ accessToken, workspaces, value, disabled, o
     try {
       const object = await prepareWorkspaceRule(accessToken, personal.id, t("chat.rule.template", { workspace: personal.id }))
       if (mounted.current) onChange({ workspace_id: personal.id, object_id: object.id })
-    } catch (cause) { if (mounted.current) setError(normalizeAppError(cause).message) }
+    } catch (cause) { if (mounted.current) setError(cause instanceof WorkspaceRulePathConflict ? t(cause.expected === "folder" ? "chat.rule.folderConflict" : "chat.rule.fileConflict", { path: cause.path }) : normalizeAppError(cause).message) }
     finally { if (mounted.current) { setCreating(false); onBusyChange(false) } }
   }
   return <FormField label={t("chat.rule.title")} description={t("chat.rule.description")}>

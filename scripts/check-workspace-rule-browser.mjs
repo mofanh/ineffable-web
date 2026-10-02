@@ -21,18 +21,20 @@ try {
     localStorage.setItem("ineffable.auth.access_token", id)
   }, id) }
   await account("a")
+  let preferencesReads = 0
   let preferences = { timezone: "UTC", version: 1, defaults_json: {} }
   const submissions = [], mutations = [], errors = []
   page.on("pageerror", error => errors.push(error.message))
   let held, release, hold = false
-  let failure = false, existing = true
+  let failure = false, existing = true, pathConflict = false
   await page.route("**/gateway/v1/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname
-    const actor = request.headers().authorization === "Bearer a" ? "a" : "b"
+    const actor = request.headers().authorization === "Bearer b" ? "b" : "a"
     let body = {}, status = 200
     if (path.endsWith("auth/me")) body = { user: { id: actor, display_name: actor, email: `${actor}@test.local`, status: "active" }, workspaces: [{ id: workspace, name: "Personal", status: "active", workspace_type: "personal" }] }
     else if (path.endsWith("conversations/preferences")) {
       if (request.method() === "PUT") { submissions.push(request.postDataJSON()); preferences = { ...request.postDataJSON(), version: preferences.version + 1 } }
+      else preferencesReads++
       body = actor === "a" ? preferences : { timezone: "UTC", version: 1, defaults_json: {} }
     } else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model-a", display_name: "Model A" }] }
     else if (path.endsWith("sandbox/environments")) body = { providers: [], environments: [] }
@@ -44,6 +46,7 @@ try {
       if (hold) { held?.(); await new Promise(resolve => { release = resolve }); hold = false }
       const name = new URL(request.url()).searchParams.get("path")
       body = { object: !existing ? null : name.endsWith("default.md") ? file : { id: name, kind: "folder", path: name } }
+      if (pathConflict) body = { object: { id: "conflict", kind: "file", path: name } }
       if (failure) { status = 503; body = { error: "Rule storage unavailable" } }
     } else if (path.endsWith("/folders")) {
       mutations.push(path)
@@ -64,6 +67,10 @@ try {
   await page.getByRole("option", { name: file.path, exact: true }).click()
   await page.getByRole("link", { name: "Open editor" }).waitFor()
   assert.equal(submissions.length, 0, "selection is a draft until saved")
+  await other.evaluate(() => localStorage.setItem("ineffable.auth.access_token", "a-renewed"))
+  await page.waitForTimeout(150)
+  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 1, "same-session token renewal preserves the unsaved rule")
+  const readsBeforeSave = preferencesReads
   await page.getByRole("button", { name: /model/i }).click()
   await page.getByRole("option", { name: "Model A", exact: true }).click()
   await page.getByRole("button", { name: "Save conversation settings", exact: true }).click()
@@ -78,11 +85,19 @@ try {
   await page.getByRole("button", { name: "Create personal rule template" }).waitFor()
   await page.waitForTimeout(100)
   assert.equal(submissions.at(-1).defaults_json.workspace_rule, null)
+  assert.equal(submissions[1].version, 2, "next save uses the canonical version returned by PUT")
+  assert.equal(preferencesReads, readsBeforeSave, "saving does not start a redundant GET that could overwrite a new draft")
   failure = true
   await page.getByRole("button", { name: "Create personal rule template" }).click()
   await page.getByText("Rule storage unavailable", { exact: true }).waitFor()
   assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0, "failed creation never claims a rule was selected")
   failure = false
+  pathConflict = true
+  await page.getByRole("button", { name: "Create personal rule template" }).click()
+  await page.getByText("Cannot create the rule template: system must be a folder.", { exact: true }).waitFor()
+  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0)
+  assert.deepEqual(mutations, [], "path conflicts never overwrite an existing object")
+  pathConflict = false
   await page.getByRole("button", { name: "Create personal rule template" }).click()
   await page.getByRole("link", { name: "Open editor" }).waitFor()
   assert.deepEqual(mutations, [], "existing template is reused without overwriting")

@@ -7,6 +7,6 @@ import "../src/index.css"
 await i18n.changeLanguage("en")
 function Fixture() {
   const { accessToken } = useAuthSession()
-  return accessToken ? <ConversationPreferencesForm key={accessToken} accessToken={accessToken} /> : null
+  return accessToken ? <ConversationPreferencesForm accessToken={accessToken} /> : null
 }
 createRoot(document.getElementById("root")!).render(<MemoryRouter><AppSessionProvider><Fixture /></AppSessionProvider></MemoryRouter>)

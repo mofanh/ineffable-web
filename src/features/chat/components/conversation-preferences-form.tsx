@@ -7,23 +7,25 @@ import { useApiResource } from "@/lib/app/use-api-resource"
 import { notify } from "@/lib/app/notifications"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { getConversationPreferences, saveConversationPreferences, type ConversationPreferences } from "@/lib/api/api-client"
-import { useConversationSession, useWorkspaceSession } from "@/features/auth/app-session"
+import { useAuthSession, useConversationSession, useWorkspaceSession } from "@/features/auth/app-session"
 import { RuntimeConfigurationFields as AutomationRuntimeFields } from "./runtime-configuration-fields"
 import { WorkspaceRuleField } from "./workspace-rule-field"
 
 export function ConversationPreferencesForm({ accessToken }: { accessToken: string }) {
   const { t } = useTranslation()
-  const resource = useApiResource({ cacheKey: ["conversation-preferences", accessToken], load: React.useCallback(() => getConversationPreferences(accessToken), [accessToken]), errorMessage: t("chat.header.settingsFailed") })
+  const { currentSessionId } = useAuthSession()
+  const identity = currentSessionId ?? accessToken
+  const resource = useApiResource({ cacheKey: ["conversation-preferences", identity], load: React.useCallback(() => getConversationPreferences(accessToken), [accessToken]), errorMessage: t("chat.header.settingsFailed") })
   return <Card className="gap-0 py-0">
     <CardHeader className="border-b p-5"><CardTitle className="text-base">{t("chat.header.preferences")}</CardTitle><CardDescription>{t("chat.header.preferencesDescription")}</CardDescription></CardHeader>
     <CardContent className="p-5">
       {resource.error && <ErrorState error={resource.error.message} onRetry={resource.reload} />}
-      {resource.data && <PreferencesEditor key={`${accessToken}:${resource.data.version}`} accessToken={accessToken} initial={resource.data} onSaved={resource.reload} />}
+      {resource.data && <PreferencesEditor key={identity} accessToken={accessToken} initial={resource.data} onSaved={resource.setData} />}
     </CardContent>
   </Card>
 }
 
-function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: string; initial: ConversationPreferences; onSaved: () => unknown }) {
+function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: string; initial: ConversationPreferences; onSaved: (saved: ConversationPreferences) => void }) {
   const { t } = useTranslation()
   const { currentConversationId } = useConversationSession()
   const { workspaces } = useWorkspaceSession()
@@ -36,10 +38,11 @@ function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: str
   async function save() {
     setSaving(true)
     try {
-      await saveConversationPreferences(accessToken, { ...value, defaults_json: { ...value.defaults_json, workspace_id: null, model_profile_id: value.defaults_json.model_profile_id || undefined } })
+      const saved = await saveConversationPreferences(accessToken, { ...value, defaults_json: { ...value.defaults_json, workspace_id: null, model_profile_id: value.defaults_json.model_profile_id || undefined } })
       if (!mounted.current) return
+      setValue(saved)
       notify.success({ title: t("chat.header.saved") })
-      onSaved()
+      onSaved(saved)
     } catch (error) {
       if (mounted.current) notify.error({ title: t("chat.header.settingsFailed"), description: normalizeAppError(error).message })
     } finally { if (mounted.current) setSaving(false) }
