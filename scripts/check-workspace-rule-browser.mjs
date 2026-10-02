@@ -14,7 +14,9 @@ try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
   const page = await context.newPage(), other = await context.newPage()
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-  await other.goto(`${origin}/scripts/workspace-rule-fixture.html`)
+  // The second tab only drives storage events; it must not start its own app/API requests.
+  await other.route("**/session-control", route => route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Session control</title>" }))
+  await other.goto(`${origin}/session-control`)
   async function account(id) { await other.evaluate(id => {
     localStorage.setItem("ineffable.auth.session_id", id)
     localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() + 3600000))
@@ -33,7 +35,15 @@ try {
     let body = {}, status = 200
     if (path.endsWith("auth/me")) body = { user: { id: actor, display_name: actor, email: `${actor}@test.local`, status: "active" }, workspaces: [{ id: workspace, name: "Personal", status: "active", workspace_type: "personal" }] }
     else if (path.endsWith("conversations/preferences")) {
-      if (request.method() === "PUT") { submissions.push(request.postDataJSON()); preferences = { ...request.postDataJSON(), version: preferences.version + 1 } }
+      if (request.method() === "PUT") {
+        const submitted = request.postDataJSON()
+        submissions.push(submitted)
+        if (submitted.version !== preferences.version) {
+          await route.fulfill({ status: 409, json: { error: "Preferences version conflict" } })
+          return
+        }
+        preferences = { ...submitted, version: preferences.version + 1 }
+      }
       else preferencesReads++
       body = actor === "a" ? preferences : { timezone: "UTC", version: 1, defaults_json: {} }
     } else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model-a", display_name: "Model A" }] }
@@ -87,6 +97,22 @@ try {
   assert.equal(submissions.at(-1).defaults_json.workspace_rule, null)
   assert.equal(submissions[1].version, 2, "next save uses the canonical version returned by PUT")
   assert.equal(preferencesReads, readsBeforeSave, "saving does not start a redundant GET that could overwrite a new draft")
+  const refreshPreferences = () => page.evaluate(async () => {
+    const { invalidateApiResourceCache } = await import("/src/lib/app/use-api-resource.ts")
+    invalidateApiResourceCache(["conversation-preferences", "a"])
+  })
+  preferences = { ...preferences, version: 4, timezone: "Asia/Shanghai" }
+  await refreshPreferences()
+  await page.waitForFunction(() => document.querySelector('input')?.value === "Asia/Shanghai")
+  const timezone = page.getByRole("textbox").first()
+  await timezone.fill("Europe/London")
+  preferences = { ...preferences, version: 5, timezone: "UTC" }
+  await refreshPreferences()
+  await page.getByRole("button", { name: "Discard draft and reload" }).waitFor()
+  assert.equal(await timezone.inputValue(), "Europe/London", "late canonical refresh preserves a dirty draft")
+  assert.equal(await page.getByRole("button", { name: "Save conversation settings", exact: true }).isDisabled(), true)
+  await page.getByRole("button", { name: "Discard draft and reload" }).click()
+  assert.equal(await timezone.inputValue(), "UTC", "explicit discard adopts the current canonical settings")
   failure = true
   await page.getByRole("button", { name: "Create personal rule template" }).click()
   await page.getByText("Rule storage unavailable", { exact: true }).waitFor()
@@ -108,7 +134,12 @@ try {
   await page.getByRole("button", { name: "Create personal rule template" }).click()
   await page.getByRole("link", { name: "Open editor" }).waitFor()
   assert.equal(mutations.length, 3, "explicit create writes two folders and one short rule, no notes")
-  await page.getByRole("button", { name: "Disable", exact: true }).click()
+  preferences = { ...preferences, version: 6 }
+  await page.getByRole("button", { name: "Save conversation settings", exact: true }).click()
+  await page.getByRole("button", { name: "Discard draft and reload" }).waitFor()
+  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 1, "409 refresh preserves the unsaved selection")
+  await page.getByRole("button", { name: "Discard draft and reload" }).click()
+  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0)
   hold = true
   const entered = new Promise(resolve => { held = resolve })
   await page.getByRole("button", { name: "Create personal rule template" }).click()

@@ -2,6 +2,8 @@ import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { AsyncButton, FormField, ErrorState } from "@/components/app"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Notice } from "@/components/app/notice"
 import { Input } from "@/components/ui/input"
 import { useApiResource } from "@/lib/app/use-api-resource"
 import { notify } from "@/lib/app/notifications"
@@ -20,16 +22,19 @@ export function ConversationPreferencesForm({ accessToken }: { accessToken: stri
     <CardHeader className="border-b p-5"><CardTitle className="text-base">{t("chat.header.preferences")}</CardTitle><CardDescription>{t("chat.header.preferencesDescription")}</CardDescription></CardHeader>
     <CardContent className="p-5">
       {resource.error && <ErrorState error={resource.error.message} onRetry={resource.reload} />}
-      {resource.data && <PreferencesEditor key={identity} accessToken={accessToken} initial={resource.data} onSaved={resource.setData} />}
+      {resource.data && <PreferencesEditor key={identity} accessToken={accessToken} initial={resource.data} onSaved={resource.setData} onConflict={resource.reload} />}
     </CardContent>
   </Card>
 }
 
-function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: string; initial: ConversationPreferences; onSaved: (saved: ConversationPreferences) => void }) {
+function PreferencesEditor({ accessToken, initial, onSaved, onConflict }: { accessToken: string; initial: ConversationPreferences; onSaved: (saved: ConversationPreferences) => void; onConflict: () => unknown }) {
   const { t } = useTranslation()
   const { currentConversationId } = useConversationSession()
   const { workspaces } = useWorkspaceSession()
-  const [value, setValue] = React.useState(initial)
+  const [draft, setDraft] = React.useState<ConversationPreferences | null>(null)
+  const value = draft ?? initial
+  const conflict = draft !== null && draft.version !== initial.version
+  const setValue = (update: (current: ConversationPreferences) => ConversationPreferences) => setDraft(current => update(current ?? initial))
   const [saving, setSaving] = React.useState(false)
   const [preparingRule, setPreparingRule] = React.useState(false)
   const mounted = React.useRef(true)
@@ -40,19 +45,27 @@ function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: str
     try {
       const saved = await saveConversationPreferences(accessToken, { ...value, defaults_json: { ...value.defaults_json, workspace_id: null, model_profile_id: value.defaults_json.model_profile_id || undefined } })
       if (!mounted.current) return
-      setValue(saved)
       notify.success({ title: t("chat.header.saved") })
       onSaved(saved)
+      setDraft(null)
     } catch (error) {
-      if (mounted.current) notify.error({ title: t("chat.header.settingsFailed"), description: normalizeAppError(error).message })
+      if (mounted.current) {
+        const failure = normalizeAppError(error)
+        notify.error({ title: t("chat.header.settingsFailed"), description: failure.message })
+        if (failure.status === 409) void onConflict()
+      }
     } finally { if (mounted.current) setSaving(false) }
   }
   return <fieldset disabled={saving || preparingRule} className="min-w-0 space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
-      <FormField label={t("chat.header.timezone")}><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => setValue({ ...value, timezone: e.target.value })} /></FormField>
+      <FormField label={t("chat.header.timezone")}><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => { const timezone = e.target.value; setValue(current => ({ ...current, timezone })) }} /></FormField>
     </div>
     <WorkspaceRuleField accessToken={accessToken} workspaces={workspaces} value={value.defaults_json.workspace_rule ?? null} disabled={saving || preparingRule} onBusyChange={setPreparingRule} onChange={workspace_rule => setValue(current => ({ ...current, defaults_json: { ...current.defaults_json, workspace_rule } }))} />
     <AutomationRuntimeFields allowWorkspaceBinding={false} accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue(current => ({ ...current, defaults_json: { ...defaults_json, workspace_rule: current.defaults_json.workspace_rule } }))} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
-    <AsyncButton isLoading={saving} onClick={() => void save()}>{t("chat.header.savePreferences")}</AsyncButton>
+    {conflict && <Notice tone="warning">
+      <p>{t("chat.header.preferencesChanged")}</p>
+      <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => setDraft(null)}>{t("chat.header.reloadPreferences")}</Button>
+    </Notice>}
+    <AsyncButton disabled={conflict} isLoading={saving} onClick={() => void save()}>{t("chat.header.savePreferences")}</AsyncButton>
   </fieldset>
 }
