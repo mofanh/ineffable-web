@@ -247,6 +247,8 @@ export type Automation = {
 }
 
 export type AutomationRun = {
+  created_at?: string
+  updated_at?: string
   scheduled_for?: string | null
   execution_message_id?: string | null
   product_run_id?: string | null

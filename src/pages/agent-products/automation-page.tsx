@@ -806,25 +806,18 @@ export function AutomationPage() {
                         key={run.id}
                         className="flex items-center justify-between gap-2 text-muted-foreground"
                       >
-                        <StatusBadge
-                          status={run.status}
-                          label={statusLabel(run.status)}
-                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={run.status} label={statusLabel(run.status)} />
+                            <span className="text-xs">{formatRunTime(run.scheduled_for ?? run.created_at)}</span>
+                          </div>
+                          {run.error ? <p className="break-words text-destructive">{run.error}</p> : null}
+                        </div>
                         {run.conversation_id ? (
-                          <button
-                            type="button"
-                            className="hover:text-foreground hover:underline"
-                            onClick={() =>
-                              openConversation(run.conversation_id)
-                            }
-                          >
+                          <button type="button" className="shrink-0 hover:text-foreground hover:underline" onClick={() => openConversation(run.conversation_id)}>
                             {t("automation.page.viewConversation")}
                           </button>
-                        ) : (
-                          <span className="max-w-80 truncate">
-                            {run.error || t("automation.page.noConversation")}
-                          </span>
-                        )}
+                        ) : !run.error ? <span>{t("automation.page.noConversation")}</span> : null}
                       </div>
                     ))}
                 </div>

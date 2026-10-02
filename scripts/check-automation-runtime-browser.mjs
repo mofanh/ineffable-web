@@ -85,7 +85,7 @@ try {
       await new Promise((resolve) => { releaseSave = resolve })
       body = { automation: automations[0] }
     } else if (url.includes("auth/me")) body = { user: { id: "actor", display_name: "Actor" }, workspaces: [] }
-    else if (url.includes("/automations")) body = { automations, runs: [] }
+    else if (url.includes("/automations")) body = { automations, runs: [{id:"failed-run",automation_id:"A",user_id:"actor",conversation_id:"conversation-a",status:"failed",error:"Workspace access was revoked",created_at:"2026-10-03T00:00:00Z"}] }
     else if (url.includes("conversations/list")) body = { conversations: [{id:"conversation-a",title:"Existing conversation"}] }
     else if (url.includes("models/profiles")) body = { profiles: [{ id: "model-a", display_name: "Model A" }] }
     else if (url.includes("workspaces/list")) body = { workspaces: [] }
@@ -95,6 +95,8 @@ try {
     await route.fulfill({ json: body })
   })
   await editorPage.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/automation-runtime-fixture.html?page`)
+  await editorPage.getByText("Workspace access was revoked", {exact:true}).waitFor()
+  await editorPage.getByRole("button", { name: "View conversation", exact:true }).waitFor()
   await editorPage.getByRole("button", { name: /Runtime configuration/ }).first().click().catch(async (error) => { console.error(await editorPage.locator("body").innerText()); throw error })
   await editorPage.locator("#automation-name").fill("A changed")
   await editorPage.locator('button[type="submit"][form="automation-edit-form"]').click()
