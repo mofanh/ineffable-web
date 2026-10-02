@@ -2719,10 +2719,12 @@ export function getRunObservationAccess(accessToken: string, conversationId: str
   return promise
 }
 
+export type WorkspaceRuleSelection = { workspace_id: string; object_id: string }
+
 export type ConversationPreferences = {
   timezone: string
   version: number
-  defaults_json: Partial<AutomationRuntimeConfig>
+  defaults_json: Partial<AutomationRuntimeConfig> & { workspace_rule?: WorkspaceRuleSelection | null }
 }
 export function getConversationPreferences(accessToken: string) {
   return requestApiJson<ConversationPreferences>("/gateway/v1/conversations/preferences", { accessToken })

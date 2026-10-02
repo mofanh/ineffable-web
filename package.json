@@ -21,6 +21,7 @@
     "check:admin-usage-timeseries": "tsx scripts/check-admin-usage-timeseries.mjs",
     "check:automation-runtime": "node scripts/check-automation-runtime-browser.mjs",
     "check:chat-browser": "node scripts/check-chat-virtualization-browser.mjs && node scripts/check-live-refresh-browser.mjs && node scripts/check-chat-scroll-boundary-browser.mjs && node scripts/check-compaction-browser.mjs && node scripts/check-conversation-browser.mjs && node scripts/check-pending-queue-browser.mjs && node scripts/check-chat-presentation-browser.mjs",
+    "check:workspace-rule": "node scripts/check-workspace-rule-browser.mjs",
     "check:file-references": "tsx scripts/check-workspace-file-references.mjs && node scripts/check-file-references-browser.mjs",
     "check:request-efficiency": "tsx scripts/check-request-efficiency.mjs",
     "check:request-efficiency-browser": "node scripts/check-file-references-browser.mjs",

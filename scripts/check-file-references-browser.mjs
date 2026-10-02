@@ -150,7 +150,7 @@ try {
   await sidebar.evaluate(() => { window.failClipboard = true })
   await sidebar.getByRole("button", { name: "reference.txt", exact: true }).click({ button: "right" })
   await sidebar.getByRole("menuitem", { name: /复制文件引用|Copy file reference/ }).click()
-  await sidebar.getByText("clipboard denied", { exact: false }).waitFor()
+  await sidebar.getByText("clipboard denied", { exact: true }).waitFor()
   assert.equal((await sidebar.evaluate(() => window.copiedReferences)).length, 1)
   await sidebar.close()
   console.log("File reference browser checks passed: lazy/paged browsing, server search, cursor suffix, keyboard/IME, multi-space paste/dedupe, retry and conversation fencing")

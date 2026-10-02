@@ -7,8 +7,9 @@ import { useApiResource } from "@/lib/app/use-api-resource"
 import { notify } from "@/lib/app/notifications"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { getConversationPreferences, saveConversationPreferences, type ConversationPreferences } from "@/lib/api/api-client"
-import { useConversationSession } from "@/features/auth/app-session"
+import { useConversationSession, useWorkspaceSession } from "@/features/auth/app-session"
 import { RuntimeConfigurationFields as AutomationRuntimeFields } from "./runtime-configuration-fields"
+import { WorkspaceRuleField } from "./workspace-rule-field"
 
 export function ConversationPreferencesForm({ accessToken }: { accessToken: string }) {
   const { t } = useTranslation()
@@ -25,8 +26,10 @@ export function ConversationPreferencesForm({ accessToken }: { accessToken: stri
 function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: string; initial: ConversationPreferences; onSaved: () => unknown }) {
   const { t } = useTranslation()
   const { currentConversationId } = useConversationSession()
+  const { workspaces } = useWorkspaceSession()
   const [value, setValue] = React.useState(initial)
   const [saving, setSaving] = React.useState(false)
+  const [preparingRule, setPreparingRule] = React.useState(false)
   const mounted = React.useRef(true)
   React.useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const defaults = { model_profile_id: "", sandbox: null, capability_exposure: { mode: "smart" as const }, ...value.defaults_json, workspace_id: null }
@@ -41,11 +44,12 @@ function PreferencesEditor({ accessToken, initial, onSaved }: { accessToken: str
       if (mounted.current) notify.error({ title: t("chat.header.settingsFailed"), description: normalizeAppError(error).message })
     } finally { if (mounted.current) setSaving(false) }
   }
-  return <div className="space-y-5">
+  return <fieldset disabled={saving || preparingRule} className="min-w-0 space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
       <FormField label={t("chat.header.timezone")}><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => setValue({ ...value, timezone: e.target.value })} /></FormField>
     </div>
-    <AutomationRuntimeFields allowWorkspaceBinding={false} accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue({ ...value, defaults_json })} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
+    <WorkspaceRuleField accessToken={accessToken} workspaces={workspaces} value={value.defaults_json.workspace_rule ?? null} disabled={saving || preparingRule} onBusyChange={setPreparingRule} onChange={workspace_rule => setValue(current => ({ ...current, defaults_json: { ...current.defaults_json, workspace_rule } }))} />
+    <AutomationRuntimeFields allowWorkspaceBinding={false} accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue(current => ({ ...current, defaults_json: { ...defaults_json, workspace_rule: current.defaults_json.workspace_rule } }))} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
     <AsyncButton isLoading={saving} onClick={() => void save()}>{t("chat.header.savePreferences")}</AsyncButton>
-  </div>
+  </fieldset>
 }

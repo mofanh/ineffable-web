@@ -38,6 +38,7 @@ jobs:
           npm run check:auth-isolation
           npm run check:password-change
           npm run check:api-resource
+          npm run check:workspace-rule
 
       - name: Owned channel recovery experience
         run: npm run check:channels

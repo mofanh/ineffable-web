@@ -794,6 +794,19 @@ export const resources = {
           capabilityTitle:
             "能力暴露：授权 {{authorized}}，初始 {{initial}}，预取 {{prefetched}}，激活 {{activated}}，最终 {{final}}，延迟 {{deferred}}；稳定 {{stable}}，动态 {{dynamic}}；Schema {{bytes}} B；计划 {{hash}}",
         },
+        rule: {
+          title: "Agent 行为规则",
+          description: "选一个简短的 Workspace 文件，告诉 Agent 如何查阅和维护笔记。保存后用于新输入，运行中的任务保持原版本。",
+          none: "未选择规则文件",
+          choose: "选择规则文件",
+          edit: "打开编辑",
+          clear: "停用",
+          create: "创建个人规则模板",
+          unavailable: "规则文件不可用，请检查访问权限或重新选择。",
+          fileHint: "选择不超过 8 KiB 的 Markdown 或纯文本文件。详细记忆放在普通笔记中。",
+          search: "搜索规则文件…",
+          template: "长期记忆保存在 Workspace {{workspace}} 的 system/memory/ 目录，使用 workspace 工具按主题维护 Markdown。\n涉及用户偏好、既往约定或未完事项时，先查相关笔记；需要原文时检索会话历史。\n记录明确且长期有用的事实、偏好和决定，注明时间与来源；不把推测写成事实。\n纠正前先读当前版本，更新原记录；用户要求删除时移除对应笔记，并说明实际删除范围。\n文件操作成功后再确认已保存或删除；工具用法按需查看 help。\n",
+        },
         header: {
           older: "更早",
           today: "今天",
@@ -2697,6 +2710,19 @@ export const resources = {
           capability: "{{mode}} · {{count}} capabilities",
           capabilityTitle:
             "Capability exposure: {{authorized}} authorized, {{initial}} initial, {{prefetched}} prefetched, {{activated}} activated, {{final}} final, {{deferred}} deferred; {{stable}} stable, {{dynamic}} dynamic; schema {{bytes}} B; plan {{hash}}",
+        },
+        rule: {
+          title: "Agent behavior rule",
+          description: "Choose a short Workspace file that guides how the agent reads and maintains notes. Save to apply it to new inputs; running tasks keep their original version.",
+          none: "No rule file selected",
+          choose: "Choose rule file",
+          edit: "Open editor",
+          clear: "Disable",
+          create: "Create personal rule template",
+          unavailable: "The rule file is unavailable. Check access or choose another file.",
+          fileHint: "Choose a Markdown or plain text file up to 8 KiB. Keep detailed memories in ordinary notes.",
+          search: "Search rule files…",
+          template: "Keep long-term notes as topic-based Markdown under system/memory/ in Workspace {{workspace}}, using workspace tools.\nFor preferences, prior agreements or unfinished work, consult relevant notes; search conversation history when original evidence is needed.\nRecord explicit, durable facts, preferences and decisions with dates and sources; do not record guesses as facts.\nRead the current version before correcting it. When asked to delete, remove the relevant notes and describe what was actually deleted.\nConfirm saves or deletions only after file operations succeed; consult tool help as needed.\n",
         },
         header: {
           older: "Earlier",
