@@ -4,6 +4,7 @@ import type { AgentPaneState } from "@/features/chat/chat-pane-state"
 export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "error"
 
 export type UserEntry = {
+  inputRequestId?: string
   images?: import("@/lib/api/images").ImageReference[]
   id: string
   role: "user"

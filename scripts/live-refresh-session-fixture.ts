@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react"
-const run = { id: "refresh-run", status: "streaming", is_streaming: true, is_live: true }
+const run = { id: "refresh-run", status: "streaming", is_streaming: true, is_live: true, execution_epoch: 1, accepts_guided_input: true }
 export const conversation = { id: "refresh-conversation", title: "Refresh test", current_run_id: run.id, current_run: run }
 let session = {
   accessToken: "fixture", currentWorkspace: null, workspaces: [], conversations: [conversation],

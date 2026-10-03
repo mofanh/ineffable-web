@@ -1084,6 +1084,7 @@ export function deleteAutomation(accessToken: string, automationId: string) {
 }
 
 export type ConversationInputReceipt = {
+  input_request_id?: string
   conversation_id: string
   message_id: string
   pending_id: number
@@ -2112,6 +2113,7 @@ export async function subscribeConversationEvents(
 export async function streamConversationSend(
   accessToken: string,
   payload: {
+    input_request_id?: string
     conversation_id: string
     images?: import("./images").ImageReference[]
     content: string
@@ -2540,16 +2542,20 @@ export type PendingInputItem = {
 
 export function getPendingInputs(
   accessToken: string,
-  conversationId: string
+  conversationId: string,
+  messageIds: string[] = []
 ) {
+  if (messageIds.length > 128) throw new Error("At most 128 message IDs are allowed")
+  const query = messageIds.length ? `?message_ids=${encodeURIComponent(messageIds.join(","))}` : ""
   return requestApiJson<{
+    input_progress?: unknown[]
     pending_inputs: PendingInputItem[]
     blocked_by_run_status: string | null
     blocked_by_run_id: string | null
     blocked_by_error_code: string | null
     can_resume: boolean
   }>(
-    `/gateway/v1/conversations/${conversationId}/pending-inputs`,
+    `/gateway/v1/conversations/${conversationId}/pending-inputs${query}`,
     {
       accessToken,
     }

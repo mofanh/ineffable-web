@@ -41,8 +41,8 @@ try {
   const waitForHeld=async()=>{const deadline=Date.now()+5000;while(!release&&Date.now()<deadline)await new Promise(r=>setTimeout(r,10));assert.ok(release,"pending GET must be held")}
   hold=true; send(1,"pending_input_queued"); await waitForHeld()
   queue={pending_inputs:[],blocked_by_run_status:null,blocked_by_run_id:null,blocked_by_error_code:null,can_resume:false}
-  const fresh=page.waitForResponse(r=>r.url().endsWith("/pending-inputs")); send(2,"pending_input_consuming"); await fresh
-  const stale=page.waitForResponse(r=>r.url().endsWith("/pending-inputs"));release();await stale;await page.waitForTimeout(150)
+  const fresh=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/pending-inputs")); send(2,"pending_input_consuming"); await fresh
+  const stale=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/pending-inputs"));release();await stale;await page.waitForTimeout(150)
   assert.equal(await page.getByText("QUEUED_FIXTURE",{exact:true}).count(),0,"late GET cannot resurrect consumed queue")
   assert.equal(await page.getByText("请求超出上下文容量，请调整模型或工具配置",{exact:true}).count(),0)
   // A → B → A must invalidate the first A request even when its conversation id matches again.

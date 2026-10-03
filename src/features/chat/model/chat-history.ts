@@ -542,6 +542,7 @@ export function mapConversationMessagesToEntries(
           id: message.timeline_unit_id || message.id,
           role: "user",
           images: imageReferences(message.metadata_json?.images),
+          inputRequestId: typeof message.metadata_json?.input_request_id === "string" ? message.metadata_json.input_request_id : undefined,
           inputProgress: parseInputProgress(message.metadata_json?.input_progress),
           humanInputResponse: humanInputResponseIdentity(message.run_id, message.metadata_json),
           content: message.content,

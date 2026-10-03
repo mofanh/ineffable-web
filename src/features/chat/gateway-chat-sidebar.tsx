@@ -175,7 +175,6 @@ import {
   reconcileCapabilityExposureDraftPolicy,
 } from "@/features/chat/model/capability-exposure-draft"
 import {
-  bindOptimisticUserMessage,
   isActionablePreInput,
   isPendingInputSuccessorRun,
 } from "@/features/chat/model/pending-input"
@@ -1015,20 +1014,43 @@ export function GatewayChatSidebar({
 
       const requestId = ++pendingInputRequestRef.current
       const generation = humanInputSubmissionGenerationRef.current
-      const res = await getPendingInputs(
-        accessToken,
-        conversationId
-      )
+      const messageIds = Array.from(new Set(entriesRef.current.flatMap(entry => {
+        if (entry.role !== "user" || entry.inputProgress?.phase === "cancelled") return []
+        if (entry.inputProgress?.phase === "accepted" && ["completed", "failed", "cancelled"].includes(entry.inputProgress.run_state ?? "")) return []
+        const id = entry.inputProgress?.message_id ?? (entry.id.startsWith("message:") ? entry.id.slice(8) : undefined)
+        return id ? [id] : []
+      })))
+      const batches = messageIds.length ? Array.from({length:Math.ceil(messageIds.length / 128)}, (_, index) => messageIds.slice(index * 128, (index + 1) * 128)) : [[]]
+      const responses = await Promise.all(batches.map(ids => getPendingInputs(accessToken, conversationId, ids)))
+      const res = responses[responses.length - 1]
+      const progress = responses.flatMap(response => (response.input_progress ?? []).flatMap(value => {
+        const item = parseInputProgress(value)
+        return item?.conversation_id === conversationId ? [item] : []
+      }))
       if (currentConversationIdRef.current !== conversationId || requestId !== pendingInputRequestRef.current || generation !== humanInputSubmissionGenerationRef.current) {
         return
       }
       const dbItems = res.pending_inputs.filter(isActionablePreInput)
-      const inputs = dbItems.map((item) => ({ messageId: item.message_id, runId: item.run_id, pendingId: item.id }))
+      // Keep cancellation facts in this view's existing pending projection so a
+      // history page already in flight cannot resurrect a removed message.
+      // Selection changes discard the projection together with its request generation.
+      const previous = pendingInputProjectionRef.current
+      const cancelled = new Map<string, QueuedInputIdentity>(
+        previous?.conversationId === conversationId
+          ? previous.inputs.filter(item => item.cancelled).map(item => [item.messageId, item])
+          : []
+      )
+      for (const fact of progress) {
+        if (fact.phase === "cancelled") cancelled.set(fact.message_id, { messageId: fact.message_id, runId: fact.run_id ?? null, cancelled: true })
+        if (fact.phase === "accepted") cancelled.delete(fact.message_id)
+      }
+      const inputs: QueuedInputIdentity[] = [...dbItems.map((item) => ({ messageId: item.message_id, runId: item.run_id, pendingId: item.id })), ...cancelled.values()]
       pendingInputProjectionRef.current = { conversationId, inputs }
-      setEntries((current) => reduceCurrentTimeline(current, { type: "pending-inputs", inputs }))
+      setEntries((current) => reduceCurrentTimeline(current, { type: "pending-inputs", inputs, progress }))
       setPreInputQueue(
         dbItems.map((item) => ({
           id: `db-${item.id}`,
+          messageId: item.message_id,
           content: item.content,
           status: "queued" as const,
         }))
@@ -2246,7 +2268,7 @@ export function GatewayChatSidebar({
     ])
   }
 
-  function appendUserMessage(content: string, id = createMessageId("user"), deliveryStatus: "sending" | "received" = "received", images: ImageReference[] = []) {
+  function appendUserMessage(content: string, id = createMessageId("user"), deliveryStatus: "sending" | "received" = "received", images: ImageReference[] = [], inputRequestId?: string) {
     if (!content.trim() && images.length === 0) {
       return
     }
@@ -2258,6 +2280,7 @@ export function GatewayChatSidebar({
         role: "user",
         images,
         deliveryStatus,
+        inputRequestId,
         content,
       },
     ])
@@ -2371,14 +2394,15 @@ export function GatewayChatSidebar({
   }
 
   function removeGuidedOptimisticEntry(conversationId: string, optimisticId: string) {
+    if (optimisticId.startsWith("message:")) return
     conversationWindowCacheRef.current.removeEntry(conversationId, optimisticId)
     if (currentConversationIdRef.current === conversationId) {
       setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
     }
   }
 
-  function beginGuidedUserTurn(content: string, id = createMessageId("user")) {
-    setEntries((current) => [...current, { id, role: "user", content, deliveryStatus: "sending", inputMode: "guided" }])
+  function beginGuidedUserTurn(content: string, id = createMessageId("user"), inputRequestId?: string) {
+    setEntries((current) => current.some(entry => entry.id === id) ? current : [...current, { id, role: "user", content, inputRequestId, deliveryStatus: "sending", inputMode: "guided" }])
     return id
   }
 
@@ -3491,13 +3515,15 @@ export function GatewayChatSidebar({
       setError(null)
       const guidedGeneration = humanInputSubmissionGenerationRef.current
       const isCurrentGuidedSubmission = () => currentConversationIdRef.current === targetConversationId && humanInputSubmissionGenerationRef.current === guidedGeneration
+      const inputRequestId = crypto.randomUUID()
       const optimisticId = createMessageId("guided")
-      beginGuidedUserTurn(content, optimisticId)
+      beginGuidedUserTurn(content, optimisticId, inputRequestId)
       try {
         await streamConversationSend(
           accessToken,
           {
             conversation_id: targetConversationId,
+            input_request_id: inputRequestId,
             content,
             images,
             stream: false,
@@ -3523,11 +3549,7 @@ export function GatewayChatSidebar({
                 envelope.message_id
               ) {
                 setEntries((current) =>
-                  bindOptimisticUserMessage(
-                    current,
-                    optimisticId,
-                    envelope.message_id ?? ""
-                  )
+                  reduceCurrentTimeline(current, { type:"input-receipt", optimisticId, messageId:envelope.message_id ?? "" })
                 )
               }
               if (envelope.type === "queued") {
@@ -3537,7 +3559,7 @@ export function GatewayChatSidebar({
                 setPreInputQueue((current) => {
                   const id = `db-${envelope.pending_id}`
                   if (current.some((item) => item.id === id)) return current
-                  return [...current, { id, content, status: "queued" }]
+                  return [...current, { id, messageId:envelope.message_id ?? undefined, content, status: "queued" }]
                 })
               }
               if (envelope.type === "guided" || envelope.type === "queued") {
@@ -3653,6 +3675,7 @@ export function GatewayChatSidebar({
     }
 
     if (!ownsSession()) return false
+    const inputRequestId = crypto.randomUUID()
     let acceptedAsRun = false
     let accepted = false
     let queued = false
@@ -3688,6 +3711,7 @@ export function GatewayChatSidebar({
         accessToken,
         {
           conversation_id: targetConversationId,
+          input_request_id: inputRequestId,
           content,
           images,
           stream: true,
@@ -3715,7 +3739,7 @@ export function GatewayChatSidebar({
                   if (prev.some((item) => item.id === id)) {
                     return prev
                   }
-                  return [...prev, { id, content, status: "queued" }]
+                  return [...prev, { id, messageId:envelope.message_id ?? undefined, content, status: "queued" }]
                 })
               }
               void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
@@ -3746,7 +3770,7 @@ export function GatewayChatSidebar({
             if (!userMessageCommitted) {
               userMessageCommitted = true
               if (currentConversationIdRef.current === targetConversationId) {
-                appendUserMessage(content, undefined, "received", images)
+                appendUserMessage(content, undefined, "received", images, inputRequestId)
                 ensureAssistantEntry({
                   modelProfileId: submissionModelProfileId,
                   sandboxEnvironmentId: selectedSandboxEnvironmentId,
@@ -3962,7 +3986,7 @@ export function GatewayChatSidebar({
       const conversationId = currentConversationId
       const generation = humanInputSubmissionGenerationRef.current
       const isCurrentPromotion = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
-      const guidedEntryId = beginGuidedUserTurn(item.content)
+      const guidedEntryId = beginGuidedUserTurn(item.content, item.messageId ? `message:${item.messageId}` : undefined)
       setPreInputQueue((prev) => prev.filter((queueItem) => queueItem.id !== id))
       void promotePendingInput(
         accessToken,
@@ -3978,11 +4002,7 @@ export function GatewayChatSidebar({
         }
         void syncLatestConversationMessagesPage(conversationId).catch(() => {})
         setEntries((current) =>
-          bindOptimisticUserMessage(
-            current,
-            guidedEntryId,
-            response.pending_input.message_id
-          )
+          reduceCurrentTimeline(current, { type:"input-receipt", optimisticId:guidedEntryId, messageId:response.pending_input.message_id })
         )
       }).catch((promoteError) => {
         if (!isCurrentPromotion()) {
@@ -3997,7 +4017,7 @@ export function GatewayChatSidebar({
           i18n.t("chat.gateway.promoteFailed"),
           i18n.t("chat.gateway.promoteFailed")
         )
-        setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId))
+        setEntries((current) => current.filter((entry) => entry.id !== guidedEntryId || (entry.role === "user" && entry.inputProgress?.phase === "accepted")))
         setPreInputQueue((prev) => {
           if (prev.some((queueItem) => queueItem.id === id)) {
             return prev

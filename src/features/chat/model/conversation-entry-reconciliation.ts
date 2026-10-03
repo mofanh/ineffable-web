@@ -1,3 +1,4 @@
+import { bindOptimisticUserMessage } from "./pending-input.ts"
 import { mergeAssistantSegments } from "./assistant-segments"
 import { prependAssistantHistory } from "./chat-history.ts"
 import { mergeInputProgress, type InputProgress } from "./input-progress.ts"
@@ -16,14 +17,16 @@ function timelineSequence(entry: ChatEntry) {
   return Number.isSafeInteger(entry.timelineSeq) ? entry.timelineSeq! : null
 }
 
-export type QueuedInputIdentity = { messageId: string; runId: string | null; pendingId?: number }
+export type QueuedInputIdentity = { messageId: string; runId: string | null; pendingId?: number; cancelled?: boolean }
 
 function visibleTimelineEntries(entries: ChatEntry[], queuedInputs: readonly QueuedInputIdentity[] = []) {
   const queued = new Map(queuedInputs.map((input) => [`message:${input.messageId}`, input]))
   return entries.filter((entry) => {
     if (entry.role !== "user") return true
     if (entry.inputProgress?.phase === "accepted") return true
+    if (entry.inputProgress?.phase === "cancelled") return false
     const pending = queued.get(timelineIdentity(entry))
+    if (pending?.cancelled) return false
     if (pending && (!entry.inputProgress?.run_id || entry.inputProgress.run_id === pending.runId)) return false
     return entry.inputProgress?.kind !== "pre_input" || !["queued", "cancelled"].includes(entry.inputProgress.phase)
   })
@@ -49,6 +52,21 @@ function sortTimeline(entries: ChatEntry[]) {
     .map(({ entry }) => entry)
 }
 
+/** Bind request correlation before canonical identity reconciliation, including HTTP/SSE races. */
+function bindRequestMessages(entries: ChatEntry[], facts: readonly InputProgress[]) {
+  const identities = new Map(facts.flatMap(progress => progress.input_request_id ? [[progress.input_request_id, `message:${progress.message_id}`] as const] : []))
+  if (!identities.size) return entries
+  const canonical = new Set(entries.map(timelineIdentity))
+  return entries.flatMap<ChatEntry>(entry => {
+    if (entry.role !== "user") return [entry]
+    const identity = identities.get(entry.inputRequestId ?? entry.inputProgress?.input_request_id ?? "")
+    if (!identity || timelineIdentity(entry) === identity) return [entry]
+    if (canonical.has(identity)) return []
+    canonical.add(identity)
+    return [{ ...entry, id:identity, timelineUnitId:identity, deliveryStatus:"received" as const }]
+  })
+}
+
 export type CanonicalAssistantHandoff = {
   runId: string
   messageSeqEnd: number
@@ -68,7 +86,8 @@ export function hasCanonicalAssistantHandoff(
 
 export type ConversationTimelineAction =
   | { type: "assistant-entry"; entry: AssistantEntry }
-  | { type: "pending-inputs"; inputs: QueuedInputIdentity[] }
+  | { type: "pending-inputs"; inputs: QueuedInputIdentity[]; progress?: InputProgress[] }
+  | { type: "input-receipt"; optimisticId: string; messageId: string }
   | { type: "input-progress"; progress: InputProgress; content?: string }
   | { type: "hydrate"; entries: ChatEntry[] }
   | {
@@ -88,6 +107,7 @@ export function reduceConversationTimeline(
   action: ConversationTimelineAction,
   queuedInputs: readonly QueuedInputIdentity[] = []
 ) {
+  if (action.type === "input-receipt") return bindOptimisticUserMessage(current, action.optimisticId, action.messageId)
   if (action.type === "assistant-entry") {
     const entry = action.entry
     const index = current.findIndex((candidate) => candidate.id === entry.id)
@@ -98,11 +118,19 @@ export function reduceConversationTimeline(
     next[index] = entry
     return previous.timelineSeq === entry.timelineSeq ? next : sortTimeline(next)
   }
-  if (action.type === "pending-inputs") return visibleTimelineEntries(current, action.inputs)
+  if (action.type === "pending-inputs") {
+    const facts = action.progress ?? []
+    const byMessage = new Map(facts.map(progress => [`message:${progress.message_id}`, progress]))
+    const next = bindRequestMessages(current, facts).map(entry => {
+      const progress = byMessage.get(timelineIdentity(entry))
+      return entry.role === "user" && progress ? { ...entry, inputProgress:mergeInputProgress(entry.inputProgress, progress), timelineSeq:progress.message_seq ?? entry.timelineSeq } : entry
+    })
+    return sortTimeline(visibleTimelineEntries(next, action.inputs))
+  }
   if (action.type === "input-progress") {
     const progress = action.progress
     const identity = `message:${progress.message_id}`
-    const next = current.map((entry) => entry.role === "user" && timelineIdentity(entry) === identity
+    const next = bindRequestMessages(current, [progress]).map((entry) => entry.role === "user" && timelineIdentity(entry) === identity
       ? { ...entry, timelineSeq: progress.message_seq ?? entry.timelineSeq,
           inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
       : entry)
@@ -110,8 +138,9 @@ export function reduceConversationTimeline(
       next.push({ id: identity, timelineUnitId: identity, role: "user", content: action.content,
         timelineSeq: progress.message_seq, inputProgress: progress, deliveryStatus: "received" })
     }
-    return visibleTimelineEntries(next, queuedInputs)
+    return sortTimeline(visibleTimelineEntries(next, queuedInputs))
   }
+  current = bindRequestMessages(current, action.entries.flatMap(entry => entry.role === "user" && entry.inputProgress ? [entry.inputProgress] : []))
   const previousUsers = new Map(current.filter((entry) => entry.role === "user").map((entry) => [timelineIdentity(entry), entry]))
   action = { ...action, entries: action.entries.map((entry) => {
     if (entry.role !== "user") return entry

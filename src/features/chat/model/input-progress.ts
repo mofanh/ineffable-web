@@ -1,4 +1,5 @@
 export type InputProgress = {
+  input_request_id?: string
   automation_source?: { automation_id: string; occurrence_id: string; name?: string; summary?: string }
   task_source?: { conversation_id: string; run_id: string }
   message_seq?: number
@@ -27,6 +28,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
       typeof (item.task_source as Record<string, unknown>).conversation_id === "string" &&
       typeof (item.task_source as Record<string, unknown>).run_id === "string"
       ? item.task_source as { conversation_id: string; run_id: string } : undefined,
+    input_request_id: typeof item.input_request_id === "string" ? item.input_request_id : undefined,
     message_seq: Number.isSafeInteger(item.message_seq) ? item.message_seq as number : undefined,
     message_id: item.message_id, conversation_id: item.conversation_id,
     phase: item.phase as InputProgress["phase"], kind: typeof item.kind === "string" ? item.kind : "ordinary",
@@ -39,7 +41,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
 
 export function mergeInputProgress(current: InputProgress | undefined, incoming: InputProgress | undefined) {
   if (!incoming) return current
-  if (current?.phase === "accepted" && incoming.kind === "pre_input" && ["queued", "cancelled"].includes(incoming.phase)) return current
+  if (current?.phase === "accepted" && ["queued", "cancelled"].includes(incoming.phase)) return current
   if (!current || incoming.run_id !== current.run_id) return incoming
   if ((incoming.execution_epoch ?? 0) < (current.execution_epoch ?? 0) ||
       (incoming.run_version ?? 0) < (current.run_version ?? 0)) return current

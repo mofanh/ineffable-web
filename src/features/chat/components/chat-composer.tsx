@@ -47,6 +47,7 @@ import {
 } from "lucide-react"
 
 export type PreInputQueueItem = {
+  messageId?: string
   id: string
   content: string
   status?: "queued" | "promoting" | "deleting"

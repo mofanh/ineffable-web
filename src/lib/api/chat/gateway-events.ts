@@ -34,12 +34,14 @@ export type GatewayChatStreamEnvelope =
       pending_id?: number | null
       seq?: number | null
       conversation_id?: string | null
+      input_request_id?: string | null
       message_id?: string | null
     }
   | {
       type: "guided"
       pending_id: number
       conversation_id?: string | null
+      input_request_id?: string | null
       message_id?: string | null
     }
 
@@ -104,6 +106,7 @@ export function normalizeGatewayEnvelope(
       seq: Number.isFinite(seq) ? seq : null,
       conversation_id:
         typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
+      ...(typeof candidate.input_request_id === "string" ? { input_request_id:candidate.input_request_id } : {}),
       message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,
     }
   }
@@ -124,6 +127,7 @@ export function normalizeGatewayEnvelope(
       pending_id: pendingId,
       conversation_id:
         typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
+      ...(typeof candidate.input_request_id === "string" ? { input_request_id:candidate.input_request_id } : {}),
       message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,
     }
   }

@@ -61,3 +61,29 @@ const automatedLive = reduceConversationTimeline([user], { type:"input-progress"
 const automatedRefresh = reduceConversationTimeline([], { type:"hydrate", entries:[{...user,inputProgress:automatedProgress}] })
 assert.deepEqual(automatedLive[0].inputProgress.automation_source, automatedRefresh[0].inputProgress.automation_source, "live and restored inputs retain the same trusted automation source")
 assert.equal(parseInputProgress({...accepted,automation_source:{name:"Fake task"}}).automation_source,undefined, "a label alone cannot establish an automation identity")
+
+// Acceptance and history can arrive while the sending HTTP receipt is still suspended.
+const drafts = ["one", "two"].map(inputRequestId => ({id:`optimistic-${inputRequestId}`,role:"user",content:"same text",inputRequestId,deliveryStatus:"sending"}))
+let fast = reduceConversationTimeline(drafts,{type:"input-progress",progress:{...accepted,input_request_id:"two",message_id:"two",message_seq:5},content:"same text"})
+assert.equal(fast.length,2,"SSE acceptance must bind immediately, before HTTP receipt")
+assert.equal(fast.filter(entry=>entry.id==="message:two").length,1)
+assert.ok(fast.some(entry=>entry.id==="optimistic-one"),"equal text with another request is untouched")
+fast=reduceConversationTimeline(fast,{type:"input-progress",progress:{...accepted,input_request_id:"one",message_id:"one",message_seq:4},content:"same text"})
+fast=reduceConversationTimeline(fast,{type:"input-receipt",optimisticId:"optimistic-two",messageId:"two"})
+assert.equal(fast.length,2)
+assert.ok(fast.every(entry=>entry.inputProgress.phase==="accepted"))
+const historyFirst=reduceConversationTimeline(drafts,{type:"canonical-patch",entries:[{...user,id:"message:two",timelineUnitId:"message:two",inputProgress:{...accepted,input_request_id:"two",message_id:"two"}}]})
+assert.equal(historyFirst.length,2)
+assert.equal(historyFirst.filter(entry=>entry.id==="message:two").length,1)
+const cancelledSnapshot=[{...received,phase:"cancelled"}]
+for (const inputProgress of [received,undefined]) {
+  assert.deepEqual(reduceConversationTimeline([{...user,inputProgress}],{type:"pending-inputs",inputs:[],progress:cancelledSnapshot}),[],"empty queue plus explicit cancellation clears old guided/cache input")
+}
+assert.equal(reduceConversationTimeline([{...user,inputProgress:accepted}],{type:"pending-inputs",inputs:[],progress:cancelledSnapshot}).length,1,"a stale cancellation cannot erase confirmed acceptance")
+assert.equal(reduceConversationTimeline([user],{type:"pending-inputs",inputs:[],progress:[]}).length,1,"an empty queue alone proves no cancellation")
+
+const cancellationFence=[{messageId:"m",runId:"r",cancelled:true}]
+for (const type of ["hydrate","canonical-patch","prepend-history"]) {
+  assert.deepEqual(reduceConversationTimeline([],{type,entries:[user]},cancellationFence),[],`${type}: a late page cannot resurrect cancelled input`)
+}
+assert.equal(reduceConversationTimeline([],{type:"canonical-patch",entries:[{...user,inputProgress:accepted}]},cancellationFence).length,1,"confirmed acceptance wins over stale cancellation")
