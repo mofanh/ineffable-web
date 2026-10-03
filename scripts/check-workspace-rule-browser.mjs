@@ -76,6 +76,7 @@ try {
   await choose.click()
   await page.getByRole("option", { name: file.path, exact: true }).click()
   await page.getByRole("link", { name: "Open editor" }).waitFor()
+  assert.equal(await page.getByRole("link", { name: "Open containing folder" }).getAttribute("href"), `/workspace/${workspace}/objects?path=system%2Frules`)
   assert.equal(submissions.length, 0, "selection is a draft until saved")
   await other.evaluate(() => localStorage.setItem("ineffable.auth.access_token", "a-renewed"))
   await page.waitForTimeout(150)

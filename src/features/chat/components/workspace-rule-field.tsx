@@ -44,11 +44,12 @@ export function WorkspaceRuleField({ accessToken, workspaces, value, disabled, o
         <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => { setQuery(""); setOpen(true) }}>{t("chat.rule.choose")}</Button>
         {value && <>
           <a className="text-sm underline underline-offset-4" target="_blank" rel="noopener noreferrer" href={`/workspace/${value.workspace_id}/objects/${value.object_id}`}>{t("chat.rule.edit")}</a>
+          {file.data && <a className="text-sm underline underline-offset-4" target="_blank" rel="noopener noreferrer" href={`/workspace/${value.workspace_id}/objects?${new URLSearchParams({ path: file.data.object.path.split("/").slice(0, -1).join("/") })}`}>{t("chat.rule.directory")}</a>}
           <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={() => { setError(undefined); onChange(null) }}>{t("chat.rule.clear")}</Button>
         </>}
         {!value && personal && <AsyncButton type="button" size="sm" variant="ghost" isLoading={creating} disabled={disabled} onClick={() => void createTemplate()}>{t("chat.rule.create")}</AsyncButton>}
       </div>
-      {(error || file.error) && <Notice tone="error">{error || t("chat.rule.unavailable")}</Notice>}
+      {(error || file.error) && <Notice tone="error"><p>{error || t("chat.rule.unavailable")}</p><p className="mt-1">{t("chat.rule.repairHint")}</p></Notice>}
       <AppDialog open={open && !disabled} onOpenChange={setOpen} title={t("chat.rule.choose")} description={t("chat.rule.fileHint")}>
         <div className="space-y-3">
           <Input value={query} onChange={event => setQuery(event.target.value)} placeholder={t("chat.rule.search")} aria-label={t("chat.rule.search")} />

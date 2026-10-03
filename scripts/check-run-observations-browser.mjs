@@ -47,6 +47,8 @@ try {
       const current = { ...structuredClone(record), seq: cursor ? 2 : 1, request_id: run + ":main:model:" + (cursor ? 2 : 1) }
       await route.fulfill({ status: failure || 200, json: failure ? {error: "observation_forbidden"} : {
         run_id: run, conversation_id: run === "run-b" ? "conversation-b" : "conversation-a", execution_epoch: 1, status: "completed", coverage, definition_fingerprint: "sha256:" + "c".repeat(64),
+        workspace_rule_status: run === "run-b" ? "workspace_mismatch" : "selected",
+        workspace_rule: run === "run-b" ? null : { workspace_id:"rule-workspace", object_id:"rule-object", version_id:"frozen-v1" },
         model_attempt_count: 2, tool_count: 3, wall_time_ms: 1200, watermark: 2, records: coverage === "partial" ? [current] : [], next_cursor: coverage === "partial" && !cursor ? "page-two" : null,
       } })
     })
@@ -54,6 +56,9 @@ try {
     const refresh = () => page.getByRole("button", { name: zh ? "刷新记录" : "Refresh records", exact: true })
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/run-observation-fixture.html?language=${language}`)
     await page.locator("[data-observation-seq='1']").waitFor()
+    await page.locator('[data-run-rule-status="selected"]').waitFor()
+    await page.getByText(zh ? "输入绑定版本：frozen-v1" : "Input-bound version: frozen-v1", {exact:true}).waitFor()
+    assert.equal(await page.getByRole("link", {name:zh ? "打开编辑" : "Open editor"}).getAttribute("href"), "/workspace/rule-workspace/objects/rule-object")
     assert.equal(requests.length, 1, "StrictMode must share the initial in-flight read")
     await page.locator("[data-observation-seq='1'] > summary").click()
     await page.getByText(zh ? "与前次请求比较" : "Compared with previous request", { exact: true }).waitFor()

@@ -2658,6 +2658,8 @@ export type RunObservation = {
   }
 }
 export type RunObservationPage = {
+  workspace_rule?: { workspace_id: string; object_id: string; version_id: string } | null
+  workspace_rule_status?: "selected" | "not_configured" | "workspace_mismatch" | "audience_blocked" | "delegated" | null
   conversation_id: string
   run_id: string
   execution_epoch: number

@@ -796,6 +796,11 @@ export const resources = {
         },
         rule: {
           title: "Agent 行为规则",
+          directory: "打开所在目录",
+          repairHint: "重新选择可访问的文本文件，或停用后保存。已接收的输入保留原绑定。",
+          boundVersion: "输入绑定版本：{{version}}",
+          bindingHint: "这是输入接收时冻结的引用；是否实际入模请查看该次请求的输入上下文。恢复会重新检查访问权限。",
+          inputStatuses: { selected: "此输入已绑定规则", not_configured: "未配置规则", workspace_mismatch: "当前输入的工作空间范围不包含规则，已跳过", audience_blocked: "此聊天的受众不允许使用个人规则，已跳过", delegated: "委派输入不附加目标用户的个人规则", unknown: "旧输入未记录规则选择状态" },
           description: "选一个简短的 Workspace 文件，告诉 Agent 如何查阅和维护笔记。保存后用于新输入，运行中的任务保持原版本。",
           none: "未选择规则文件",
           choose: "选择规则文件",
@@ -2717,6 +2722,11 @@ export const resources = {
         },
         rule: {
           title: "Agent behavior rule",
+          directory: "Open containing folder",
+          repairHint: "Choose an accessible text file, or disable the rule and save. Accepted inputs keep their original binding.",
+          boundVersion: "Input-bound version: {{version}}",
+          bindingHint: "This reference was frozen when the input was received. Inspect this request's input context to confirm injection. Access is rechecked on resume.",
+          inputStatuses: { selected: "Rule bound to this input", not_configured: "No rule configured", workspace_mismatch: "Rule skipped: outside this input's workspace scope", audience_blocked: "Rule skipped: this chat audience cannot use personal rules", delegated: "Delegated input does not acquire the target user's personal rule", unknown: "Rule selection was not recorded for this older input" },
           description: "Choose a short Workspace file that guides how the agent reads and maintains notes. Save to apply it to new inputs; running tasks keep their original version.",
           none: "No rule file selected",
           choose: "Choose rule file",

@@ -123,6 +123,15 @@ function RunObservationContent({ accessToken, conversationId, runId }: Props) {
           {[[t("trajectory.modelAttempts"), page.model_attempt_count], [t("trajectory.toolCount"), page.tool_count], [t("trajectory.duration"), page.wall_time_ms == null ? null : `${(page.wall_time_ms / 1000).toFixed(1)} s`]].map(([label, value]) => <div className="min-w-0" key={String(label)}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-base font-medium">{value ?? t("trajectory.unknown")}</p></div>)}
         </div>
         <div className="flex items-center gap-2 text-sm"><span className="text-muted-foreground">{t("trajectory.status")}</span><Badge variant="secondary">{t(`trajectory.statuses.${page.status}`, { defaultValue: page.status })}</Badge></div>
+        <div className="space-y-1 text-sm" data-run-rule-status={page.workspace_rule_status ?? "unknown"}>
+          <p className="text-muted-foreground">{t("chat.rule.title")}</p>
+          <p>{t(`chat.rule.inputStatuses.${page.workspace_rule_status ?? "unknown"}`)}</p>
+          {page.workspace_rule_status === "selected" && page.workspace_rule && <>
+            <p className="break-all font-mono text-xs">{t("chat.rule.boundVersion", { version: page.workspace_rule.version_id })}</p>
+            <p className="text-xs text-muted-foreground">{t("chat.rule.bindingHint")}</p>
+            <a className="underline underline-offset-4" target="_blank" rel="noopener noreferrer" href={`/workspace/${page.workspace_rule.workspace_id}/objects/${page.workspace_rule.object_id}`}>{t("chat.rule.edit")}</a>
+          </>}
+        </div>
         <details className="text-sm"><summary className="cursor-pointer text-muted-foreground">{t("trajectory.identity")}</summary>
         <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt className="text-muted-foreground">{t("trajectory.run")}</dt><dd className="break-all font-mono text-xs">{page.run_id}</dd>
