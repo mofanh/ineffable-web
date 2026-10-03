@@ -2521,7 +2521,7 @@ console.log("chat web integration checks passed")
   const old = { ...createAssistantEntry("done", runId), id: "assistant-before" }
   const progress = { message_id: "guide", message_seq: 2, conversation_id: "c", kind: "guided", phase: "accepted", run_id: runId, run_state: "streaming", execution_epoch: 1, run_version: 1 }
   const accepted = reduceConversationTimeline([old], { type: "input-progress", progress, content: "adjust" })
-  assert.equal(findAssistantEntryIdForRun([accepted[1], old], runId), null, "same run id cannot select the previous answer")
+  assert.equal(findAssistantEntryIdForRun([accepted.find(entry => entry.id === "message:guide"), old], runId), null, "same run id cannot select the previous answer")
   const next = bindAssistantToHumanBoundary(createAssistantEntry("streaming", runId), accepted)
   assert.equal(next.timelineUnitId, `run:${runId}:anchor:3`)
   assert.equal(findAssistantEntryIdForRun([...accepted, next], runId), next.id)

@@ -59,6 +59,9 @@ function bindRequestMessages(entries: ChatEntry[], facts: readonly InputProgress
   const canonical = new Set(entries.map(timelineIdentity))
   return entries.flatMap<ChatEntry>(entry => {
     if (entry.role !== "user") return [entry]
+    // Correlation binds local drafts only; never collapse distinct canonical
+    // messages when a client reuses a request UUID (it is not an idempotency key).
+    if (timelineIdentity(entry).startsWith("message:")) return [entry]
     const identity = identities.get(entry.inputRequestId ?? entry.inputProgress?.input_request_id ?? "")
     if (!identity || timelineIdentity(entry) === identity) return [entry]
     if (canonical.has(identity)) return []
@@ -86,6 +89,7 @@ export function hasCanonicalAssistantHandoff(
 
 export type ConversationTimelineAction =
   | { type: "assistant-entry"; entry: AssistantEntry }
+  | { type: "user-entry"; entry: Extract<ChatEntry, { role: "user" }> }
   | { type: "pending-inputs"; inputs: QueuedInputIdentity[]; progress?: InputProgress[] }
   | { type: "input-receipt"; optimisticId: string; messageId: string }
   | { type: "input-progress"; progress: InputProgress; content?: string }
@@ -107,6 +111,16 @@ export function reduceConversationTimeline(
   action: ConversationTimelineAction,
   queuedInputs: readonly QueuedInputIdentity[] = []
 ) {
+  if (action.type === "user-entry") {
+    const entry = action.entry
+    // Ordinary HTTP envelopes can lag behind canonical history or acceptance.
+    const requestId = entry.inputRequestId ?? entry.inputProgress?.input_request_id
+    if (current.some(existing => existing.role === "user" && (
+      timelineIdentity(existing) === timelineIdentity(entry) ||
+      (requestId && !timelineIdentity(entry).startsWith("message:") && (existing.inputRequestId ?? existing.inputProgress?.input_request_id) === requestId)
+    ))) return current
+    return sortTimeline(visibleTimelineEntries([...current, entry], queuedInputs))
+  }
   if (action.type === "input-receipt") return bindOptimisticUserMessage(current, action.optimisticId, action.messageId)
   if (action.type === "assistant-entry") {
     const entry = action.entry

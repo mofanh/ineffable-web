@@ -2273,17 +2273,10 @@ export function GatewayChatSidebar({
       return
     }
 
-    setEntries((current) => [
-      ...current,
-      {
-        id,
-        role: "user",
-        images,
-        deliveryStatus,
-        inputRequestId,
-        content,
-      },
-    ])
+    setEntries((current) => reduceCurrentTimeline(current, {
+      type: "user-entry",
+      entry: { id, role: "user", images, deliveryStatus, inputRequestId, content },
+    }))
   }
 
   function upsertApprovalEntry(approval: ApprovalEntry) {

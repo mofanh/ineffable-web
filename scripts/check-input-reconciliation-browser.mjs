@@ -20,17 +20,23 @@ try{
   const page=await browser.newPage({locale:"zh-CN"});const errors=[];page.on("pageerror",e=>errors.push(e.message))
   const messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
   const pending={id:321,message_id:messageId,run_id:"refresh-run",kind:"pre_input",status:"queued",content:"GUIDE_RACE"}
-  let queue=[pending],messages=[],facts=[],releasePromotion=null,queriedIds=[],holdQueue=false,releaseQueue=null,releaseSend=null,sendPayload=null
+  let queue=[pending],messages=[],facts=[],releasePromotion=null,queriedIds=[],holdQueue=false,releaseQueue=null,releaseSend=null,sendPayload=null,holdMessages=false,heldMessages=[]
   await page.route("**/gateway/**",async route=>{
     const url=new URL(route.request().url()),path=url.pathname
     if(path.endsWith("/subscribe"))return route.continue()
     let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
     if(path.endsWith("/get"))body={id:"refresh-conversation",title:"Input races",current_run_id:"refresh-run",current_run:{id:"refresh-run",status:"streaming",is_live:true,is_streaming:true,accepts_guided_input:true,execution_epoch:1}}
     if(path.endsWith("/observations/access"))body={allowed:false}
-    if(path.endsWith("/messages"))body={messages,next_seq:0,page:{has_older:false,before:null}}
+    if(path.endsWith("/messages")){
+      body={messages,next_seq:0,page:{has_older:false,before:null}}
+      if(holdMessages)await new Promise(resolve=>heldMessages.push(resolve))
+    }
     if(path.endsWith("models/profiles"))body={profiles:[{id:"model",display_name:"Model",supports_tool_calls:true,enabled:true}]}
     if(path.endsWith("/send")){
       sendPayload=route.request().postDataJSON();await new Promise(resolve=>{releaseSend=resolve});
+      if(sendPayload.input_mode!=="guided") {
+        await route.fulfill({contentType:"text/event-stream",body:`data: ${JSON.stringify({type:"event",event:{seq:40,event:"input.accepted",stream:"chat",run_id:"refresh-run",content:sendPayload.content,metadata:{conversation_id:"refresh-conversation",execution_epoch:1,input_progress:facts[0]}}})}\n\n`});return
+      }
       body={status:"guided_injected",conversation_id:"refresh-conversation",message_id:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",input_request_id:sendPayload.input_request_id,pending_id:322}
     }
     if(path.endsWith("/pending-inputs")){
@@ -84,5 +90,24 @@ try{
   await page.getByText("CANCEL_ELSEWHERE",{exact:true}).waitFor({state:"hidden"})
   assert.ok(queriedIds.some(ids=>ids?.includes(oldId)),"cached canonical IDs participate in bounded reconciliation")
   assert.equal(await page.getByText("GUIDE_RACE",{exact:true}).count(),1,"unrelated accepted input stays visible")
+  // Ordinary send: subscription accepts the input while POST's first frame is held.
+  releaseSend=null;sendPayload=null
+  await page.locator("textarea").fill("ORDINARY_LATE")
+  await page.locator("textarea").press("Enter")
+  const ordinaryDeadline=Date.now()+5000;while(!releaseSend&&Date.now()<ordinaryDeadline)await new Promise(r=>setTimeout(r,10));assert.ok(releaseSend)
+  assert.equal(sendPayload.input_mode,undefined)
+  const ordinaryId="dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+  const ordinaryProgress={...progress,message_id:ordinaryId,message_seq:5,kind:"ordinary",input_request_id:sendPayload.input_request_id}
+  facts=[ordinaryProgress]
+  messages.push({...messages[0],id:ordinaryId,timeline_unit_id:`message:${ordinaryId}`,timeline_seq:5,message_seq:5,content:"ORDINARY_LATE",metadata_json:{input_request_id:sendPayload.input_request_id,input_progress:ordinaryProgress}})
+  for(const stream of streams)stream.write(`data: ${JSON.stringify({type:"event",event:{seq:40,event:"input.accepted",stream:"chat",run_id:"refresh-run",content:"ORDINARY_LATE",metadata:{conversation_id:"refresh-conversation",execution_epoch:1,input_progress:ordinaryProgress}}})}\n\n`)
+  await page.locator(`[data-chat-row-key="message:${ordinaryId}"]`).waitFor()
+  assert.equal(await page.locator("[data-chat-row-key]").getByText("ORDINARY_LATE",{exact:true}).count(),1)
+  holdMessages=true
+  const ordinaryResponse=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/send"));releaseSend();await ordinaryResponse
+  // Wait for React to apply the envelope callback, while every history patch stays held.
+  await page.waitForTimeout(200)
+  assert.equal(await page.locator("[data-chat-row-key]").getByText("ORDINARY_LATE",{exact:true}).count(),1,"ordinary late first frame cannot append a duplicate before refresh")
+  holdMessages=false;heldMessages.forEach(resolve=>resolve())
   assert.deepEqual(errors,[]);console.log("input identity and cancellation browser checks passed")
 }finally{await browser?.close();await server.close()}

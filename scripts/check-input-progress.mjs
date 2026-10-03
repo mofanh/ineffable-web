@@ -87,3 +87,11 @@ for (const type of ["hydrate","canonical-patch","prepend-history"]) {
   assert.deepEqual(reduceConversationTimeline([],{type,entries:[user]},cancellationFence),[],`${type}: a late page cannot resurrect cancelled input`)
 }
 assert.equal(reduceConversationTimeline([],{type:"canonical-patch",entries:[{...user,inputProgress:accepted}]},cancellationFence).length,1,"confirmed acceptance wins over stale cancellation")
+
+const ordinaryCanonical={...user,inputRequestId:"ordinary-request",inputProgress:{...accepted,input_request_id:"ordinary-request"}}
+const lateOrdinary={id:"user-late",role:"user",content:user.content,inputRequestId:"ordinary-request"}
+assert.equal(reduceConversationTimeline([ordinaryCanonical],{type:"user-entry",entry:lateOrdinary}).length,1,"ordinary envelope after canonical acceptance must not append a second user")
+assert.equal(reduceConversationTimeline([ordinaryCanonical],{type:"user-entry",entry:{...lateOrdinary,inputRequestId:"another-request"}}).length,2,"ordinary equal text with a different request remains distinct")
+
+const canonicalReuse = {...ordinaryCanonical,id:"message:other-canonical",timelineUnitId:"message:other-canonical",inputProgress:{...ordinaryCanonical.inputProgress,message_id:"other-canonical"}}
+assert.equal(reduceConversationTimeline([ordinaryCanonical],{type:"canonical-patch",entries:[canonicalReuse]}).length,2,"request correlation cannot merge two real canonical messages")
