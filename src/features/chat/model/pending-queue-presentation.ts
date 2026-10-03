@@ -1,6 +1,7 @@
 /** Controlled Gateway codes only. Provider error text stays in run details. */
 export function pendingQueueReasonKey(status: string | null, code?: string | null): string {
-  if (status === "cancelled") return "chat.composer.queueStopped"
+  // Gateway reports completed as a blocker only when a later Stop paused its queue.
+  if (status === "cancelled" || status === "completed") return "chat.composer.queueStopped"
   if (status === "awaiting_human") return "chat.composer.queueAwaitingHuman"
   if (status === "streaming" || status === "suspended" || status === "resuming") return "chat.composer.queueWaiting"
   switch (code) {

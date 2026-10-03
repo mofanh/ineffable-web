@@ -2610,4 +2610,5 @@ assert.equal(pendingQueueReasonKey("failed", "context_storage_overflow"), "chat.
 assert.equal(pendingQueueReasonKey("failed", "context_protected_overflow"), "chat.composer.queueInputOverflow")
 assert.equal(pendingQueueReasonKey("failed", "context_request_overflow"), "chat.composer.queueRequestOverflow")
 assert.equal(pendingQueueReasonKey("cancelled"), "chat.composer.queueStopped")
+assert.equal(pendingQueueReasonKey("completed"), "chat.composer.queueStopped")
 assert.equal(pendingQueueReasonKey("failed", "untrusted provider content"), "chat.composer.queueBlocked")
