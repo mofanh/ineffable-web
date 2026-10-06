@@ -39,19 +39,19 @@ export function approvalNeedFromRaw(
 
   const payload = objectValue(need.payload)
   const needId = stringValue(need.need_id)
-  const approvalId = stringValue(payload?.approval_id) || needId
+  const approvalId = stringValue(payload?.approval_id)
   const executionSessionId = stringValue(payload?.execution_session_id)
   const action =
     stringValue(need.action) ||
     stringValue(payload?.action) ||
-    "run sandbox command"
+    "Approve tool operation"
 
   if (!needId && !approvalId && !executionSessionId) {
     return null
   }
 
   return {
-    id: `approval-${approvalId || needId || executionSessionId}`,
+    id: `approval-${context?.runId ?? "unbound"}:${needId || approvalId || executionSessionId}`,
     role: "approval",
     needId: needId || approvalId || executionSessionId,
     action,

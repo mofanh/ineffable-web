@@ -1,3 +1,4 @@
+import { preserveHumanInputReceipts } from "./human-input-timeline"
 import type { AssistantEntry } from "../gateway-chat-types"
 import { createEmptyAgentPane, upsertToolInPane, type ToolCallView, type AgentPaneState } from "../chat-pane-state"
 
@@ -8,6 +9,21 @@ export function transcriptSegment(metadata: Record<string, unknown> | null | und
   return value && typeof value.id === "string" && value.id.length > 0 &&
     Number.isSafeInteger(value.turn) && value.turn >= 0 &&
     Number.isSafeInteger(value.execution_epoch) && value.execution_epoch >= 0 ? value : null
+}
+
+function preserveAssistantReceipts(next: AssistantEntry, previous?: AssistantEntry): AssistantEntry {
+  if (!previous) return next
+  const pane = preserveHumanInputReceipts(next.pane, previous.pane)
+  let subagents = next.subagents
+  for (const id of next.subagentOrder) {
+    const subagent = next.subagents[id]
+    if (!subagent) continue
+    const resolved = preserveHumanInputReceipts(subagent, previous.subagents[id])
+    if (resolved === subagent) continue
+    if (subagents === next.subagents) subagents = { ...subagents }
+    subagents[id] = resolved
+  }
+  return pane === next.pane && subagents === next.subagents ? next : { ...next, pane, subagents }
 }
 
 function joinPanes(panes: AgentPaneState[]): AgentPaneState {
@@ -40,6 +56,7 @@ export function mergeAssistantSegments(
       if (segment.canonicalMessageSeqEnd != null && segment.canonicalMessageSeqEnd > (baseSegments[key]?.canonicalMessageSeqEnd ?? -1)) segments[key] = segment
     }
   }
+  for (const key of Object.keys(segments)) segments[key] = preserveAssistantReceipts(segments[key], baseSegments[key] ?? base)
   const ordered = Object.values(segments).sort((a, b) =>
     (a.segmentIdentity?.turn ?? -1) - (b.segmentIdentity?.turn ?? -1) ||
     (a.segmentIdentity?.execution_epoch ?? -1) - (b.segmentIdentity?.execution_epoch ?? -1))
@@ -74,6 +91,7 @@ function replacePaneSegment(root: AgentPaneState, previous: AgentPaneState | und
 /** Streaming mutates only one segment projection; other panes are never replayed. */
 export function updateAssistantSegment(base: AssistantEntry, key: string, fragment: AssistantEntry): AssistantEntry {
   const previous = base.segments?.[key]
+  fragment = preserveAssistantReceipts(fragment, previous ?? base)
   const segments = base.segments ?? (base.pane.blockOrder.length || base.subagentOrder.length
     ? { legacy: { ...base, segments: undefined } } : {})
   if (!previous?.pane.blockOrder.length && fragment.pane.blockOrder.length && fragment.segmentIdentity &&

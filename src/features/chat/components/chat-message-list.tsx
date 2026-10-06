@@ -111,6 +111,7 @@ type ChatMessageListProps = {
   onRejectApproval: (entryId: string) => void
   activeHumanRunId: string | null
   activeHumanNeedId?: string | null
+  activeHumanNeedKind?: string | null
   onSubmitUserInput: (response: AgentUserInputResponse) => Promise<void>
   isFullScreen: boolean
   trialVerdict?: {
@@ -239,6 +240,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onRejectApproval,
   activeHumanRunId,
   activeHumanNeedId,
+  activeHumanNeedKind,
   onSubmitUserInput,
   isFullScreen,
   trialVerdict,
@@ -377,7 +379,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             trialVerdict={trialVerdict} compactingRunId={compactingRunId} accessToken={accessToken}
             onImageReference={onImageReference} modelDisplayNames={modelDisplayNames} sandboxDisplayNames={sandboxDisplayNames}
             onOpenConversation={onOpenConversation} onInspectRun={onInspectRun} onApproveApproval={onApproveApproval}
-            onRejectApproval={onRejectApproval} activeHumanRunId={activeHumanRunId} activeHumanNeedId={activeHumanNeedId}
+            onRejectApproval={onRejectApproval} activeHumanRunId={activeHumanRunId} activeHumanNeedId={activeHumanNeedId} activeHumanNeedKind={activeHumanNeedKind}
             onSubmitUserInput={onSubmitUserInput} prefersReducedMotion={prefersReducedMotion} />}
         </ChatRowWindow>
         {showThinkingPlaceholder ? <ThinkingPlaceholder compacting={Boolean(compactingRunId)} /> : null}
@@ -407,11 +409,11 @@ const estimateEntry = (entry: ChatEntry) => entry.role === "assistant" ? 320 : 8
 const ChatMessageRow = React.memo(function ChatMessageRow({
   entry, isLast, trialVerdict, compactingRunId, accessToken, onImageReference,
   modelDisplayNames = EMPTY_DISPLAY_NAMES, sandboxDisplayNames = EMPTY_DISPLAY_NAMES, onOpenConversation, onInspectRun,
-  onApproveApproval, onRejectApproval, activeHumanRunId, activeHumanNeedId,
+  onApproveApproval, onRejectApproval, activeHumanRunId, activeHumanNeedId, activeHumanNeedKind,
   onSubmitUserInput, prefersReducedMotion,
 }: Pick<ChatMessageListProps, "trialVerdict" | "compactingRunId" | "accessToken" | "onImageReference" |
   "modelDisplayNames" | "sandboxDisplayNames" | "onOpenConversation" | "onInspectRun" |
-  "onApproveApproval" | "onRejectApproval" | "activeHumanRunId" | "activeHumanNeedId" | "onSubmitUserInput"> & {
+  "onApproveApproval" | "onRejectApproval" | "activeHumanRunId" | "activeHumanNeedId" | "activeHumanNeedKind" | "onSubmitUserInput"> & {
     entry: ChatEntry; isLast: boolean; prefersReducedMotion: boolean
   }) {
   const { t } = useTranslation()
@@ -493,6 +495,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
           }
 
           if (entry.role === "approval") {
+            const canRespond = activeHumanNeedKind === "approval" && entry.runId === activeHumanRunId && entry.needId === activeHumanNeedId
             const isBusy =
               entry.status === "approving" || entry.status === "rejecting"
             const isResolved =
@@ -533,7 +536,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                       type="button"
                       size="sm"
                       className="h-8 rounded-md bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
-                      disabled={isBusy || isResolved || !entry.approvalId}
+                      disabled={isBusy || isResolved || !canRespond}
                       onClick={() => onApproveApproval(entry.id)}
                     >
                       {entry.status === "approving" ? (
@@ -548,7 +551,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                       size="sm"
                       variant="outline"
                       className="h-8 rounded-md border-amber-300 px-3 text-xs text-amber-900 hover:bg-amber-100"
-                      disabled={isBusy || isResolved || !entry.approvalId}
+                      disabled={isBusy || isResolved || !canRespond}
                       onClick={() => onRejectApproval(entry.id)}
                     >
                       {entry.status === "rejecting" ? (
@@ -590,7 +593,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                   canRespondToUserInput={
                     Number.isSafeInteger(entry.canonicalMessageSeqEnd) && Boolean(activeHumanRunId) && entry.runId === activeHumanRunId
                   }
-                  activeHumanNeedId={activeHumanNeedId}
+                  activeHumanNeedId={activeHumanNeedKind === "user_input" ? activeHumanNeedId : null}
                   onSubmitUserInput={onSubmitUserInput}
                   subagentOrder={entry.subagentOrder}
                   subagents={entry.subagents}

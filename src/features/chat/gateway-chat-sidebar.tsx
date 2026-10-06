@@ -1,3 +1,4 @@
+import { acceptsRunLifecycleEvent } from "./runtime/conversation-run-reducer"
 import { removeImageFileReference } from "@/lib/workspace-file-reference"
 import { Link } from "react-router-dom"
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
@@ -61,6 +62,7 @@ import {
   getLiveConversationRun,
   mapConversationMessagesToEntries,
   reconcilePendingUserInput,
+  reconcilePendingApproval,
 } from "@/features/chat/model/chat-history"
 import {
   hasCanonicalAssistantHandoff,
@@ -533,15 +535,17 @@ export function GatewayChatSidebar({
   const runtimeControllerRef = React.useRef(
     new ConversationRuntimeController(runtimeStoreRef.current)
   )
-  const compactingRunId = React.useSyncExternalStore(
+  const selectedRuntime = React.useSyncExternalStore(
     React.useCallback((listener: () => void) => runtimeStoreRef.current.subscribe(listener), []),
-    () => {
-      if (!currentConversationId) return null
-      const runtime = runtimeStoreRef.current.get(currentConversationId)
-      return runtime.compacting ? runtime.runId : null
-    },
+    () => currentConversationId ? runtimeStoreRef.current.get(currentConversationId) : null,
     () => null
   )
+  const compactingRunId = selectedRuntime?.compacting ? selectedRuntime.runId : null
+  React.useEffect(() => {
+    for (const conversation of conversations) runtimeStoreRef.current.dispatch(conversation.id, {
+      type: "run-snapshot", run: conversation.current_run ?? null,
+    })
+  }, [conversations])
   const entriesRef = React.useRef<ChatEntry[]>([])
   const displayedConversationIdRef = React.useRef<string | null>(null)
   const conversationWindowCacheRef = React.useRef(new ConversationWindowCache())
@@ -1460,11 +1464,12 @@ export function GatewayChatSidebar({
     setStreamStatus(next)
   }, [])
 
-  const selectedConversation = React.useMemo(
-    () =>
-      conversations.find((conversation) => conversation.id === currentConversationId) ?? null,
-    [conversations, currentConversationId]
-  )
+  const selectedConversation = React.useMemo(() => {
+    const conversation = conversations.find(item => item.id === currentConversationId)
+    if (!conversation) return null
+    return selectedRuntime?.currentRun ? { ...conversation, current_run: selectedRuntime.currentRun,
+      current_run_id: selectedRuntime.currentRun.id } : conversation
+  }, [conversations, currentConversationId, selectedRuntime])
   React.useEffect(() => {
     if (!accessToken || selectedConversation?.last_message_at) return
     let cancelled = false
@@ -1485,12 +1490,17 @@ export function GatewayChatSidebar({
   )
   const selectedPendingUserInput = React.useMemo(
     () =>
-      userInputNeedFromRaw(selectedConversation?.current_run?.pending_need, {
+      selectedConversation?.current_run?.status === "awaiting_human" ? userInputNeedFromRaw(selectedConversation.current_run.pending_need, {
         runId: selectedConversation?.current_run?.id ?? null,
         sessionKey: null,
-      }),
+      }) : null,
     [selectedConversation]
   )
+  const selectedPendingApproval = React.useMemo(() =>
+    selectedConversation?.current_run?.status === "awaiting_human" ? approvalNeedFromRaw(selectedConversation.current_run.pending_need, {
+      runId: selectedConversation.current_run.id, sessionKey: null,
+    }) : null, [selectedConversation])
+
   const auxiliaryVisionAvailable = capabilityCatalogStatus === "ready" && canAnalyzeImageInput(capabilityCatalog, capabilityExposureSelection)
   const modelOptions = React.useMemo<ModelProfileOption[]>(
     () =>
@@ -1568,6 +1578,11 @@ export function GatewayChatSidebar({
     hydratedConversationId,
     selectedPendingUserInput,
   ])
+  React.useEffect(() => {
+    if (selectedPendingApproval && hydratedConversationId === currentConversationId) {
+      setEntries(current => reconcilePendingApproval(current, selectedPendingApproval))
+    }
+  }, [selectedPendingApproval, hydratedConversationId, currentConversationId])
   const conversationEntries = React.useMemo(
     () =>
       displayedConversationId === currentConversationId ? entries : [],
@@ -1765,6 +1780,9 @@ export function GatewayChatSidebar({
       return
     }
 
+    const view = {conversationId:currentConversationId,generation:sendViewRef.current.generation,session:sendViewRef.current.session}
+    const ownsView = () => currentConversationIdRef.current === view.conversationId &&
+      sendViewRef.current.generation === view.generation && sendViewRef.current.session === view.session
     const viewport = scrollViewportRef.current
     pendingOlderLoadMetricsRef.current = {
       scrollHeight: viewport?.scrollHeight ?? 0,
@@ -1784,6 +1802,7 @@ export function GatewayChatSidebar({
         window.clearTimeout(olderLoadResetTimerRef.current)
       }
       olderLoadResetTimerRef.current = window.setTimeout(() => {
+        if (!ownsView()) return
         pendingOlderLoadMetricsRef.current = null
         setIsLoadingOlderEntries(false)
         olderLoadResetTimerRef.current = null
@@ -1804,7 +1823,7 @@ export function GatewayChatSidebar({
     })
       .then((response) => {
         if (
-          olderMessagesInFlightCursorRef.current !== olderMessagesCursor ||
+          !ownsView() || olderMessagesInFlightCursorRef.current !== olderMessagesCursor ||
           currentConversationIdRef.current !== currentConversationId
         ) {
           return
@@ -1824,6 +1843,7 @@ export function GatewayChatSidebar({
         setError(null)
       })
       .catch((loadError) => {
+        if (!ownsView()) return
         pendingOlderLoadMetricsRef.current = null
         setOlderMessagesError(
           reportChatError(
@@ -1839,6 +1859,7 @@ export function GatewayChatSidebar({
         )
       })
       .finally(() => {
+        if (!ownsView()) return
         if (olderMessagesInFlightCursorRef.current === olderMessagesCursor) {
           olderMessagesInFlightCursorRef.current = null
         }
@@ -1968,8 +1989,11 @@ export function GatewayChatSidebar({
           // Replacing the projection also replaces its coverage. A previously
           // observed transport cursor must not skip content absent from this page.
           conversationSeqRef.current.set(conversationId, response.next_seq ?? 0)
-          runtimeStoreRef.current.dispatch(conversationId, { type: "reset" })
+          runtimeStoreRef.current.dispatch(conversationId, { type: "reset-coverage" })
         }
+        if (conversationDetail) runtimeStoreRef.current.dispatch(conversationId, {
+          type: "run-snapshot", run: conversationDetail.current_run ?? null,
+        })
         const activity = response.run_activities?.find(item => item.run_id === conversationDetail?.current_run?.id)
         if (activity && conversationDetail && getConversationRunLifecycle(conversationDetail) === "active") runtimeStoreRef.current.dispatch(conversationId, {
           type: "activity-snapshot", runId: activity.run_id, executionEpoch: activity.execution_epoch,
@@ -2280,35 +2304,7 @@ export function GatewayChatSidebar({
   }
 
   function upsertApprovalEntry(approval: ApprovalEntry) {
-    setEntries((current) => {
-      const index = current.findIndex(
-        (entry) =>
-          entry.role === "approval" &&
-          (entry.id === approval.id ||
-            entry.approvalId === approval.approvalId ||
-            entry.needId === approval.needId)
-      )
-      if (index < 0) {
-        return [...current, approval]
-      }
-
-      const existing = current[index]
-      if (existing.role !== "approval") {
-        return current
-      }
-
-      const cloned = [...current]
-      cloned[index] = {
-        ...existing,
-        ...approval,
-        status:
-          existing.status === "approved" || existing.status === "rejected"
-            ? existing.status
-            : approval.status,
-        error: existing.error ?? approval.error,
-      }
-      return cloned
-    })
+    setEntries(current => reconcilePendingApproval(current, approval))
   }
 
   function updateApprovalEntry(
@@ -2462,7 +2458,7 @@ export function GatewayChatSidebar({
     const lifecycle = getConversationRunLifecycle(conversation)
     const runId = conversation.current_run?.id ?? null
 
-    if (lifecycle === "active") {
+    if (lifecycle === "active" || (lifecycle === "suspended" && conversation.current_run?.resume_mode === "automatic")) {
       return false
     }
     if (lifecycle === "awaiting_human") {
@@ -2496,8 +2492,11 @@ export function GatewayChatSidebar({
       return true
     }
 
-    finalizeConversationTurn(conversation.id, runId, null)
-    return true
+    if (lifecycle === "completed") {
+      finalizeConversationTurn(conversation.id, runId, null)
+      return true
+    }
+    return false
   }
 
   function applyResumeResponse(
@@ -2632,12 +2631,10 @@ export function GatewayChatSidebar({
       markAwaitingHuman(response.run_id ?? null)
       return
     }
-    if (resumedRunState === "suspended") {
-      recoveryRequestIdRef.current += 1
-      recoveryInFlightRef.current = false
-      clearRecoveryTimer()
-      activeRunIdRef.current = null
-      updateStreamStatus("idle")
+    if (resumedRunState === "suspended" || !["completed", "cancelled"].includes(resumedRunState ?? "")) {
+      // A receipt does not carry all continuation controls. Observe the canonical
+      // run until it explicitly reaches a terminal state.
+      void resumeConversationStream(conversationId, response.run_id, undefined, "human-resume")
       void refreshConversations().catch(() => {})
       return
     }
@@ -2812,6 +2809,14 @@ export function GatewayChatSidebar({
       return
     }
 
+    if (event.event === "run.suspended") {
+      const runtime = runtimeStoreRef.current.get(identity.conversationId)
+      if (runtime.currentRun) settleConversationRecovery({
+        ...selectedConversation!, id: identity.conversationId, current_run: runtime.currentRun,
+      })
+      return
+    }
+
     if (
       event.event === "run.completed" ||
       event.event === "run.cancelled"
@@ -2902,11 +2907,24 @@ export function GatewayChatSidebar({
         if (response.events.length === 0 && !terminalEventSeenRef.current) {
           const conversation = await getConversation(accessToken, conversationId)
           if (!isCurrent()) return
-          if (expected.runId && conversation.current_run?.id !== expected.runId) {
+          const runtime = runtimeStoreRef.current.dispatch(conversationId, {
+            type: "run-snapshot", run: conversation.current_run ?? null,
+          })
+          if (runtime.runId !== expected.runId) {
+            runtimeControllerRef.current.disconnect(conversationId)
+            recoveryRequestIdRef.current += 1
+            recoveryInFlightRef.current = false
+            activeStreamConversationIdRef.current = null
+            activeRunIdRef.current = null
+            updateStreamStatus("idle")
             void refreshConversations().catch(() => {})
+            if (runtime.currentRun && getLiveConversationRun({ ...conversation, current_run: runtime.currentRun })) {
+              void resumeConversationStream(conversationId, runtime.runId)
+            }
             return
           }
-          settleConversationRecovery(conversation)
+          expected.executionEpoch = runtime.executionEpoch
+          settleConversationRecovery({ ...conversation, current_run: runtime.currentRun ?? conversation.current_run })
         }
       } catch (recoveryError) {
         if (isCurrent() && !terminalEventSeenRef.current) {
@@ -3026,6 +3044,7 @@ export function GatewayChatSidebar({
         return
       }
       const previousRuntime = runtimeStoreRef.current.get(identity.conversationId)
+      const acceptsLifecycle = acceptsRunLifecycleEvent(previousRuntime, envelope.event)
       const nextRuntime = runtimeStoreRef.current.applyEvent(envelope.event)
       if (!nextRuntime || nextRuntime === previousRuntime) {
         return
@@ -3036,13 +3055,14 @@ export function GatewayChatSidebar({
         runId: isConversationScopedEvent(envelope.event) ? nextRuntime.runId : identity.runId,
         afterSeq: envelope.event.seq,
       })
+      if (!acceptsLifecycle) return
       if (currentConversationIdRef.current !== identity.conversationId) {
         void refreshConversations().catch(() => {})
         return
       }
       if (!isConversationScopedEvent(envelope.event)) {
         bindTriggerUserMessage(envelope.event)
-        bindActiveAssistantRun(identity.runId)
+        if (nextRuntime.runId === identity.runId) bindActiveAssistantRun(identity.runId)
       }
     }
 
@@ -3278,11 +3298,23 @@ export function GatewayChatSidebar({
       return
     }
 
+    const runtime = runtimeStoreRef.current.get(conversationId)
+    const expected = {conversationId,runId:runtime.runId ?? activeRunIdRef.current,
+      executionEpoch:runtime.executionEpoch,generation:sendViewRef.current.generation}
+    const session = sendViewRef.current.session
+    const ownsOperation = () => {
+      const current = runtimeStoreRef.current.get(conversationId)
+      return session === sendViewRef.current.session && matchesConversationOperation(expected, {
+        conversationId:currentConversationIdRef.current,runId:current.runId ?? activeRunIdRef.current,
+        executionEpoch:current.executionEpoch,generation:sendViewRef.current.generation,
+      })
+    }
     setError(null)
 
     try {
       await stopConversationRun(accessToken, conversationId)
     } catch (stopError) {
+      if (!ownsOperation()) return
       const message = reportChatError(
         stopError,
         i18n.t("chat.gateway.stopFailed"),
@@ -3304,15 +3336,14 @@ export function GatewayChatSidebar({
       (item): item is ApprovalEntry =>
         item.role === "approval" && item.id === entryId
     )
-    if (!entry || !entry.approvalId) {
-      return
-    }
-
+    if (!entry || !entry.runId || !selectedPendingApproval ||
+        selectedPendingApproval.runId !== entry.runId || selectedPendingApproval.needId !== entry.needId) return
     const targetConversationId = currentConversationIdRef.current
     if (!targetConversationId) return
     const generation = ++humanInputSubmissionGenerationRef.current
+    const viewGeneration = sendViewRef.current.generation
     const isCurrentSubmission = () => currentConversationIdRef.current === targetConversationId &&
-      humanInputSubmissionGenerationRef.current === generation
+      humanInputSubmissionGenerationRef.current === generation && sendViewRef.current.generation === viewGeneration
 
     updateApprovalEntry(entryId, (current) => ({
       ...current,
@@ -3323,33 +3354,10 @@ export function GatewayChatSidebar({
     updateStreamStatus("streaming")
 
     try {
-      if (approved) {
-        await approveSandboxApproval(accessToken, null, {
-          approval_id: entry.approvalId,
-        })
-      } else {
-        await rejectSandboxApproval(accessToken, null, {
-          approval_id: entry.approvalId,
-        })
+      if (entry.approvalId) {
+        if (approved) await approveSandboxApproval(accessToken, null, {approval_id:entry.approvalId})
+        else await rejectSandboxApproval(accessToken, null, {approval_id:entry.approvalId})
       }
-
-      if (isCurrentSubmission()) updateApprovalEntry(entryId, (current) => ({
-        ...current,
-        status: approved ? "approved" : "rejected",
-        error: null,
-      }))
-
-      if (!entry.runId && !entry.sessionKey) {
-        if (!isCurrentSubmission()) return
-        updateStreamStatus("completed")
-        appendSystemMessage(
-          approved
-            ? i18n.t("chat.gateway.approvedNoRun")
-            : i18n.t("chat.gateway.rejected")
-        )
-        return
-      }
-
       const resumed = await resumeRunWithApproval(
         accessToken,
         null,
@@ -3360,7 +3368,13 @@ export function GatewayChatSidebar({
           approved,
         }
       )
-      if (isCurrentSubmission()) applyResumeResponse(resumed, targetConversationId)
+      if (resumed.run_id !== entry.runId || resumed.need_id !== entry.needId || resumed.conversation_id !== targetConversationId) {
+        throw new Error(i18n.t("chat.gateway.approvalFailed"))
+      }
+      if (isCurrentSubmission()) {
+        updateApprovalEntry(entryId, current => ({...current,status:approved ? "approved" : "rejected",error:null}))
+        applyResumeResponse(resumed, targetConversationId)
+      }
       else void refreshConversations().catch(() => {})
     } catch (approvalError) {
       if (!isCurrentSubmission()) return
@@ -4313,8 +4327,9 @@ export function GatewayChatSidebar({
           onStreamingContentProgress={handleStreamingContentProgress}
           onApproveApproval={handleApproveApproval}
           onRejectApproval={handleRejectApproval}
-          activeHumanRunId={selectedPendingUserInput?.runId ?? null}
-          activeHumanNeedId={selectedPendingUserInput?.needId ?? null}
+          activeHumanRunId={selectedPendingUserInput?.runId ?? selectedPendingApproval?.runId ?? null}
+          activeHumanNeedId={selectedPendingUserInput?.needId ?? selectedPendingApproval?.needId ?? null}
+          activeHumanNeedKind={selectedPendingApproval ? "approval" : selectedPendingUserInput ? "user_input" : null}
           onSubmitUserInput={handleSubmitUserInput}
           isFullScreen={isFullScreen}
           trialVerdict={

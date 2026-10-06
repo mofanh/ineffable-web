@@ -1,3 +1,4 @@
+import type { ApprovalEntry } from "../gateway-chat-types"
 import { imageReferences } from "@/lib/image-reference"
 import { mergeAssistantSegments, transcriptSegment, updateUserInputTool } from "./assistant-segments"
 import { parseInputProgress } from "./input-progress"
@@ -210,7 +211,8 @@ export function getLiveConversationRun(conversation: Conversation | null) {
     return null
   }
 
-  return conversation.current_run.is_streaming && conversation.current_run.is_live
+  return ["streaming", "queued", "running"].includes(conversation.current_run.status) ||
+    (conversation.current_run.status === "suspended" && conversation.current_run.resume_mode === "automatic")
     ? conversation.current_run
     : null
 }
@@ -277,7 +279,7 @@ function hasRenderableConversationMessageContent(
   }
 
   return Boolean(
-    getMessageReasoningContent(message).trim() ||
+    approvalNeedFromMessage(message) || getMessageReasoningContent(message).trim() ||
       (message.metadata_json &&
         typeof message.metadata_json === "object" &&
         message.metadata_json.web_view !== undefined)
@@ -652,4 +654,15 @@ function parseTaskResult(value: unknown) {
   if (typeof result.conversation_id !== "string" || typeof result.run_id !== "string" ||
     typeof result.title !== "string" || !["completed", "failed", "cancelled"].includes(String(result.outcome))) return undefined
   return { conversationId: result.conversation_id, runId: result.run_id, outcome: String(result.outcome), title: result.title }
+}
+
+export function reconcilePendingApproval(entries: ChatEntry[], approval: ApprovalEntry): ChatEntry[] {
+  const index = entries.findIndex(entry => entry.role === "approval" && entry.runId === approval.runId && entry.needId === approval.needId)
+  if (index < 0) return [...entries, approval]
+  const existing = entries[index] as ApprovalEntry
+  const merged = { ...existing, ...approval,
+    status: existing.status === "pending" ? approval.status : existing.status,
+    error: existing.error ?? approval.error }
+  if (JSON.stringify(existing) === JSON.stringify(merged)) return entries
+  return entries.map((entry, position) => position === index ? merged : entry)
 }

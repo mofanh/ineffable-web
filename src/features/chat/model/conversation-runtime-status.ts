@@ -49,7 +49,7 @@ export function getConversationRunLifecycle(
   }
 
   const status = run.status.trim().toLowerCase()
-  if (run.is_live) {
+  if (["streaming", "queued", "running"].includes(status)) {
     return "active"
   }
   if (AWAITING_HUMAN_STATUSES.has(status)) {
@@ -127,7 +127,7 @@ export function getConversationRuntimeStatus(
     return "awaiting_human"
   }
   if (lifecycle === "suspended") {
-    return "suspended"
+    return conversation.current_run?.resume_mode === "automatic" ? "running" : "suspended"
   }
   if (lifecycle === "failed") {
     return "failed"

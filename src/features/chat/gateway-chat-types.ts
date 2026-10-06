@@ -11,7 +11,7 @@ export type UserEntry = {
   inputMode?: "guided"
   inputProgress?: InputProgress
   deliveryStatus?: "sending" | "received"
-  humanInputResponse?: { runId: string; needId: string }
+  humanInputResponse?: { runId: string; needId: string; kind?: "user_input" | "approval"; approved?: boolean }
   content: string
   timelineSeq?: number | null
   timelineUnitId?: string | null

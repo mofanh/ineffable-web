@@ -1,3 +1,4 @@
+import type { ConversationRunSummary } from "@/lib/api/api-client"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { getConversationEventIdentity, isConversationScopedEvent } from "../model/conversation-event-routing.ts"
 
@@ -21,6 +22,9 @@ export type ConversationRunRuntime = {
   conversationId: string
   runId: string | null
   executionEpoch: number | null
+  currentRun: ConversationRunSummary | null
+  lifecycleSeq: number
+  runVersion: number | null
   lifecycle: RunLifecycle
   connection: StreamConnectionState
   compacting: boolean
@@ -38,6 +42,8 @@ export type RuntimeAction =
   | { type: "transport_closed" }
   | { type: "event"; event: GatewayChatStreamEvent }
   | { type: "activity-snapshot"; runId: string; executionEpoch: number; seq: number; activityVersion: number; compacting: boolean }
+  | { type: "run-snapshot"; run: ConversationRunSummary | null }
+  | { type: "reset-coverage" }
   | { type: "reset" }
 
 export function createConversationRunRuntime(
@@ -47,6 +53,9 @@ export function createConversationRunRuntime(
     conversationId,
     runId: null,
     executionEpoch: null,
+    currentRun: null,
+    lifecycleSeq: 0,
+    runVersion: null,
     lifecycle: "idle",
     connection: "idle",
     compacting: false,
@@ -88,6 +97,30 @@ function isTerminal(lifecycle: RunLifecycle) {
   )
 }
 
+function validCounter(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null
+}
+
+function lifecycleFromRun(run: ConversationRunSummary): RunLifecycle {
+  const status = run.status
+  return ["streaming", "queued", "running"].includes(status) ? "running" :
+    ["awaiting_human", "suspended", "completed", "failed", "cancelled"].includes(status) ? status as RunLifecycle : "idle"
+}
+
+// State coverage and transcript coverage are independent. A refreshed run must not
+// skip an older tool/text event which is still absent from the current timeline.
+export function acceptsRunLifecycleEvent(state: ConversationRunRuntime, event: GatewayChatStreamEvent) {
+  if (!lifecycleFromEvent(event.event)) return true
+  const identity = getConversationEventIdentity(event)
+  if (!identity || identity.conversationId !== state.conversationId || (validCounter(event.seq) ?? 0) <= state.lifecycleSeq) return false
+  if (state.runId && state.runId !== identity.runId) return event.event === "run.started"
+  const epoch = validCounter(event.metadata?.execution_epoch)
+  const version = validCounter(event.metadata?.run_version)
+  if (epoch != null && state.executionEpoch != null && epoch < state.executionEpoch) return false
+  if (version != null && state.runVersion != null && version < state.runVersion) return false
+  return !state.terminalEventSeen
+}
+
 export function reduceConversationRunRuntime(
   state: ConversationRunRuntime,
   action: RuntimeAction
@@ -95,11 +128,32 @@ export function reduceConversationRunRuntime(
   if (action.type === "reset") {
     return createConversationRunRuntime(state.conversationId)
   }
+  if (action.type === "reset-coverage") return { ...state, lastSeq: 0 }
+  if (action.type === "run-snapshot") {
+    const run = action.run
+    if (!run) return state.runId ? state : { ...state, currentRun: null }
+    const epoch = validCounter(run.execution_epoch)
+    const version = validCounter(run.version)
+    const seq = validCounter(run.lifecycle_seq) ?? 0
+    const sameRun = state.runId === run.id
+    if (state.runId && !sameRun && seq <= state.lifecycleSeq) return state
+    if (sameRun && ((epoch != null && state.executionEpoch != null && epoch < state.executionEpoch) ||
+        (version != null && state.runVersion != null && version < state.runVersion) || seq < state.lifecycleSeq)) return state
+    const lifecycle = lifecycleFromRun(run)
+    if (sameRun && state.terminalEventSeen && lifecycle !== state.lifecycle) return state
+    const epochChanged = !sameRun || (epoch != null && epoch > (state.executionEpoch ?? 0))
+    return { ...state, currentRun: run, runId: run.id, executionEpoch: epoch ?? (sameRun ? state.executionEpoch : null),
+      runVersion: version ?? (sameRun ? state.runVersion : null), lifecycleSeq: seq, lifecycle,
+      terminalEventSeen: isTerminal(lifecycle),
+      compacting: epochChanged || lifecycle !== "running" ? false : state.compacting,
+      activityVersion: epochChanged ? 0 : state.activityVersion,
+      activitySeq: sameRun ? state.activitySeq : 0 }
+  }
   if (action.type === "activity-snapshot") {
     if (!Number.isSafeInteger(action.seq) || action.seq < Math.max(state.lastSeq, state.activitySeq) ||
         !Number.isSafeInteger(action.executionEpoch) || action.executionEpoch < 0) return state
     if (state.runId && state.runId !== action.runId) {
-      // This snapshot belongs to the page's authoritative current_run. Epochs are per run.
+      if (action.seq <= state.lifecycleSeq) return state
       state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
     }
     if (action.executionEpoch < (state.executionEpoch ?? 0) || state.terminalEventSeen ||
@@ -109,6 +163,7 @@ export function reduceConversationRunRuntime(
       compacting: action.compacting, activitySeq: action.seq, activityVersion: action.activityVersion }
   }
   if (action.type === "connect") {
+    if (action.runId === state.runId && action.executionEpoch != null && state.executionEpoch != null && action.executionEpoch < state.executionEpoch) return state
     if (action.runId && action.runId !== state.runId) {
       state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
     }
@@ -122,6 +177,9 @@ export function reduceConversationRunRuntime(
         ? false : state.compacting,
       activityVersion: action.executionEpoch != null && action.executionEpoch > (state.executionEpoch ?? 0)
         ? 0 : state.activityVersion,
+      currentRun: action.executionEpoch != null && action.executionEpoch > (state.executionEpoch ?? 0) && state.currentRun
+        ? { ...state.currentRun, status: "streaming", execution_epoch: action.executionEpoch, pending_need: null, accepts_guided_input: false } : state.currentRun,
+      lifecycle: action.executionEpoch != null && action.executionEpoch > (state.executionEpoch ?? 0) ? "running" : state.lifecycle,
       connection: "connecting",
       error: null,
     }
@@ -151,32 +209,16 @@ export function reduceConversationRunRuntime(
     const seq = action.event.seq
     return typeof seq === "number" && Number.isSafeInteger(seq) && seq > state.lastSeq ? { ...state, lastSeq: seq } : state
   }
-  if (state.runId && state.runId !== identity.runId) {
-    if (action.event.event !== "run.started" || !state.terminalEventSeen) {
-      return state
-    }
-    state = {
-      ...createConversationRunRuntime(state.conversationId),
-      lastSeq: state.lastSeq,
-      connection: state.connection,
-    }
-  }
-
-  const rawEpoch = action.event.metadata?.execution_epoch
-  const epoch = typeof rawEpoch === "number" && Number.isSafeInteger(rawEpoch) ? rawEpoch : null
-  if (epoch != null && state.executionEpoch != null && epoch < state.executionEpoch) return state
-  const seq = action.event.seq
-  if (
-    typeof seq !== "number" ||
-    !Number.isFinite(seq) ||
-    seq <= state.lastSeq
-  ) {
-    return state
-  }
+  const seq = validCounter(action.event.seq)
+  if (seq == null || seq <= state.lastSeq) return state
   const lifecycle = lifecycleFromEvent(action.event.event)
-  if (state.terminalEventSeen && lifecycle) {
-    return state
+  if (lifecycle && !acceptsRunLifecycleEvent(state, action.event)) return { ...state, lastSeq: seq }
+  if (state.runId && state.runId !== identity.runId) {
+    if (!lifecycle) return { ...state, lastSeq: seq }
+    state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq, connection: state.connection }
   }
+  const epoch = validCounter(action.event.metadata?.execution_epoch)
+  if (!lifecycle && epoch != null && state.executionEpoch != null && epoch < state.executionEpoch) return { ...state, lastSeq: seq }
   const nextLifecycle = lifecycle ?? state.lifecycle
   const terminal = isTerminal(nextLifecycle)
   const activityKind = action.event.event
@@ -196,8 +238,25 @@ export function reduceConversationRunRuntime(
     }
   }
 
+  const metadata = action.event.metadata
+  const currentRun = lifecycle ? {
+    ...(state.currentRun ?? { id: identity.runId, is_live: false, is_streaming: false, accepts_guided_input: false }),
+    status: nextLifecycle === "running" ? "streaming" : nextLifecycle,
+    execution_epoch: epoch ?? state.executionEpoch ?? undefined,
+    version: validCounter(metadata?.run_version) ?? state.runVersion ?? undefined,
+    lifecycle_seq: seq,
+    is_streaming: nextLifecycle === "running",
+    is_live: nextLifecycle === "running" ? state.currentRun?.is_live ?? false : false,
+    accepts_guided_input: nextLifecycle === "running" ? state.currentRun?.accepts_guided_input ?? false : false,
+    pending_need: nextLifecycle === "awaiting_human" && metadata?.pending_need && typeof metadata.pending_need === "object"
+      ? metadata.pending_need as Record<string, unknown> : null,
+    resume_mode: nextLifecycle === "suspended" && metadata?.resume_mode === "automatic" ? "automatic" as const : "none" as const,
+  } : state.currentRun
   return {
     ...state,
+    currentRun,
+    lifecycleSeq: lifecycle ? seq : state.lifecycleSeq,
+    runVersion: lifecycle ? validCounter(metadata?.run_version) ?? state.runVersion : state.runVersion,
     runId: identity.runId,
     executionEpoch: epoch ?? state.executionEpoch,
     lifecycle: nextLifecycle,

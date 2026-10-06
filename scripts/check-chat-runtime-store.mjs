@@ -69,7 +69,8 @@ const ignoredSecondTerminal = reduceConversationRunRuntime(completed, {
   type: "event",
   event: event("conversation-a", "run-a", 3, "run.failed", "late failure"),
 })
-assert.equal(ignoredSecondTerminal, completed)
+assert.deepEqual({ ...ignoredSecondTerminal, lastSeq: completed.lastSeq }, completed)
+assert.equal(ignoredSecondTerminal.lastSeq, 3, "ignored lifecycle remains covered in ordered replay")
 
 const store = new ChatRuntimeStore()
 store.applyEvent(event("conversation-a", "run-a", 1, "run.started"))
@@ -162,13 +163,13 @@ reduceActivity({type:"activity-snapshot",runId:"run-c",executionEpoch:2,seq:10,a
 assert.equal(activity.compacting, false, "late page cannot restore completed activity")
 reduceActivity({type:"event",event:compactEvent(12,"agent.compaction.started")})
 assert.equal(activity.compacting,true)
-reduceActivity({type:"event",event:compactEvent(100,"agent.compaction.completed",1)})
+reduceActivity({type:"event",event:compactEvent(13,"agent.compaction.completed",1)})
 assert.equal(activity.compacting,true,"stale epoch cannot end current compaction")
 reduceActivity({type:"event",event:{...compactEvent(13,"agent.compaction.started"),metadata:{conversation_id:"other",conversation_run_id:"run-c"}}})
-assert.equal(activity.lastSeq,12,"other conversation is ignored")
-reduceActivity({type:"event",event:compactEvent(13,"run.cancelled")})
+assert.equal(activity.lastSeq,13,"other conversation is ignored")
+reduceActivity({type:"event",event:compactEvent(14,"run.cancelled")})
 assert.equal(activity.compacting,false,"stop clears activity")
-reduceActivity({type:"event",event:compactEvent(14,"agent.compaction.started")})
+reduceActivity({type:"event",event:compactEvent(15,"agent.compaction.started")})
 assert.equal(activity.compacting,false,"late process signal cannot reopen terminal activity")
 for (const ending of ["agent.compaction.failed", "run.awaiting_human", "run.suspended", "run.failed", "run.completed"]) {
  activity=createConversationRunRuntime("compact")
@@ -222,3 +223,40 @@ for (const kind of ["conversation.task_result"]) {
   assert.equal(updated.lastSeq, 6)
   assert.equal(reduceConversationRunRuntime(updated, {type:"event",event:notification}), updated)
 }
+
+// HTTP, restored history and SSE converge without sharing their coverage cursor.
+const snapshot = (status, version, epoch, seq, extra = {}) => ({
+  id: "run-state", status, version, execution_epoch: epoch, lifecycle_seq: seq,
+  is_streaming: status === "streaming", is_live: false, accepts_guided_input: false, ...extra,
+})
+let canonical = createConversationRunRuntime("state")
+canonical = reduceConversationRunRuntime(canonical, {type:"run-snapshot",run:snapshot("awaiting_human",3,1,30,{pending_need:{kind:"approval",need_id:"need"}})})
+assert.equal(canonical.lastSeq,0)
+const staleStart = {...event("state","run-state",10,"run.started"),metadata:{conversation_id:"state",conversation_run_id:"run-state",execution_epoch:1,run_version:1}}
+const { acceptsRunLifecycleEvent } = await import("../src/features/chat/runtime/conversation-run-reducer.ts")
+assert.equal(acceptsRunLifecycleEvent(canonical,staleStart),false)
+canonical = reduceConversationRunRuntime(canonical,{type:"event",event:staleStart})
+assert.equal(canonical.lifecycle,"awaiting_human")
+assert.equal(canonical.currentRun.pending_need.need_id,"need")
+assert.equal(canonical.lastSeq,10)
+canonical = reduceConversationRunRuntime(canonical,{type:"event",event:{...staleStart,seq:11,event:"tool.completed"}})
+assert.equal(canonical.lastSeq,11,"history tool events remain available for timeline projection")
+assert.equal(reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:snapshot("streaming",2,1,20)}),canonical)
+canonical = reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:snapshot("streaming",4,2,30)})
+assert.equal(canonical.lifecycle,"running","expired lease still represents unfinished streaming")
+assert.equal(canonical.executionEpoch,2)
+canonical = reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:snapshot("suspended",5,2,40,{resume_mode:"automatic",pending_segments:[{segment_seq:2,attempt:0,status:"pending"}]})})
+assert.equal(canonical.lifecycle,"suspended")
+assert.equal(canonical.currentRun.resume_mode,"automatic")
+assert.equal(canonical.terminalEventSeen,false)
+canonical = reduceConversationRunRuntime(canonical,{type:"reset-coverage"})
+assert.equal(canonical.lifecycle,"suspended","rebuilding transcript coverage preserves product controls")
+canonical = reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:snapshot("completed",6,3,50)})
+const terminalSnapshot = canonical
+assert.equal(reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:snapshot("streaming",6,3,50)}),terminalSnapshot)
+canonical = reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:{...snapshot("streaming",1,1,51),id:"successor"}})
+assert.equal(canonical.runId,"successor")
+assert.equal(reduceConversationRunRuntime(canonical,{type:"run-snapshot",run:snapshot("completed",6,3,50)}),canonical,"stale predecessor snapshot cannot displace successor")
+const stableStore = new ChatRuntimeStore()
+assert.equal(stableStore.get("new"),stableStore.get("new"),"external-store snapshot must have stable object identity")
+console.log("canonical run snapshot and lifecycle fences passed")

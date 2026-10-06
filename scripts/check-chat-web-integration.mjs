@@ -1240,7 +1240,8 @@ const beforeStaleEpoch = epochRuntime
 epochRuntime = reduceConversationRunRuntime(epochRuntime, { type: "event", event: event(999, "run.awaiting_human", null, {
   execution_epoch: 1, pending_need: userInputNeed,
 }) })
-assert.strictEqual(epochRuntime, beforeStaleEpoch, "a previous epoch cannot re-open its question after resume acceptance")
+assert.deepEqual({ ...epochRuntime, lastSeq: beforeStaleEpoch.lastSeq }, beforeStaleEpoch, "a previous epoch cannot re-open its question after resume acceptance")
+assert.equal(epochRuntime.lastSeq, 999, "stale lifecycle still participates in ordered replay coverage")
 
 let answeredCard
 await act(async () => {

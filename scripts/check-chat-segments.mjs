@@ -115,3 +115,25 @@ assert.equal(body(imageOnly),"")
 const withTool=mapConversationMessagesToEntries([record(0,"tool_call","",3,{images:[image],tool_calls:[{id:"inspect",name:"read_file",input:{}}]}),record(0,"tool_result","result",4,{tool_call_id:"inspect",tool_name:"read_file"})])[0]
 assert.deepEqual(paneImages(withTool),[image],"image accompanying assistant tool calls belongs to assistant output")
 assert.ok(Object.values(withTool.pane.tools).every(tool=>!tool.images?.length),"assistant image is not copied into tool cards")
+
+// Durable answers resolve the root, every segment, child pane and a partial canonical draft.
+const { reconcileHumanInputAnswers } = await import("../src/features/chat/model/human-input-timeline.ts")
+const { mergeAssistantSegments, updateAssistantSegment } = await import("../src/features/chat/model/assistant-segments.ts")
+const questionKey=`${segment(301).id}:tool:reused`
+const withDraft={...withNeed,segments:{...withNeed.segments,[segment(301).id]:{...withNeed.segments[segment(301).id],canonicalDraft:withNeed.segments[segment(301).id]}}}
+const answered=reconcileHumanInputAnswers([withDraft,{id:"durable-answer",role:"user",content:"go",timelineSeq:900,humanInputResponse:{runId:"run",needId:"reused"}}])[0]
+for (const pane of [answered.pane,answered.segments[segment(301).id].pane,answered.segments[segment(301).id].canonicalDraft.pane]) {
+ assert.equal(pane.tools[questionKey].status,"succeeded")
+ assert.equal(pane.tools[questionKey].responseMessageId,"durable-answer")
+}
+assert.equal(answered.pane.tools[`${segment(300).id}:tool:reused`].responseMessageId,undefined,"an earlier tool reusing the protocol ID does not own the answer")
+const lateFragment={...withNeed.segments[segment(301).id],canonicalMessageSeqEnd:999}
+for (const entry of [updateAssistantSegment(answered,segment(301).id,lateFragment),mergeAssistantSegments(answered,{...withNeed,segments:{[segment(301).id]:lateFragment}})]) {
+ assert.equal(entry.pane.tools[questionKey].status,"succeeded")
+ assert.equal(entry.segments[segment(301).id].pane.tools[questionKey].responseMessageId,"durable-answer")
+}
+const approvalEntries=reconcileHumanInputAnswers([
+ {id:"approval-run:A",role:"approval",needId:"A",runId:"run",action:"write",status:"pending"},
+ {id:"approval-receipt",role:"user",content:"Approved",timelineSeq:1000,humanInputResponse:{runId:"run",needId:"A",kind:"approval",approved:true}},
+])
+assert.equal(approvalEntries[0].status,"approved","a canonical decision owns historical approval status")

@@ -15,10 +15,12 @@ export class ChatRuntimeStore {
   private readonly listeners = new Set<RuntimeListener>()
 
   get(conversationId: string) {
-    return (
-      this.states.get(conversationId) ??
-      createConversationRunRuntime(conversationId)
-    )
+    let state = this.states.get(conversationId)
+    if (!state) {
+      state = createConversationRunRuntime(conversationId)
+      this.states.set(conversationId, state)
+    }
+    return state
   }
 
   dispatch(conversationId: string, action: RuntimeAction) {

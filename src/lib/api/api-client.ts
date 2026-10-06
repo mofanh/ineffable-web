@@ -264,6 +264,11 @@ export type AutomationRun = {
 export type ConversationRunSummary = {
   id: string
   status: string
+  version?: number
+  execution_epoch?: number
+  lifecycle_seq?: number
+  resume_mode?: "automatic" | "none"
+  pending_segments?: { segment_seq: number; attempt: number; status: string }[]
   started_at?: string | null
   completed_at?: string | null
   is_streaming: boolean
