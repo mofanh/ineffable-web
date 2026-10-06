@@ -77,7 +77,7 @@ try {
   assert.equal(await page.getByRole("button",{name:"批准",exact:true}).isDisabled(),true,"historical approval is read-only")
   // Unfinished streaming with no live lease and automatic suspended work both stay observable/stoppable.
   for(const kind of ["non-live","automatic"]) {
-    mode=kind;status=kind === "automatic" ? "suspended" : "streaming";version=3;seq=30;epoch=1
+    mode=kind;status=kind === "awaiting-human" ? "awaiting_human" : ["automatic","manual-suspended"].includes(kind) ? "suspended" : "streaming";version=3;seq=30;epoch=1
     await page.goto(url);await page.getByText("STATE_FIXTURE",{exact:true}).waitFor()
     await page.getByRole("button",{name:"停止",exact:true}).waitFor()
     assert.equal(await page.getByText("已完成",{exact:true}).count(),0)
@@ -134,14 +134,23 @@ try {
   await page.keyboard.press("Escape")
   // With a new draft selected, unfinished background work stays polled even
   // without a live lease. Its actual completion produces one unread badge.
-  for(const kind of ["non-live","automatic"]) {
-    mode=kind;status=kind === "automatic" ? "suspended" : "streaming";version=3;seq=30
+  for(const kind of ["non-live","automatic","awaiting-human","manual-suspended"]) {
+    console.log("Checking draft background",kind)
+    mode=kind;status=kind === "awaiting-human" ? "awaiting_human" : ["automatic","manual-suspended"].includes(kind) ? "suspended" : "streaming";version=3;seq=30
     await page.goto(url);await page.getByText("STATE_FIXTURE",{exact:true}).waitFor()
     await page.evaluate(()=>window.dispatchEvent(new CustomEvent("fixture:poll-list")))
     await publish([conversation("refresh-conversation")]);await select(null)
     const before=await page.evaluate(()=>window.fixtureRefreshCount)
     await page.waitForFunction(before=>window.fixtureRefreshCount>=before+2,before,{timeout:12000})
-    status="completed";version=6;seq=60
+    if(kind === "awaiting-human") {
+      status="streaming";version=4;epoch++;seq=45
+      await page.waitForTimeout(5500)
+      await page.getByRole("button",{name:"新对话",exact:true}).first().click()
+      menuRow=page.getByRole("button").filter({hasText:"Refresh test"}).last()
+      assert.equal(await menuRow.getByText("运行中",{exact:true}).count(),1,"another client's answer is observed from a draft")
+      await page.keyboard.press("Escape")
+    }
+    status=kind === "manual-suspended" ? "cancelled" : "completed";version=6;seq=60
     await page.waitForTimeout(5500)
     await page.getByRole("button",{name:"新对话",exact:true}).first().click()
     menuRow=page.getByRole("button").filter({hasText:"Refresh test"}).last()

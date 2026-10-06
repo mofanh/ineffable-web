@@ -1419,7 +1419,7 @@ export function GatewayChatSidebar({
   }, [currentConversationId])
 
   const hasUnfinishedConversation = projectedConversations.some(
-    (conversation) => Boolean(getLiveConversationRun(conversation))
+    (conversation) => ["active", "awaiting_human", "suspended"].includes(getConversationRunLifecycle(conversation))
   )
   const isPageActive = usePageActive()
 
