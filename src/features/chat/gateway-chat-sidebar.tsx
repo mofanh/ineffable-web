@@ -540,6 +540,15 @@ export function GatewayChatSidebar({
     () => currentConversationId ? runtimeStoreRef.current.get(currentConversationId) : null,
     () => null
   )
+  const runProjection = React.useSyncExternalStore(
+    React.useCallback((listener: () => void) => runtimeStoreRef.current.subscribe(listener), []),
+    () => runtimeStoreRef.current.getRunProjection(),
+    () => runtimeStoreRef.current.getRunProjection()
+  )
+  const projectedConversations = React.useMemo(() => conversations.map(conversation => {
+    const run = runProjection.getRun(conversation.id)
+    return run ? { ...conversation, current_run: run, current_run_id: run.id } : conversation
+  }), [conversations, runProjection])
   const compactingRunId = selectedRuntime?.compacting ? selectedRuntime.runId : null
   React.useEffect(() => {
     for (const conversation of conversations) runtimeStoreRef.current.dispatch(conversation.id, {
@@ -1381,7 +1390,7 @@ export function GatewayChatSidebar({
     if (previous) {
       const newlyTerminal = findNewlyTerminalConversationIds(
         previous,
-        conversations,
+        projectedConversations,
         currentConversationIdRef.current
       )
       if (newlyTerminal.length > 0) {
@@ -1392,8 +1401,8 @@ export function GatewayChatSidebar({
         })
       }
     }
-    previousRunObservationsRef.current = observeConversationRuns(conversations)
-  }, [conversations])
+    previousRunObservationsRef.current = observeConversationRuns(projectedConversations)
+  }, [projectedConversations])
 
   React.useEffect(() => {
     if (!currentConversationId) {
@@ -1409,8 +1418,8 @@ export function GatewayChatSidebar({
     })
   }, [currentConversationId])
 
-  const hasLiveConversation = conversations.some(
-    (conversation) => conversation.current_run?.is_live
+  const hasUnfinishedConversation = projectedConversations.some(
+    (conversation) => Boolean(getLiveConversationRun(conversation))
   )
   const isPageActive = usePageActive()
 
@@ -1425,7 +1434,7 @@ export function GatewayChatSidebar({
     if (
       !accessToken ||
       !isPageActive ||
-      (!hasLiveConversation && !isSubmittingInput && !currentConversationId)
+      (!hasUnfinishedConversation && !isSubmittingInput && !currentConversationId)
     ) {
       return
     }
@@ -1453,7 +1462,7 @@ export function GatewayChatSidebar({
   }, [
     accessToken,
     currentConversationId,
-    hasLiveConversation,
+    hasUnfinishedConversation,
     isSubmittingInput,
     isPageActive,
     refreshConversations,
@@ -1465,11 +1474,8 @@ export function GatewayChatSidebar({
   }, [])
 
   const selectedConversation = React.useMemo(() => {
-    const conversation = conversations.find(item => item.id === currentConversationId)
-    if (!conversation) return null
-    return selectedRuntime?.currentRun ? { ...conversation, current_run: selectedRuntime.currentRun,
-      current_run_id: selectedRuntime.currentRun.id } : conversation
-  }, [conversations, currentConversationId, selectedRuntime])
+    return projectedConversations.find(item => item.id === currentConversationId) ?? null
+  }, [projectedConversations, currentConversationId])
   React.useEffect(() => {
     if (!accessToken || selectedConversation?.last_message_at) return
     let cancelled = false
@@ -1547,7 +1553,7 @@ export function GatewayChatSidebar({
     selectedConversation?.title || i18n.t("chat.header.newChat")
   const headerConversations = React.useMemo(
     () =>
-      conversations.map((conversation) => ({
+      projectedConversations.map((conversation) => ({
         id: conversation.id,
         title: conversation.title || i18n.t("chat.gateway.unnamed"),
         updatedAt: conversation.updated_at ?? conversation.last_message_at ?? null,
@@ -1556,7 +1562,7 @@ export function GatewayChatSidebar({
           unreadConversationIds.has(conversation.id)
         ),
       })),
-    [conversations, unreadConversationIds]
+    [projectedConversations, unreadConversationIds]
   )
   const handleRefreshConversationList = React.useCallback(() => {
     void refreshConversations()
