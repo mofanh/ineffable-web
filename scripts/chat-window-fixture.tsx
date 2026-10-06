@@ -60,6 +60,7 @@ function Fixture() {
       scrollViewportRef={viewport} onViewportScroll={noop} onLoadOlderConversationMessagesPage={noop}
       onScrollToBottomClick={noop} onStreamingContentProgress={noop} onApproveApproval={noop} onRejectApproval={noop}
       activeHumanRunId={human ? "human-run" : null} activeHumanNeedId={human ? "need" : null}
+      activeHumanNeedKind={human ? "user_input" : null}
       onSubmitUserInput={async (response) => { submitted.current = response }} isFullScreen />
   </div>
 }
