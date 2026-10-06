@@ -11,7 +11,7 @@ let mode = "approval", version = 3, epoch = 1, seq = 30, status = "awaiting_huma
 let heldStop, heldOlder, stopStarted, olderStarted
 let needId = "formal-need"
 const calls = []
-const need = () => ({ kind: "approval", need_id: needId, payload: { action: "FORMAL_BATCH", ...(mode === "sandbox" ? {approval_id:"sandbox-id"} : {}) } })
+const need = () => ({ kind: "approval", need_id: needId, payload: { action: "FORMAL_BATCH", operations: [{call_id:"reused"}], ...(mode === "sandbox" ? {approval_id:"sandbox-id"} : {}) } })
 const conversation = id => ({id, title:"Refresh test",current_run_id:"refresh-run",current_run:{id:"refresh-run",status,version,execution_epoch:epoch,lifecycle_seq:seq,
   is_live:false,is_streaming:status === "streaming",accepts_guided_input:false,resume_mode:mode === "automatic" ? "automatic" : "none",
   pending_segments:mode === "automatic" ? [{segment_seq:2,attempt:0,status:"pending"}] : [],pending_need:status === "awaiting_human" ? need() : null}})
