@@ -812,7 +812,7 @@ export const resources = {
           unavailable: "规则文件不可用，请检查访问权限或重新选择。",
           fileHint: "选择不超过 8 KiB 的 Markdown 或纯文本文件。详细记忆放在普通笔记中。",
           search: "搜索规则文件…",
-          template: "长期记忆保存在 Workspace {{workspace}} 的 system/memory/，用 workspace 工具按主题维护 Markdown。\n无需用户提醒：涉及偏好、既往约定或未完事项时主动查相关笔记；需要原文证据时检索会话。\n执行中主动保存明确、长期有用的事实、偏好、决定和已验证经验，注明时间与可核验来源；不把推测写成事实。\n新约定替代旧约定或事项完成时，先读当前版本再更新原记录；版本冲突后重读并合并。\n笔记按需创建，使用时合并重复内容或拆分过长主题；维护在当前任务中完成。\n文件操作成功后才确认已保存或删除；删除时说明实际范围，工具用法按需查看 help。\n",
+          template: "长期记忆保存在 Workspace {{workspace}} 的 system/memory/，用 workspace 工具按主题维护 Markdown。\n无需用户提醒：涉及偏好、既往约定或未完事项时主动查相关笔记；需要原文证据时检索会话。\n执行中主动保存明确、长期有用的事实、偏好、决定和已验证经验，注明时间与可定位的会话/run或原始资料来源；不把推测写成事实。\n新约定替代旧约定或事项完成时，先读当前版本再更新原记录；版本冲突后重读并合并。\n笔记按需创建，使用时合并重复内容或拆分过长主题；维护在当前任务中完成。\n文件操作成功后才确认已保存或删除；删除时说明实际范围，工具用法按需查看 help。\n",
         },
         header: {
           older: "更早",
@@ -2738,7 +2738,7 @@ export const resources = {
           unavailable: "The rule file is unavailable. Check access or choose another file.",
           fileHint: "Choose a Markdown or plain text file up to 8 KiB. Keep detailed memories in ordinary notes.",
           search: "Search rule files…",
-          template: "Maintain topic-based Markdown under system/memory/ in Workspace {{workspace}}, using workspace tools.\nAct without reminders: consult relevant notes for preferences, prior agreements or unfinished work; search conversations for original evidence.\nDuring the task, save explicit durable facts, preferences, decisions and verified lessons with dates and verifiable sources; never promote guesses to facts.\nWhen an agreement changes or work is completed, read the current version and update the existing record; reread and merge after a version conflict.\nCreate notes as needed; merge duplicates or split long topics as you use them. Maintain notes within the current task.\nConfirm saves or deletions only after file operations succeed; describe the actual deletion scope and consult tool help as needed.\n",
+          template: "Maintain topic-based Markdown under system/memory/ in Workspace {{workspace}}, using workspace tools.\nAct without reminders: consult relevant notes for preferences, prior agreements or unfinished work; search conversations for original evidence.\nDuring the task, save explicit durable facts, preferences, decisions and verified lessons with dates and locatable conversation/run IDs or original sources; never promote guesses to facts.\nWhen an agreement changes or work is completed, read the current version and update the existing record; reread and merge after a version conflict.\nCreate notes as needed; merge duplicates or split long topics as you use them. Maintain notes within the current task.\nConfirm saves or deletions only after file operations succeed; describe the actual deletion scope and consult tool help as needed.\n",
         },
         header: {
           older: "Earlier",
