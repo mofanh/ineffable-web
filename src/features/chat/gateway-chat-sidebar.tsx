@@ -491,6 +491,11 @@ export function GatewayChatSidebar({
   const capabilityExposureSelectionRef = React.useRef(
     capabilityExposureSelection
   )
+  // Only a server response can advance this baseline; optimistic drafts cannot.
+  const capabilityExposureConfirmedRef = React.useRef<CapabilityExposureSelection | null>(null)
+  const capabilityExposureSaveRevisionRef = React.useRef(0)
+  const capabilityExposureConfirmedRevisionRef = React.useRef(0)
+  const capabilityExposurePendingSavesRef = React.useRef(new Map<number, number>())
   const capabilityExposurePolicyRef = React.useRef(capabilityExposurePolicy)
   const capabilityExposureSaveChainRef = React.useRef<Promise<void>>(
     Promise.resolve()
@@ -1165,6 +1170,7 @@ export function GatewayChatSidebar({
     }
     if (!accessToken) {
       capabilityExposureDraftDirtyRef.current = false
+      capabilityExposureConfirmedRef.current = null
       capabilityExposureSelectionRef.current = null
       capabilityExposurePolicyRef.current = null
       setCapabilityExposureSelection(null)
@@ -1182,6 +1188,8 @@ export function GatewayChatSidebar({
         ) {
           return
         }
+        capabilityExposureConfirmedRef.current = draft.selection
+        capabilityExposureConfirmedRevisionRef.current = capabilityExposureSaveRevisionRef.current
         const policy = draft.capability_exposure_policy.policy
         const selection = reconcileCapabilityExposureDraftPolicy(
           capabilityExposureSelectionRef.current,
@@ -1909,6 +1917,7 @@ export function GatewayChatSidebar({
   const [latestPageLoader] = React.useState(() => new ConversationPageLoader<[
     Awaited<ReturnType<typeof getConversationMessages>>,
     Awaited<ReturnType<typeof getConversation>> | null,
+    { revision: number; viewGeneration: number; savesPending: boolean },
   ]>())
 
   const syncLatestConversationMessagesPage = React.useCallback(
@@ -1936,14 +1945,24 @@ export function GatewayChatSidebar({
       }
 
       try {
-        const [response, conversationDetail] = await latestPageLoader.load(
+        const [response, conversationDetail, exposureSnapshot] = await latestPageLoader.load(
           JSON.stringify([accessToken, conversationId]),
-          () => Promise.all([
-            getConversationMessages(accessToken, conversationId, {
-              limit: CONVERSATION_MESSAGES_PAGE_LIMIT,
-            }),
-            getConversation(accessToken, conversationId).catch(() => null),
-          ]),
+          async () => {
+            // Tag the actual shared read, including delayed freshness barriers.
+            // A caller joining an older flight must inherit that flight's fence.
+            const exposureSnapshot = {
+              revision: capabilityExposureSaveRevisionRef.current,
+              viewGeneration: sendViewRef.current.generation,
+              savesPending: Boolean(capabilityExposurePendingSavesRef.current.get(sendViewRef.current.generation)),
+            }
+            const [messages, detail] = await Promise.all([
+              getConversationMessages(accessToken, conversationId, {
+                limit: CONVERSATION_MESSAGES_PAGE_LIMIT,
+              }),
+              getConversation(accessToken, conversationId).catch(() => null),
+            ])
+            return [messages, detail, exposureSnapshot]
+          },
           Boolean(handoff) || freshness === "fresh"
         )
         const latestEntries = mapConversationMessagesToEntries(response.messages).map((entry) =>
@@ -1967,11 +1986,19 @@ export function GatewayChatSidebar({
         }
         const hydratedCapabilityExposure =
           conversationDetail?.capability_exposure_selection ?? null
-        capabilityExposureSelectionRef.current = hydratedCapabilityExposure
-        setCapabilityExposureSelection(hydratedCapabilityExposure)
-        setCapabilityExposurePolicy(
-          conversationDetail?.capability_exposure_policy?.policy ?? null
-        )
+        // A history refresh must not replace a newer optimistic draft.
+        if (conversationDetail && !exposureSnapshot.savesPending &&
+          sendViewRef.current.generation === exposureSnapshot.viewGeneration &&
+          capabilityExposureSaveRevisionRef.current === exposureSnapshot.revision &&
+          !capabilityExposurePendingSavesRef.current.get(exposureSnapshot.viewGeneration)) {
+          capabilityExposureConfirmedRef.current = hydratedCapabilityExposure
+          capabilityExposureConfirmedRevisionRef.current = exposureSnapshot.revision
+          capabilityExposureSelectionRef.current = hydratedCapabilityExposure
+          setCapabilityExposureSelection(hydratedCapabilityExposure)
+        }
+        if (conversationDetail) {
+          setCapabilityExposurePolicy(conversationDetail.capability_exposure_policy?.policy ?? null)
+        }
         if (latestRuntimeSelection) {
           const storage = typeof window !== "undefined" ? window.localStorage : null
           const reconciliation = {
@@ -2093,6 +2120,7 @@ export function GatewayChatSidebar({
     applyConversationWindow(currentConversationId, cachedWindow)
     hydratedConversationIdRef.current = null
     if (currentConversationId) {
+      capabilityExposureConfirmedRef.current = null
       capabilityExposureSelectionRef.current = null
       capabilityExposurePolicyRef.current = null
       setCapabilityExposureSelection(null)
@@ -3282,6 +3310,7 @@ export function GatewayChatSidebar({
   function startNewChat() {
     if (currentConversationIdRef.current === null) imageDraft.detach()
     capabilityExposureDraftDirtyRef.current = false
+    capabilityExposureConfirmedRef.current = null
     capabilityExposureSelectionRef.current = null
     capabilityExposurePolicyRef.current = null
     setCapabilityExposureSelection(null)
@@ -3505,6 +3534,7 @@ export function GatewayChatSidebar({
       : { environment_id: undefined }
     const submissionConversationId =
       currentConversationIdRef.current ?? currentConversationId
+    const submissionCapabilityRevision = capabilityExposureSaveRevisionRef.current
     const submissionCapabilityExposure = capabilityExposureForSubmission(
       capabilityExposureSelectionRef.current,
       submissionConversationId,
@@ -3712,6 +3742,21 @@ export function GatewayChatSidebar({
       }
       onAccepted?.(targetConversationId, isCurrentSubmission())
       if (!isCurrentSubmission()) return
+      // Ordinary send persists this selection before acknowledging admission.
+      // A newly created conversation skips initial history hydration; its ACK
+      // must still establish a rollback baseline for later preference saves.
+      if (submissionCapabilityExposure &&
+        capabilityExposureConfirmedRevisionRef.current <= submissionCapabilityRevision) {
+        const previousConfirmed = capabilityExposureConfirmedRef.current
+        capabilityExposureConfirmedRef.current = submissionCapabilityExposure
+        capabilityExposureConfirmedRevisionRef.current = submissionCapabilityRevision
+        if (capabilityExposureSaveRevisionRef.current === submissionCapabilityRevision ||
+          (!capabilityExposurePendingSavesRef.current.get(submissionViewGeneration) &&
+            capabilityExposureSelectionRef.current === previousConfirmed)) {
+          capabilityExposureSelectionRef.current = submissionCapabilityExposure
+          setCapabilityExposureSelection(submissionCapabilityExposure)
+        }
+      }
       setIsSubmittingInput(false)
       reconcileAgentIterationHandoff(
         targetConversationId,
@@ -3953,7 +3998,11 @@ export function GatewayChatSidebar({
   function handleCapabilityExposureChange(
     selection: CapabilityExposureSelection
   ) {
-    const previous = capabilityExposureSelectionRef.current
+    const revision = ++capabilityExposureSaveRevisionRef.current
+    const view = { ...sendViewRef.current }
+    const ownsView = () => sendViewRef.current.session === view.session &&
+      sendViewRef.current.generation === view.generation &&
+      currentConversationIdRef.current === conversationId
     capabilityExposureSelectionRef.current = selection
     setCapabilityExposureSelection(selection)
     const conversationId = currentConversationIdRef.current
@@ -3962,28 +4011,41 @@ export function GatewayChatSidebar({
     }
     if (!accessToken || !conversationId) return
 
+    const pendingSaves = capabilityExposurePendingSavesRef.current
+    pendingSaves.set(view.generation, (pendingSaves.get(view.generation) ?? 0) + 1)
     capabilityExposureSaveChainRef.current = capabilityExposureSaveChainRef.current
       .catch(() => undefined)
       .then(async () => {
         try {
-          await setConversationCapabilityExposure(
+          const saved = await setConversationCapabilityExposure(
             accessToken,
             conversationId,
             selection
           )
+          if (ownsView()) {
+            capabilityExposureConfirmedRef.current = saved.selection
+            capabilityExposureConfirmedRevisionRef.current = revision
+            if (capabilityExposureSaveRevisionRef.current === revision) {
+              capabilityExposureSelectionRef.current = saved.selection
+              setCapabilityExposureSelection(saved.selection)
+            }
+          }
         } catch (caught) {
-          if (
-            currentConversationIdRef.current === conversationId &&
-            capabilityExposureSelectionRef.current === selection
-          ) {
-            capabilityExposureSelectionRef.current = previous
-            setCapabilityExposureSelection(previous)
+          if (!ownsView()) return
+          if (capabilityExposureSaveRevisionRef.current === revision) {
+            const confirmed = capabilityExposureConfirmedRef.current
+            capabilityExposureSelectionRef.current = confirmed
+            setCapabilityExposureSelection(confirmed)
           }
           reportChatError(
             caught,
             i18n.t("chat.composer.capabilityUpdateFailed"),
             i18n.t("chat.composer.capabilityUpdateFailedTitle")
           )
+        } finally {
+          const remaining = (pendingSaves.get(view.generation) ?? 1) - 1
+          if (remaining) pendingSaves.set(view.generation, remaining)
+          else pendingSaves.delete(view.generation)
         }
       })
   }

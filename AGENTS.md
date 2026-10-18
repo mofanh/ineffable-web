@@ -583,3 +583,7 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
   核实不重发原请求。接收回执不得显示成已创建 run，不同渠道的未知轮换状态按连接身份独立保留。
 - 运行 `check:workspace-lifecycle`、`check:workspace-delete`、`check:auth-isolation`、`check:api-resource`
   与相关 chat/automation/channels 门禁；mock HTTP 浏览器不代表真实 provider 或生产联调通过。
+
+- 能力选择的乐观保存链只以服务端确认值推进 rollback baseline；连续失败不能回到失败草稿。
+  成功、失败、历史补拉同时冻结 session/会话/页面代次与保存 revision；旧响应不得覆盖新页面，
+  有待保存草稿时历史快照不得抢写。运行 `npm run check:capability-save` 验证真实浏览器保存链。
