@@ -13,6 +13,10 @@ try {
   browser = await chromium.launch({ executablePath, headless: true })
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
   const page = await context.newPage(), other = await context.newPage()
+  await page.addInitScript(() => {
+    window.workspaceChanges = []
+    window.addEventListener("ineffable:workspace-objects-changed", event => window.workspaceChanges.push(event.detail))
+  })
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
   await other.route("**/session-control", route => route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Session control</title>" }))
   await other.goto(`${origin}/session-control`)
@@ -60,6 +64,8 @@ try {
   await editor.waitFor()
   assert.ok(preparations >= 1, "an unconfigured user can edit the automatic rule without selecting a file")
   assert.equal(submissions.length, 0, "provisioning never silently changes preferences")
+  const changes = await page.evaluate(() => window.workspaceChanges)
+  assert.ok(changes.some(change => change.workspaceId === workspace && change.objectId === objectId && change.path === file.path && change.action === "create_file"), "the canonical workspace change event refreshes an already-loaded sidebar")
   const notes = page.getByRole("textbox", { name: "Notes directory", exact: true })
   assert.equal(await notes.getAttribute("placeholder"), "system/memory")
   await notes.fill("notes/personal")
@@ -125,11 +131,13 @@ try {
   await page.getByRole("button", { name: "Use default rule", exact: true }).click()
   await page.evaluate(async () => { const { invalidateApiResourceCache } = await import("/src/lib/app/use-api-resource.ts"); invalidateApiResourceCache(["workspace-rule-label", localStorage.getItem("ineffable.auth.access_token"), "automatic", "", ""]) })
   await Promise.race([entered, new Promise((_, reject) => setTimeout(() => reject(new Error("provisioning not started")), 5000))])
+  const eventsBeforeSwitch = await page.evaluate(() => window.workspaceChanges.length)
   await account("b")
   await page.getByText("No rule file selected", { exact: true }).waitFor()
   release()
   await page.waitForTimeout(150)
   assert.equal(await editor.count(), 0, "an old account's result cannot change the new account")
+  assert.equal(await page.evaluate(() => window.workspaceChanges.length), eventsBeforeSwitch, "an old account cannot publish a workspace change after session isolation rejects its response")
   assert.deepEqual(errors, [])
   console.log("workspace rule browser checks passed: automatic/custom/disabled, path edits, version conflicts, retry, session isolation, mobile")
 } finally { await browser?.close(); await server.close() }

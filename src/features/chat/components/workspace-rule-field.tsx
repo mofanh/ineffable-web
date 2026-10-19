@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Notice } from "@/components/app/notice"
 import { useApiResource } from "@/lib/app/use-api-resource"
+import { dispatchWorkspaceObjectsChanged } from "@/lib/workspace-events"
 import { listWorkspaceObjectVersions, prepareDefaultWorkspaceRule, type Workspace, type WorkspaceRuleSelection } from "@/lib/api/api-client"
 import { WorkspaceFileMenu } from "./workspace-file-menu"
 
@@ -23,7 +24,9 @@ export function WorkspaceRuleField({ accessToken, workspaces, value, disabled, o
     load: React.useCallback(async () => {
       if (automatic) {
         const { object } = await prepareDefaultWorkspaceRule(accessToken)
-        return listWorkspaceObjectVersions(accessToken, object.workspace_id, object.id)
+        const result = await listWorkspaceObjectVersions(accessToken, object.workspace_id, object.id)
+        dispatchWorkspaceObjectsChanged({ workspaceId: object.workspace_id, objectId: object.id, path: object.path, action: "create_file", source: "system" })
+        return result
       }
       return workspaceId && objectId ? listWorkspaceObjectVersions(accessToken, workspaceId, objectId) : null
     }, [accessToken, automatic, workspaceId, objectId]),
