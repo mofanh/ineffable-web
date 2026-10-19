@@ -2664,7 +2664,7 @@ export type RunObservation = {
 }
 export type RunObservationPage = {
   workspace_rule?: { workspace_id: string; object_id: string; version_id: string } | null
-  workspace_rule_status?: "selected" | "not_configured" | "workspace_mismatch" | "audience_blocked" | "delegated" | null
+  workspace_rule_status?: "selected" | "not_configured" | "storage_not_configured" | "workspace_mismatch" | "audience_blocked" | "delegated" | null
   conversation_id: string
   run_id: string
   execution_epoch: number
@@ -2739,7 +2739,10 @@ export type WorkspaceRuleSelection = { workspace_id: string; object_id: string }
 export type ConversationPreferences = {
   timezone: string
   version: number
-  defaults_json: Partial<AutomationRuntimeConfig> & { workspace_rule?: WorkspaceRuleSelection | null }
+  defaults_json: Partial<AutomationRuntimeConfig> & { workspace_rule?: WorkspaceRuleSelection | null; workspace_notes_path?: string | null }
+}
+export function prepareDefaultWorkspaceRule(accessToken: string) {
+  return requestApiJson<{ object: WorkspaceObject }>("/gateway/v1/conversations/preferences/default-rule", { accessToken, method: "POST" })
 }
 export function getConversationPreferences(accessToken: string) {
   return requestApiJson<ConversationPreferences>("/gateway/v1/conversations/preferences", { accessToken })

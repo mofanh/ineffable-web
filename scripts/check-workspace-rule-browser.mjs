@@ -14,7 +14,6 @@ try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
   const page = await context.newPage(), other = await context.newPage()
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-  // The second tab only drives storage events; it must not start its own app/API requests.
   await other.route("**/session-control", route => route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Session control</title>" }))
   await other.goto(`${origin}/session-control`)
   async function account(id) { await other.evaluate(id => {
@@ -23,81 +22,71 @@ try {
     localStorage.setItem("ineffable.auth.access_token", id)
   }, id) }
   await account("a")
-  let preferencesReads = 0
+  let preferencesReads = 0, preparations = 0
   let preferences = { timezone: "UTC", version: 1, defaults_json: {} }
-  const submissions = [], mutations = [], errors = []
+  const submissions = [], errors = []
   page.on("pageerror", error => errors.push(error.message))
-  let held, release, hold = false
-  let failure = false, existing = true, pathConflict = false
+  let held, release, hold = false, failure = false
   await page.route("**/gateway/v1/**", async route => {
     const request = route.request(), path = new URL(request.url()).pathname
     const actor = request.headers().authorization === "Bearer b" ? "b" : "a"
     let body = {}, status = 200
     if (path.endsWith("auth/me")) body = { user: { id: actor, display_name: actor, email: `${actor}@test.local`, status: "active" }, workspaces: [{ id: workspace, name: "Personal", status: "active", workspace_type: "personal" }] }
-    else if (path.endsWith("conversations/preferences")) {
+    else if (path.endsWith("preferences/default-rule")) {
+      assert.equal(request.method(), "POST")
+      preparations++
+      if (hold) { held?.(); await new Promise(resolve => { release = resolve }); hold = false }
+      if (failure) { status = 503; body = { error: "Rule storage unavailable" } }
+      else body = { object: file }
+    } else if (path.endsWith("conversations/preferences")) {
       if (request.method() === "PUT") {
         const submitted = request.postDataJSON()
         submissions.push(submitted)
-        if (submitted.version !== preferences.version) {
-          await route.fulfill({ status: 409, json: { error: "Preferences version conflict" } })
-          return
-        }
+        if (submitted.version !== preferences.version) { await route.fulfill({ status: 409, json: { error: "Preferences version conflict" } }); return }
         preferences = { ...submitted, version: preferences.version + 1 }
-      }
-      else preferencesReads++
-      body = actor === "a" ? preferences : { timezone: "UTC", version: 1, defaults_json: {} }
+      } else preferencesReads++
+      body = actor === "a" ? preferences : { timezone: "UTC", version: 1, defaults_json: { workspace_rule: null } }
     } else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model-a", display_name: "Model A" }] }
     else if (path.endsWith("sandbox/environments")) body = { providers: [], environments: [] }
     else if (path.endsWith("capability-exposure/policy")) body = { capability_exposure_policy: { policy: { allowed_modes: ["smart"], exposure_budget: { max_count: 24 } } } }
     else if (path.endsWith("conversations/list")) body = { conversations: [] }
     else if (path.endsWith("/directory")) body = { objects: [file], next_cursor: null }
     else if (path.endsWith("/versions")) body = { object: file, versions: [{ id: versionId, size_bytes: 10, mime_type: "text/markdown" }] }
-    else if (path.endsWith("/stat")) {
-      if (hold) { held?.(); await new Promise(resolve => { release = resolve }); hold = false }
-      const name = new URL(request.url()).searchParams.get("path")
-      body = { object: !existing ? null : name.endsWith("default.md") ? file : { id: name, kind: "folder", path: name } }
-      if (pathConflict) body = { object: { id: "conflict", kind: "file", path: name } }
-      if (failure) { status = 503; body = { error: "Rule storage unavailable" } }
-    } else if (path.endsWith("/folders")) {
-      mutations.push(path)
-      body = { object: { id: request.postDataJSON().name, kind: "folder" } }
-    } else if (path.endsWith("/files")) {
-      mutations.push(path)
-      const draft = request.postDataJSON()
-      assert.ok(draft.content.includes(workspace) && draft.content.includes("system/memory/"))
-      assert.equal(draft.mime_type, "text/markdown")
-      body = { object: file, version: { id: versionId } }
-      existing = true
-    } else if (["POST", "PATCH", "DELETE"].includes(request.method())) mutations.push(path)
+    else if (["POST", "PATCH", "DELETE"].includes(request.method())) assert.fail(`unexpected mutation: ${path}`)
     await route.fulfill({ status, json: body })
   })
   await page.goto(`${origin}/scripts/workspace-rule-fixture.html`)
+  const editor = page.getByRole("link", { name: "Open editor", exact: true })
+  await editor.waitFor()
+  assert.ok(preparations >= 1, "an unconfigured user can edit the automatic rule without selecting a file")
+  assert.equal(submissions.length, 0, "provisioning never silently changes preferences")
+  const notes = page.getByRole("textbox", { name: "Notes directory", exact: true })
+  assert.equal(await notes.getAttribute("placeholder"), "system/memory")
+  await notes.fill("notes/personal")
   const choose = page.getByRole("button", { name: "Choose rule file", exact: true })
   await choose.click()
   await page.getByRole("option", { name: file.path, exact: true }).click()
-  await page.getByRole("link", { name: "Open editor" }).waitFor()
-  assert.equal(await page.getByRole("link", { name: "Open containing folder" }).getAttribute("href"), `/workspace/${workspace}/objects?path=system%2Frules`)
-  assert.equal(submissions.length, 0, "selection is a draft until saved")
   await other.evaluate(() => localStorage.setItem("ineffable.auth.access_token", "a-renewed"))
   await page.waitForTimeout(150)
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 1, "same-session token renewal preserves the unsaved rule")
+  assert.equal(await notes.inputValue(), "notes/personal", "same-session renewal preserves the directory draft")
   const readsBeforeSave = preferencesReads
   await page.getByRole("button", { name: /model/i }).click()
   await page.getByRole("option", { name: "Model A", exact: true }).click()
-  await page.getByRole("button", { name: "Save conversation settings", exact: true }).click()
-  await page.waitForFunction(() => document.querySelector("[data-workspace-rule-field] a"))
-  await page.waitForTimeout(100)
-  assert.deepEqual(submissions.at(-1).defaults_json.workspace_rule, { workspace_id: workspace, object_id: objectId }, "changing runtime fields preserves the rule")
+  const save = page.getByRole("button", { name: "Save conversation settings", exact: true })
+  await save.click()
+  await page.waitForTimeout(150)
+  assert.deepEqual(submissions.at(-1).defaults_json.workspace_rule, { workspace_id: workspace, object_id: objectId })
+  assert.equal(submissions.at(-1).defaults_json.workspace_notes_path, "notes/personal", "changing runtime fields preserves the notes path")
   assert.equal(submissions.at(-1).defaults_json.model_profile_id, "model-a")
-  assert.equal(submissions.at(-1).defaults_json.workspace_id, null, "rule is not a resource scope selector")
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).getAttribute("href"), `/workspace/${workspace}/objects/${objectId}`)
+  assert.equal(submissions.at(-1).defaults_json.workspace_id, null)
+  assert.equal(await editor.getAttribute("href"), `/workspace/${workspace}/objects/${objectId}`)
   await page.getByRole("button", { name: "Disable", exact: true }).click()
-  await page.getByRole("button", { name: "Save conversation settings", exact: true }).click()
-  await page.getByRole("button", { name: "Create personal rule template" }).waitFor()
-  await page.waitForTimeout(100)
+  assert.equal(await notes.isDisabled(), true)
+  await save.click()
+  await page.waitForTimeout(150)
   assert.equal(submissions.at(-1).defaults_json.workspace_rule, null)
-  assert.equal(submissions[1].version, 2, "next save uses the canonical version returned by PUT")
-  assert.equal(preferencesReads, readsBeforeSave, "saving does not start a redundant GET that could overwrite a new draft")
+  assert.equal(submissions[1].version, 2)
+  assert.equal(preferencesReads, readsBeforeSave, "saving does not refresh over a new draft")
   const refreshPreferences = () => page.evaluate(async () => {
     const { invalidateApiResourceCache } = await import("/src/lib/app/use-api-resource.ts")
     invalidateApiResourceCache(["conversation-preferences", "a"])
@@ -110,46 +99,37 @@ try {
   preferences = { ...preferences, version: 5, timezone: "UTC" }
   await refreshPreferences()
   await page.getByRole("button", { name: "Discard draft and reload" }).waitFor()
-  assert.equal(await timezone.inputValue(), "Europe/London", "late canonical refresh preserves a dirty draft")
-  assert.equal(await page.getByRole("button", { name: "Save conversation settings", exact: true }).isDisabled(), true)
+  assert.equal(await timezone.inputValue(), "Europe/London")
+  assert.equal(await save.isDisabled(), true)
   await page.getByRole("button", { name: "Discard draft and reload" }).click()
-  assert.equal(await timezone.inputValue(), "UTC", "explicit discard adopts the current canonical settings")
+  assert.equal(await timezone.inputValue(), "UTC")
   failure = true
-  await page.getByRole("button", { name: "Create personal rule template" }).click()
+  await page.getByRole("button", { name: "Use default rule", exact: true }).click()
+  // Invalidate the provisioner's completed cache to exercise a real failed request.
+  await page.evaluate(async () => { const { invalidateApiResourceCache } = await import("/src/lib/app/use-api-resource.ts"); invalidateApiResourceCache(["workspace-rule-label", localStorage.getItem("ineffable.auth.access_token"), "automatic", "", ""]) })
   await page.getByText("Rule storage unavailable", { exact: true }).waitFor()
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0, "failed creation never claims a rule was selected")
   failure = false
-  pathConflict = true
-  await page.getByRole("button", { name: "Create personal rule template" }).click()
-  await page.getByText("Cannot create the rule template: system must be a folder.", { exact: true }).waitFor()
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0)
-  assert.deepEqual(mutations, [], "path conflicts never overwrite an existing object")
-  pathConflict = false
-  await page.getByRole("button", { name: "Create personal rule template" }).click()
-  await page.getByRole("link", { name: "Open editor" }).waitFor()
-  assert.deepEqual(mutations, [], "existing template is reused without overwriting")
-  assert.equal(submissions.length, 2, "creating a file does not silently save preferences")
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "narrow layout has no horizontal overflow")
+  await page.getByRole("button", { name: "Retry", exact: true }).click()
+  await editor.waitFor()
+  await notes.fill("")
+  await save.click()
+  await page.waitForTimeout(150)
+  assert.equal(Object.hasOwn(submissions.at(-1).defaults_json, "workspace_rule"), false, "automatic is omission, never explicit null or a frozen custom selection")
+  assert.equal(Object.hasOwn(submissions.at(-1).defaults_json, "workspace_notes_path"), false, "clearing the path restores its default")
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
   await page.getByRole("button", { name: "Disable", exact: true }).click()
-  existing = false
-  await page.getByRole("button", { name: "Create personal rule template" }).click()
-  await page.getByRole("link", { name: "Open editor" }).waitFor()
-  assert.equal(mutations.length, 3, "explicit create writes two folders and one short rule, no notes")
-  preferences = { ...preferences, version: 6 }
-  await page.getByRole("button", { name: "Save conversation settings", exact: true }).click()
-  await page.getByRole("button", { name: "Discard draft and reload" }).waitFor()
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 1, "409 refresh preserves the unsaved selection")
-  await page.getByRole("button", { name: "Discard draft and reload" }).click()
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0)
+  await save.click()
+  await page.waitForTimeout(150)
   hold = true
   const entered = new Promise(resolve => { held = resolve })
-  await page.getByRole("button", { name: "Create personal rule template" }).click()
-  await Promise.race([entered, new Promise((_, reject) => setTimeout(() => reject(new Error("template request not started")), 5000))])
+  await page.getByRole("button", { name: "Use default rule", exact: true }).click()
+  await page.evaluate(async () => { const { invalidateApiResourceCache } = await import("/src/lib/app/use-api-resource.ts"); invalidateApiResourceCache(["workspace-rule-label", localStorage.getItem("ineffable.auth.access_token"), "automatic", "", ""]) })
+  await Promise.race([entered, new Promise((_, reject) => setTimeout(() => reject(new Error("provisioning not started")), 5000))])
   await account("b")
   await page.getByText("No rule file selected", { exact: true }).waitFor()
   release()
   await page.waitForTimeout(150)
-  assert.equal(await page.getByRole("link", { name: "Open editor" }).count(), 0, "old account's async template result cannot change a new account")
+  assert.equal(await editor.count(), 0, "an old account's result cannot change the new account")
   assert.deepEqual(errors, [])
-  console.log("workspace rule browser checks passed")
+  console.log("workspace rule browser checks passed: automatic/custom/disabled, path edits, version conflicts, retry, session isolation, mobile")
 } finally { await browser?.close(); await server.close() }
