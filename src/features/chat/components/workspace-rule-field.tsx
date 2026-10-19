@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Notice } from "@/components/app/notice"
 import { useApiResource } from "@/lib/app/use-api-resource"
 import { dispatchWorkspaceObjectsChanged } from "@/lib/workspace-events"
+import { captureAuthSession } from "@/lib/api/auth-session-runtime"
 import { listWorkspaceObjectVersions, prepareDefaultWorkspaceRule, type Workspace, type WorkspaceRuleSelection } from "@/lib/api/api-client"
 import { WorkspaceFileMenu } from "./workspace-file-menu"
 
@@ -23,9 +24,10 @@ export function WorkspaceRuleField({ accessToken, workspaces, value, disabled, o
     cacheKey: ["workspace-rule-label", accessToken, automatic ? "automatic" : "selected", workspaceId ?? "", objectId ?? ""],
     load: React.useCallback(async () => {
       if (automatic) {
+        const isCurrentSession = captureAuthSession(accessToken)
         const { object } = await prepareDefaultWorkspaceRule(accessToken)
         const result = await listWorkspaceObjectVersions(accessToken, object.workspace_id, object.id)
-        dispatchWorkspaceObjectsChanged({ workspaceId: object.workspace_id, objectId: object.id, path: object.path, action: "create_file", source: "system" })
+        if (isCurrentSession()) dispatchWorkspaceObjectsChanged({ workspaceId: result.object.workspace_id, objectId: result.object.id, path: result.object.path, versionId: result.object.current_version_id, action: "create_file", source: "system" })
         return result
       }
       return workspaceId && objectId ? listWorkspaceObjectVersions(accessToken, workspaceId, objectId) : null
