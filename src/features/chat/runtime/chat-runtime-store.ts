@@ -15,7 +15,7 @@ export class ChatRuntimeStore {
   private readonly listeners = new Set<RuntimeListener>()
   // A stable React snapshot of the run projection reader. Invalidate only
   // when controls change; text / transport observations keep this identity.
-  private runProjection = { getRun: (id: string) => this.get(id).currentRun }
+  private runProjection = { getRun: (id: string) => this.states.get(id)?.currentRun ?? null }
 
   getRunProjection() {
     return this.runProjection

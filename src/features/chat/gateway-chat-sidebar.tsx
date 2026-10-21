@@ -66,6 +66,7 @@ import {
 } from "@/features/chat/model/chat-history"
 import {
   hasCanonicalAssistantHandoff,
+  projectAcceptedRunStatus,
   reduceConversationTimeline,
   type CanonicalAssistantHandoff,
 } from "@/features/chat/model/conversation-entry-reconciliation"
@@ -648,7 +649,9 @@ export function GatewayChatSidebar({
   const pendingInputRequestRef = React.useRef(0)
   const reduceCurrentTimeline = React.useCallback((current: ChatEntry[], action: ConversationTimelineAction) => {
     const snapshot = pendingInputProjectionRef.current
-    return reduceConversationTimeline(current, action, snapshot?.conversationId === currentConversationIdRef.current ? snapshot.inputs : [])
+    const entries = reduceConversationTimeline(current, action, snapshot?.conversationId === currentConversationIdRef.current ? snapshot.inputs : [])
+    const conversationId = currentConversationIdRef.current
+    return projectAcceptedRunStatus(entries, conversationId ? runtimeStoreRef.current.getRunProjection().getRun(conversationId) : null)
   }, [])
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
   const [blockedPreInputRunStatus, setBlockedPreInputRunStatus] = React.useState<
@@ -2505,7 +2508,7 @@ export function GatewayChatSidebar({
       clearRecoveryTimer()
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
-      completeAssistantEntry()
+      completeAssistantEntry(undefined, runId)
       assistantEntryIdRef.current = null
       updateStreamStatus("idle")
       return true
@@ -2518,7 +2521,7 @@ export function GatewayChatSidebar({
       activeStreamConversationIdRef.current = null
       activeRunIdRef.current = null
       clearConversationResumeState(conversation.id)
-      completeAssistantEntry()
+      completeAssistantEntry(undefined, runId)
       assistantEntryIdRef.current = null
       updateStreamStatus("error")
       setError(i18n.t("chat.gateway.sendFailed"))

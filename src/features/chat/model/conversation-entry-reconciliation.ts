@@ -5,6 +5,19 @@ import { mergeInputProgress, type InputProgress } from "./input-progress.ts"
 import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
 import type { AssistantEntry, ChatEntry } from "../gateway-chat-types.ts"
 
+/** Display projection of the run reducer's accepted fact, never a new verdict.
+ * Apply after every timeline merge so delayed history cannot regress live state. */
+export function projectAcceptedRunStatus(entries: ChatEntry[], run: { id: string; status: string } | null | undefined) {
+  if (!run) return entries
+  let changed = false
+  const projected = entries.map(entry => {
+    if (entry.role !== "assistant" || entry.runId !== run.id || entry.runStatus === run.status) return entry
+    changed = true
+    return { ...entry, runStatus: run.status }
+  })
+  return changed ? projected : entries
+}
+
 function isLocalAssistantEntry(entry: ChatEntry): entry is AssistantEntry {
   return entry.role === "assistant" && entry.id.startsWith("assistant-")
 }

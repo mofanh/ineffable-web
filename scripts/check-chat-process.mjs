@@ -3,6 +3,8 @@ import { mapConversationMessagesToEntries } from "../src/features/chat/model/cha
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector.ts"
 import { canAutoCollapseAssistantProcess, assistantAnswerText, isAssistantProcessNode } from "../src/features/chat/model/assistant-process.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
+import { projectAcceptedRunStatus } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
+import { ChatRuntimeStore } from "../src/features/chat/runtime/chat-runtime-store.ts"
 
 const segment = turn => ({ id:`process-run:0:${turn}`, turn, execution_epoch:0 })
 const event = (turn, kind, content, metadata = {}) => ({ run_id:"process-run",seq:turn * 10,ts_ms:1,stream:"agentic",event:kind,scope:"main",content,metadata:{ transcript_segment:segment(turn), ...metadata } })
@@ -53,4 +55,16 @@ assert.equal(isAssistantProcessNode(node("tool",{tool:{status:"succeeded",settle
 assert.equal(isAssistantProcessNode(node("tool",{tool:{status:"succeeded",operation:{status:"save_pending"}}})),false)
 assert.equal(isAssistantProcessNode(node("text",{assistantPhase:"commentary",images:[{}]})),false)
 assert.equal(isAssistantProcessNode(node("future",{})),false)
+for (const status of ["cancelled","failed","suspended"]) {
+  const store = new ChatRuntimeStore()
+  store.dispatch("conversation",{type:"run-snapshot",run:{id:"process-run",status:"streaming",version:1,execution_epoch:1,lifecycle_seq:1}})
+  store.applyEvent({...event(1,`run.${status}`,""),seq:10,metadata:{conversation_id:"conversation",execution_epoch:1,run_version:2}})
+  // A late old snapshot is rejected by the existing run reducer. Timeline
+  // hydration still projects that accepted fact instead of its stale DTO value.
+  store.dispatch("conversation",{type:"run-snapshot",run:{id:"process-run",status:"streaming",version:1,execution_epoch:1,lifecycle_seq:1}})
+  const projected = projectAcceptedRunStatus([{...history,runStatus:"streaming"}],store.getRunProjection().getRun("conversation"))
+  assert.equal(projected[0].runStatus,status)
+  assert.equal(canAutoCollapseAssistantProcess(projected[0]),false)
+  assert.equal(projectAcceptedRunStatus(projected,store.getRunProjection().getRun("other")),projected)
+}
 console.log("chat process semantics and canonical handoff checks passed")
