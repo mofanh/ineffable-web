@@ -537,6 +537,8 @@ export function GatewayChatSidebar({
   )
 
   const abortRef = React.useRef<AbortController | null>(null)
+  // Submission ACK ownership is separate from an already admitted run's stream.
+  const pendingSubmissionRef = React.useRef<AbortController | null>(null)
   const runtimeStoreRef = React.useRef(new ChatRuntimeStore())
   const runtimeControllerRef = React.useRef(
     new ConversationRuntimeController(runtimeStoreRef.current)
@@ -1086,6 +1088,7 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     const runtimeController = runtimeControllerRef.current
     return () => {
+      pendingSubmissionRef.current = null
       abortRef.current?.abort()
       runtimeController.disconnectAll()
       if (recoveryTimerRef.current != null) {
@@ -3637,6 +3640,12 @@ export function GatewayChatSidebar({
     }
 
     const controller = new AbortController()
+    pendingSubmissionRef.current = controller
+    const releaseSubmission = () => {
+      if (pendingSubmissionRef.current !== controller) return
+      pendingSubmissionRef.current = null
+      setIsSubmittingInput(false)
+    }
     const submissionOwner = { session: currentSessionId, workspace: attachmentWorkspace?.id }
     let submissionViewGeneration = sendViewRef.current.generation
     let submissionSelectionVersion = getConversationSelectionIdentity().version
@@ -3657,7 +3666,7 @@ export function GatewayChatSidebar({
     if (!targetConversationId) {
       try {
         const createdConversation = await createConversation(buildConversationTitle(content), { select: false })
-        if (!ownsSession()) return false
+        if (!ownsSession()) { releaseSubmission(); return false }
         targetConversationId = createdConversation.id
         // The hook captures the submitted draft object, never the newer draft.
         imageDraft.moveTo(`${submissionOwner.session}:${targetConversationId}:${submissionOwner.workspace}`)
@@ -3692,8 +3701,8 @@ export function GatewayChatSidebar({
           )
         }
       } catch (createError) {
+        releaseSubmission()
         if (!isCurrentSubmission()) return false
-        setIsSubmittingInput(false)
         const message = reportChatError(
           createError,
           i18n.t("chat.gateway.initFailed"),
@@ -3707,8 +3716,8 @@ export function GatewayChatSidebar({
     try {
       await primeConversationCursor(targetConversationId)
     } catch (primeError) {
+      releaseSubmission()
       if (!isCurrentSubmission()) return false
-      setIsSubmittingInput(false)
       const message = reportChatError(
         primeError,
         i18n.t("chat.gateway.initFailed"),
@@ -3722,7 +3731,7 @@ export function GatewayChatSidebar({
       return false
     }
 
-    if (!ownsSession()) return false
+    if (!ownsSession()) { releaseSubmission(); return false }
     const inputRequestId = crypto.randomUUID()
     let acceptedAsRun = false
     let accepted = false
@@ -3733,6 +3742,7 @@ export function GatewayChatSidebar({
         return
       }
       accepted = true
+      releaseSubmission()
       if (ownsSession() && typeof window !== "undefined") {
         if (commitSelection) {
           commitAcceptedComposerRuntimeSelection(
@@ -3762,7 +3772,6 @@ export function GatewayChatSidebar({
           setCapabilityExposureSelection(submissionCapabilityExposure)
         }
       }
-      setIsSubmittingInput(false)
       reconcileAgentIterationHandoff(
         targetConversationId,
         submissionAgentEvolutionWorkspaceId
@@ -3847,11 +3856,11 @@ export function GatewayChatSidebar({
 
       if (!isCurrentSubmission()) return accepted
       if (queued) {
-        setIsSubmittingInput(false)
+        releaseSubmission()
         return true
       }
       if (!acceptedAsRun) {
-        setIsSubmittingInput(false)
+        releaseSubmission()
         reconcileAgentIterationHandoff(
           targetConversationId,
           submissionAgentEvolutionWorkspaceId
@@ -3860,7 +3869,7 @@ export function GatewayChatSidebar({
       }
 
       if (!controller.signal.aborted) {
-        setIsSubmittingInput(false)
+        releaseSubmission()
         if (abortRef.current === controller) {
           abortRef.current = null
         }
@@ -3872,7 +3881,7 @@ export function GatewayChatSidebar({
       }
     } catch (streamError) {
       if (!isCurrentSubmission()) return accepted
-      setIsSubmittingInput(false)
+      releaseSubmission()
       if (!accepted) {
         reconcileAgentIterationHandoff(
           targetConversationId,
@@ -3936,6 +3945,7 @@ export function GatewayChatSidebar({
       }
       return acceptedAsRun
     } finally {
+      releaseSubmission()
       if (abortRef.current === controller && !controller.signal.aborted) {
         abortRef.current = null
       }

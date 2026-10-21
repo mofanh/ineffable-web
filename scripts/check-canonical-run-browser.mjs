@@ -147,6 +147,7 @@ try {
       await page.waitForTimeout(5500)
       await page.getByRole("button",{name:"新对话",exact:true}).first().click()
       menuRow=page.getByRole("button").filter({hasText:"Refresh test"}).last()
+      await menuRow.getByText("运行中",{exact:true}).waitFor({timeout:12000})
       assert.equal(await menuRow.getByText("运行中",{exact:true}).count(),1,"another client's answer is observed from a draft")
       await page.keyboard.press("Escape")
     }
@@ -154,6 +155,7 @@ try {
     await page.waitForTimeout(5500)
     await page.getByRole("button",{name:"新对话",exact:true}).first().click()
     menuRow=page.getByRole("button").filter({hasText:"Refresh test"}).last()
+    await menuRow.getByText("已完成",{exact:true}).waitFor({timeout:12000})
     assert.equal(await menuRow.getByText("已完成",{exact:true}).count(),1)
     await page.keyboard.press("Escape")
     const finished=await page.evaluate(()=>window.fixtureRefreshCount)

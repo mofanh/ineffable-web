@@ -9,7 +9,8 @@ import "../src/index.css"
 await i18n.changeLanguage("en")
 function Fixture() {
   const session = useAppSession()
-  return <><div><output data-session>{session.currentSessionId ?? "none"}</output><output data-selection>{session.currentConversationId ?? "new"}</output>
+  return <><div><output data-session>{session.currentSessionId ?? "none"}</output><output data-selection>{session.currentConversationId ?? "new"}</output><output data-selection-version>{session.getConversationSelectionIdentity().version}</output>
+    <button onClick={() => void session.selectWorkspace(session.currentWorkspace!.id)}>Reselect workspace</button>
     <button onClick={() => void session.refreshAppData()}>Refresh account</button>
     <button onClick={() => void session.logout()}>Logout</button>
     <button onClick={() => session.selectConversation("other")}>Select other</button>
