@@ -22,10 +22,10 @@ try {
   browser = await chromium.launch({executablePath,headless:true})
   const page = await browser.newPage({viewport:{width:800,height:900}})
   const errors=[];page.on("pageerror",error=>errors.push(error.message))
-  let status="streaming",terminalMessages=0
+  let status="streaming",resumeMode="none",terminalMessages=0
   const conversation = () => ({id:"refresh-conversation",title:"Process lifecycle",current_run_id:"refresh-run",current_run:{
     id:"refresh-run",status,execution_epoch:1,version:status === "streaming" ? 1 : 2,lifecycle_seq:status === "streaming" ? 0 : 5,
-    is_live:status === "streaming",is_streaming:status === "streaming",accepts_guided_input:status === "streaming",resume_mode:"none",
+    is_live:status === "streaming",is_streaming:status === "streaming",accepts_guided_input:status === "streaming",resume_mode:resumeMode,
   }})
   await page.route("**/gateway/**",async route=>{
     const path = new URL(route.request().url()).pathname
@@ -43,9 +43,9 @@ try {
     await route.fulfill({json:body})
   })
   const url=`http://127.0.0.1:${server.httpServer.address().port}/scripts/live-refresh-fixture.html`
-  for (const outcome of ["cancelled","suspended","failed"]) {
-    console.log(`Checking live process ${outcome}`)
-    status="streaming";terminalMessages=0
+  for (const [outcome,mode] of [["cancelled","none"],["suspended","none"],["suspended","automatic"],["failed","none"]]) {
+    console.log(`Checking live process ${outcome} (${mode})`)
+    status="streaming";resumeMode="none";terminalMessages=0
     const subscribed = page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/subscribe"))
     await page.goto(url)
     await subscribed
@@ -54,9 +54,9 @@ try {
     await toggle.click()
     assert.equal(await toggle.getAttribute("aria-expanded"),"false")
     assert.ok(streams.size,"actual Sidebar subscribed to SSE")
-    status=outcome
+    status=outcome;resumeMode=mode
     const event={run_id:"refresh-run",seq:5,ts_ms:1,stream:"run",event:`run.${outcome}`,scope:"run",content:null,
-      metadata:{conversation_id:"refresh-conversation",execution_epoch:1,run_version:2,canonical_message_seq_end:2}}
+      metadata:{conversation_id:"refresh-conversation",execution_epoch:1,run_version:2,canonical_message_seq_end:2,resume_mode:mode}}
     for (const stream of streams) stream.write(`data: ${JSON.stringify({type:"event",event})}\n\n`)
     await page.waitForFunction(()=>document.querySelector("[data-chat-process-toggle]")?.getAttribute("aria-expanded")==="true")
     assert.equal(await toggle.isDisabled(),true)

@@ -1602,8 +1602,10 @@ export function GatewayChatSidebar({
   }, [selectedPendingApproval, hydratedConversationId, currentConversationId])
   const conversationEntries = React.useMemo(
     () =>
-      displayedConversationId === currentConversationId ? entries : [],
-    [currentConversationId, displayedConversationId, entries]
+      displayedConversationId === currentConversationId
+        ? projectAcceptedRunStatus(entries, selectedRuntime?.currentRun)
+        : [],
+    [currentConversationId, displayedConversationId, entries, selectedRuntime?.currentRun]
   )
   const visibleEntries = React.useMemo(
     () =>

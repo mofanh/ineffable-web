@@ -6,7 +6,7 @@ import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
 import type { AssistantEntry, ChatEntry } from "../gateway-chat-types.ts"
 
 /** Display projection of the run reducer's accepted fact, never a new verdict.
- * Apply after every timeline merge so delayed history cannot regress live state. */
+ * Compose at the read boundary, including lifecycle changes without new content. */
 export function projectAcceptedRunStatus(entries: ChatEntry[], run: { id: string; status: string } | null | undefined) {
   if (!run) return entries
   let changed = false
