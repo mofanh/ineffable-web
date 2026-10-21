@@ -33,7 +33,10 @@ export type ToolCallView = {
   responseMessageId?: string | null
 }
 
+export type AssistantPhase = "commentary" | "partial_answer" | "final_answer"
+
 export type TextBlock = {
+  assistantPhase?: AssistantPhase
   images?: ImageReference[]
   id: string
   type: "text"
@@ -68,6 +71,7 @@ export type PluginBlock = {
 export type PaneBlock = TextBlock | ThinkBlock | UpdateBlock | ToolBlock | PluginBlock
 
 export type AgentPaneState = {
+  assistantPhase?: AssistantPhase
   activeThinkBlockId: string | null
   activeThinkMode: "reasoning" | "tagged" | null
   pendingTagBuffer: string
@@ -171,7 +175,7 @@ function appendTextBlock(pane: AgentPaneState, content: string) {
   }
 
   const lastBlock = getLastBlock(pane)
-  if (lastBlock?.type === "text") {
+  if (lastBlock?.type === "text" && lastBlock.assistantPhase === pane.assistantPhase) {
     return {
       ...pane,
       blocks: {
@@ -191,6 +195,7 @@ function appendTextBlock(pane: AgentPaneState, content: string) {
     blocks: {
       ...pane.blocks,
       [blockId]: {
+        assistantPhase: pane.assistantPhase,
         id: blockId,
         type: "text",
         content,
@@ -519,6 +524,25 @@ export function applyTextDeltaToPane(pane: AgentPaneState, chunk: string) {
     },
     chunk
   )
+}
+
+/** Same typed metadata gate for stream, canonical handoff and historical pages. */
+export function applyAssistantPhaseToPane(pane: AgentPaneState, event: GatewayChatStreamEvent) {
+  const value = event.metadata?.assistant_phase
+  const phase: AssistantPhase | undefined = value === "commentary" || value === "partial_answer" || value === "final_answer" ? value : undefined
+  if (!phase && event.event !== "assistant.snapshot") return pane
+  if (phase === pane.assistantPhase) return pane
+  let blocks = pane.blocks
+  // A native phase frame belongs to one fixed segment, even if it follows text.
+  // Independent history snapshots must never relabel previous messages.
+  if (phase && event.event === "model.stream.other" && event.metadata?.transcript_segment) {
+    blocks = { ...blocks }
+    for (const id of pane.blockOrder) {
+      const block = blocks[id]
+      if (block?.type === "text") blocks[id] = { ...block, assistantPhase: phase }
+    }
+  }
+  return { ...pane, blocks, assistantPhase: phase }
 }
 
 /** Shared by live image events and canonical snapshots. Bytes never enter pane state. */

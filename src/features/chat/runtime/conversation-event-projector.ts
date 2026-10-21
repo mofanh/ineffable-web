@@ -2,6 +2,7 @@ import { canonicalMessagesToGatewayEvents } from "../model/canonical-message-eve
 import { updateAssistantSegment, updateUserInputTool, transcriptSegment } from "../model/assistant-segments"
 import {
   applyMessageToPane,
+  applyAssistantPhaseToPane,
   applyAssistantImagesToPane,
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
@@ -43,9 +44,10 @@ function projectPaneEvent(
     resumeFromHistory &&
     (isReasoningEvent(event.event) ||
       (isTextDeltaEvent(event.event) && !content.includes("<think>")))
-  const basePane = shouldResumeTrailingThink
+  const resumedPane = shouldResumeTrailingThink
     ? resumeTrailingThinkBlock(pane)
     : pane
+  const basePane = applyAssistantPhaseToPane(resumedPane, event)
   let nextPane: AgentPaneState
   if (isTextDeltaEvent(event.event)) {
     nextPane = applyTextDeltaToPane(basePane, content)

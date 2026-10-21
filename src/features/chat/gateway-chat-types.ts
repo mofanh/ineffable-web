@@ -89,6 +89,7 @@ export type AssistantEntry = {
   runStartedAt?: string | null
   runCompletedAt?: string | null
   runDurationMs?: number | null
+  runStatus?: string | null
   capabilityExposure?: CapabilityExposureSummary | null
   createdAt?: string | null
   canonicalMessageSeqEnd?: number | null

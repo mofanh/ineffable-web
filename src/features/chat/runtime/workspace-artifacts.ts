@@ -50,7 +50,7 @@ export function extractWorkspaceArtifact(
 ): WorkspaceArtifactReference | null {
   if (
     tool.status !== "succeeded" ||
-    (tool.name !== "publish_sandbox_file" && tool.name !== "workspace_write_file")
+    !["workspace", "sandbox", "publish_sandbox_file", "workspace_write_file"].includes(tool.name)
   ) {
     return null
   }

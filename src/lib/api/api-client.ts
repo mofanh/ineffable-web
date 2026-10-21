@@ -288,6 +288,7 @@ export type ConversationMessageRecord = {
   run_started_at?: string | null
   run_completed_at?: string | null
   run_duration_ms?: number | null
+  run_status?: string | null
   created_by?: string | null
   role: string
   message_type: string

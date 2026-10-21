@@ -1,3 +1,5 @@
+import { assistantAnswerText, canAutoCollapseAssistantProcess } from "../model/assistant-process"
+import { ChatProcessDisclosureProvider } from "./chat-process"
 import { splitFileReferences } from "@/lib/workspace-file-reference"
 import { WorkspaceFileTags } from "./workspace-file-tags"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -122,15 +124,6 @@ type ChatMessageListProps = {
     onAccept: () => void
     onRollback: () => void
   } | null
-}
-
-function assistantAnswerText(entry: Extract<ChatEntry, { role: "assistant" }>) {
-  return entry.pane.blockOrder
-    .map((blockId) => entry.pane.blocks[blockId])
-    .filter((block) => block?.type === "text")
-    .map((block) => block.content)
-    .join("\n\n")
-    .trim()
 }
 
 function formatRunDuration(durationMs: number | null | undefined) {
@@ -373,6 +366,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           </div>
         ) : null}
 
+        <ChatProcessDisclosureProvider>
         <ChatRowWindow items={entries} getKey={entryKey} estimateSize={estimateEntry} gap={28} windowRef={rowWindowRef}
           pinnedKeys={activeHumanRunId ? entries.filter((entry) => entry.role === "assistant" && entry.runId === activeHumanRunId && Object.values(entry.pane.tools).some((tool) => (tool.needId ?? tool.protocolId) === activeHumanNeedId)).map(entryKey) : []}>
           {(entry, index) => <ChatMessageRow entry={entry} isLast={index === entries.length - 1}
@@ -382,6 +376,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             onRejectApproval={onRejectApproval} activeHumanRunId={activeHumanRunId} activeHumanNeedId={activeHumanNeedId} activeHumanNeedKind={activeHumanNeedKind}
             onSubmitUserInput={onSubmitUserInput} prefersReducedMotion={prefersReducedMotion} />}
         </ChatRowWindow>
+        </ChatProcessDisclosureProvider>
         {showThinkingPlaceholder ? <ThinkingPlaceholder compacting={Boolean(compactingRunId)} /> : null}
         </div>
       </div>
@@ -588,6 +583,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                 <WebNodeList
                       accessToken={accessToken} onImageReference={onImageReference}
                   pane={entry.pane}
+                  process={{ identity: entry.timelineUnitId ?? entry.id, autoCollapse: canAutoCollapseAssistantProcess(entry), forceOpen: entry.status === "error" || ["failed", "cancelled", "awaiting_human", "suspended"].includes(entry.runStatus ?? "") || Boolean(activeHumanRunId && entry.runId === activeHumanRunId), duration: formatRunDuration(entry.runDurationMs) }}
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}
                   canRespondToUserInput={

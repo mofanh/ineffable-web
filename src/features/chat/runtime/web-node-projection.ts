@@ -19,6 +19,7 @@ import {
 } from "./workspace-artifacts.ts"
 
 export type TextWebNodePayload = {
+  assistantPhase?: import("../chat-pane-state").AssistantPhase
   images?: import("@/lib/image-reference").ImageReference[]
   content: string
   streaming: boolean
@@ -185,7 +186,7 @@ export function projectPaneBlockToWebNode(
       renderer: "text",
       nodeId: block.id,
       status: nodeStatus(options.streaming),
-      payload: { content: block.content, images: block.images, streaming: options.streaming },
+      payload: { content: block.content, images: block.images, streaming: options.streaming, assistantPhase: block.assistantPhase },
       fallback: { title: "Text", summary: block.content.slice(0, 160) },
     })
   }

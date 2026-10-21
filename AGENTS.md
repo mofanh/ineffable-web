@@ -316,6 +316,12 @@ return (
   统一 fallback card，不能中断同 turn 其他 Node。
 - Workspace artifact view 只消费已授权 tool result 中的 object/version 引用，复用现有
   Workspace 路由与鉴权；不得把文件 bytes 放入事件、Node payload 或未经鉴权的 raw 请求。
+- 过程折叠只使用 canonical `assistant_phase`、对应答复的 `run_status` 与精确片段接管证据。
+  `entry.done`、EOF、完成时间或最后一段文本不能判定成功或最终答复。运行中默认展开，成功且
+  所有已加载片段接管后默认收起；失败、取消、等待保持展开。阶段/最终/未知正文、图片、产物、
+  错误、人工操作和声明式插件 fallback 始终可见，仍复用同一 registry/虚拟窗口。
+  手动开关是面板内有界 UI 偏好，跨行虚拟化保留；自动收起避开焦点、选区和上翻阅读。
+  `npm run check:chat-web-runtime` 与 `npm run check:chat-browser` 覆盖语义和真实 Chrome 交互。
 
 ## 国际化
 

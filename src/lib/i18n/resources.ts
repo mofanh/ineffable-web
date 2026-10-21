@@ -199,6 +199,8 @@ export const resources = {
         "evaluationCount": " · {{count}} 次评估"
       },
       presentation: {
+        "process": "查看过程",
+        "processDuration": "用时 {{duration}} · 查看过程",
         "keepAgent": "保留生成这条回答的 Agent 版本",
         "keepAgentHint": "效果满意，保留此 Agent 版本",
         "restoreAgent": "恢复到生成这条回答之前的 Agent 版本",
@@ -2107,6 +2109,8 @@ export const resources = {
         "evaluationCount": " · {{count}} evaluations"
       },
       presentation: {
+        "process": "View process",
+        "processDuration": "{{duration}} · View process",
         "keepAgent": "Keep the Agent version that produced this answer",
         "keepAgentHint": "Keep this Agent version",
         "restoreAgent": "Restore the Agent version used before this answer",

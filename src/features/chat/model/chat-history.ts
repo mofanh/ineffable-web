@@ -6,6 +6,7 @@ import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryFo
 import {
   applyCanonicalMessageToPane,
   applyMessageToPane,
+  applyAssistantPhaseToPane,
   applyAssistantImagesToPane,
   applyReasoningDeltaToPane,
   applyTextDeltaToPane,
@@ -223,6 +224,7 @@ export function applyEventToPaneState(
 ) {
   const eventName = event.event
   const content = event.content ?? ""
+  pane = applyAssistantPhaseToPane(pane, event)
 
   const nextPane = isTextDeltaEvent(eventName)
     ? applyTextDeltaToPane(pane, content)
@@ -463,6 +465,7 @@ function buildAssistantEntryFromMessages(
     runStartedAt,
     runCompletedAt,
     runDurationMs,
+    runStatus: messages.find(message => message.run_status)?.run_status ?? null,
     capabilityExposure,
     createdAt,
     canonicalMessageSeqEnd,

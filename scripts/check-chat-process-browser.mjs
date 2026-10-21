@@ -1,0 +1,76 @@
+import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
+import { chromium } from "playwright-core"
+import { createServer } from "vite"
+const executablePath = [process.env.CHROME_PATH,"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome","/usr/bin/google-chrome","/usr/bin/chromium"].find(path => path && existsSync(path))
+assert.ok(executablePath)
+const server = await createServer({root:process.cwd(),logLevel:"error",server:{host:"127.0.0.1",port:0}})
+let browser
+try {
+  await server.listen()
+  browser = await chromium.launch({executablePath,headless:true})
+  const page = await browser.newPage({viewport:{width:390,height:900},reducedMotion:"reduce"})
+  const errors=[]
+  page.on("pageerror",error=>errors.push(error.message))
+  await page.addInitScript(()=>{
+    window.clipboardWrites=[]
+    Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async text=>{window.clipboardWrites.push(text)}}})
+  })
+  const url=`http://127.0.0.1:${server.httpServer.address().port}/scripts/chat-process-fixture.html`
+  await page.goto(url)
+  const toggle=page.locator("[data-chat-process-toggle]")
+  const scroller=page.locator("[data-chat-scroll-region]")
+  await toggle.waitFor()
+  assert.equal(await toggle.count(),1)
+  assert.equal(await toggle.getAttribute("aria-expanded"),"false")
+  for (const answer of ["STAGE ANSWER","FINAL ANSWER","UNKNOWN OLD ANSWER"]) assert.equal(await page.getByText(answer,{exact:true}).isVisible(),true)
+  assert.equal(await page.getByText("PROCESS ONLY",{exact:false}).count(),0,"collapsed process is not mounted")
+  assert.equal(await page.locator("[data-tool-call-id]").count(),0)
+  assert.equal(await page.getByRole("link",{name:/result.md/}).isVisible(),true)
+  if (process.env.CHAT_PROCESS_SCREENSHOT) await page.screenshot({path:process.env.CHAT_PROCESS_SCREENSHOT})
+  await page.getByRole("button",{name:"复制",exact:true}).click()
+  await page.waitForFunction(()=>window.clipboardWrites.length===1)
+  assert.equal((await page.evaluate(()=>window.clipboardWrites))[0],"STAGE ANSWER\n\nFINAL ANSWER\n\nUNKNOWN OLD ANSWER")
+  await toggle.click()
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true")
+  assert.ok(await page.locator("[data-tool-call-id]").count() <= 20,"expanded process remains virtualized")
+  await page.getByRole("button",{name:"remount-row",exact:true}).click()
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true","manual choice survives row remount")
+  await toggle.click()
+  assert.equal(await toggle.evaluate(node=>document.activeElement===node),true)
+  for (const status of ["failed","cancelled","awaiting_human","suspended"]) {
+    await page.getByRole("button",{name:status,exact:true}).click()
+    assert.equal(await toggle.getAttribute("aria-expanded"),"true")
+    assert.equal(await toggle.isDisabled(),true)
+    if (status === "awaiting_human") assert.equal(await page.getByText("Continue this task?",{exact:true}).isVisible(),true)
+  }
+  await page.reload()
+  await page.getByRole("button",{name:"streaming",exact:true}).click()
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true")
+  // Finish at the tail: automatic collapse keeps the final answer visible.
+  await scroller.evaluate(node=>{node.scrollTop=node.scrollHeight})
+  await page.getByRole("button",{name:"completed",exact:true}).click()
+  await page.waitForFunction(()=>document.querySelector("[data-chat-process-toggle]").getAttribute("aria-expanded")==="false")
+  await page.reload()
+  await page.getByRole("button",{name:"streaming",exact:true}).click()
+  await scroller.evaluate(node=>{node.scrollTop=0})
+  await page.getByText("PROCESS ONLY",{exact:false}).evaluate(node=>{
+    const range=document.createRange();range.selectNodeContents(node)
+    const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range)
+  })
+  await page.getByRole("button",{name:"completed",exact:true}).evaluate(node=>node.click())
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true","completion preserves selected process text")
+  await page.evaluate(()=>window.getSelection().removeAllRanges())
+  await page.reload()
+  await page.getByRole("button",{name:"canonical",exact:true}).click()
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true","terminal status alone cannot collapse partial canonical handoff")
+  for (const width of [320,390,768,1280]) {
+    await page.setViewportSize({width,height:900})
+    await page.getByRole("button",{name:"language",exact:true}).click()
+    await page.getByRole("button",{name:"theme",exact:true}).click()
+    const bounds=await toggle.evaluate(node=>({width:node.clientWidth,scroll:node.scrollWidth,body:document.documentElement.scrollWidth,viewport:innerWidth}))
+    assert.ok(bounds.scroll<=bounds.width+1 && bounds.body<=bounds.viewport+1,`overflow at ${width}`)
+  }
+  assert.deepEqual(errors,[])
+  console.log("chat process browser checks passed")
+} finally { await browser?.close(); await server.close() }
