@@ -257,35 +257,27 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       lastEntry.status === "streaming"
     )
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const content = messageContentRef.current
     if (!content || typeof ResizeObserver === "undefined") {
       return
     }
 
-    let animationFrame: number | null = null
     let lastSize: { width: number; height: number } | null = null
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return
       const { width, height } = entry.contentRect
       if (lastSize && Math.abs(lastSize.width - width) < 0.5 && Math.abs(lastSize.height - height) < 0.5) return
       lastSize = { width, height }
-      if (animationFrame != null) {
-        return
-      }
-
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = null
-        onStreamingContentProgress()
-      })
+      // ResizeObserver runs after layout, before paint. Deferring this write
+      // to rAF paints one frame with the growing answer pushing its footer
+      // down, then pulls it back on the next frame for every streamed line.
+      onStreamingContentProgress()
     })
 
     observer.observe(content)
     return () => {
       observer.disconnect()
-      if (animationFrame != null) {
-        window.cancelAnimationFrame(animationFrame)
-      }
     }
   }, [hasEntries, onStreamingContentProgress, showThinkingPlaceholder])
 

@@ -99,11 +99,25 @@ export function useChatScrollBoundary<T extends HTMLElement>(forwardedRef?: RefO
       const gutterWidth = node.offsetWidth - node.clientWidth - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth)
       const clientLeft = rect.left + node.clientLeft
       const gutter = gutterWidth > 0 && (event.clientX < clientLeft || event.clientX >= clientLeft + node.clientWidth)
+      // An overlay has no reserved gutter. Bound its candidate to the edge
+      // rail; dragging ordinary viewport padding must never arm this observer.
+      let overlayWidth = style.scrollbarWidth === "thin" ? 10 : 16
+      try {
+        const width = parseFloat(getComputedStyle(node, "::-webkit-scrollbar").width)
+        if (Number.isFinite(width)) overlayWidth = width
+      } catch { /* Unsupported pseudo-elements retain the bounded native rail. */ }
+      const overlay = gutterWidth <= 0 && style.scrollbarWidth !== "none" && (style.direction === "rtl"
+        ? event.clientX < clientLeft + overlayWidth
+        : event.clientX >= clientLeft + node.clientWidth - overlayWidth)
+      if (!gutter && !overlay) return
       pointer = { id: event.pointerId, startY: event.clientY, y: event.clientY, top: node.scrollTop, gutter, dragging: false, direction: null }
       window.addEventListener("pointermove", pointerMove)
       window.addEventListener("pointerrawupdate", rawPointerMove)
     }
     const pointerEnd = () => {
+      // Native scrollbar movement can precede its coalesced scroll event.
+      // Settle the final position before releasing the gesture's ownership.
+      scroll()
       pointer = null
       window.removeEventListener("pointermove", pointerMove)
       window.removeEventListener("pointerrawupdate", rawPointerMove)
@@ -159,6 +173,7 @@ export function useChatScrollBoundary<T extends HTMLElement>(forwardedRef?: RefO
       window.removeEventListener("pointercancel", pointerEnd, true)
       window.removeEventListener("mouseup", pointerEnd, true)
       window.removeEventListener("blur", pointerEnd)
+      pointer = null
       pointerEnd()
       if (forwardedRef?.current === node) forwardedRef.current = null
     }

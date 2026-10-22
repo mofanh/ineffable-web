@@ -559,6 +559,10 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
   scrollMargin。状态组件不随 token 重绘，折叠思考仅保留有界尾部预览，展开仍保留全文。
   `npm run check:chat-stream-layout` 验证真实 Sidebar 的 HTTP SSE、长历史、虚拟化阈值、
   移动/桌面尺寸、空闲布局稳定与 wheel/键盘/touch 跟随；真实手机与 provider 联调另验。
+- 流式正文增高后的贴底校正在 ResizeObserver 本次绘制前同步完成，不在 observer 内
+  再等 rAF，以免状态尾行先下移再回弹。高频数据合批可以发生在 DOM 更新前。正文
+  绘制回归通过 CDP screencast 的实际 PNG 帧验收；rAF 早于 layout/RO，其几何采样
+  不能代替最终绘制。相同尺寸与已贴底位置继续去重，用户离底时保持阅读位置。
 - 消息与大回复内部节点共用 `ChatRowWindow`，在既有 conversation scroller 内按稳定
   identity 测量、以正常文档流占位。分页负责加载，窗口负责挂载量；上翻不能持续保留全部
   DOM，不复制 timeline reducer。动态高度变化只由对应窗口补偿一次。

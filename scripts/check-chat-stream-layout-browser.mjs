@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { resolve } from "node:path"
+import { execFileSync } from "node:child_process"
+import { inflateSync } from "node:zlib"
 import { chromium } from "playwright-core"
 import { createServer } from "vite"
 
@@ -9,6 +11,9 @@ assert.ok(executablePath, "Chrome is required")
 const streams = new Set()
 let seq = 1
 let status = "streaming"
+const baselineRef = process.env.INEFFABLE_CHAT_STREAM_BASELINE_REF
+const baselinePath = "src/features/chat/components/chat-message-list.tsx"
+const baselineSource = baselineRef ? execFileSync("git", ["show", `${baselineRef}:${baselinePath}`], { encoding: "utf8" }) : null
 const server = await createServer({
   root: process.cwd(), logLevel: "error",
   optimizeDeps: { entries: ["scripts/live-refresh-fixture.html"] },
@@ -16,6 +21,9 @@ const server = await createServer({
     name: "stream-layout-fixture", enforce: "pre",
     resolveId(id) {
       if (id === "@/features/auth/app-session" || id.endsWith("/src/features/auth/app-session")) return resolve("scripts/live-refresh-session-fixture.ts")
+    },
+    load(id) {
+      if (baselineSource && id.split("?")[0] === resolve(baselinePath)) return baselineSource
     },
     transform(code, id) {
       if (id.split("?")[0].endsWith("/scripts/live-refresh-fixture.tsx")) {
@@ -63,6 +71,49 @@ const history = Array.from({ length: 120 }, (_, index) => ({
   content: `Old message ${index}\n${"Earlier text.\n".repeat(index % 5 + 1)}`, timeline_seq: index + 1,
   created_at: "2026-10-22T00:00:00Z", updated_at: "2026-10-22T00:00:00Z", metadata_json: {},
 }))
+
+// Inspect actual CDP painted PNGs, not rAF geometry (rAF precedes the browser's
+// layout/ResizeObserver phase and can expose intermediates that never paint).
+function paintedMarkerBottom(base64) {
+  const png = Buffer.from(base64, "base64"), chunks = []
+  let width, height, channels, position = 8
+  while (position < png.length) {
+    const length = png.readUInt32BE(position), type = png.toString("ascii", position + 4, position + 8)
+    const data = png.subarray(position + 8, position + 8 + length)
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0); height = data.readUInt32BE(4)
+      assert.equal(data[8], 8)
+      channels = data[9] === 6 ? 4 : data[9] === 2 ? 3 : 0
+      assert.ok(channels, "Chrome screencast must supply RGB/RGBA PNG")
+      assert.equal(data[12], 0, "non-interlaced PNG")
+    }
+    if (type === "IDAT") chunks.push(data)
+    position += length + 12
+  }
+  const raw = inflateSync(Buffer.concat(chunks)), stride = width * channels
+  let previous = Buffer.alloc(stride), offset = 0, bottom = -1
+  const paeth = (a, b, c) => {
+    const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c)
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c
+  }
+  for (let y = 0; y < height; y++) {
+    const filter = raw[offset++], row = Buffer.from(raw.subarray(offset, offset + stride))
+    offset += stride
+    assert.ok(filter <= 4)
+    for (let x = 0; x < stride; x++) {
+      const a = x >= channels ? row[x - channels] : 0, b = previous[x], c = x >= channels ? previous[x - channels] : 0
+      if (filter === 1) row[x] = (row[x] + a) & 255
+      else if (filter === 2) row[x] = (row[x] + b) & 255
+      else if (filter === 3) row[x] = (row[x] + Math.floor((a + b) / 2)) & 255
+      else if (filter === 4) row[x] = (row[x] + paeth(a, b, c)) & 255
+    }
+    for (let x = 0; x < stride; x += channels) {
+      if (row[x] === 255 && row[x + 1] === 0 && row[x + 2] === 255) bottom = y
+    }
+    previous = row
+  }
+  return bottom
+}
 let browser
 try {
   await server.listen()
@@ -186,6 +237,32 @@ try {
     assert.ok(await originalActivity.evaluate(node => node === document.querySelector("[data-chat-run-activity]")), "nested window activation preserves activity identity")
     assert.ok(Number(await page.locator("[data-chat-entry-count]").getAttribute("data-chat-entry-count")) <= initialCount + 1, "internal scrolling must not load hidden history")
     await assertIdle("[data-chat-run-activity]")
+    // Give the existing status a dimension-neutral paint marker, then inspect
+    // every actual screencast frame while Markdown gains paragraphs/tables.
+    const markerStyle = await page.addStyleTag({ content: "[data-chat-run-activity]{background:rgb(255,0,255)!important;color:rgb(255,0,255)!important}" })
+    const paint = await page.context().newCDPSession(page)
+    const painted = []
+    const captureFrame = frame => {
+      void paint.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
+      painted.push(paintedMarkerBottom(frame.data))
+    }
+    paint.on("Page.screencastFrame", captureFrame)
+    await paint.send("Page.startScreencast", { format: "png", everyNthFrame: 1 })
+    await frames(6)
+    painted.length = 0
+    for (let index = 0; index < 45; index++) {
+      emit("model.text.delta", `正文增长 ${index} ${"painted frame evidence ".repeat(8)}\n\n`)
+      await new Promise(resolve => setTimeout(resolve, 40))
+    }
+    await frames(10)
+    await paint.send("Page.stopScreencast")
+    paint.removeListener("Page.screencastFrame", captureFrame)
+    await paint.detach()
+    await markerStyle.evaluate(node => node.remove())
+    assert.ok(painted.length >= 15, "sample actual painted frames during streaming")
+    assert.ok(painted.every(bottom => bottom >= 0), "footer must not flash below the viewport between streamed chunks")
+    assert.ok(Math.max(...painted) - Math.min(...painted) <= 1, "painted footer must not drop and rebound each frame")
+    console.log(`${width}px: ${painted.length} painted frames, footer bottom ${Math.min(...painted)}..${Math.max(...painted)}`)
     // Native wheel input intentionally suspends follow; subsequent SSE must not
     // pull a reader away. Returning through Latest restores the same scroll owner.
     await viewport.hover({ position: { x: 40, y: 180 } })
