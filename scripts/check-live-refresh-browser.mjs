@@ -54,6 +54,13 @@ try {
   const page = await browser.newPage({ locale: "zh-CN" })
   const scrollToText = async (text) => {
     const scroller = page.locator('[data-chat-scroll-content]').locator('..')
+    // Enter reading mode through real input before seeking measured rows.
+    // Geometry-only writes must not disable the production tail follower.
+    const box = await scroller.boundingBox()
+    assert.ok(box)
+    await page.mouse.move(box.x + 2, box.y + box.height / 2)
+    await page.mouse.wheel(0, -160)
+    await page.getByRole("button", { name: "最新消息", exact: true }).waitFor()
     await scroller.evaluate(node => { node.scrollTop = 0 })
     const deadline = Date.now() + 10000
     while (Date.now() < deadline) {
