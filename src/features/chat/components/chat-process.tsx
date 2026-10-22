@@ -31,9 +31,12 @@ export function useChatProcessDisclosure({ identity, autoCollapse, forceOpen }: 
   const buttonRef = React.useRef<HTMLButtonElement>(null)
   const [manual, setManual] = React.useState<DisclosureChoice | undefined>(() => identity ? choices?.get(identity) : undefined)
   const [automaticOpen, setAutomaticOpen] = React.useState(!autoCollapse)
+  const previousAutoCollapse = React.useRef(autoCollapse)
   const manualExpanded = manual && manual.autoCollapse === autoCollapse ? manual.expanded : undefined
   const expanded = forceOpen || (manualExpanded ?? automaticOpen)
   React.useLayoutEffect(() => {
+    if (previousAutoCollapse.current === autoCollapse) return
+    previousAutoCollapse.current = autoCollapse
     if (!autoCollapse) { setAutomaticOpen(true); return }
     const root = rootRef.current
     let disposed = false
@@ -47,8 +50,7 @@ export function useChatProcessDisclosure({ identity, autoCollapse, forceOpen }: 
       if (disposed) return
       const selection = window.getSelection()
       const interacting = root?.contains(document.activeElement) && document.activeElement !== buttonRef.current
-      const selecting = selection && !selection.isCollapsed &&
-        (root?.contains(selection.anchorNode) || root?.contains(selection.focusNode))
+      const selecting = root && selection && !selection.isCollapsed && selection.containsNode(root, true)
       if (interacting || selecting) { setAutomaticOpen(true); return }
       setAutomaticOpen(false)
       cleanup()
