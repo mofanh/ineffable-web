@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 export type AppMetricCard = {
   label: string
   value: string
-  detail: string
+  detail?: string
   icon: React.ComponentType<{ className?: string }>
   tone?: "green" | "amber" | "blue" | "indigo"
 }
@@ -85,9 +85,9 @@ function MetricPanel({ metric }: { metric: AppMetricCard }) {
         <p className="wrap-anywhere text-right text-2xl sm:text-left font-semibold sm:mt-3 sm:text-3xl">
           {metric.value}
         </p>
-        <p className="text-muted-foreground col-span-2 mt-1 wrap-anywhere text-[11px] leading-4 sm:text-xs">
+        {metric.detail ? <p className="text-muted-foreground col-span-2 mt-1 wrap-anywhere text-[11px] leading-4 sm:text-xs">
           {metric.detail}
-        </p>
+        </p> : null}
       </CardContent>
     </Card>
   )

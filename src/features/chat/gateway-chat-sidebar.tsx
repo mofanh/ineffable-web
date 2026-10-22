@@ -12,7 +12,7 @@ import type { ImageReference } from "@/lib/api/images"
 import { useRunObservationAccess } from "@/features/chat/use-run-observation-access"
 import { RunObservationPanel } from "@/features/chat/components/run-observation-panel"
 import { ConversationPageLoader } from "@/features/chat/model/conversation-page-loader"
-import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
+import { useApiResource } from "@/lib/app/use-api-resource"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
@@ -168,7 +168,6 @@ import {
   type CapabilityExposureSelection,
   type CapabilityCatalogEntry,
   type Conversation,
-  type ModelProfile,
   type ResumeRunResponse,
   type SandboxEnvironmentView,
   type SandboxProviderStatusView,
@@ -462,13 +461,6 @@ export function GatewayChatSidebar({
   const [displayedConversationId, setDisplayedConversationId] = React.useState<
     string | null
   >(null)
-  const [sandboxOptions, setSandboxOptions] = React.useState<
-    { environmentId: string; label: string; status: string; resultDelivery?: SandboxResultDeliveryHealth | null }[]
-  >([])
-  const [isRefreshingSandboxOptions, setIsRefreshingSandboxOptions] =
-    React.useState(false)
-  const [modelProfiles, setModelProfiles] = React.useState<ModelProfile[]>([])
-  const [isModelCatalogLoaded, setIsModelCatalogLoaded] = React.useState(false)
   const [selectedModelProfileId, setSelectedModelProfileId] = React.useState("")
   const [selectedSandboxEnvironmentId, setSelectedSandboxEnvironmentId] = React.useState("")
   const [capabilityExposureSelection, setCapabilityExposureSelection] =
@@ -630,18 +622,6 @@ export function GatewayChatSidebar({
   } | null>(null)
   const olderMessagesInFlightCursorRef = React.useRef<string | null>(null)
   const olderLoadResetTimerRef = React.useRef<number | null>(null)
-  const sandboxOptionsRequestRef = React.useRef(0)
-  const modelProfilesRef = React.useRef<ModelProfile[]>([])
-  const modelProfilesLoadedRef = React.useRef(false)
-  const sandboxOptionsRef = React.useRef<
-    { environmentId: string; label: string; status: string; resultDelivery?: SandboxResultDeliveryHealth | null }[]
-  >([])
-  const sandboxOptionsLoadedRef = React.useRef(false)
-  const sandboxOptionsInFlightRef = React.useRef<{
-    key: string
-    requestId: number
-    request: Promise<void>
-  } | null>(null)
   const backgroundRefreshInFlightRef = React.useRef(false)
   const previousRunObservationsRef = React.useRef<Record<
     string,
@@ -1257,116 +1237,44 @@ export function GatewayChatSidebar({
     setSelectedSandboxEnvironmentId(cachedSelection.sandboxEnvironmentId)
   }, [currentConversationId])
 
-  React.useEffect(() => {
-    if (!accessToken) {
-      modelProfilesRef.current = []
-      modelProfilesLoadedRef.current = false
-      setModelProfiles([])
-      setIsModelCatalogLoaded(false)
-      setSelectedModelProfileId("")
-      return
-    }
-
-    let cancelled = false
-    listModelProfiles(accessToken)
-      .then((response) => {
-        if (cancelled) {
-          return
-        }
-        modelProfilesRef.current = response.profiles
-        modelProfilesLoadedRef.current = true
-        setModelProfiles(response.profiles)
-        setIsModelCatalogLoaded(true)
-      })
-      .catch(() => {
-        // Preserve the last successful catalog and selection on transient failure.
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken])
-
-  const refreshSandboxOptions = React.useCallback(() => {
-    if (!accessToken) {
-      sandboxOptionsRequestRef.current += 1
-      sandboxOptionsInFlightRef.current = null
-      sandboxOptionsRef.current = []
-      sandboxOptionsLoadedRef.current = false
-      setSandboxOptions([])
-      setIsRefreshingSandboxOptions(false)
-      return Promise.resolve()
-    }
-
-    const requestKey = `${accessToken}:user`
-    const inFlight = sandboxOptionsInFlightRef.current
-    if (inFlight?.key === requestKey) {
-      return inFlight.request
-    }
-
-    const requestId = sandboxOptionsRequestRef.current + 1
-    sandboxOptionsRequestRef.current = requestId
-    // Only a completed user-scoped catalog can establish environment availability.
-    sandboxOptionsLoadedRef.current = false
-    setIsRefreshingSandboxOptions(true)
-
-    const request = (async () => {
-      try {
-        const response = await listSandboxWorkspaceEnvironments(
-          accessToken,
-          null
-        )
-        if (sandboxOptionsRequestRef.current !== requestId) {
-          return
-        }
-
-        const providersById = new Map(
-          response.providers.map((provider) => [provider.provider_id, provider])
-        )
-        const nextOptions = response.environments
-          .filter((environment) => {
-            const provider = providersById.get(environment.provider_id)
-            return (
-              provider?.status === "online" &&
-              ["bound", "ready", "busy"].includes(environment.status)
-            )
-          })
-          .map((environment) => ({
-            environmentId: environment.environment_id,
-            label: sandboxOptionLabel(
-              environment,
-              providersById.get(environment.provider_id)
-            ),
-            status: environment.status,
-            resultDelivery: providersById.get(environment.provider_id)?.result_delivery,
-          }))
-
-        sandboxOptionsRef.current = nextOptions
-        sandboxOptionsLoadedRef.current = true
-        setSandboxOptions(nextOptions)
-      } catch {
-        // Keep the last successful options when an explicit refresh fails.
-      } finally {
-        if (sandboxOptionsRequestRef.current === requestId) {
-          setIsRefreshingSandboxOptions(false)
-        }
-        if (sandboxOptionsInFlightRef.current?.requestId === requestId) {
-          sandboxOptionsInFlightRef.current = null
-        }
-      }
-    })()
-    sandboxOptionsInFlightRef.current = { key: requestKey, requestId, request }
-    return request
-  }, [accessToken])
+  const loadModelCatalog = React.useCallback(
+    () => listModelProfiles(accessToken ?? ""), [accessToken]
+  )
+  const modelCatalog = useApiResource({
+    enabled: Boolean(accessToken),
+    cacheKey: ["chat-model-profiles", currentSessionId, accessToken],
+    load: loadModelCatalog,
+  })
+  const loadSandboxCatalog = React.useCallback(
+    () => listSandboxWorkspaceEnvironments(accessToken ?? "", null), [accessToken]
+  )
+  const sandboxCatalog = useApiResource({
+    enabled: Boolean(accessToken),
+    cacheKey: ["chat-sandbox-environments", currentSessionId, accessToken],
+    load: loadSandboxCatalog,
+  })
+  const modelProfiles = React.useMemo(() => modelCatalog.data?.profiles ?? [], [modelCatalog.data])
+  const isModelCatalogLoaded = modelCatalog.data !== null
+  const isSandboxCatalogLoaded = sandboxCatalog.data !== null
+  const isRefreshingSandboxOptions = sandboxCatalog.isLoading || sandboxCatalog.isRefreshing
+  const refreshSandboxOptions = sandboxCatalog.reload
+  const sandboxOptions = React.useMemo(() => {
+    if (!sandboxCatalog.data) return []
+    const providersById = new Map(sandboxCatalog.data.providers.map(provider => [provider.provider_id, provider]))
+    return sandboxCatalog.data.environments.filter(environment => {
+      const provider = providersById.get(environment.provider_id)
+      return provider?.status === "online" && ["bound", "ready", "busy"].includes(environment.status)
+    }).map(environment => ({
+      environmentId: environment.environment_id,
+      label: sandboxOptionLabel(environment, providersById.get(environment.provider_id)),
+      status: environment.status,
+      resultDelivery: providersById.get(environment.provider_id)?.result_delivery,
+    }))
+  }, [sandboxCatalog.data])
 
   React.useEffect(() => {
-    void refreshSandboxOptions()
-
-    return () => {
-      sandboxOptionsRequestRef.current += 1
-      sandboxOptionsInFlightRef.current = null
-    }
-  }, [refreshSandboxOptions])
+    if (!accessToken) setSelectedModelProfileId("")
+  }, [accessToken])
 
   // 加载 DB 中的 pending 队列并同步到本地状态
   React.useEffect(() => {
@@ -3554,12 +3462,26 @@ export function GatewayChatSidebar({
       })
       return false
     }
-    if (selectedModelProfileId && (!modelProfilesLoadedRef.current || !modelProfilesRef.current.some(model => model.id === selectedModelProfileId))) { setError(i18n.t("interaction.unavailableModel")); return false }
-    if (selectedSandboxEnvironmentId && (!sandboxOptionsLoadedRef.current || !sandboxOptionsRef.current.some(option => option.environmentId === selectedSandboxEnvironmentId))) { setError(i18n.t("interaction.unavailableEnvironment")); return false }
+    if (selectedModelProfileId && !isModelCatalogLoaded) {
+      setError(i18n.t(modelCatalog.error ? "chat.composer.modelCatalogFailed" : "chat.composer.catalogLoading"))
+      return false
+    }
+    if (selectedModelProfileId && !modelProfiles.some(model => model.id === selectedModelProfileId)) {
+      setError(i18n.t("interaction.unavailableModel"))
+      return false
+    }
+    if (selectedSandboxEnvironmentId && !isSandboxCatalogLoaded) {
+      setError(i18n.t(sandboxCatalog.error ? "chat.composer.sandboxCatalogFailed" : "chat.composer.catalogLoading"))
+      return false
+    }
+    if (selectedSandboxEnvironmentId && !sandboxOptions.some(option => option.environmentId === selectedSandboxEnvironmentId)) {
+      setError(i18n.t("interaction.unavailableEnvironment"))
+      return false
+    }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
       selectedModelProfileId,
-      modelProfilesLoadedRef.current,
-      modelProfilesRef.current.map((profile) => profile.id)
+      isModelCatalogLoaded,
+      modelProfiles.map((profile) => profile.id)
     )
     const submissionRuntimeSelection = {
       modelProfileId: submissionModelProfileId,
@@ -4496,6 +4418,11 @@ export function GatewayChatSidebar({
         fileReferenceScope={currentConversationId ?? "new"}
         modelOptions={modelOptions}
         isModelCatalogLoaded={isModelCatalogLoaded}
+        isModelCatalogLoading={modelCatalog.isLoading || modelCatalog.isRefreshing}
+        modelCatalogError={modelCatalog.error ? i18n.t("chat.composer.modelCatalogFailed") : null}
+        onModelCatalogRefresh={() => { void modelCatalog.reload() }}
+        isSandboxCatalogLoaded={isSandboxCatalogLoaded}
+        sandboxCatalogError={sandboxCatalog.error ? i18n.t("chat.composer.sandboxCatalogFailed") : null}
         selectedModelProfileId={selectedModelProfileId}
         sandboxOptions={sandboxOptions}
         isRefreshingSandboxOptions={isRefreshingSandboxOptions}

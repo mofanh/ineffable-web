@@ -11,6 +11,10 @@
 3. 不保留无职责中转层。只做 `export ... from ...` 的 page barrel 文件不要新增。
 4. 不把一次性页面实现伪装成共享组件。共享组件必须有明确复用场景。
 5. 架构重构优先保持行为，再改善结构。
+6. Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
+7. Fix a bug at its cause, reasoning from first principles and established best practice. Do not patch over the symptom.
+
+模型和运行环境目录复用 `useApiResource` 的 session 作用域快照与读取状态；后台刷新不撤销成功快照，读取失败不等于资源不存在，401/403/404 清除快照并显式重试。选择器、发送预检共用该资源，最终权限仍由 Gateway 校验。全局 chunk 重载冷却按真实尝试时间判断，不能用启动计时清除；显式重试也记录尝试时间。
 
 ## 前端分层
 

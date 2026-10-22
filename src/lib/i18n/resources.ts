@@ -3,7 +3,7 @@ export const resources = {
     translation: {
       interaction: {
         suspendedSpace: "空间已停用，请联系管理员处理。", ownerChanged: "空间所有者已变化，请刷新后重试。", spaceQuota: "恢复后将超出空间数量额度，请先调整其他空间或套餐。", credentialUnknown: "轮换结果尚未确认，旧凭据可能已失效。一次性凭据无法找回；确认影响后，可再次显式轮换。",
-        settings: "设置", settingsHint: "管理账号、连接和高级功能。", account: "账号与偏好", models: "模型与能力", connections: "连接与渠道", advanced: "高级",
+        settings: "设置", account: "账号与偏好", models: "模型与能力", connections: "连接与渠道", advanced: "高级",
         createTeamHint: "先创建空间，随后在成员管理中邀请团队成员。", uncertainCreate: "暂时无法确认是否已提交。请先返回列表核对，避免重复创建。",
         inviteCreated: "邀请已创建", emailFailed: "邀请已创建，但邮件未送达。可以复制下方邀请链接发送给对方。", detailsFailed: "部分详情暂未加载，成员信息仍可查看。",
         grantOwner: "授予所有者权限？", grantOwnerHint: "对方将获得空间的完整管理权限。你仍保留所有者身份，之后可自行退出。",
@@ -557,8 +557,7 @@ export const resources = {
           title: "自动任务",
           subtitle:
             "让 Agent 在指定时间回到原会话继续工作。你可以在这里查看排期、运行记录，或调整已经创建的任务。",
-          running: "运行中",
-          runningDetail: "当前已启用任务",
+          enabled: "已启用",
           scheduled: "已排期",
           scheduledDetail: "已有下次运行时间",
           recentRuns: "近期运行",
@@ -930,6 +929,11 @@ export const resources = {
           iterationLoadFailedTitle: "Node 迭代状态加载失败",
           iterationUpdateFailed: "无法更新 Node 迭代模式。",
           iterationUpdateFailedTitle: "Node 迭代模式更新失败",
+          catalogLoading: "正在确认可用选项…",
+          modelCatalogFailed: "模型列表读取失败，请重试。",
+          sandboxCatalogFailed: "运行环境列表读取失败，请重试。",
+          modelUnconfirmed: "所选模型待确认",
+          sandboxUnconfirmed: "所选环境待确认",
           sandboxSyncing: "正在同步 Sandbox 环境",
           sandboxTitle: "选择 Sandbox 环境；展开时自动刷新",
           sandbox: "沙箱",
@@ -1272,7 +1276,6 @@ export const resources = {
           usageDescription:
             "按范围查看模型点数、请求、Token、失败率与平均耗时，月额度口径保持不变。",
           listTitle: "模型列表",
-          listDescription: "主视图保持单列表格，技术细节通过行内展开查看。",
           search: "搜索模型...",
           add: "新增模型",
           filters: {
@@ -1514,8 +1517,6 @@ export const resources = {
           healthEmptyDescription:
             "新增密钥和模型引用后，这里会展示 key 健康分布。",
           listTitle: "密钥列表",
-          listDescription:
-            "主视图保持单列表格，安全说明和元数据通过行内展开查看。",
           search: "搜索密钥...",
           add: "新增密钥",
           columns: {
@@ -1597,8 +1598,6 @@ export const resources = {
           subtitle:
             "管理用户角色、套餐分配，以及月度 Token、点数和工作区用量。",
           listTitle: "用户列表",
-          listDescription:
-            "主视图保持单列表格，用户套餐记录和月度用量通过行内展开查看。",
           search: "搜索用户...",
           columns: {
             user: "用户",
@@ -1942,7 +1941,7 @@ export const resources = {
     translation: {
       interaction: {
         suspendedSpace: "This space is suspended. Contact an administrator.", ownerChanged: "The workspace owner changed. Refresh before retrying.", spaceQuota: "Restoring would exceed the workspace limit. Review other spaces or your plan first.", credentialUnknown: "The rotation result is unconfirmed; the old credential may be invalid. A one-time credential cannot be recovered. Review the impact before explicitly rotating again.",
-        settings: "Settings", settingsHint: "Manage your account, connections and advanced features.", account: "Account and preferences", models: "Models and capabilities", connections: "Connections and channels", advanced: "Advanced",
+        settings: "Settings", account: "Account and preferences", models: "Models and capabilities", connections: "Connections and channels", advanced: "Advanced",
         createTeamHint: "Create the space first, then invite your team from member management.", uncertainCreate: "The submission result is unknown. Check the list before creating again.",
         inviteCreated: "Invitation created", emailFailed: "The invitation was created, but the email was not delivered. You can share the invitation link below.", detailsFailed: "Some details could not load. Member information is still available.",
         grantOwner: "Grant owner access?", grantOwnerHint: "This member will have full control of the space. You remain an owner and can leave afterward.",
@@ -2499,8 +2498,7 @@ export const resources = {
           title: "Automation",
           subtitle:
             "Schedule an Agent to return to its original conversation, review runs, and adjust recurring work.",
-          running: "Running",
-          runningDetail: "Currently enabled automations",
+          enabled: "Enabled",
           scheduled: "Scheduled",
           scheduledDetail: "Automations with a next run",
           recentRuns: "Recent runs",
@@ -2893,6 +2891,11 @@ export const resources = {
           iterationLoadFailedTitle: "Node iteration status failed",
           iterationUpdateFailed: "Unable to update Node iteration mode.",
           iterationUpdateFailedTitle: "Node iteration update failed",
+          catalogLoading: "Checking available options…",
+          modelCatalogFailed: "Could not load models. Try again.",
+          sandboxCatalogFailed: "Could not load environments. Try again.",
+          modelUnconfirmed: "Selected model not yet confirmed",
+          sandboxUnconfirmed: "Selected environment not yet confirmed",
           sandboxSyncing: "Syncing Sandbox environments",
           sandboxTitle:
             "Choose a Sandbox environment; options refresh when opened",
@@ -3244,8 +3247,6 @@ export const resources = {
           usageDescription:
             "Inspect model credits, requests, tokens, failure rate, and average latency by range without changing monthly quota accounting.",
           listTitle: "Model list",
-          listDescription:
-            "The primary view stays a single table; expand a row for technical details.",
           search: "Search models...",
           add: "Add model",
           filters: {
@@ -3500,8 +3501,6 @@ export const resources = {
           healthEmptyDescription:
             "Health distribution will appear after secrets and model references are added.",
           listTitle: "Secret list",
-          listDescription:
-            "The primary view stays a single table; expand a row for security guidance and metadata.",
           search: "Search secrets...",
           add: "Add secret",
           columns: {
@@ -3586,8 +3585,6 @@ export const resources = {
           subtitle:
             "Manage user roles, plan assignments, monthly tokens and credits, and workspace usage.",
           listTitle: "User list",
-          listDescription:
-            "The primary view stays a single table; expand a row for plan records and monthly usage.",
           search: "Search users...",
           columns: {
             user: "User",

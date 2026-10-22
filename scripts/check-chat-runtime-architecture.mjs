@@ -121,14 +121,16 @@ assert.match(agentEvolutionInvalidation, /CustomEvent<AgentEvolutionChangedDetai
 assert.doesNotMatch(chatHeader, /Runtime Lab|onOpenAgentEvolution/)
 assert.match(
   sidebar,
-  /if \(!accessToken\)[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false/,
-  "authentication hydration must keep sandbox availability pending instead of publishing an authoritative empty catalog"
+  /cacheKey: \["chat-sandbox-environments", currentSessionId, accessToken\]/,
+  "sandbox directory snapshots must belong to the current authenticated session"
 )
 assert.match(
   sidebar,
-  /sandboxOptionsRequestRef\.current = requestId[\s\S]{0,500}sandboxOptionsLoadedRef\.current = false[\s\S]{0,500}setIsRefreshingSandboxOptions\(true\)/,
-  "a user-scoped sandbox refresh must fence history reconciliation until its catalog arrives"
+  /cacheKey: \["chat-model-profiles", currentSessionId, accessToken\]/,
+  "model directory snapshots must use the same session-scoped resource owner"
 )
+assert.doesNotMatch(sidebar, /sandboxOptionsLoadedRef|modelProfilesLoadedRef|sandboxOptionsRequestRef/,
+  "catalogs must not recreate a second state machine alongside useApiResource")
 assert.match(composerRuntimeSelection, /runtime-selection-draft/)
 assert.match(composerRuntimeSelection, /RUNTIME_SELECTION_DRAFT_VERSION/)
 assert.doesNotMatch(

@@ -33,6 +33,9 @@ type ComposerSingleSelectProps = {
   searchPlaceholder?: string
   loading?: boolean
   loadingLabel?: string
+  error?: string | null
+  onRetry?: () => void
+  retryLabel?: string
   className?: string
   onOpenChange?: (open: boolean) => void
   onValueChange: (value: string) => void
@@ -49,6 +52,9 @@ export function ComposerSingleSelect({
   searchPlaceholder,
   loading = false,
   loadingLabel,
+  error,
+  onRetry,
+  retryLabel,
   className,
   onOpenChange,
   onValueChange,
@@ -192,6 +198,12 @@ export function ComposerSingleSelect({
             <span>{loadingLabel}</span>
           </div>
         ) : null}
+        {error ? (
+          <div role="alert" className="flex items-center gap-2 px-2 py-2 text-xs text-destructive">
+            <span className="min-w-0 flex-1">{error}</span>
+            {onRetry ? <Button type="button" size="xs" variant="outline" disabled={loading} onClick={onRetry}>{retryLabel}</Button> : null}
+          </div>
+        ) : null}
         <div
           id={listboxId}
           role="listbox"
@@ -229,7 +241,7 @@ export function ComposerSingleSelect({
             </button>
           ))}
         </div>
-        {filteredOptions.length === 0 ? (
+        {filteredOptions.length === 0 && !loading && !error ? (
           <div
             role="status"
             aria-live="polite"

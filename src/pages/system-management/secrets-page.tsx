@@ -262,7 +262,6 @@ export function SystemSecretManagementPage() {
 
       <AppSectionCard
         title={t("system.secrets.listTitle")}
-        description={t("system.secrets.listDescription")}
         icon={KeyRoundIcon}
       >
         <AppListToolbar

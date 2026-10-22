@@ -458,7 +458,6 @@ export function SystemModelManagementPage() {
 
       <AppSectionCard
         title={t("system.models.listTitle")}
-        description={t("system.models.listDescription")}
         icon={BotIcon}
       >
         <AppListToolbar

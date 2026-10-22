@@ -14,7 +14,7 @@ function Fixture() {
     isFullScreen={false} composer="" error={null} isSending={true} isSubmittingInput={false}
     canPromoteToGuided={false} canResumePreInputQueue={false} blockedPreInputRunStatus={null}
     pendingQueueAction="idle" preInputQueue={[]} agentDescriptorOptions={[]} modelOptions={[]}
-    isModelCatalogLoaded={true} selectedModelProfileId="" sandboxOptions={[
+    isModelCatalogLoaded={true} isModelCatalogLoading={false} modelCatalogError={null} onModelCatalogRefresh={noop} isSandboxCatalogLoaded={true} sandboxCatalogError={null} selectedModelProfileId="" sandboxOptions={[
       {environmentId:"a",label:"Remote A",status:"ready",resultDelivery:{pending_results:pending,oldest_pending_seconds:90,inspection_failed:false}},
       {environmentId:"b",label:"Remote B",status:"ready"}
     ]} isRefreshingSandboxOptions={false} selectedSandboxEnvironmentId={selected}

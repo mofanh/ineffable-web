@@ -24,7 +24,7 @@ function Fixture() {
     canPromoteToGuided={false} canResumePreInputQueue={false} blockedPreInputRunStatus={null}
     pendingQueueAction="idle" preInputQueue={[]} accessToken={token} fileReferenceScope={scope} workspaces={[{ id: "11111111-1111-1111-1111-111111111111", name: "A" }, { id: "22222222-2222-2222-2222-222222222222", name: "B" }]}
     modelOptions={[]}
-    isModelCatalogLoaded={true} selectedModelProfileId="" sandboxOptions={[]} isRefreshingSandboxOptions={false} selectedSandboxEnvironmentId=""
+    isModelCatalogLoaded={true} isModelCatalogLoading={false} modelCatalogError={null} onModelCatalogRefresh={noop} isSandboxCatalogLoaded={true} sandboxCatalogError={null} selectedModelProfileId="" sandboxOptions={[]} isRefreshingSandboxOptions={false} selectedSandboxEnvironmentId=""
     capabilityExposureSelection={null} capabilityExposurePolicy={null} capabilityExposureDraftStatus="idle"
     capabilityCatalog={[]} capabilityCatalogStatus="idle" onCapabilityCatalogRefresh={noop}
     agentIterationRequested={false} agentIterationMode="disabled" isAgentIterationLoading={false}

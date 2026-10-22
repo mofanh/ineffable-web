@@ -637,7 +637,7 @@ export function AutomationPage() {
       subtitle={t("automation.page.subtitle")}
       metrics={[
         {
-          label: t("automation.page.running"),
+          label: t("automation.page.enabled"),
           value: automationResource.data
             ? String(
                 automations.filter(
@@ -645,7 +645,6 @@ export function AutomationPage() {
                 ).length,
               )
             : "—",
-          detail: t("automation.page.runningDetail"),
           icon: Zap,
           tone: "amber",
         },

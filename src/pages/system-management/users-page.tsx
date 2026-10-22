@@ -344,7 +344,6 @@ export function SystemUserManagementPage() {
     >
       <AppSectionCard
         title={t("system.users.listTitle")}
-        description={t("system.users.listDescription")}
         icon={UsersIcon}
       >
         <AppListToolbar

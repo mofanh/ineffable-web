@@ -88,6 +88,11 @@ type ChatComposerProps = {
   modelPickerFooter?: React.ReactNode
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
+  isModelCatalogLoading: boolean
+  modelCatalogError: string | null
+  onModelCatalogRefresh: () => void
+  isSandboxCatalogLoaded: boolean
+  sandboxCatalogError: string | null
   selectedModelProfileId: string
   sandboxOptions: { environmentId: string; label: string; status: string; resultDelivery?: SandboxResultDeliveryHealth | null }[]
   isRefreshingSandboxOptions: boolean
@@ -134,6 +139,11 @@ export function ChatComposer({
   accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, modelPickerFooter,
   modelOptions,
   isModelCatalogLoaded,
+  isModelCatalogLoading,
+  modelCatalogError,
+  onModelCatalogRefresh,
+  isSandboxCatalogLoaded,
+  sandboxCatalogError,
   selectedModelProfileId,
   sandboxOptions,
   isRefreshingSandboxOptions,
@@ -203,13 +213,13 @@ export function ChatComposer({
             ) : null}
           </>
         ),
-      })), ...(selectedModelProfileId && !modelOptions.some(option => option.id === selectedModelProfileId) ? [{ value: selectedModelProfileId, label: t("interaction.unavailableModel") }] : [])],
-    [modelOptions, selectedModelProfileId, t]
+      })), ...(selectedModelProfileId && !modelOptions.some(option => option.id === selectedModelProfileId) ? [{ value: selectedModelProfileId, label: t(isModelCatalogLoaded ? "interaction.unavailableModel" : "chat.composer.modelUnconfirmed") }] : [])],
+    [modelOptions, selectedModelProfileId, isModelCatalogLoaded, t]
   )
 
   const sandboxPickerOptions = React.useMemo<ComposerSingleSelectOption[]>(
     () => [
-      ...(selectedSandboxEnvironmentId && !sandboxOptions.some(option => option.environmentId === selectedSandboxEnvironmentId) ? [{ value: selectedSandboxEnvironmentId, label: t("interaction.unavailableEnvironment") }] : []),
+      ...(selectedSandboxEnvironmentId && !sandboxOptions.some(option => option.environmentId === selectedSandboxEnvironmentId) ? [{ value: selectedSandboxEnvironmentId, label: t(isSandboxCatalogLoaded ? "interaction.unavailableEnvironment" : "chat.composer.sandboxUnconfirmed") }] : []),
       {
         value: "__disabled__",
         label: t("chat.composer.noSandbox"),
@@ -234,7 +244,7 @@ export function ChatComposer({
         ),
       })),
     ],
-    [sandboxOptions, selectedSandboxEnvironmentId, t]
+    [sandboxOptions, selectedSandboxEnvironmentId, isSandboxCatalogLoaded, t]
   )
 
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
@@ -440,39 +450,23 @@ export function ChatComposer({
             {imageActions}
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
               <div className="flex w-fit min-w-0 max-w-40 shrink">
-                {modelOptions.length > 0 || selectedModelProfileId ? (
-                  <ComposerSingleSelect
-                    footer={modelPickerFooter}
-                    value={selectedModelProfileId}
-                    options={modelPickerOptions}
-                    icon={
-                      <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    }
-                    label={t("chat.composer.modelPickerLabel")}
-                    placeholder={t("chat.composer.noModelSelected")}
-                    emptyLabel={t("chat.composer.noMatchingModels")}
-                    searchPlaceholder={t("chat.composer.modelSearch")}
-                    onValueChange={onModelProfileChange}
-                  />
-                ) : (
-                  <div
-                    className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground"
-                    title={t(
-                      isModelCatalogLoaded
-                        ? "chat.composer.noModel"
-                        : "chat.composer.model"
-                    )}
-                  >
-                    <BotIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">
-                      {t(
-                        isModelCatalogLoaded
-                          ? "chat.composer.noModel"
-                          : "chat.composer.model"
-                      )}
-                    </span>
-                  </div>
-                )}
+                <ComposerSingleSelect
+                  footer={modelPickerFooter}
+                  value={selectedModelProfileId}
+                  options={modelPickerOptions}
+                  icon={<BotIcon className="size-3.5 shrink-0 text-muted-foreground" />}
+                  label={t("chat.composer.modelPickerLabel")}
+                  placeholder={t(isModelCatalogLoaded ? "chat.composer.noModelSelected" : "chat.composer.model")}
+                  emptyLabel={t("chat.composer.noMatchingModels")}
+                  searchPlaceholder={t("chat.composer.modelSearch")}
+                  loading={isModelCatalogLoading}
+                  loadingLabel={t("chat.composer.catalogLoading")}
+                  error={modelCatalogError}
+                  onRetry={onModelCatalogRefresh}
+                  retryLabel={t("common.retry")}
+                  onOpenChange={open => { if (open) onModelCatalogRefresh() }}
+                  onValueChange={onModelProfileChange}
+                />
               </div>
               <div className="flex w-fit min-w-0 max-w-40 shrink">
                 <ComposerSingleSelect
@@ -487,6 +481,9 @@ export function ChatComposer({
                   searchPlaceholder={t("chat.composer.sandboxSearch")}
                   loading={isRefreshingSandboxOptions}
                   loadingLabel={t("chat.composer.sandboxSyncing")}
+                  error={sandboxCatalogError}
+                  onRetry={onSandboxOptionsRefresh}
+                  retryLabel={t("common.retry")}
                   onOpenChange={(open) => {
                     if (open) {
                       onSandboxOptionsRefresh()

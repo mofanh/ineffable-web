@@ -43,6 +43,9 @@ jobs:
       - name: Owned channel recovery experience
         run: npm run check:channels
 
+      - name: Chunk recovery cooldown
+        run: npm run check:chunk-recovery
+
       - name: Shell loading and sidebar interaction
         run: npm run check:shell-performance
 
@@ -80,3 +83,6 @@ jobs:
 
       - name: Production shell behavior
         run: npm run check:shell-performance -- --production
+
+      - name: Production chunk recovery
+        run: npm run check:chunk-recovery -- --production
