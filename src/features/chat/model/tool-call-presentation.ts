@@ -36,7 +36,10 @@ function unwrapResult(output: string): { result: unknown; text: string } {
   const parsed = parseLeadingJsonObject(output)
   if (!parsed) {
     // Workspace spaces is an array, unlike other operation result objects.
-    try { return { result: JSON.parse(output), text: "" } }
+    try {
+      const result: unknown = JSON.parse(output)
+      return { result, text: typeof result === "string" ? result : "" }
+    }
     catch { return { result: null, text: output } }
   }
   const nested = parsed.result
@@ -46,19 +49,58 @@ function unwrapResult(output: string): { result: unknown; text: string } {
   return { result: nested ?? parsed, text: "" }
 }
 
+// read_file is a text protocol, not a JSON result. Only its final, tool-owned
+// metadata footer can supply range/continuation facts; JSON in the file cannot.
+function fileWindow(output: unknown): JsonObject | null {
+  if (typeof output !== "string") return null
+  const marker = "[read_file metadata] "
+  const offset = output.lastIndexOf(marker)
+  if (offset < 0 || (offset > 0 && output[offset - 1] !== "\n")) return null
+  const metadata = parseJsonObject(output.slice(offset + marker.length))
+  if (!metadata || typeof metadata.truncated !== "boolean" || typeof metadata.line_truncated !== "boolean") return null
+  const count = integer(metadata.returned_lines)
+  const total = integer(metadata.total_lines)
+  const start = integer(metadata.start_line)
+  const end = integer(metadata.end_line)
+  if (count === null || count < 0 || total === null || total < count) return null
+  if (count === 0) {
+    if (metadata.start_line !== null || metadata.end_line !== null) return null
+  } else if (start === null || end === null || start < 1 || end < start || end > total || end - start + 1 !== count) return null
+  if (metadata.next_offset !== null && (integer(metadata.next_offset) === null || Number(metadata.next_offset) < 1)) return null
+  return metadata
+}
+
 // Display projection only: this never resolves aliases or executes a tool.
 // Current qualified operations work in direct and tools.call records alike.
 function invocation(tool: ToolCallView) {
   let name = tool.name
   let input = parseJsonObject(tool.input)
+  let payload: unknown = tool.output
   if (name === "tools" && input?.command === "call" && stringValue(input.name)) {
     name = stringValue(input.name)
     input = objectValue(input.arguments)
+    const envelope = parseLeadingJsonObject(tool.output)
+    if (envelope && Object.hasOwn(envelope, "result") && stringValue(envelope.name).trim()) {
+      // Discovery's provider::capability IDs are valid calls. The navigation
+      // result carries the actual current operation name; no alias table is used.
+      name = stringValue(envelope.name)
+      payload = envelope.result
+    }
   }
   const command = stringValue(input?.command).trim()
   const key = ["workspace", "terminal", "tools"].includes(name) && command
     ? `${name}.${command}` : name
-  return { name, key, input, ...unwrapResult(tool.output) }
+  const text = typeof payload === "string" ? payload : ""
+  if (key === "read_file") {
+    const window = fileWindow(payload)
+    return { name, key, input, result: window ? { window } : null, text }
+  }
+  if (key === "write_file" || key === "apply_patch") {
+    return { name, key, input, result: null, text }
+  }
+  // Unknown tools have opaque outputs. They cannot contribute execution facts.
+  if (!actionFor(key, input)) return { name, key, input, result: null, text }
+  return { name, key, input, ...(typeof payload === "string" ? unwrapResult(payload) : { result: payload, text: "" }) }
 }
 
 function actionFor(key: string, input: JsonObject | null): Action | null {
@@ -129,7 +171,7 @@ function actionFor(key: string, input: JsonObject | null): Action | null {
 
 function genericInputSummary(tool: ToolCallView, input: JsonObject | null) {
   const operation = firstString(input, ["command", "cmd"])
-  const target = firstString(input, ["query", "pattern", "url", "path", "source_path", "name", "environment_id", "target", "conversation_id"])
+  const target = firstString(input, ["query", "pattern", "url", "path", "source_path", "name", "environment_id", "session_id", "target", "conversation_id"])
   const structured = [operation, target === operation ? "" : target].filter(Boolean).join(" · ")
   if (structured) return inlineSummary(structured)
   const raw = tool.input.trim()
@@ -147,6 +189,8 @@ function resultSummary(kind: ResultKind | undefined, result: JsonObject | null, 
     if (status === "failed") parts.push(i18n.t("chat.agent.failed"))
     if (status === "timed_out") parts.push(i18n.t("chat.agent.terminalTimedOut"))
     if (status === "interrupted") parts.push(i18n.t("chat.agent.terminalInterrupted"))
+    if (status === "unknown") parts.push(i18n.t("chat.agent.toolResults.observationPending"))
+    if (result?.recovery_action === "observe") parts.push(i18n.t("chat.agent.toolResults.observeAgain"))
     const failure = firstString(result, ["failure_reason", "error"])
     if (failure) parts.push(failure)
   }
@@ -171,7 +215,12 @@ function resultSummary(kind: ResultKind | undefined, result: JsonObject | null, 
   }
   const window = objectValue(result?.window)
   if (result?.truncated === true || window?.truncated === true) parts.push(i18n.t("chat.agent.toolResults.truncated"))
-  if (result?.next_cursor || window?.next_offset) parts.push(i18n.t("chat.agent.toolResults.more"))
+  // A terminal cursor is an output byte position, not a directory page token.
+  const nextPage = (kind === "list" || kind === "search") && typeof result?.next_cursor === "string" && result.next_cursor.trim()
+  const readMore = kind === "read" && (
+    (integer(window?.next_offset) ?? 0) > 0 || (integer(window?.next_line_byte_offset) ?? 0) > 0
+  )
+  if (nextPage || readMore) parts.push(i18n.t("chat.agent.toolResults.more"))
   return inlineSummary(parts.join(" · "))
 }
 
@@ -190,8 +239,9 @@ export function getToolCallPresentation(tool: ToolCallView) {
     : name
   const settled = ["succeeded", "failed", "cancelled"].includes(tool.status)
   const failed = tool.status === "failed" || tool.status === "cancelled"
+  const errorResult = failed ? parseJsonObject(text) ?? result : result
   const error = failed
-    ? inlineSummary(firstString(result, ["error", "failure_reason", "failure", "reason", "message"]) || text) : null
+    ? inlineSummary(firstString(errorResult, ["error", "failure_reason", "failure", "reason", "message"]) || text) : null
   const outcome = settled ? resultSummary(action?.resultKind, result, rawResult) : null
   const fallback = action ? null : genericInputSummary(tool, input)
   const summary = inlineSummary([fallback, error || outcome].filter(Boolean).join(" · "))

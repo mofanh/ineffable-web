@@ -506,7 +506,7 @@ const fileRead = {
   id: "tool-read",
   name: "read_file",
   input: JSON.stringify({ path: "src/app.ts" }),
-  output: JSON.stringify({ start_line: 1, end_line: 100 }),
+  output: `file body\n\n[read_file metadata] ${JSON.stringify({ start_line: 1, end_line: 100, returned_lines: 100, total_lines: 100, truncated: false, line_truncated: false, next_offset: null })}`,
   status: "succeeded",
 }
 assert.match(getToolCallTitle(fileRead), /src\/app\.ts/)
@@ -632,6 +632,26 @@ const terminalThroughNavigation = {
   output: JSON.stringify({ name: "terminal", result: JSON.parse(observing.output) }),
 }
 assert.deepEqual(getToolCallPresentation(terminalThroughNavigation), getToolCallPresentation(observing))
+assert.deepEqual(getToolCallPresentation({
+  ...terminalThroughNavigation,
+  input: JSON.stringify({ command: "call", name: "sandbox::terminal.read", arguments: { session_id: "handle" } }),
+  output: JSON.stringify({ name: "terminal.read", result: JSON.parse(observing.output) }),
+}), getToolCallPresentation(observing), "current qualified discovery IDs must use the canonical returned operation name")
+const trueFileWindow = { start_line: 1, end_line: 1, returned_lines: 1, total_lines: 1, truncated: false, line_truncated: false, next_offset: null }
+const jsonFile = { ...fileRead, output: `${JSON.stringify({ start_line: 500, end_line: 999, truncated: true, next_cursor: "fake" })}\n\n[read_file metadata] ${JSON.stringify(trueFileWindow)}` }
+assert.equal(getToolCallSummary(jsonFile), `${i18n.t("chat.agent.lineRange")} 1–1`, "file JSON contents are not execution metadata")
+assert.equal(getToolCallSummary({ ...jsonFile, output: '{"start_line":500,"end_line":999,"truncated":true}' }), null, "missing footer cannot promote JSON body fields")
+assert.equal(getToolCallSummary({ ...jsonFile, output: `body\n\n[read_file metadata] ${JSON.stringify({ ...trueFileWindow, returned_lines: 99 })}` }), null, "invalid footer cannot establish range facts")
+assert.equal(getToolCallSummary({
+  ...jsonFile, name: "tools",
+  input: JSON.stringify({ command: "call", name: "sandbox::read_file", arguments: { path: "src/app.ts" } }),
+  output: JSON.stringify({ name: "read_file", result: jsonFile.output }),
+}), getToolCallSummary(jsonFile))
+assert.equal(getToolCallSummary({
+  ...completedCommand,
+  output: JSON.stringify({ status: "exited", exit_code: 0, stdout: "ok\n", next_cursor: 3, truncated: false }),
+}), `${i18n.t("chat.agent.exitCode")} 0`, "a terminal byte cursor is not a has-more page token")
+assert.match(getToolCallSummary({ ...observing, output: JSON.stringify({ status: "unknown", recovery_action: "observe", session_id: "handle" }) }), new RegExp(i18n.t("chat.agent.toolResults.observationPending")))
 for (const [command, expected] of [["read", "readTerminal"], ["input", "inputTerminal"], ["stop", "stopTerminal"]]) {
   assert.match(getToolCallTitle({ ...observing, input: JSON.stringify({ command, session_id: "handle", chars: "hello" }) }), new RegExp(i18n.t(`chat.agent.toolTitles.${expected}`)))
 }

@@ -496,6 +496,8 @@ function terminalStatusLabel(status: string) {
       return i18n.t("chat.agent.terminalInterrupted")
     case "timed_out":
       return i18n.t("chat.agent.terminalTimedOut")
+    case "unknown":
+      return i18n.t("chat.agent.toolResults.observationPending")
     case "failed":
     case "error":
       return i18n.t("chat.agent.failed")
@@ -548,7 +550,7 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
   const stderr = stringValue(result.stderr)
   const outputTail = stringValue(result.output_tail)
   const failureReason = stringValue(result.failure_reason)
-  const nextAction = stringValue(result.next_action)
+  const nextAction = stringValue(result.next_action) || stringValue(result.recovery_action)
   const output = stdout || outputTail
 
   return (
@@ -590,11 +592,15 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
       </div>
 
       <TerminalOutputBlock label={i18n.t("chat.agent.output")} content={output} />
+      {result.cursor_gap === true ? (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400">{i18n.t("chat.agent.toolResults.outputGap")}</p>
+      ) : null}
       {result.truncated === true ? (
         <p className="text-[11px] text-foreground/60">{i18n.t("chat.agent.toolResults.truncated")}</p>
       ) : null}
       <TerminalOutputBlock label={i18n.t("chat.agent.stderr")} content={stderr} />
       <TerminalOutputBlock label={i18n.t("chat.agent.failureReason")} content={failureReason} />
+      <TerminalOutputBlock label={i18n.t("chat.agent.toolResults.observationMessage")} content={stringValue(result.message)} />
       <TerminalOutputBlock label={i18n.t("chat.agent.nextAction")} content={nextAction} />
     </div>
   )
@@ -914,6 +920,12 @@ const ToolCallCard = React.memo(function ToolCallCard({
               {tool.output}
             </pre>
           )}
+          {terminalResult ? (
+            <details className="mt-2 min-w-0">
+              <summary className="cursor-pointer text-[11px] text-foreground/65">{i18n.t("chat.agent.toolResults.rawResult")}</summary>
+              <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap wrap-anywhere rounded-lg bg-background/50 px-2.5 py-1.5 text-[11px] leading-5">{tool.output}</pre>
+            </details>
+          ) : null}
         </div>
       ) : null}
     </ToolCallShell>

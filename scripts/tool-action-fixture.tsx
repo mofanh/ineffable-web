@@ -10,7 +10,7 @@ import { i18n } from "../src/lib/i18n/i18n"
 import "../src/index.css"
 
 const samples = [
-  { id: "command", name: "exec_command", args: { command: "npm run build", cwd: "/project" }, result: { session_id: "build-session", command: "npm run build", cwd: "/project", status: "exited", exit_code: 0, stdout: '<a href="x">RAW_HTML_OUTPUT</a>\nBUILD COMPLETE', truncated: true } },
+  { id: "command", name: "exec_command", args: { command: "npm run build", cwd: "/project" }, result: { session_id: "build-session", command: "npm run build", cwd: "/project", status: "exited", exit_code: 0, stdout: '<a href="x">RAW_HTML_OUTPUT</a>\nBUILD COMPLETE', truncated: true, cursor_generation: 12, cursor_gap: true, next_cursor: 60, bytes_returned: 60, available_bytes: 60 } },
   { id: "poll", name: "terminal", args: { command: "read", session_id: "build-session" }, result: { session_id: "build-session", command: "cargo test", cwd: "/project", status: "running", exit_code: null, stdout: "PARTIAL_OUTPUT" } },
   { id: "input", name: "terminal", args: { command: "input", session_id: "build-session", chars: "hello\n" }, result: { session_id: "build-session", command: "cat", status: "running" } },
   { id: "stop", name: "terminal", args: { command: "stop", session_id: "build-session" }, result: { session_id: "build-session", command: "sleep 100", status: "interrupted", exit_code: null } },
@@ -18,9 +18,11 @@ const samples = [
   { id: "search", name: "workspace", args: { command: "search", query: "transform", path: "src" }, result: { matches: ["a", "b"], next_cursor: "page-two" } },
   { id: "edit", name: "workspace", args: { command: "edit", path: "notes/very-long-file-name-that-should-stay-inside-the-mobile-tool-row.md", old_text: "old", new_text: "new" }, result: { version_no: 3 } },
   { id: "patch", name: "apply_patch", args: { input: "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-old\n+new\n*** End Patch" }, result: "Updated src/app.ts" },
-  { id: "navigation", name: "tools", args: { command: "call", name: "terminal.read", arguments: { session_id: "build-session" } }, result: { name: "terminal.read", result: { session_id: "build-session", command: "npm test", cwd: "/project", status: "exited", exit_code: 2, failure_reason: "TEST_FAILURE", stdout: "FAILURE_DETAILS" } } },
+  { id: "navigation", name: "tools", args: { command: "call", name: "sandbox::terminal.read", arguments: { session_id: "build-session" } }, result: { name: "terminal.read", result: { session_id: "build-session", command: "npm test", cwd: "/project", status: "exited", exit_code: 2, failure_reason: "TEST_FAILURE", stdout: "FAILURE_DETAILS" } } },
   { id: "unknown", name: "plugin.inspect", args: { query: "find docs" }, result: "UNKNOWN_RAW_OUTPUT" },
   { id: "failure", name: "exec_command", args: { command: "cat private.txt" }, result: { error: "PERMISSION_DENIED" }, failed: true },
+  { id: "json-file", name: "read_file", args: { path: "config.json" }, result: '{"start_line":500,"end_line":999,"truncated":true,"next_cursor":"fake"}\n\n[read_file metadata] {"start_line":1,"end_line":1,"returned_lines":1,"total_lines":1,"truncated":false,"line_truncated":false,"next_offset":null}' },
+  { id: "unconfirmed", name: "terminal", args: { command: "read", session_id: "pending-handle" }, result: { status: "unknown", session_id: "pending-handle", recovery_action: "observe", message: "OBSERVATION_RECOVERY_MESSAGE" } },
 ]
 
 function liveEntry(settled: boolean, base?: AssistantEntry) {

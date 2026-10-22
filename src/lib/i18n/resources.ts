@@ -1071,6 +1071,11 @@ export const resources = {
             truncated: "输出已截断",
             more: "还有更多",
             missingExitCode: "退出码未提供",
+            observationPending: "命令状态待确认",
+            observeAgain: "使用同一句柄继续查看",
+            observationMessage: "观察说明",
+            outputGap: "部分输出已轮转丢失，请查看游标信息。",
+            rawResult: "查看原始结果",
           },
         },
         plan: {
@@ -3030,6 +3035,11 @@ export const resources = {
             truncated: "Output truncated",
             more: "More available",
             missingExitCode: "Exit code unavailable",
+            observationPending: "Command status unconfirmed",
+            observeAgain: "Observe again with the same handle",
+            observationMessage: "Observation details",
+            outputGap: "Some output has rotated out. Check the cursor information.",
+            rawResult: "View raw result",
           },
         },
         plan: {
