@@ -1,0 +1,87 @@
+import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
+import { chromium } from "playwright-core"
+import { createServer } from "vite"
+
+const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(path => path && existsSync(path))
+assert.ok(executablePath)
+const server = await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0 } })
+let browser
+try {
+  await server.listen()
+  browser = await chromium.launch({ executablePath, headless: true })
+  const page = await browser.newPage({ viewport: { width: 390, height: 1000 }, reducedMotion: "reduce" })
+  const errors = []
+  page.on("pageerror", error => errors.push(error.message))
+  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/tool-action-fixture.html`)
+  const row = id => page.locator(`[data-tool-call-id="${id}"]`)
+  const title = id => row(id).locator("[data-tool-title]")
+  await row("command").waitFor()
+  const runningTitle = await title("command").innerText()
+  assert.match(runningTitle, /npm run build/)
+  const identity = await row("command").evaluate(node => { window.originalToolNode = node; return node.dataset.toolCallId })
+  await page.getByRole("button", { name: "settled", exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('[data-tool-call-id="command"]').dataset.toolStatus === "succeeded")
+  assert.equal(await title("command").innerText(), runningTitle)
+  assert.equal(await row("command").evaluate(node => node === window.originalToolNode), true, "settlement must update the original tool row")
+  assert.match(await row("command").innerText(), /退出码 0/)
+  assert.doesNotMatch(await row("command").innerText(), /RAW_HTML_OUTPUT|BUILD COMPLETE/)
+  assert.match(await row("poll").innerText(), /查看命令输出 cargo test/)
+  assert.match(await row("poll").innerText(), /运行中/)
+  assert.doesNotMatch(await row("poll").innerText(), /成功/)
+  assert.match(await title("input").innerText(), /发送终端输入 cat/)
+  assert.match(await title("stop").innerText(), /请求停止命令 sleep 100/)
+  assert.match(await row("read").innerText(), /system\/memory\/project.md/)
+  assert.doesNotMatch(await row("read").innerText(), /PRIVATE_FILE_BODY/)
+  assert.match(await row("search").innerText(), /transform.*src.*本页 2 项/s)
+  assert.match(await row("edit").innerText(), /版本 3/)
+  assert.match(await title("patch").innerText(), /src\/app.ts/)
+  assert.match(await row("navigation").innerText(), /查看命令输出 npm test.*退出码 2.*TEST_FAILURE/s)
+  assert.match(await row("unknown").innerText(), /plugin.inspect.*find docs/s)
+  assert.doesNotMatch(await row("unknown").innerText(), /UNKNOWN_RAW_OUTPUT/)
+  assert.match(await row("failure").innerText(), /cat private.txt.*PERMISSION_DENIED/s)
+  assert.equal(await page.locator("[data-tool-call-id]").count(), 11)
+  const settledRows = await page.locator("[data-tool-call-id]").allTextContents()
+  await page.getByRole("button", { name: "history", exact: true }).click()
+  assert.deepEqual(await page.locator("[data-tool-call-id]").allTextContents(), settledRows, "canonical history and live settlement must produce identical rows")
+  assert.equal(await row("command").getAttribute("data-tool-call-id"), identity)
+  await row("command").click()
+  await page.getByText(/RAW_HTML_OUTPUT/).waitFor()
+  assert.match(await page.locator("body").innerText(), /\/project/)
+  assert.match(await page.locator("body").innerText(), /输出已截断/)
+  await row("command").click()
+  await row("unknown").click()
+  await page.getByText("UNKNOWN_RAW_OUTPUT", { exact: true }).waitFor()
+  await row("unknown").click()
+  for (const language of ["English", "中文"]) {
+    await page.getByRole("button", { name: language, exact: true }).click()
+    await page.waitForFunction(lang => document.documentElement.lang.startsWith(lang), language === "English" ? "en" : "zh")
+    assert.match(await title("command").innerText(), language === "English" ? /Run command npm run build/ : /执行命令 npm run build/)
+    for (const width of [320, 390, 768, 1280]) {
+      await page.setViewportSize({ width, height: 1000 })
+      const bounds = await page.locator("[data-tool-call-id]").evaluateAll(nodes => nodes.map(node => ({ width: node.clientWidth, scroll: node.scrollWidth })))
+      assert.ok(bounds.every(value => value.scroll <= value.width + 1), `tool row overflow at ${language}/${width}`)
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
+    }
+  }
+  await page.getByRole("button", { name: "theme", exact: true }).click()
+  await page.waitForFunction(() => {
+    const node = document.querySelector('[data-tool-call-id="command"]')
+    const context = document.createElement("canvas").getContext("2d")
+    context.fillStyle = getComputedStyle(document.body).backgroundColor
+    context.fillRect(0, 0, 1, 1)
+    const background = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3)
+    context.fillStyle = getComputedStyle(node).color
+    context.fillRect(0, 0, 1, 1)
+    const foreground = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3)
+    const luminance = rgb => rgb.map(value => value / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0)
+    const a = luminance(background), b = luminance(foreground)
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5
+  })
+  if (process.env.TOOL_ACTION_SCREENSHOT) {
+    await page.setViewportSize({ width: 390, height: 1000 })
+    await page.screenshot({ path: process.env.TOOL_ACTION_SCREENSHOT, fullPage: true })
+  }
+  assert.deepEqual(errors, [])
+  console.log("tool action browser checks passed")
+} finally { await browser?.close(); await server.close() }

@@ -69,6 +69,7 @@ export function ToolCallShell({
   tool,
   title,
   summary,
+  summaryTone,
   statusLabel,
   icon,
   children,
@@ -81,6 +82,7 @@ export function ToolCallShell({
   tool: ToolCallView
   title?: React.ReactNode
   summary?: React.ReactNode
+  summaryTone?: "error"
   statusLabel?: React.ReactNode
   icon?: React.ReactNode
   children: React.ReactNode
@@ -132,16 +134,16 @@ export function ToolCallShell({
           data-tool-status={tool.status}
           className="group flex min-h-7 w-full min-w-0 items-center gap-2 text-left text-[12px] text-foreground/62 select-none transition-colors hover:text-foreground/85 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         >
-          <span className="inline-flex min-w-0 max-w-[52%] shrink-0 items-center gap-1.5">
+          <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
             {icon ?? <WrenchIcon className="size-3.5 flex-none" />}
-            <span className="truncate">{title ?? tool.name}</span>
+            <span data-tool-title className="truncate">{title ?? tool.name}</span>
           </span>
           {!open && summary ? (
             <span
               data-tool-summary
               className={cn(
-                "min-w-0 flex-1 truncate text-[11px] text-foreground/45",
-                tool.status === "failed" && "text-destructive/85"
+                "min-w-0 max-w-[45%] truncate text-[11px] text-foreground/45",
+                (tool.status === "failed" || summaryTone === "error") && "text-destructive/85"
               )}
             >
               {summary}

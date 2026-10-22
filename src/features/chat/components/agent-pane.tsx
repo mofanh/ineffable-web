@@ -465,16 +465,6 @@ function booleanValue(value: unknown) {
   return typeof value === "boolean" ? value : null
 }
 
-function isTerminalToolName(name: string) {
-  return (
-    name === "exec_command" ||
-    name === "terminal_read" ||
-    name === "terminal_list" ||
-    name === "terminal_stop" ||
-    name === "write_stdin"
-  )
-}
-
 function terminalStatusTone(status: string) {
   const normalized = status.toLowerCase()
   if (normalized === "running") {
@@ -600,6 +590,9 @@ function TerminalSessionResult({ result }: { result: JsonObject }) {
       </div>
 
       <TerminalOutputBlock label={i18n.t("chat.agent.output")} content={output} />
+      {result.truncated === true ? (
+        <p className="text-[11px] text-foreground/60">{i18n.t("chat.agent.toolResults.truncated")}</p>
+      ) : null}
       <TerminalOutputBlock label={i18n.t("chat.agent.stderr")} content={stderr} />
       <TerminalOutputBlock label={i18n.t("chat.agent.failureReason")} content={failureReason} />
       <TerminalOutputBlock label={i18n.t("chat.agent.nextAction")} content={nextAction} />
@@ -662,16 +655,7 @@ function TerminalListResult({ result }: { result: JsonObject }) {
   )
 }
 
-function renderTerminalToolResult(tool: ToolCallView) {
-  if (!isTerminalToolName(tool.name)) {
-    return null
-  }
-
-  const result = parseLeadingJsonObject(tool.output)
-  if (!result) {
-    return null
-  }
-
+function renderTerminalToolResult(result: JsonObject) {
   if (Array.isArray(result.sessions)) {
     return <TerminalListResult result={result} />
   }
@@ -877,6 +861,7 @@ const ToolCallCard = React.memo(function ToolCallCard({
   canRespondToUserInput: boolean
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
 }) {
+  useTranslation()
   if (tool.name === "update_plan") {
     return null
   }
@@ -890,9 +875,10 @@ const ToolCallCard = React.memo(function ToolCallCard({
     return specialized
   }
 
-  const terminalResult = renderTerminalToolResult(tool)
   const previewResult = sandboxPreviewResult(tool)
   const presentation = getToolCallPresentation(tool)
+  const terminalResult = presentation.terminalResult
+    ? renderTerminalToolResult(presentation.terminalResult) : null
 
   if (previewResult) {
     return <SandboxPreviewResultCard result={previewResult} />
@@ -903,6 +889,8 @@ const ToolCallCard = React.memo(function ToolCallCard({
       tool={tool}
       title={presentation.title}
       summary={presentation.summary}
+      summaryTone={presentation.summaryTone}
+      statusLabel={presentation.statusLabel}
       autoOpenActive={false}
     >
       {tool.input.trim() ? (

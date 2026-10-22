@@ -320,6 +320,11 @@ return (
   统一 fallback card，不能中断同 turn 其他 Node。
 - Workspace artifact view 只消费已授权 tool result 中的 object/version 引用，复用现有
   Workspace 路由与鉴权；不得把文件 bytes 放入事件、Node payload 或未经鉴权的 raw 请求。
+- 工具折叠行由唯一 `tool-call-presentation` 从当前操作参数生成稳定的动作与目标；结算后只补充
+  结构化结果，不用 stdout/文件正文替换动作。聚类操作和 `tools.call` 共用此投影，历史与实时
+  共用 Tool WebNode；旧工具名走通用 fallback，不恢复调用别名。终端观察已返回不代表命令
+  已退出成功；退出码、运行状态、分页和截断需分别呈现，完整参数及结果在展开区保留。
+  `npm run check:tool-actions` 覆盖工具行的生命周期、实时/历史一致性、中英文和移动端布局。
 - 过程折叠只使用 canonical `assistant_phase`、对应答复的 `run_status` 与精确片段接管证据。
   `entry.done`、EOF、完成时间或最后一段文本不能判定成功或最终答复。运行中默认展开，成功且
   所有已加载片段接管后默认收起；失败、取消、等待保持展开。阶段/最终/未知正文、图片、产物、

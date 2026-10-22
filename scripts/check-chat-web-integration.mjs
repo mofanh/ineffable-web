@@ -484,14 +484,15 @@ const runningCommand = {
   output: "",
   status: "running",
 }
-assert.equal(getToolCallSummary(runningCommand), "npm run build")
+assert.match(getToolCallTitle(runningCommand), /npm run build/)
+assert.equal(getToolCallSummary(runningCommand), null)
 assert.equal(
   getToolCallSummary({
     ...runningCommand,
     status: "succeeded",
     output: JSON.stringify({ exit_code: 0, output: "build complete\nnext line" }),
   }),
-  `${i18n.t("chat.agent.exitCode")} 0 · build complete next line`
+  `${i18n.t("chat.agent.exitCode")} 0`
 )
 assert.equal(
   getToolCallSummary({
@@ -541,8 +542,8 @@ assert.equal(
 assert.equal(
   getToolCallSummary({
     id: "tool-terminal-history",
-    name: "terminal_read",
-    input: JSON.stringify({ session_id: "session-1" }),
+    name: "terminal",
+    input: JSON.stringify({ command: "read", session_id: "session-1" }),
     output: JSON.stringify({
       start_line: 1,
       end_line: 77,
@@ -552,7 +553,8 @@ assert.equal(
     }).repeat(2),
     status: "succeeded",
   }),
-  `${i18n.t("chat.agent.lineRange")} 1–77 · first terminal line second terminal line`
+  null,
+  "captured stdout must not be substituted for the action or an unknown exit status"
 )
 assert.equal(
   getToolCallSummary({
@@ -589,6 +591,65 @@ const repeatedArtifactOutput = JSON.stringify({
   mime_type: "text/markdown",
   size_bytes: 42,
 }).repeat(2)
+// Action/target are stable facts of the call, independent of output content.
+const completedCommand = {
+  ...runningCommand, status: "succeeded",
+  output: JSON.stringify({ status: "exited", exit_code: 0, stdout: '<a href="x">RAW_HTML</a>', command: "different result text" }),
+}
+assert.equal(getToolCallTitle(completedCommand), getToolCallTitle(runningCommand))
+assert.doesNotMatch(getToolCallSummary(completedCommand), /RAW_HTML|different result/)
+assert.equal(getToolCallPresentation(completedCommand).statusLabel, i18n.t("chat.agent.toolResults.returned"))
+const observing = {
+  id: "observe", name: "terminal", status: "succeeded",
+  input: JSON.stringify({ command: "read", session_id: "handle" }),
+  output: JSON.stringify({ command: "cargo test", status: "running", exit_code: null, stdout: "arbitrary output" }),
+}
+assert.match(getToolCallTitle(observing), /cargo test/)
+assert.match(getToolCallTitle(observing), new RegExp(i18n.t("chat.agent.toolTitles.readTerminal")))
+assert.equal(getToolCallSummary(observing), i18n.t("chat.agent.terminalRunning"))
+assert.equal(observing.status, "succeeded", "process display must not mutate canonical tool settlement")
+assert.equal(getToolCallPresentation({ ...observing, output: JSON.stringify({ status: "exited", exit_code: 2 }) }).summaryTone, "error")
+assert.equal(getToolCallSummary({ ...observing, output: JSON.stringify({ status: "exited", exit_code: null }) }), i18n.t("chat.agent.toolResults.missingExitCode"))
+const workspaceRead = {
+  id: "ws-read", name: "workspace", status: "succeeded",
+  input: JSON.stringify({ command: "read", path: "system/memory/project.md" }),
+  output: JSON.stringify({ window: { start_line: 3, end_line: 20, next_offset: 21, truncated: true }, content: "PRIVATE_BODY" }),
+}
+assert.match(getToolCallTitle(workspaceRead), /system\/memory\/project.md/)
+assert.match(getToolCallSummary(workspaceRead), /3–20/)
+assert.match(getToolCallSummary(workspaceRead), new RegExp(i18n.t("chat.agent.toolResults.more")))
+assert.match(getToolCallSummary(workspaceRead), new RegExp(i18n.t("chat.agent.toolResults.truncated")))
+assert.doesNotMatch(getToolCallSummary(workspaceRead), /PRIVATE_BODY/)
+const throughNavigation = {
+  ...workspaceRead, name: "tools",
+  input: JSON.stringify({ command: "call", name: "workspace.read", arguments: { path: "system/memory/project.md" } }),
+  output: JSON.stringify({ name: "workspace.read", result: JSON.parse(workspaceRead.output), selection: {} }),
+}
+assert.deepEqual(getToolCallPresentation(throughNavigation), getToolCallPresentation(workspaceRead), "navigation must present the actual operation using the same projection")
+const terminalThroughNavigation = {
+  ...observing, name: "tools",
+  input: JSON.stringify({ command: "call", name: "terminal", arguments: { command: "read", session_id: "handle" } }),
+  output: JSON.stringify({ name: "terminal", result: JSON.parse(observing.output) }),
+}
+assert.deepEqual(getToolCallPresentation(terminalThroughNavigation), getToolCallPresentation(observing))
+for (const [command, expected] of [["read", "readTerminal"], ["input", "inputTerminal"], ["stop", "stopTerminal"]]) {
+  assert.match(getToolCallTitle({ ...observing, input: JSON.stringify({ command, session_id: "handle", chars: "hello" }) }), new RegExp(i18n.t(`chat.agent.toolTitles.${expected}`)))
+}
+assert.match(getToolCallTitle({ ...observing, input: JSON.stringify({ command: "input", session_id: "handle", chars: "" }) }), new RegExp(i18n.t("chat.agent.toolTitles.waitTerminal")))
+const search = {
+  id: "ws-search", name: "workspace", status: "succeeded",
+  input: JSON.stringify({ command: "search", query: "cache", path: "docs" }),
+  output: JSON.stringify({ matches: ["a", "b"], total: 9999, next_cursor: "next" }),
+}
+assert.match(getToolCallTitle(search), /cache · docs/)
+assert.equal(getToolCallSummary(search), `${i18n.t("chat.agent.toolResults.returnedItems", { count: 2 })} · ${i18n.t("chat.agent.toolResults.more")}`, "a page count must not claim to be the full total")
+assert.match(getToolCallSummary({ ...workspaceRead, input: JSON.stringify({ command: "write", path: "notes.md" }), output: '{"version_no":3}' }), /3/)
+assert.match(getToolCallTitle({ ...runningCommand, name: "apply_patch", input: JSON.stringify({ input: "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-a\n+b\n*** End Patch" }) }), /src\/app.ts/)
+assert.equal(getToolCallTitle({ ...fileRead, name: "workspace_list_spaces" }), "workspace_list_spaces", "obsolete names remain unknown, with no friendly alias")
+const unknownWithOutput = { ...fileRead, name: "plugin.action", input: '{"query":"find docs"}', output: 'RAW_RESULT_FRAGMENT' }
+assert.equal(getToolCallSummary(unknownWithOutput), "find docs")
+assert.equal(getToolCallTitle(unknownWithOutput), "plugin.action")
+assert.equal(getToolCallSummary({ ...unknownWithOutput, input: '{"command":"inspect","path":"docs"}' }), "inspect · docs")
 assert.deepEqual(
   parseLeadingJsonObject(repeatedArtifactOutput),
   JSON.parse(repeatedArtifactOutput.slice(0, repeatedArtifactOutput.length / 2))
@@ -1362,8 +1423,8 @@ const duplicateTerminalPayload = JSON.stringify({
 })
 const liveTerminalCall = event(101, "tool.call.completed", null, {
   tool_call_id: "tool-terminal-replay",
-  tool_name: "terminal_read",
-  full_arguments: JSON.stringify({ session_id: "session-history" }),
+  tool_name: "terminal",
+  full_arguments: JSON.stringify({ command: "read", session_id: "session-history" }),
 })
 const liveTerminalResult = event(
   102,
@@ -1371,7 +1432,7 @@ const liveTerminalResult = event(
   duplicateTerminalPayload.repeat(2),
   {
     tool_call_id: "tool-terminal-replay",
-    tool_name: "terminal_read",
+    tool_name: "terminal",
     status: "succeeded",
   }
 )
@@ -1398,12 +1459,12 @@ const terminalHistoryEntries = mapConversationMessagesToEntries([
     run_id: runId,
     role: "assistant",
     message_type: "tool_call",
-    content: JSON.stringify({ session_id: "session-history" }),
+    content: JSON.stringify({ command: "read", session_id: "session-history" }),
     metadata_json: {
       scope: "main",
       tool_call_id: "tool-terminal-replay",
-      tool_name: "terminal_read",
-      full_arguments: JSON.stringify({ session_id: "session-history" }),
+      tool_name: "terminal",
+      full_arguments: JSON.stringify({ command: "read", session_id: "session-history" }),
     },
     created_at: "2026-08-22T00:00:00Z",
     updated_at: "2026-08-22T00:00:00Z",
@@ -1418,7 +1479,7 @@ const terminalHistoryEntries = mapConversationMessagesToEntries([
     metadata_json: {
       scope: "main",
       tool_call_id: "tool-terminal-replay",
-      tool_name: "terminal_read",
+      tool_name: "terminal",
       status: "succeeded",
     },
     created_at: "2026-08-22T00:00:01Z",
