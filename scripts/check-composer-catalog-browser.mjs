@@ -9,7 +9,7 @@ let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["model-failure", "sandbox-refresh", "selection-during-load", "session-during-load"]) {
+  for (const scenario of ["model-failure", "sandbox-refresh", "selection-during-load", "session-during-load", "model-malformed", "sandbox-malformed"]) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
     const errors = [], sends = []
     page.on("pageerror", error => errors.push(error.message))
@@ -21,10 +21,11 @@ try {
       localStorage.setItem("ineffable.chat.new_conversation_draft", "true")
       localStorage.setItem("ineffable.chat.model.first", "model-one")
       localStorage.setItem("ineffable.chat.model.other", "model-two")
-      if (scenario === "sandbox-refresh") localStorage.setItem("ineffable.chat.sandbox.first", "environment")
+      if (scenario.startsWith("sandbox-")) localStorage.setItem("ineffable.chat.sandbox.first", "environment")
     }, scenario)
     let failModels = scenario === "model-failure", missingModels = false, modelReads = 0, releaseModels
-    let nextSandbox = null
+    let nextModels = scenario === "model-malformed" ? { body: { profiles: {} } } : null
+    let nextSandbox = scenario === "sandbox-malformed" ? { body: { environments: [] } } : null
     const profiles = { profiles: [{ id: "model-one", display_name: "Model One", enabled: true }, { id: "model-two", display_name: "Model Two", enabled: true }] }
     const sandbox = { providers: [{ provider_id: "provider", display_name: "Device", status: "online" }], environments: [{ environment_id: "environment", provider_id: "provider", status: "ready" }] }
     const conversation = id => ({ id, title: id, current_run: null })
@@ -45,12 +46,13 @@ try {
         modelReads++
         if (["selection-during-load", "session-during-load"].includes(scenario) && modelReads === 1) await new Promise(resolve => { releaseModels = resolve })
         if (failModels) return route.fulfill({ status: 503, json: { error: "catalog unavailable" } })
-        body = missingModels ? { profiles: [] } : route.request().headers().authorization?.includes("new-catalog-token") ? { profiles: [{ id: "new-model", display_name: "New Session Model", enabled: true }] } : profiles
+        const response = nextModels; nextModels = null
+        body = response ? response.body : missingModels ? { profiles: [] } : route.request().headers().authorization?.includes("new-catalog-token") ? { profiles: [{ id: "new-model", display_name: "New Session Model", enabled: true }] } : profiles
       } else if (path.endsWith("sandbox/environments")) {
         const response = nextSandbox; nextSandbox = null
         if (response?.gate) { response.started(); await response.gate }
         if (response?.status) return route.fulfill({ status: response.status, json: { error: "directory read failed" } })
-        body = response?.empty ? { providers: [], environments: [] } : sandbox
+        body = response && "body" in response ? response.body : response?.empty ? { providers: [], environments: [] } : sandbox
       } else if (path.endsWith("/observations/access")) body = { allowed: false }
       await route.fulfill({ json: body })
     })
@@ -119,6 +121,50 @@ try {
       await send("confirmed missing environment")
       assert.equal(sends.length, 2)
       await page.getByText("The selected environment is unavailable. Choose another environment.", { exact: true }).last().waitFor()
+    } else if (scenario.endsWith("-malformed")) {
+      const model = scenario === "model-malformed"
+      const picker = model ? modelPicker : sandboxPicker
+      const failure = model ? "Could not load models" : "Could not load environments"
+      const unconfirmed = model ? "Selected model not yet confirmed" : "Selected environment not yet confirmed"
+      const label = model ? "Model One" : "Device"
+      await picker.filter({ hasText: unconfirmed }).waitFor()
+      await send("draft survives invalid initial catalog")
+      assert.equal(sends.length, 0, "a malformed initial catalog is unknown, not confirmed empty")
+      assert.equal(await page.locator("textarea").inputValue(), "draft survives invalid initial catalog")
+      // Opening the menu retries the initial malformed response using the same resource.
+      await picker.click()
+      await page.getByRole("option", { name: new RegExp(label) }).waitFor()
+      await page.keyboard.press("Escape")
+      await page.locator("textarea").fill("draft survives malformed refresh")
+      const invalidBodies = model ? [
+        {}, null, { profiles: {} }, { profiles: [null] },
+        { profiles: [{ id: {}, display_name: "Broken" }] },
+        { profiles: [{ id: "model-one", display_name: {} }] },
+      ] : [
+        { environments: [] }, null, { providers: {}, environments: [] },
+        { providers: [], environments: {} }, { providers: [null], environments: [] },
+        { providers: [], environments: [null] },
+        { providers: [{ ...sandbox.providers[0], display_name: {} }], environments: sandbox.environments },
+        { providers: sandbox.providers, environments: [{ ...sandbox.environments[0], environment_id: {} }] },
+      ]
+      for (const body of invalidBodies) {
+        if (model) nextModels = { body }
+        else nextSandbox = { body }
+        await Promise.all([
+          page.waitForResponse(response => response.url().includes(model ? "/models/profiles" : "/sandbox/environments")),
+          picker.click(),
+        ])
+        await page.getByRole("alert").filter({ hasText: failure }).waitFor()
+        await page.getByRole("option", { name: new RegExp(label) }).waitFor()
+        await page.keyboard.press("Escape")
+        assert.equal(await page.locator("textarea").inputValue(), "draft survives malformed refresh")
+        await picker.filter({ hasText: label }).waitFor()
+        assert.equal(await page.getByText("Unable to open this page", { exact: true }).count(), 0)
+      }
+      await send("validated snapshot still works after invalid refreshes")
+      await wait(() => sends.length === 1, "last valid snapshot remains usable")
+      assert.equal(sends[0].model_profile_id, "model-one")
+      if (!model) assert.equal(sends[0].sandbox.environment_id, "environment")
     } else if (scenario === "session-during-load") {
       await wait(() => Boolean(releaseModels), "old session catalog is held")
       await page.evaluate(() => {

@@ -1269,13 +1269,31 @@ export function getConversationMessages(
   )
 }
 
-export function listModelProfiles(accessToken: string) {
-  return requestApiJson<{ profiles: ModelProfile[] }>(
+function isResponseRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function isResponseIdentity(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function isOptionalResponseText(value: unknown) {
+  return value == null || typeof value === "string"
+}
+
+export async function listModelProfiles(accessToken: string) {
+  const response = await requestApiJson<unknown>(
     "/gateway/v1/models/profiles",
     {
       accessToken,
     }
   )
+  if (!isResponseRecord(response) || !Array.isArray(response.profiles) ||
+    response.profiles.some(profile => !isResponseRecord(profile) ||
+      !isResponseIdentity(profile.id) || !isOptionalResponseText(profile.display_name))) {
+    throw createApiError("Invalid model catalog response")
+  }
+  return response as { profiles: ModelProfile[] }
 }
 
 export type AdminModelProfile = {
@@ -1747,7 +1765,7 @@ export function getSandboxProjectEnvironmentSummary(
   )
 }
 
-export function listSandboxWorkspaceEnvironments(
+export async function listSandboxWorkspaceEnvironments(
   accessToken: string | null,
   workspaceId: string | null
 ) {
@@ -1757,13 +1775,24 @@ export function listSandboxWorkspaceEnvironments(
   }
   const suffix = params.toString() ? `?${params.toString()}` : ""
 
-  return requestApiJson<SandboxWorkspaceEnvironmentListResponse>(
+  const response = await requestApiJson<unknown>(
     `/gateway/v1/sandbox/environments${suffix}`,
     {
       accessToken,
       workspaceId,
     }
   )
+  if (!isResponseRecord(response) || !Array.isArray(response.providers) ||
+    !Array.isArray(response.environments) ||
+    response.providers.some(provider => !isResponseRecord(provider) ||
+      !isResponseIdentity(provider.provider_id) || typeof provider.status !== "string" ||
+      !isOptionalResponseText(provider.display_name)) ||
+    response.environments.some(environment => !isResponseRecord(environment) ||
+      !isResponseIdentity(environment.environment_id) || !isResponseIdentity(environment.provider_id) ||
+      typeof environment.status !== "string" || !isOptionalResponseText(environment.environment_type))) {
+    throw createApiError("Invalid Sandbox catalog response")
+  }
+  return response as SandboxWorkspaceEnvironmentListResponse
 }
 
 export function upsertSandboxProjectPreference(
