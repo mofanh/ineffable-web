@@ -3526,6 +3526,14 @@ export function GatewayChatSidebar({
     if (!accessToken || (!content.trim() && images.length === 0)) {
       return
     }
+    if (typeof globalThis.crypto?.randomUUID !== "function") {
+      notify.error({
+        title: i18n.t("chat.gateway.sendFailedTitle"),
+        description: i18n.t(window.isSecureContext ? "chat.gateway.unsupportedBrowser" : "chat.gateway.httpsRequired"),
+        duration: 6000,
+      })
+      return false
+    }
     if (selectedModelProfileId && (!modelProfilesLoadedRef.current || !modelProfilesRef.current.some(model => model.id === selectedModelProfileId))) { setError(i18n.t("interaction.unavailableModel")); return false }
     if (selectedSandboxEnvironmentId && (!sandboxOptionsLoadedRef.current || !sandboxOptionsRef.current.some(option => option.environmentId === selectedSandboxEnvironmentId))) { setError(i18n.t("interaction.unavailableEnvironment")); return false }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(

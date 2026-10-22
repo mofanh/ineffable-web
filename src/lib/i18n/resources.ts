@@ -1073,6 +1073,8 @@ export const resources = {
           loadConversationFailedTitle: "加载会话失败",
           sendFailed: "发送失败。",
           sendFailedTitle: "发送失败",
+          httpsRequired: "当前连接不安全，无法发送消息。请通过 HTTPS 地址访问；本机开发可使用 localhost。",
+          unsupportedBrowser: "当前浏览器不支持发送消息所需的功能，请更新浏览器后重试。",
           sendFailedWithMessage: "发送失败：{{message}}",
           modelFailure: {
             rateLimited: "模型服务请求过于频繁，请稍后重试。",
@@ -3008,6 +3010,8 @@ export const resources = {
           loadConversationFailedTitle: "Conversation load failed",
           sendFailed: "Unable to send.",
           sendFailedTitle: "Send failed",
+          httpsRequired: "Messages cannot be sent over this insecure connection. Open an HTTPS address, or use localhost for development on this computer.",
+          unsupportedBrowser: "This browser lacks a feature required to send messages. Update your browser and try again.",
           sendFailedWithMessage: "Send failed: {{message}}",
           modelFailure: {
             rateLimited: "The model service is rate limited. Try again later.",
