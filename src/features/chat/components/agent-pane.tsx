@@ -818,12 +818,13 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
 }) {
   const [open, setOpen] = React.useState(false)
   const latestLine = React.useMemo(
-    () =>
-      block.content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .at(-1) ?? "",
+    () => {
+      const content = block.content.trimEnd()
+      const tail = content.slice(-240)
+      const newline = tail.lastIndexOf("\n")
+      if (newline >= 0) return tail.slice(newline + 1).trimStart()
+      return content.length > 240 ? `…${tail.slice(1).trimStart()}` : tail.trimStart()
+    },
     [block.content]
   )
 
@@ -839,7 +840,7 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
             <span>{i18n.t("chat.agent.thinking")}</span>
           </span>
           {!open && latestLine ? (
-            <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/45">
+            <span data-chat-reasoning-preview className="min-w-0 flex-1 truncate text-[11px] text-foreground/45">
               {latestLine}
             </span>
           ) : null}

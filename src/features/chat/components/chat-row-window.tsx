@@ -52,6 +52,9 @@ export function ChatRowWindow<T>({ items, getKey, estimateSize, gap, pinnedKeys 
     estimateSize: (index) => estimateSize(items[index]),
     // Seed a bounded first row before the viewport mounts (also supports SSR).
     initialRect: { width: 0, height: 1 },
+    // Enabling a nested window must adopt the shared viewport, rather than
+    // initialize it at zero and send the whole conversation back to the top.
+    initialOffset: () => rootRef.current?.closest<HTMLDivElement>("[data-chat-scroll-region]")?.scrollTop ?? 0,
     overscan: 5,
     gap,
     scrollMargin,
@@ -64,7 +67,10 @@ export function ChatRowWindow<T>({ items, getKey, estimateSize, gap, pinnedKeys 
   })
   React.useLayoutEffect(() => {
     const root = rootRef.current
-    const scroller = virtualizer.scrollElement
+    // Prime the real offset even while a small nested list is not windowed.
+    // The 40 -> 41 transition must use its position within the transcript when
+    // selecting the first virtual range.
+    const scroller = root?.closest<HTMLDivElement>("[data-chat-scroll-region]")
     if (!root || !scroller) return
     const measure = () => {
       const next = root.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop

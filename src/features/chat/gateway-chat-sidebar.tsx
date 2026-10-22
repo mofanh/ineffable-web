@@ -618,6 +618,7 @@ export function GatewayChatSidebar({
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const rowWindowRef = React.useRef<ChatRowWindowHandle>(null)
   const autoStickToBottomRef = React.useRef(true)
+  const userScrollDirectionRef = React.useRef<"up" | "down" | null>(null)
   const lastViewportScrollTopRef = React.useRef(0)
   const pendingInitialBottomScrollRef = React.useRef(false)
   const pendingScrollRestoreRef = React.useRef<
@@ -1643,8 +1644,10 @@ export function GatewayChatSidebar({
       return
     }
 
+    const top = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+    if (Math.abs(viewport.scrollTop - top) <= 1) return
     viewport.scrollTo({
-      top: viewport.scrollHeight,
+      top,
       behavior,
     })
   }, [])
@@ -1658,18 +1661,30 @@ export function GatewayChatSidebar({
     const distanceToBottom =
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
     const isNearBottom = distanceToBottom < 48
-    const movedUp = viewport.scrollTop < lastViewportScrollTopRef.current - 1
+    const movedDown = viewport.scrollTop > lastViewportScrollTopRef.current + 1
     let shouldStickToBottom = autoStickToBottomRef.current
 
-    if (shouldStickToBottom && movedUp && !isNearBottom) {
-      shouldStickToBottom = false
-    } else if (!shouldStickToBottom && isNearBottom) {
+    // Virtual row measurements and viewport resizes can also move scrollTop up.
+    // Only actual input intent suspends following; a layout correction cannot.
+    if (!shouldStickToBottom && isNearBottom && movedDown && userScrollDirectionRef.current === "down") {
       shouldStickToBottom = true
     }
 
     lastViewportScrollTopRef.current = viewport.scrollTop
     autoStickToBottomRef.current = shouldStickToBottom
     setShowScrollToBottom(!shouldStickToBottom)
+    // A late measurement or native momentum event can land after Latest's
+    // scroll write, without changing content size. Keep the same owner at tail.
+    if (shouldStickToBottom) scrollToBottom("auto")
+    return shouldStickToBottom
+  }, [scrollToBottom])
+
+  const handleViewportScrollIntent = React.useCallback((direction: "up" | "down") => {
+    userScrollDirectionRef.current = direction
+    if (direction === "up") {
+      autoStickToBottomRef.current = false
+      setShowScrollToBottom(true)
+    }
   }, [])
 
   React.useLayoutEffect(() => {
@@ -1682,6 +1697,7 @@ export function GatewayChatSidebar({
     if (restore) {
       pendingScrollRestoreRef.current = null
       autoStickToBottomRef.current = restore.atBottom
+      userScrollDirectionRef.current = null
       if (restore.atBottom) scrollToBottom("auto")
       else {
         viewport.scrollTop = restore.scrollTop
@@ -1813,6 +1829,7 @@ export function GatewayChatSidebar({
     setIsLoadingOlderEntries(true)
     setOlderMessagesError(null)
     autoStickToBottomRef.current = false
+    userScrollDirectionRef.current = null
     setShowScrollToBottom(true)
 
     if (hasHiddenLoadedEntries) {
@@ -2121,6 +2138,7 @@ export function GatewayChatSidebar({
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
     lastViewportScrollTopRef.current = 0
+    userScrollDirectionRef.current = null
     pendingInitialBottomScrollRef.current = true
     const cachedWindow = currentConversationId
       ? conversationWindowCacheRef.current.get(currentConversationId)
@@ -2159,6 +2177,7 @@ export function GatewayChatSidebar({
 
   const handleScrollToBottomClick = React.useCallback(() => {
     autoStickToBottomRef.current = true
+    userScrollDirectionRef.current = null
     setShowScrollToBottom(false)
     scrollToBottom("auto")
   }, [scrollToBottom])
@@ -3307,6 +3326,7 @@ export function GatewayChatSidebar({
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
     lastViewportScrollTopRef.current = 0
+    userScrollDirectionRef.current = null
   }
 
   function refreshCapabilityExposureDraft() {
@@ -4413,6 +4433,7 @@ export function GatewayChatSidebar({
           showScrollToBottom={showScrollToBottom}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
+          onViewportScrollIntent={handleViewportScrollIntent}
           onLoadOlderConversationMessagesPage={loadOlderConversationMessagesPage}
           onScrollToBottomClick={handleScrollToBottomClick}
           onStreamingContentProgress={handleStreamingContentProgress}

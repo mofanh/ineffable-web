@@ -41,7 +41,7 @@ import {
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
-import { useChatScrollBoundary } from "@/features/chat/components/chat-scroll-boundary"
+import { useChatScrollBoundary, type ChatScrollDirection } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
 
 const EMPTY_DISPLAY_NAMES: Record<string, string> = {}
@@ -105,7 +105,9 @@ type ChatMessageListProps = {
   isLoadingInitial: boolean
   showScrollToBottom: boolean
   scrollViewportRef: React.RefObject<HTMLDivElement | null>
-  onViewportScroll: () => void
+  /** True while following the tail; layout corrections must not load history. */
+  onViewportScroll: () => boolean | void
+  onViewportScrollIntent?: (direction: ChatScrollDirection) => void
   onLoadOlderConversationMessagesPage: () => void
   onScrollToBottomClick: () => void
   onStreamingContentProgress: () => void
@@ -152,7 +154,7 @@ function formatCompletionTime(value: string | null | undefined) {
   }).format(completedAt)
 }
 
-function RunActivity({ compacting = false }: { compacting?: boolean }) {
+const RunActivity = React.memo(function RunActivity({ compacting = false }: { compacting?: boolean }) {
   const { t } = useTranslation()
   const [startedAt] = React.useState(() => Date.now())
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0)
@@ -165,7 +167,7 @@ function RunActivity({ compacting = false }: { compacting?: boolean }) {
   }, [startedAt])
 
   return (
-    <span className="inline-flex items-center gap-2 text-[11px] text-foreground/48" role="status">
+    <span data-chat-run-activity className="inline-flex items-center gap-2 text-[11px] text-foreground/48" role="status">
       {compacting ? <ListCollapseIcon aria-hidden="true" className="size-3.5 motion-safe:animate-pulse" /> : <Loader2Icon className="size-3 animate-spin motion-reduce:animate-none" />}
       <span>
         {compacting ? t("chat.messages.compacting") : elapsedSeconds >= 15
@@ -174,13 +176,14 @@ function RunActivity({ compacting = false }: { compacting?: boolean }) {
       </span>
     </span>
   )
-}
+})
 
-function ThinkingPlaceholder({ compacting = false }: { compacting?: boolean }) {
+const ThinkingPlaceholder = React.memo(function ThinkingPlaceholder({ compacting = false }: { compacting?: boolean }) {
   const { t } = useTranslation()
 
   return (
     <div
+      data-chat-thinking-placeholder
       className="flex items-center gap-2 text-[14px] text-foreground/60"
       role="status"
       aria-live="polite"
@@ -189,7 +192,7 @@ function ThinkingPlaceholder({ compacting = false }: { compacting?: boolean }) {
       <span>{t(compacting ? "chat.messages.compacting" : "chat.messages.thinking")}</span>
     </div>
   )
-}
+})
 
 function usePrefersReducedMotion() {
   const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(() =>
@@ -226,6 +229,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   showScrollToBottom,
   scrollViewportRef,
   onViewportScroll,
+  onViewportScrollIntent,
   onLoadOlderConversationMessagesPage,
   onScrollToBottomClick,
   onStreamingContentProgress,
@@ -239,7 +243,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   trialVerdict,
   onInspectRun,
 }: ChatMessageListProps) {
-  const scrollBoundaryRef = useChatScrollBoundary(scrollViewportRef)
+  const scrollBoundaryRef = useChatScrollBoundary(scrollViewportRef, onViewportScrollIntent)
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
   const messageContentRef = React.useRef<HTMLDivElement | null>(null)
@@ -260,7 +264,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     }
 
     let animationFrame: number | null = null
-    const observer = new ResizeObserver(() => {
+    let lastSize: { width: number; height: number } | null = null
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return
+      const { width, height } = entry.contentRect
+      if (lastSize && Math.abs(lastSize.width - width) < 0.5 && Math.abs(lastSize.height - height) < 0.5) return
+      lastSize = { width, height }
       if (animationFrame != null) {
         return
       }
@@ -317,8 +326,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         data-chat-scroll-region
         style={{ overflowAnchor: "none" }}
         onScroll={(event) => {
-          onViewportScroll()
+          const followingTail = onViewportScroll() === true
           if (
+            !followingTail &&
             hasOlderEntries &&
             !isLoadingOlderEntries &&
             !olderEntriesError &&

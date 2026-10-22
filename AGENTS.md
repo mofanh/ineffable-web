@@ -553,6 +553,12 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 
 ## 长会话渲染预算
 
+- Sidebar 独占尾部跟随。只有 wheel、touch、键盘或滚动条的真实上翻意图暂停跟随，
+  虚拟行测量与视口变化导致的 scrollTop 校正不能暂停或触发历史补拉；嵌套工具输出能
+  消费的滚动和控件已处理的按键不算会话上翻。嵌套窗口启用时沿用共享滚动位置与真实
+  scrollMargin。状态组件不随 token 重绘，折叠思考仅保留有界尾部预览，展开仍保留全文。
+  `npm run check:chat-stream-layout` 验证真实 Sidebar 的 HTTP SSE、长历史、虚拟化阈值、
+  移动/桌面尺寸、空闲布局稳定与 wheel/键盘/touch 跟随；真实手机与 provider 联调另验。
 - 消息与大回复内部节点共用 `ChatRowWindow`，在既有 conversation scroller 内按稳定
   identity 测量、以正常文档流占位。分页负责加载，窗口负责挂载量；上翻不能持续保留全部
   DOM，不复制 timeline reducer。动态高度变化只由对应窗口补偿一次。

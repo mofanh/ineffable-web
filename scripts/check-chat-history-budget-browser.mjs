@@ -166,6 +166,9 @@ try {
       await page.evaluate(() => {
         const el = document.querySelector("[data-chat-scroll-content]")?.parentElement;
         if (!el) throw Error("no scroll viewport");
+        // Pagination is user-driven. A layout/virtualizer scroll correction
+        // alone must not interrupt tail following and fetch more history.
+        el.dispatchEvent(new WheelEvent("wheel", { deltaY: -1, bubbles: true, cancelable: true }));
         el.scrollTop = 0;
         el.dispatchEvent(new Event("scroll"));
       });
