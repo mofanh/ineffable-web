@@ -38,6 +38,8 @@ function callback(name, scope) {
 let messages = 0, details = 0
 const scope = {
   accessToken: "fixture", currentConversationIdRef: { current: "a" }, messageProjectionRequestRef: { current: 0 },
+  capabilityExposureSaveRevisionRef: { current: 0 }, sendViewRef: { current: { generation: 0 } },
+  capabilityExposurePendingSavesRef: { current: new Map() },
   setIsLoadingMessages() {}, CONVERSATION_MESSAGES_PAGE_LIMIT: 40,
   latestPageLoader: new ConversationPageLoader(),
   getConversationMessages: () => { messages++; return new Promise(() => {}) },
@@ -64,6 +66,8 @@ const projectionScope = {
   setConversationLastSeq() {},
   shouldApplyConversationProjection: ({ conversationId, selectedConversationId, requestId, latestRequestId }) => conversationId === selectedConversationId && requestId === latestRequestId,
   capabilityExposureSelectionRef: { current: null }, setCapabilityExposureSelection() {}, setCapabilityExposurePolicy() {},
+  capabilityExposureConfirmedRef: { current: null }, capabilityExposureConfirmedRevisionRef: { current: 0 },
+  runtimeStoreRef: { current: { dispatch() {} } },
   hydratedConversationIdRef: { current: "a" }, entriesRef: { current: visibleEntries },
   setEntries: update => { visibleEntries = update(visibleEntries) },
   reduceCurrentTimeline: (_current, action) => action.entries,
