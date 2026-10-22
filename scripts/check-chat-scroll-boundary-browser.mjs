@@ -94,7 +94,11 @@ try {
   // Force a painted classic scrollbar, then drag its actual thumb with trusted
   // mouse input. Overlay dragging above keeps its modelled-scroll limit explicit.
   const classicStyle=await page.addStyleTag({content:'#boundary::-webkit-scrollbar{width:16px} #boundary::-webkit-scrollbar-thumb{background:#777} #boundary::-webkit-scrollbar-track{background:#ddd}'})
-  const bar=await page.locator('#boundary').evaluate(el=>{el.scrollTop=300;const box=el.getBoundingClientRect();return{x:box.right-8,y:box.top+1,height:el.clientHeight,total:el.scrollHeight,top:el.scrollTop,gutter:el.offsetWidth-el.clientWidth-2}})
+  await page.locator('#boundary').evaluate(el=>{el.scrollTop=300})
+  // Native thumb painting and the prior gesture may settle after DOM layout.
+  // Wait for paint, then use its actual position rather than stale setup data.
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+  const bar=await page.locator('#boundary').evaluate(el=>{const box=el.getBoundingClientRect();return{x:box.right-8,y:box.top+1,height:el.clientHeight,total:el.scrollHeight,top:el.scrollTop,gutter:el.offsetWidth-el.clientWidth-2}})
   assert.ok(bar.gutter>0,'classic scrollbar has an actual reserved gutter')
   const thumb=Math.max(20,bar.height*bar.height/bar.total)
   const thumbY=bar.y+bar.top/(bar.total-bar.height)*(bar.height-thumb)+thumb/2
@@ -102,7 +106,7 @@ try {
   await page.mouse.down()
   await page.mouse.move(bar.x,thumbY-30,{steps:5})
   await page.mouse.up()
-  await page.waitForFunction(before=>document.getElementById('boundary').scrollTop<300 && Number(document.getElementById('boundary').dataset.intents)>before,afterDrag)
+  await page.waitForFunction(({before,top})=>document.getElementById('boundary').scrollTop<top && Number(document.getElementById('boundary').dataset.intents)>before,{before:afterDrag,top:bar.top})
   await classicStyle.evaluate(el=>el.remove())
   const detached=await page.locator('#boundary').evaluateHandle(el=>el)
   await page.locator('#toggle').click()
