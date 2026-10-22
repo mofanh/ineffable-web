@@ -37,16 +37,22 @@ const server = await createServer({
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         if (!new URL(req.url, "http://localhost").pathname.endsWith("/subscribe")) return next()
-        res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" })
-        res.write(": ready\n\n")
-        streams.add(res)
-        res.on("close", () => streams.delete(res))
+        // The UI placeholder can appear well before subscribe connects.
+        // Deliberately delay headers to exercise the handshake barrier.
+        const timer = setTimeout(() => {
+          if (res.destroyed) return
+          res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" })
+          res.write(": ready\n\n")
+          streams.add(res)
+        }, 3000)
+        res.on("close", () => { clearTimeout(timer); streams.delete(res) })
       })
     },
   }],
   server: { host: "127.0.0.1", port: 0, watch: null, hmr: false },
 })
 function emit(event, content, metadata = {}) {
+  assert.ok(streams.size, "wait for the current page's SSE handshake before emitting")
   for (const response of streams) response.write(`data: ${JSON.stringify({ type: "event", event: {
     run_id: "refresh-run", seq: ++seq, ts_ms: seq, stream: "agentic", event, content,
     metadata: { conversation_id: "refresh-conversation", execution_epoch: 1, scope: "main", ...metadata },
@@ -128,11 +134,13 @@ try {
       assert.ok(result.after.renders.RunActivity - result.before.renders.RunActivity <= 2, "only elapsed-time ticks render the activity")
       assert.equal(result.after.renders.ThinkingPlaceholder - result.before.renders.ThinkingPlaceholder, 0)
     }
+    const subscribed = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/subscribe"))
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/live-refresh-fixture.html`)
     await page.locator("[data-chat-thinking-placeholder]").waitFor()
     await assertTail()
     const initialCount = Number(await page.locator("[data-chat-entry-count]").getAttribute("data-chat-entry-count"))
     await assertIdle("[data-chat-thinking-placeholder]")
+    assert.equal((await subscribed).status(), 200)
     await page.waitForFunction(() => window.layoutRenders.ThinkingPlaceholder > 0)
     // The first reasoning delta used to misclassify a virtual row correction as
     // an upward user gesture, leaving the activity below the viewport.
@@ -153,7 +161,9 @@ try {
     assert.ok(await page.locator("[data-chat-reasoning-preview]").evaluate(node => node.textContent.length <= 240), "collapsed preview has bounded text")
     assert.ok(await page.evaluate(() => window.layoutRenders.RunActivity) - beforeTokens <= Math.ceil((Date.now() - tokensStarted) / 1000) + 2, "only clock ticks, not tokens, repaint the activity")
     assert.ok(await originalActivity.evaluate(node => node === document.querySelector("[data-chat-run-activity]")), "reasoning deltas preserve activity identity")
-    await page.getByRole("button", { name: /思考过程/ }).click()
+    await page.getByRole("button", { name: /思考过程/ }).evaluate(node => node.focus({ preventScroll: true }))
+    await page.keyboard.press("Shift+Space")
+    await assertTail()
     await page.getByText(/streaming evidence/).first().waitFor()
     assert.ok(await page.locator("[data-chat-scroll-content]").textContent().then(text => text.replace(/\s+/g, " ").includes(reasoning.replace(/\s+/g, " ").trim())), "expanded reasoning retains complete content")
     await page.getByRole("button", { name: /思考过程/ }).click()
@@ -200,6 +210,13 @@ try {
     assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, "the real scroll viewport fits the device")
     const cdp = await page.context().newCDPSession(page)
     const touchPoint = { x: bounds.x + 60, y: bounds.y + 200 }
+    const beforeHorizontal = await viewport.evaluate(node => node.scrollTop)
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [touchPoint] })
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: touchPoint.x + 40, y: touchPoint.y + 1 }] })
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await frames(8)
+    assert.equal(await viewport.evaluate(node => node.scrollTop), beforeHorizontal)
+    assert.equal(await latest.count(), 0, "horizontal touch and 1px jitter must not pause following")
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [touchPoint] })
     for (let step = 1; step <= 5; step++) {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...touchPoint, y: touchPoint.y + step * 30 }] })

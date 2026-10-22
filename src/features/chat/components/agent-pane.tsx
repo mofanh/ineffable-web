@@ -819,11 +819,11 @@ const ThinkBlockView = React.memo(function ThinkBlockView({
   const [open, setOpen] = React.useState(false)
   const latestLine = React.useMemo(
     () => {
-      const content = block.content.trimEnd()
-      const tail = content.slice(-240)
+      const tail = block.content.slice(-240).trimEnd()
+      if (!tail) return ""
       const newline = tail.lastIndexOf("\n")
       if (newline >= 0) return tail.slice(newline + 1).trimStart()
-      return content.length > 240 ? `…${tail.slice(1).trimStart()}` : tail.trimStart()
+      return block.content.length > 240 ? `…${tail.slice(1).trimStart()}` : tail.trimStart()
     },
     [block.content]
   )

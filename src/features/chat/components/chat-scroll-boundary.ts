@@ -61,66 +61,105 @@ export function useChatScrollBoundary<T extends HTMLElement>(forwardedRef?: RefO
   return useCallback((node: T | null) => {
     if (forwardedRef) forwardedRef.current = node
     if (!node) return
+    const document = node.ownerDocument
+    const ownsEvent = (event: Event) => event.target instanceof Node && node.contains(event.target)
     const wheel = (event: WheelEvent) => containChatWheel(event, onScrollIntent)
-    let touch: { id: number; y: number } | null = null
-    let scrollbarTop: number | null = null
+    let touch: { id: number; x: number; y: number; startX: number; startY: number } | null = null
+    let pointer: { id: number; startY: number; y: number; top: number; gutter: boolean; dragging: boolean; direction: ChatScrollDirection | null } | null = null
     const touchStart = (event: TouchEvent) => {
-      touch = event.touches.length === 1 ? { id: event.touches[0].identifier, y: event.touches[0].clientY } : null
+      const point = event.touches[0]
+      touch = ownsEvent(event) && !event.defaultPrevented && event.touches.length === 1
+        ? { id: point.identifier, x: point.clientX, y: point.clientY, startX: point.clientX, startY: point.clientY } : null
     }
     const touchMove = (event: TouchEvent) => {
       const point = touch && Array.from(event.touches).find(point => point.identifier === touch?.id)
       if (!point || event.touches.length !== 1) { touch = null; return }
+      const dx = point.clientX - touch!.startX, dy = point.clientY - touch!.startY
       const direction = point.clientY > touch!.y ? "up" : "down"
-      if (point.clientY !== touch!.y && canScroll(node, direction) && !nestedCanScroll(event.target, node, direction)) onScrollIntent?.(direction)
-      touch = { id: point.identifier, y: point.clientY }
+      // A horizontal code swipe or a finger's small jitter is not an up-scroll.
+      if (!event.defaultPrevented && Math.abs(dy) >= 8 && Math.abs(dy) > Math.abs(dx) &&
+        point.clientY !== touch!.y && canScroll(node, direction) && !nestedCanScroll(event.target, node, direction)) onScrollIntent?.(direction)
+      touch = { ...touch!, x: point.clientX, y: point.clientY }
     }
     const touchEnd = () => { touch = null }
     const keyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.target instanceof Element && event.target.closest("input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=combobox]")) return
+      if (!ownsEvent(event) || event.defaultPrevented || event.target instanceof Element && event.target.closest("input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=combobox]")) return
+      // Native buttons/summary activate on Space without preventing the event.
+      if (event.key === " " && event.target instanceof Element && event.target.closest("button,[role=button],summary")) return
       const up = ["ArrowUp", "PageUp", "Home"].includes(event.key) || (event.key === " " && event.shiftKey)
       const down = ["ArrowDown", "PageDown", "End"].includes(event.key) || (event.key === " " && !event.shiftKey)
       const direction = up ? "up" : "down"
       if ((up || down) && canScroll(node, direction) && !nestedCanScroll(event.target, node, direction)) {
-        // React handlers on an inner control run after this native listener.
-        // Let them consume navigation before treating it as transcript scrolling.
-        queueMicrotask(() => { if (node.isConnected && !event.defaultPrevented) onScrollIntent?.(direction) })
+        onScrollIntent?.(direction)
       }
     }
-    // Native scrollbar dragging targets the viewport, rather than its contents.
     const pointerDown = (event: PointerEvent) => {
-      if (event.target === node && event.button === 0 && event.pointerType !== "touch") scrollbarTop = node.scrollTop
+      if (event.target !== node || event.button !== 0 || event.pointerType === "touch") return
+      const rect = node.getBoundingClientRect(), style = getComputedStyle(node)
+      const gutterWidth = node.offsetWidth - node.clientWidth - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth)
+      const clientLeft = rect.left + node.clientLeft
+      const gutter = gutterWidth > 0 && (event.clientX < clientLeft || event.clientX >= clientLeft + node.clientWidth)
+      pointer = { id: event.pointerId, startY: event.clientY, y: event.clientY, top: node.scrollTop, gutter, dragging: false, direction: null }
+      window.addEventListener("pointermove", pointerMove)
+      window.addEventListener("pointerrawupdate", rawPointerMove)
     }
-    const pointerEnd = () => { scrollbarTop = null }
+    const pointerEnd = () => {
+      pointer = null
+      window.removeEventListener("pointermove", pointerMove)
+      window.removeEventListener("pointerrawupdate", rawPointerMove)
+    }
     const scroll = () => {
-      if (scrollbarTop !== null) {
-        if (Math.abs(node.scrollTop - scrollbarTop) > 1) onScrollIntent?.(node.scrollTop < scrollbarTop ? "up" : "down")
-        scrollbarTop = node.scrollTop
+      if (pointer) {
+        const direction = node.scrollTop < pointer.top ? "up" : "down"
+        if (Math.abs(node.scrollTop - pointer.top) > 1 &&
+          (pointer.gutter || pointer.dragging && pointer.direction === direction)) onScrollIntent?.(direction)
+        pointer.top = node.scrollTop
       }
     }
+    const pointerMove = (event: PointerEvent) => {
+      if (!pointer || event.pointerId !== pointer.id) return
+      if (!(event.buttons & 1)) { pointerEnd(); return }
+      // Overlay scrollbars have no reserved gutter. Require an actual drag and
+      // matching scroll movement, so merely holding empty padding cannot pause.
+      if (event.clientY !== pointer.y) pointer.direction = event.clientY < pointer.y ? "up" : "down"
+      pointer.dragging ||= Math.abs(event.clientY - pointer.startY) >= 3
+      pointer.y = event.clientY
+      scroll()
+    }
+    // Chromium's native overlay drag may suppress pointermove while still
+    // delivering raw updates. Observe them only for an armed viewport gesture.
+    const rawPointerMove = (event: Event) => { if (event instanceof PointerEvent) pointerMove(event) }
     node.addEventListener("wheel", wheel, { passive: false })
     // Nested tool regions only need containment, not another intent observer.
     if (onScrollIntent) {
-      node.addEventListener("touchstart", touchStart, { passive: true })
-      node.addEventListener("touchmove", touchMove, { passive: true })
-      node.addEventListener("touchend", touchEnd, { passive: true })
-      node.addEventListener("touchcancel", touchEnd, { passive: true })
-      node.addEventListener("keydown", keyDown)
+      // Document bubbling follows React root/Portal handlers, including for
+      // trusted browser input. Microtasks can run between native listeners.
+      document.addEventListener("touchstart", touchStart, { passive: true })
+      document.addEventListener("touchmove", touchMove, { passive: true })
+      document.addEventListener("touchend", touchEnd, { passive: true })
+      document.addEventListener("touchcancel", touchEnd, { passive: true })
+      document.addEventListener("keydown", keyDown)
       node.addEventListener("pointerdown", pointerDown)
       node.addEventListener("scroll", scroll)
-      window.addEventListener("pointerup", pointerEnd)
-      window.addEventListener("pointercancel", pointerEnd)
+      window.addEventListener("pointerup", pointerEnd, true)
+      window.addEventListener("pointercancel", pointerEnd, true)
+      window.addEventListener("mouseup", pointerEnd, true)
+      window.addEventListener("blur", pointerEnd)
     }
     return () => {
       node.removeEventListener("wheel", wheel)
-      node.removeEventListener("touchstart", touchStart)
-      node.removeEventListener("touchmove", touchMove)
-      node.removeEventListener("touchend", touchEnd)
-      node.removeEventListener("touchcancel", touchEnd)
-      node.removeEventListener("keydown", keyDown)
+      document.removeEventListener("touchstart", touchStart)
+      document.removeEventListener("touchmove", touchMove)
+      document.removeEventListener("touchend", touchEnd)
+      document.removeEventListener("touchcancel", touchEnd)
+      document.removeEventListener("keydown", keyDown)
       node.removeEventListener("pointerdown", pointerDown)
       node.removeEventListener("scroll", scroll)
-      window.removeEventListener("pointerup", pointerEnd)
-      window.removeEventListener("pointercancel", pointerEnd)
+      window.removeEventListener("pointerup", pointerEnd, true)
+      window.removeEventListener("pointercancel", pointerEnd, true)
+      window.removeEventListener("mouseup", pointerEnd, true)
+      window.removeEventListener("blur", pointerEnd)
+      pointerEnd()
       if (forwardedRef?.current === node) forwardedRef.current = null
     }
   }, [forwardedRef, onScrollIntent])
