@@ -38,6 +38,7 @@
     "i18n:check": "node --experimental-strip-types scripts/check-i18n-resources.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
+    "check:toast": "node scripts/check-toast-browser.mjs",
     "check:admin-mobile": "node scripts/check-admin-mobile-browser.mjs",
     "check:admin-editor": "node scripts/check-admin-editor-browser.mjs",
     "check:workspace-delete": "node scripts/check-workspace-delete-browser.mjs",

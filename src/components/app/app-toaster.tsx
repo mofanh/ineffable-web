@@ -81,16 +81,16 @@ function AppToast({
   onRemove: (id: string) => void
 }) {
   const Icon = toneIcons[notification.tone]
-  const [open, setOpen] = React.useState(true)
 
   return (
     <Toast
-      open={open}
+      open
       duration={notification.duration ?? 3000}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
         if (!nextOpen) {
-          onRemove(notification.id)
+          // Radix checks touch outside-click targets at document click time.
+          // Keep the toast in its Branch until that event finishes bubbling.
+          window.setTimeout(() => onRemove(notification.id), 0)
         }
       }}
       className={cn("border", toneStyles[notification.tone])}
@@ -109,8 +109,6 @@ function AppToast({
           altText={notification.action.label}
           onClick={() => {
             notification.action?.onClick()
-            setOpen(false)
-            onRemove(notification.id)
           }}
         >
           {notification.action.label}

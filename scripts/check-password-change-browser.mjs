@@ -105,7 +105,7 @@ try {
   for (const field of [current, next, confirm, code]) assert.equal(await field.count(), 0, "successful save closes the form")
   assert.equal(await page.evaluate(() => localStorage.getItem("ineffable.auth.access_token")), "test-token")
   assert.ok(sessionReads > previousReads, "device list refreshes after success")
-  await page.getByRole("alert").waitFor()
+  await page.getByRole("alert").filter({ hasText: "Unable to load sign-in sessions." }).waitFor()
   assert.equal(await page.getByText("Password changed. Other devices have been signed out.", { exact: true }).count(), 1, "device refresh failure cannot hide password success")
   failSessions = false
   // A late 401 must not replay either sensitive request with account B's token.

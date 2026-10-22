@@ -237,6 +237,10 @@ return (
 
 流式 chat 等特殊状态机可以保留 feature-specific 状态，但错误归一化和用户反馈仍应走 app service。
 
+全局通知复用唯一 `notify -> AppToaster`。Toast viewport Portal 到 body，层级高于 Sheet/Dialog；
+通知本身可交互，空白区域穿透，不因移动全屏聊天而新增局部 toaster 或取消模态约束。
+运行 `npm run check:toast` 验证真实壳层中的通知先后顺序、触摸关闭与草稿保留。
+
 ## 多会话运行状态
 
 - 侧栏宽度动画由 CSS 执行，ResizeObserver 只将稳定后的左侧边界提交到壳层；快速反向、

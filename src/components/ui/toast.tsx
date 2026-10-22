@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Toast as ToastPrimitive } from "radix-ui"
+import { Portal as PortalPrimitive, Toast as ToastPrimitive } from "radix-ui"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -15,21 +15,25 @@ function ToastViewport({
   ...props
 }: React.ComponentProps<typeof ToastPrimitive.Viewport>) {
   return (
-    <ToastPrimitive.Viewport
-      data-slot="toast-viewport"
-      className={cn(
-        "fixed top-4 left-1/2 z-50 flex max-h-svh w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4 outline-none sm:px-0",
-        className
-      )}
-      {...props}
-    />
+    <PortalPrimitive.Root asChild>
+      <ToastPrimitive.Viewport
+        data-slot="toast-viewport"
+        className={cn(
+          "pointer-events-none fixed top-[max(1rem,env(safe-area-inset-top))] left-1/2 z-[60] flex max-h-svh w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4 outline-none sm:px-0",
+          className
+        )}
+        {...props}
+      />
+    </PortalPrimitive.Root>
   )
 }
 
 function Toast({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof ToastPrimitive.Root>) {
+  // A later modal must not disable an already visible notification.
   return (
     <ToastPrimitive.Root
       data-slot="toast"
@@ -38,6 +42,7 @@ function Toast({
         className
       )}
       {...props}
+      style={{ pointerEvents: "auto", ...style }}
     />
   )
 }
