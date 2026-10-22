@@ -64,22 +64,24 @@ export function useChatScrollBoundary<T extends HTMLElement>(forwardedRef?: RefO
     const document = node.ownerDocument
     const ownsEvent = (event: Event) => event.target instanceof Node && node.contains(event.target)
     const wheel = (event: WheelEvent) => containChatWheel(event, onScrollIntent)
-    let touch: { id: number; x: number; y: number; startX: number; startY: number } | null = null
+    let touch: { id: number; y: number; startX: number; startY: number; axis: "horizontal" | "vertical" | null } | null = null
     let pointer: { id: number; startY: number; y: number; top: number; gutter: boolean; dragging: boolean; direction: ChatScrollDirection | null } | null = null
     const touchStart = (event: TouchEvent) => {
       const point = event.touches[0]
       touch = ownsEvent(event) && !event.defaultPrevented && event.touches.length === 1
-        ? { id: point.identifier, x: point.clientX, y: point.clientY, startX: point.clientX, startY: point.clientY } : null
+        ? { id: point.identifier, y: point.clientY, startX: point.clientX, startY: point.clientY, axis: null } : null
     }
     const touchMove = (event: TouchEvent) => {
       const point = touch && Array.from(event.touches).find(point => point.identifier === touch?.id)
       if (!point || event.touches.length !== 1) { touch = null; return }
       const dx = point.clientX - touch!.startX, dy = point.clientY - touch!.startY
+      const axis = touch!.axis ?? (Math.max(Math.abs(dx), Math.abs(dy)) < 8 ? null : Math.abs(dy) > Math.abs(dx) ? "vertical" : "horizontal")
       const direction = point.clientY > touch!.y ? "up" : "down"
       // A horizontal code swipe or a finger's small jitter is not an up-scroll.
-      if (!event.defaultPrevented && Math.abs(dy) >= 8 && Math.abs(dy) > Math.abs(dx) &&
+      // Keep the browser's chosen gesture axis through bends until touch ends.
+      if (!event.defaultPrevented && axis === "vertical" &&
         point.clientY !== touch!.y && canScroll(node, direction) && !nestedCanScroll(event.target, node, direction)) onScrollIntent?.(direction)
-      touch = { ...touch!, x: point.clientX, y: point.clientY }
+      touch = { ...touch!, y: point.clientY, axis }
     }
     const touchEnd = () => { touch = null }
     const keyDown = (event: KeyboardEvent) => {
