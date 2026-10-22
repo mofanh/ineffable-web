@@ -34,9 +34,14 @@ function Fixture() {
   const [status,setStatus] = React.useState("completed")
   const [canonical,setCanonical] = React.useState(true)
   const [mount,setMount] = React.useState(0)
+  const [longFinal,setLongFinal] = React.useState(false)
   const viewport = React.useRef<HTMLDivElement>(null)
   const entry = React.useMemo(() => {
     const next: AssistantEntry = {...base,id:`fixture-row-${mount}`,runStatus:status,status:status === "streaming" ? "streaming" : "done"}
+    if (longFinal) {
+      const id = next.pane.blockOrder.find(id => next.pane.blocks[id]?.type === "text" && next.pane.blocks[id].content === "FINAL ANSWER")!
+      next.pane = {...next.pane,blocks:{...next.pane.blocks,[id]:{...next.pane.blocks[id],content:"FINAL ANSWER\n\n" + "A newly completed conclusion with supporting details.\n\n".repeat(120)}}}
+    }
     if (!canonical) next.segments = Object.fromEntries(Object.entries(next.segments ?? {}).map(([id,segment])=>[id,{...segment,canonicalMessageSeqEnd:undefined}]))
     if (status === "awaiting_human") {
       const id = "question"
@@ -46,12 +51,13 @@ function Fixture() {
       }}}
     }
     return next
-  },[status,canonical,mount])
+  },[status,canonical,mount,longFinal])
   return <div className="flex h-screen min-w-0 flex-col">
     <div className="flex shrink-0 flex-wrap gap-2 text-xs" data-fixture-controls>
       {["completed","streaming","failed","cancelled","awaiting_human","suspended"].map(value=><button key={value} onClick={()=>setStatus(value)}>{value}</button>)}
       <button onClick={()=>setCanonical(value=>!value)}>canonical</button>
       <button onClick={()=>setMount(value=>value+1)}>remount-row</button>
+      <button onClick={()=>{setLongFinal(true);setStatus("completed")}}>finish-long</button>
       <button onClick={()=>void i18n.changeLanguage(i18n.language.startsWith("en") ? "zh-CN" : "en-US")}>language</button>
       <button onClick={()=>document.documentElement.classList.toggle("dark")}>theme</button>
     </div>

@@ -5,13 +5,14 @@ import { cn } from "@/lib/utils"
 
 // Per mounted chat panel, independent of business/run state. The parent survives
 // row virtualization; no message content or credentials enter this bounded store.
-type DisclosureChoices = Map<string, boolean>
+type DisclosureChoice = { expanded: boolean; autoCollapse: boolean }
+type DisclosureChoices = Map<string, DisclosureChoice>
 const DisclosureContext = React.createContext<DisclosureChoices | null>(null)
 
-function rememberChoice(choices: DisclosureChoices | null, identity: string | undefined, expanded: boolean) {
+function rememberChoice(choices: DisclosureChoices | null, identity: string | undefined, choice: DisclosureChoice) {
   if (!identity || !choices) return
   choices.delete(identity)
-  choices.set(identity, expanded)
+  choices.set(identity, choice)
   if (choices.size > 512) choices.delete(choices.keys().next().value!)
 }
 
@@ -28,32 +29,45 @@ export function useChatProcessDisclosure({ identity, autoCollapse, forceOpen }: 
   const choices = React.useContext(DisclosureContext)
   const rootRef = React.useRef<HTMLDivElement>(null)
   const buttonRef = React.useRef<HTMLButtonElement>(null)
-  const [manual, setManual] = React.useState<boolean | undefined>(() => identity ? choices?.get(identity) : undefined)
+  const [manual, setManual] = React.useState<DisclosureChoice | undefined>(() => identity ? choices?.get(identity) : undefined)
   const [automaticOpen, setAutomaticOpen] = React.useState(!autoCollapse)
-  const previousAutoCollapse = React.useRef(autoCollapse)
-  const expanded = forceOpen || (manual ?? automaticOpen)
+  const manualExpanded = manual && manual.autoCollapse === autoCollapse ? manual.expanded : undefined
+  const expanded = forceOpen || (manualExpanded ?? automaticOpen)
   React.useLayoutEffect(() => {
-    if (previousAutoCollapse.current === autoCollapse) return
-    previousAutoCollapse.current = autoCollapse
     if (!autoCollapse) { setAutomaticOpen(true); return }
     const root = rootRef.current
-    const scroller = root?.closest<HTMLElement>("[data-chat-scroll-region]")
-    const selection = window.getSelection()
-    const interacting = root?.contains(document.activeElement) && document.activeElement !== buttonRef.current
-    const selecting = selection && !selection.isCollapsed &&
-      (root?.contains(selection.anchorNode) || root?.contains(selection.focusNode))
-    const readingAboveTail = scroller && scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop > 80
-    setAutomaticOpen(Boolean(interacting || selecting || readingAboveTail))
+    let disposed = false
+    const onInteractionEnd = () => queueMicrotask(attemptCollapse)
+    function cleanup() {
+      disposed = true
+      root?.removeEventListener("focusout", onInteractionEnd)
+      document.removeEventListener("selectionchange", onInteractionEnd)
+    }
+    function attemptCollapse() {
+      if (disposed) return
+      const selection = window.getSelection()
+      const interacting = root?.contains(document.activeElement) && document.activeElement !== buttonRef.current
+      const selecting = selection && !selection.isCollapsed &&
+        (root?.contains(selection.anchorNode) || root?.contains(selection.focusNode))
+      if (interacting || selecting) { setAutomaticOpen(true); return }
+      setAutomaticOpen(false)
+      cleanup()
+    }
+    root?.addEventListener("focusout", onInteractionEnd)
+    document.addEventListener("selectionchange", onInteractionEnd)
+    attemptCollapse()
+    return cleanup
   }, [autoCollapse])
   React.useLayoutEffect(() => {
     // A provisional row may acquire its canonical identity before remounting.
-    if (manual !== undefined) rememberChoice(choices, identity, manual)
-  }, [choices, identity, manual])
+    if (manual?.autoCollapse === autoCollapse) rememberChoice(choices, identity, manual)
+  }, [autoCollapse, choices, identity, manual])
   const toggle = () => {
     const next = !expanded
     if (!next) buttonRef.current?.focus({ preventScroll: true })
-    setManual(next)
-    rememberChoice(choices, identity, next)
+    const choice = { expanded: next, autoCollapse }
+    setManual(choice)
+    rememberChoice(choices, identity, choice)
   }
   return { rootRef, buttonRef, expanded, toggle }
 }
