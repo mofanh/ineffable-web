@@ -1168,10 +1168,11 @@ function ModelForm({
         </AppFieldGrid>
       </AppDisclosureSection>
 
-      <ImageModelFields model={model} onChange={onChange} />
+      <ImageModelFields model={model} disabled={disabled} onChange={onChange} />
       <AppDisclosureSection title={t("system.models.form.capabilities")}>
         <AppFieldGrid columns={4}>
           <ToggleField
+            disabled={disabled}
             label={t("system.models.form.enable")}
             checked={model.enabled}
             onCheckedChange={(checked) =>
@@ -1181,6 +1182,7 @@ function ModelForm({
             }
           />
           <ToggleField
+            disabled={disabled}
             label="Tool"
             checked={model.supports_tool_calls}
             onCheckedChange={(checked) =>
@@ -1192,6 +1194,7 @@ function ModelForm({
             }
           />
           <ToggleField
+            disabled={disabled}
             label="Reasoning"
             checked={model.supports_reasoning}
             onCheckedChange={(checked) =>
@@ -1201,6 +1204,7 @@ function ModelForm({
             }
           />
           <ToggleField
+            disabled={disabled}
             label="Vision"
             checked={model.supports_vision}
             onCheckedChange={(checked) =>

@@ -31,7 +31,7 @@ try {
  for(const section of ["models","secrets"]) for(const outcome of ["replacement","success","failure"]) {
   const page=await browser.newPage();page.on("pageerror",e=>console.error("pageerror",e.message));await setup(page);let release,entered, writes=0
   const gate=new Promise(resolve=>{release=resolve}), held=new Promise(resolve=>{entered=resolve})
-  const models=["a","b"].map(id=>({...emptyModel,id,display_name:`Item ${id}`,archived_at:null}))
+  const models=["a","b"].map(id=>({...emptyModel,id,display_name:`Item ${id}`,endpoint_kind:"openai_images",metadata_json:{image_generation:{enabled:true,quality:"medium",reservation_credits:1,max_calls_per_run:3}},archived_at:null}))
   const secrets=["a","b"].map(id=>({secret_ref:`item-${id}`,status:"active",has_secret:true,metadata_json:{}}))
   await page.route("**/gateway/v1/**",async route=>{
    const path=new URL(route.request().url()).pathname, write=route.request().method()!=="GET"
@@ -52,6 +52,13 @@ try {
   await held;assert.equal(writes,1,"same opening cannot submit twice")
   const fields=dialog.locator("form input,form textarea,form button")
   for(const field of await fields.all()) assert.equal(await field.isDisabled(),true,"save freezes the submitted draft")
+  if(section==="models") {
+   const quality=dialog.getByRole("combobox")
+   const box=await quality.boundingBox();assert.ok(box)
+   await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
+   assert.equal(await quality.getAttribute("aria-expanded"),"false","saving disables Radix pointer handlers and portals")
+   assert.equal(await page.getByRole("listbox").count(),0)
+  }
   if(outcome!=="replacement") {
    const draft=await dialog.locator("input").evaluateAll(inputs=>inputs.map(input=>input.value))
    const response=page.waitForResponse(response=>response.request().method()!=="GET");release();await response
