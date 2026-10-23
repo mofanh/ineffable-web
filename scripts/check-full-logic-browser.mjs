@@ -54,7 +54,9 @@ try {
   for(const field of await fields.all()) assert.equal(await field.isDisabled(),true,"save freezes the submitted draft")
   if(section==="models") {
    const quality=dialog.getByRole("combobox")
+   await quality.scrollIntoViewIfNeeded()
    const box=await quality.boundingBox();assert.ok(box)
+   const viewport=page.viewportSize();assert.ok(viewport && box.x>=0 && box.y>=0 && box.x+box.width<=viewport.width && box.y+box.height<=viewport.height,"pointer regression must hit the visible control")
    await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
    assert.equal(await quality.getAttribute("aria-expanded"),"false","saving disables Radix pointer handlers and portals")
    assert.equal(await page.getByRole("listbox").count(),0)
