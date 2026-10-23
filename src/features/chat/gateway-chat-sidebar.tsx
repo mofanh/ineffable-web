@@ -108,7 +108,7 @@ import {
 } from "@/features/chat/model/conversation-event-routing"
 import { shouldApplyConversationProjection } from "@/features/chat/model/conversation-projection"
 import { commitConversationSelection } from "@/features/chat/model/conversation-selection"
-import { notifyWorkspaceOutputEvent } from "@/features/chat/model/workspace-tool-events"
+import { notifyWorkspaceOutputEvent, notifyWorkspaceOutputMessages } from "@/features/chat/model/workspace-tool-events"
 import { findEligibleTrialAnswer } from "@/features/chat/model/agent-trial-verdict"
 import {
   agentNodeManagementTargetKey,
@@ -607,6 +607,11 @@ export function GatewayChatSidebar({
     new Map<string, { requested: boolean }>()
   )
   const seenEventRef = React.useRef(new Set<string>())
+  const workspaceObservationsRef = React.useRef({ session: currentSessionId, seen: new Set<string>() })
+  if (workspaceObservationsRef.current.session !== currentSessionId) {
+    workspaceObservationsRef.current = { session: currentSessionId, seen: new Set<string>() }
+  }
+  const observedWorkspaceChanges = workspaceObservationsRef.current.seen
   const scrollViewportRef = React.useRef<HTMLDivElement | null>(null)
   const rowWindowRef = React.useRef<ChatRowWindowHandle>(null)
   const autoStickToBottomRef = React.useRef(true)
@@ -1776,6 +1781,7 @@ export function GatewayChatSidebar({
           return
         }
 
+        notifyWorkspaceOutputMessages(response.messages, observedWorkspaceChanges)
         const olderEntries = mapConversationMessagesToEntries(response.messages)
         setEntries((current) =>
           reduceCurrentTimeline(current, {
@@ -1818,6 +1824,7 @@ export function GatewayChatSidebar({
     hasHiddenLoadedEntries,
     hasOlderEntries,
     olderMessagesCursor,
+    observedWorkspaceChanges,
     reportChatError,
     visibleEntries.length,
     reduceCurrentTimeline,
@@ -1877,6 +1884,7 @@ export function GatewayChatSidebar({
         setIsLoadingMessages(true)
       }
 
+      const session = sendViewRef.current.session
       try {
         const [response, conversationDetail, exposureSnapshot] = await latestPageLoader.load(
           JSON.stringify([accessToken, conversationId]),
@@ -1898,6 +1906,8 @@ export function GatewayChatSidebar({
           },
           Boolean(handoff) || freshness === "fresh"
         )
+        if (sendViewRef.current.session !== session) return false
+        notifyWorkspaceOutputMessages(response.messages, observedWorkspaceChanges)
         const latestEntries = mapConversationMessagesToEntries(response.messages).map((entry) =>
           entry.role === "assistant" ? { ...entry, eventCoverage: response.next_seq ?? 0 } : entry
         )
@@ -2018,7 +2028,7 @@ export function GatewayChatSidebar({
         }
       }
     },
-    [accessToken, setConversationLastSeq, reduceCurrentTimeline, latestPageLoader, reportChatError]
+    [accessToken, setConversationLastSeq, reduceCurrentTimeline, latestPageLoader, reportChatError, observedWorkspaceChanges]
   )
 
   React.useEffect(() => {
@@ -2523,7 +2533,10 @@ export function GatewayChatSidebar({
           conversationId,
         }
       )
-      projectedEvents.forEach(applyEvent)
+      projectedEvents.forEach(event => {
+        notifyWorkspaceOutputEvent(event, observedWorkspaceChanges)
+        applyEvent(event)
+      })
     }
 
     const pendingApproval = approvalNeedFromRaw(response.pending_need, {
@@ -3025,6 +3038,7 @@ export function GatewayChatSidebar({
         afterSeq: envelope.event.seq,
       })
       if (!acceptsLifecycle) return
+      notifyWorkspaceOutputEvent(envelope.event, observedWorkspaceChanges)
       if (currentConversationIdRef.current !== identity.conversationId) {
         void refreshConversations().catch(() => {})
         return
@@ -3056,7 +3070,6 @@ export function GatewayChatSidebar({
     }
 
     seenEventRef.current.add(fingerprint)
-    notifyWorkspaceOutputEvent(envelope.event)
     applyEvent(envelope.event)
   })
 

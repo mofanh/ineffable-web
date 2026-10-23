@@ -53,7 +53,7 @@
     "check:telemetry": "tsx scripts/check-telemetry.mjs && node scripts/check-telemetry-browser.mjs",
     "check:channels": "node scripts/check-channels-browser.mjs",
     "check:chat-window": "node scripts/check-chat-window-browser.mjs && node scripts/check-chat-history-budget-browser.mjs",
-    "check:logic-invariants": "node scripts/check-full-logic-browser.mjs"
+    "check:logic-invariants": "node scripts/check-full-logic-browser.mjs && node scripts/check-workspace-recovery-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

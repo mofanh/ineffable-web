@@ -288,6 +288,36 @@ function hasRenderableConversationMessageContent(
   )
 }
 
+export function projectConversationMessageEvents(
+  messages: ConversationMessageRecord[],
+  runId?: string | null
+): GatewayChatStreamEvent[] {
+  return canonicalMessagesToGatewayEvents(
+    messages.map((message) => ({
+      role: message.role,
+      messageType: message.message_type,
+      content: message.content,
+      reasoningContent:
+        message.role === "assistant" || message.message_type === "output"
+          ? getMessageReasoningContent(message)
+          : null,
+      metadata:
+        message.metadata_json && typeof message.metadata_json === "object"
+          ? { ...message.metadata_json }
+          : null,
+      runId: message.run_id,
+      conversationId: message.conversation_id,
+      createdAt: message.created_at,
+    })),
+    {
+      stream: "history",
+      phase: "history",
+      defaultRunId: runId,
+      conversationId: messages[0]?.conversation_id,
+    }
+  )
+}
+
 function buildAssistantEntryFromMessages(
   messages: ConversationMessageRecord[],
   buildSegments = true
@@ -364,30 +394,7 @@ function buildAssistantEntryFromMessages(
   const subagentOrder: string[] = []
 
 
-  const historyEvents = canonicalMessagesToGatewayEvents(
-    messages.map((message) => ({
-      role: message.role,
-      messageType: message.message_type,
-      content: message.content,
-      reasoningContent:
-        message.role === "assistant" || message.message_type === "output"
-          ? getMessageReasoningContent(message)
-          : null,
-      metadata:
-        message.metadata_json && typeof message.metadata_json === "object"
-          ? { ...message.metadata_json }
-          : null,
-      runId: message.run_id,
-      conversationId: message.conversation_id,
-      createdAt: message.created_at,
-    })),
-    {
-      stream: "history",
-      phase: "history",
-      defaultRunId: runId,
-      conversationId: first?.conversation_id,
-    }
-  )
+  const historyEvents = projectConversationMessageEvents(messages, runId)
 
   historyEvents.forEach((event) => {
     // Each canonical/projected message is an independent segment. Never collapse

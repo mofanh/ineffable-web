@@ -363,6 +363,7 @@ export function WorkspaceObjectEditorPage() {
   const workspace = access?.workspace
   const isDirty = content !== savedContent
   const dirtyRef = React.useRef(isDirty); dirtyRef.current = isDirty
+  const currentVersionIdRef = React.useRef(version?.id); currentVersionIdRef.current = version?.id
   const clearRestrictedContent = React.useCallback(() => {
     contentLoadRequestRef.current += 1
     previewRequestRef.current += 1
@@ -458,28 +459,34 @@ export function WorkspaceObjectEditorPage() {
     }
   }, [accessToken, currentSessionId, navigate, objectId, reportActionError, t, workspaceId])
 
-  const loadContent = React.useCallback(async () => {
+  const loadContent = React.useCallback(async (revalidate = false) => {
     if (!accessToken || !workspaceId || !objectId) {
       return
     }
 
     const route = `${currentSessionId}:${workspaceId}:${objectId}`
-    setIsLoading(true)
-    setError(null)
-    setSaveState("idle")
+    const baselineVersionId = currentVersionIdRef.current
+    if (!revalidate) {
+      setIsLoading(true)
+      setError(null)
+      setSaveState("idle")
+    }
     const requestId = contentLoadRequestRef.current + 1
     contentLoadRequestRef.current = requestId
+    const ownsRead = () => contentLoadRequestRef.current === requestId &&
+      currentObjectRouteRef.current === route &&
+      (!revalidate || currentVersionIdRef.current === baselineVersionId)
 
     // A parent deletion can arrive before the first response reveals this file's path.
     const deletions: WorkspaceObjectsChangedEvent["detail"][] = []
     const observeDeletion = (event: Event) => {
       const detail = (event as WorkspaceObjectsChangedEvent).detail
-      if (detail?.workspaceId === workspaceId && detail.action === "delete") deletions.push(detail)
+      if (detail?.workspaceId === workspaceId && detail.action === "delete" && !detail.revalidate) deletions.push(detail)
     }
     window.addEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
     try {
       const contentResponse = await getWorkspaceDocument(accessToken, workspaceId, objectId)
-      if (contentLoadRequestRef.current !== requestId || currentObjectRouteRef.current !== route) {
+      if (!ownsRead()) {
         return
       }
       if (deletions.some(detail => detail.objectId === contentResponse.object.id ||
@@ -487,6 +494,16 @@ export function WorkspaceObjectEditorPage() {
         await openRemainingFile()
         return
       }
+      // Recheck after the read: the user may have started typing while it was in flight.
+      if (revalidate && dirtyRef.current) {
+        if (contentResponse.version?.id !== currentVersionIdRef.current) {
+          setSaveState("conflict")
+          setError(t("workspace.feedback.conflict"))
+        }
+        return
+      }
+      setError(null)
+      setSaveState("idle")
       setObject(contentResponse.object)
       setVersion(contentResponse.version)
       setContent(contentResponse.content)
@@ -495,14 +512,19 @@ export function WorkspaceObjectEditorPage() {
       setPreviewVersion(null)
       setPreviewContent(null)
     } catch (loadError) {
-      if (contentLoadRequestRef.current !== requestId || currentObjectRouteRef.current !== route) {
+      if (!ownsRead()) {
         return
       }
       if (normalizeAppError(loadError).kind === "not_found") {
+        if (revalidate && dirtyRef.current) {
+          setSaveState("conflict")
+          setError(t("workspace.feedback.conflict"))
+          return
+        }
         await openRemainingFile()
         return
       }
-      setObject(null)
+      if (!revalidate) setObject(null)
       reportActionError(
         loadError,
         t("workspace.feedback.loadFailed"),
@@ -510,7 +532,7 @@ export function WorkspaceObjectEditorPage() {
       )
     } finally {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
-      if (contentLoadRequestRef.current === requestId && currentObjectRouteRef.current === route) {
+      if (ownsRead()) {
         setIsLoading(false)
       }
     }
@@ -553,6 +575,11 @@ export function WorkspaceObjectEditorPage() {
         detail.objectId === objectId || (Boolean(detail.path) && Boolean(object?.path) && detail.path === object?.path) ||
         (detail.action === "delete" && Boolean(detail.path) && Boolean(object?.path.startsWith(`${detail.path}/`)))
       if (!affectsCurrentObject) {
+        return
+      }
+
+      if (detail.revalidate) {
+        void loadContent(true)
         return
       }
 

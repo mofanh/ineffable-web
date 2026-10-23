@@ -13,6 +13,8 @@ export type WorkspaceObjectsChangedDetail = {
     | "delete"
   versionId?: string | null
   source?: "agent" | "user" | "system"
+  // An observed fact invalidates current resources; never replay a past mutation.
+  revalidate?: boolean
 }
 
 export type WorkspaceObjectsChangedEvent = CustomEvent<WorkspaceObjectsChangedDetail>
