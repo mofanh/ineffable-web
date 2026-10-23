@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -120,7 +121,7 @@ export function ComposerSingleSelect({
         onOpenChange?.(open)
       }}
     >
-      <PopoverTrigger asChild>
+      <PopoverTrigger asChild><FormControl>
         <Button
           type="button"
           variant="ghost"
@@ -129,6 +130,7 @@ export function ComposerSingleSelect({
             "h-8 w-full min-w-0 justify-start gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground",
             className
           )}
+          aria-label={`${label}: ${selectedOption?.label ?? placeholder}`}
           title={selectedOption?.label ?? placeholder}
           aria-busy={loading}
         >
@@ -143,7 +145,7 @@ export function ComposerSingleSelect({
             <ChevronDownIcon className="size-3 shrink-0 opacity-65" />
           )}
         </Button>
-      </PopoverTrigger>
+      </FormControl></PopoverTrigger>
       <PopoverContent
         align="start"
         side="top"

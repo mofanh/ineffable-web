@@ -1,5 +1,5 @@
 import { i18n } from "@/lib/i18n/i18n"
-import { FormField } from "@/components/app/form"
+import { FormField , FormControl} from "@/components/app/form"
 import { AppDialog } from "@/components/app/app-dialog"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
@@ -171,8 +171,8 @@ export function AgentNodeManagementView({
             title={t(editor?.mode === "composition" ? "agentEvolution.editNew" : "agentEvolution.rename")}
             description={t("agentEvolution.immutableHint")} onOpenChange={open => { if (!open) setEditor(null) }}>
             <div className="space-y-3">
-              <FormField label={t("agentEvolution.name")}><Input value={candidateName} maxLength={128} onChange={event => setCandidateName(event.target.value)} /></FormField>
-              {editor?.mode === "composition" && <FormField label={t("agentEvolution.composition")}><Textarea className="min-h-64 font-mono" value={compositionText} onChange={event => setCompositionText(event.target.value)} /></FormField>}
+              <FormField label={t("agentEvolution.name")}><FormControl><Input value={candidateName} maxLength={128} onChange={event => setCandidateName(event.target.value)} /></FormControl></FormField>
+              {editor?.mode === "composition" && <FormField label={t("agentEvolution.composition")}><FormControl><Textarea className="min-h-64 font-mono" value={compositionText} onChange={event => setCompositionText(event.target.value)} /></FormControl></FormField>}
               <Button disabled={!accessToken || busyKey !== null} onClick={() => {
                 if (!accessToken || !editor) return
                 const target = editor

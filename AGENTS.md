@@ -394,6 +394,8 @@ const confirmed = await confirm({
 
 不要在页面内新增本地 `Field`、`TextInput`、`ToggleField`、`StatusBadge`、`ErrorNotice`、`EmptyState`，除非它们有明确且不可复用的业务语义。
 
+单控件使用 `FormField` + `FormControl`，将稳定 ID、label、description/error 关联到真实 input 或 trigger；复合选择器在内部 trigger 接入，不能把 ID 放到 Select/Popover root。多控件使用 `FormField group` 并为各成员提供独立名称。已有显式 htmlFor/id 继续配对保留。管理编辑器的保存、错误和 finally 必须持有同一打开代次和 session 的写回权。
+
 ## 系统管理页面设计约束
 
 系统管理页面包括：
@@ -618,3 +620,7 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 - 能力选择的乐观保存链只以服务端确认值推进 rollback baseline；连续失败不能回到失败草稿。
   成功、失败、历史补拉同时冻结 session/会话/页面代次与保存 revision；旧响应不得覆盖新页面，
   有待保存草稿时历史快照不得抢写。运行 `npm run check:capability-save` 验证真实浏览器保存链。
+
+Workspace 文件动作按领域 MIME 能力区分：原始文件导出使用鉴权下载接口与 Blob；文本复制先校验并读取有界完整树，二进制后代在任何创建前拒绝，已发生的部分创建必须明确报告。工具驱动刷新只消费统一 `workspace_changes` 或授权 image references，不能识别旧 flat 名称或猜 stdout。
+
+沙箱预览票据请求沿用 body 读取后的 session 校验；同 session/exposure 只合并在途请求。页面卸载、换目标或身份变化撤销旧 continuation 的导航权，不能把“请求成功”视为仍有权操作当前页面。

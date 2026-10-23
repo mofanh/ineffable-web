@@ -14,13 +14,13 @@ const UUID_PATTERN =
 export function SandboxPreviewLaunchPage() {
   const { t } = useTranslation()
   const { exposureId = "" } = useParams()
-  const { accessToken } = useAuthSession()
+  const { accessToken, currentSessionId } = useAuthSession()
   const [attempt, setAttempt] = React.useState(0)
   const [error, setError] = React.useState<AppError | null>(null)
-  const startedAttemptRef = React.useRef<number | null>(null)
+
 
   React.useEffect(() => {
-    if (!accessToken || startedAttemptRef.current === attempt) {
+    if (!accessToken || !currentSessionId) {
       return
     }
 
@@ -33,20 +33,22 @@ export function SandboxPreviewLaunchPage() {
       return
     }
 
-    startedAttemptRef.current = attempt
+    let current = true
     setError(null)
     void createSandboxPreviewSession(accessToken, exposureId)
       .then((ticket) => {
-        window.location.replace(ticket.launch_url)
+        if (current) window.location.replace(ticket.launch_url)
       })
       .catch((cause: unknown) => {
+        if (!current) return
         setError(
           normalizeAppError(cause, {
             fallbackMessage: t("sandboxPreview.launch.failed"),
           })
         )
       })
-  }, [accessToken, attempt, exposureId, t])
+    return () => { current = false }
+  }, [accessToken, currentSessionId, attempt, exposureId, t])
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-6 py-12">

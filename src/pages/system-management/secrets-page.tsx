@@ -1,3 +1,5 @@
+import { FormControl } from "@/components/app/form"
+import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -75,6 +77,20 @@ export function SystemSecretManagementPage() {
     Set<string>
   >(() => new Set());
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const editor = useEditorGuard(currentSessionId);
+  React.useEffect(() => {
+    editor.begin();
+    setDialogOpen(false);
+    setEditingSecret(null);
+    setState("idle");
+    setError("");
+  }, [currentSessionId, editor]);
+  function closeEditor(open: boolean) {
+    if (open || !editor.close()) return;
+    setDialogOpen(false);
+    setEditingSecret(null);
+  }
+
   const [state, setState] = React.useState<LoadState>("idle");
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState("");
@@ -165,12 +181,18 @@ export function SystemSecretManagementPage() {
   );
 
   function openCreateDialog() {
+    editor.begin();
+    setState("idle");
+    setError("");
     setSecretDialogMode("create");
     setEditingSecret({ ...emptySecret, secret: "" });
     setDialogOpen(true);
   }
 
   function openEditDialog(secret: AdminLlmSecret) {
+    editor.begin();
+    setState("idle");
+    setError("");
     setSecretDialogMode("edit");
     setEditingSecret({
       secret_ref: secret.secret_ref,
@@ -196,10 +218,13 @@ export function SystemSecretManagementPage() {
   async function saveSecret(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken || !editingSecret) return;
+    if (!editor.startSave()) return;
+    const isCurrent = editor.capture();
     setState("saving");
     setError("");
     try {
       const result = await upsertAdminLlmSecret(accessToken, editingSecret);
+      if (!isCurrent()) return;
       secretResource.setData((current) => ({
         secrets: [
           result.secret,
@@ -218,6 +243,7 @@ export function SystemSecretManagementPage() {
       });
       setDialogOpen(false);
     } catch (saveError) {
+      if (!isCurrent()) return;
       const appError = normalizeAppError(saveError, {
         fallbackMessage: t("system.secrets.saveFailed"),
       });
@@ -227,7 +253,7 @@ export function SystemSecretManagementPage() {
         description: appError.message,
       });
     } finally {
-      setState("idle");
+      if (isCurrent()) { editor.finishSave(); setState("idle"); }
     }
   }
 
@@ -429,7 +455,7 @@ export function SystemSecretManagementPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                onClick={() => closeEditor(false)}
               >
                 {t("system.secrets.form.cancel")}
               </Button>
@@ -444,7 +470,7 @@ export function SystemSecretManagementPage() {
             </AppDialogFooter>
           ) : undefined
         }
-        onOpenChange={setDialogOpen}
+        onOpenChange={closeEditor}
       >
         {editingSecret ? (
           <SecretForm
@@ -733,7 +759,7 @@ function SecretForm({
       <AppDisclosureSection title={t("system.secrets.form.content")}>
         <AppFieldGrid columns={1}>
           <FormField label={t("system.secrets.form.ref")}>
-            <Input
+            <FormControl><Input
               value={secret.secret_ref}
               disabled={mode === "edit"}
               required
@@ -744,10 +770,10 @@ function SecretForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.secrets.form.value")}>
-            <Input
+            <FormControl><Input
               type="password"
               value={secret.secret}
               required={mode === "create"}
@@ -759,10 +785,10 @@ function SecretForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.secrets.form.status")}>
-            <Input
+            <FormControl><Input
               value={secret.status}
               onChange={(event) =>
                 onChange((current) =>
@@ -771,7 +797,7 @@ function SecretForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>

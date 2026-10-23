@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { LoaderCircleIcon, SearchIcon, SparklesIcon } from "lucide-react"
@@ -38,6 +39,12 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
     ? capabilityExposureSelection.custom.families.length +
       capabilityExposureSelection.custom.capabilities.length
     : 0
+
+  const selectionLabel = capabilityExposureDraftStatus === "error"
+    ? t("chat.composer.capabilityRetry")
+    : capabilityExposureSelection
+      ? `${t(`chat.composer.capabilityMode.${capabilityExposureSelection.mode}`)}${capabilityExposureSelection.mode === "custom" && customSelectionCount > 0 ? ` · ${customSelectionCount}` : ""}`
+      : "—"
 
   function selectCapabilityMode(mode: CapabilityExposureMode) {
     onCapabilityExposureChange({
@@ -93,9 +100,10 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
 
   return (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger asChild><FormControl>
                   <Button
                     type="button"
+                    aria-label={`${t("chat.composer.capabilityModeLabel")}: ${selectionLabel}`}
                     variant="ghost"
                     size="sm"
                     className="h-8 min-w-0 max-w-28 shrink gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground"
@@ -117,16 +125,10 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                   >
                     <SparklesIcon className="size-3.5 shrink-0" />
                     <span className="truncate">
-                      {capabilityExposureDraftStatus === "error"
-                        ? t("chat.composer.capabilityRetry")
-                        : capabilityExposureSelection
-                        ? `${t(
-                            `chat.composer.capabilityMode.${capabilityExposureSelection.mode}`
-                          )}${capabilityExposureSelection.mode === "custom" && customSelectionCount > 0 ? ` · ${customSelectionCount}` : ""}`
-                        : "—"}
+                      {selectionLabel}
                     </span>
                   </Button>
-                </DropdownMenuTrigger>
+                </FormControl></DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="top" sideOffset={8} className={capabilityExposureSelection?.mode === "custom" ? "w-72 max-w-[calc(100vw-2rem)] rounded-xl p-1" : "w-60 max-w-[calc(100vw-2rem)] rounded-xl p-1"}>
                   <DropdownMenuLabel className="px-2.5 py-1 text-[11px] font-normal text-muted-foreground">
                     {t("chat.composer.capabilityModeLabel")}

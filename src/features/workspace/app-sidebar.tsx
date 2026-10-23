@@ -69,7 +69,9 @@ import {
 } from "@/features/workspace/api/workspace-api"
 import { statWorkspacePath } from "@/features/workspace/api/workspace-api"
 import { listWorkspaceDirectoryDeduped } from "@/features/workspace/api/workspace-resource-api"
-import { downloadTextFile } from "@/features/workspace/model/download"
+import { downloadWorkspaceFile } from "@/features/workspace/api/workspace-download"
+import { workspaceFileCapabilities } from "@/features/workspace/model/file-capabilities"
+import { downloadBlob, downloadTextFile } from "@/features/workspace/model/download"
 import {
   buildWorkspaceEntries,
   getCopyName,
@@ -233,7 +235,7 @@ function WorkspaceObjectMenu({
             <DropdownMenuSeparator />
           </>
         ) : null}
-        {canWrite && !item.isWorkspaceRoot ? (
+        {canWrite && !item.isWorkspaceRoot && item.object && workspaceFileCapabilities(item.object).duplicate ? (
           <DropdownMenuItem onClick={() => onAction("duplicate", item)}>
             <CopyIcon />
             <span>{t("sidebar.actions.duplicate")}</span>
@@ -574,7 +576,7 @@ function SpaceSection({
 }: {
   title: string
   entries: SidebarEntry[]
-  emptyLabel?: string
+  emptyLabel?: string | null
   isLoading?: boolean
   error?: string | null
   canCreate?: boolean
@@ -644,7 +646,7 @@ function SpaceSection({
                 onTeamAction={onTeamAction}
               />
             ))
-          ) : (
+          ) : isLoading || error || emptyLabel !== null ? (
             <SidebarMenuItem>
               <div className="mx-2 rounded-lg border border-dashed border-sidebar-border px-3 py-3 text-xs leading-5 text-sidebar-foreground/45">
                 {isLoading
@@ -652,7 +654,7 @@ function SpaceSection({
                   : error || emptyLabel || t("sidebar.sections.empty")}
               </div>
             </SidebarMenuItem>
-          )}
+          ) : null}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -1088,72 +1090,54 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         getCopyName(source.name)
       )
 
-      if (source.kind === "file") {
-        const content = await getWorkspaceObjectContent(
-          accessToken,
-          item.workspaceId,
-          source.id
-        )
-        const created = await createWorkspaceFile(accessToken, item.workspaceId, {
-          name: preferredName,
-          parent_id: source.parent_id ?? null,
-          content: content.content,
-          mime_type: source.mime_type || "text/plain",
-        })
-        if (scope === directoryScopeRef.current) setSelectedEntryId(created.object.id)
-        return
-      }
-
-      const createdRoot = await createWorkspaceFolder(accessToken, item.workspaceId, {
-        name: preferredName,
-        parent_id: source.parent_id ?? null,
-      })
-      if (scope === directoryScopeRef.current) setSelectedEntryId(createdRoot.object.id)
-
-      const cloneChildren = async (sourcePath: string, targetParentId: string) => {
-        const discovered: WorkspaceObject[] = []
-        let cursor: string | undefined
-        do {
-          const page = await listWorkspaceDirectoryDeduped(accessToken, item.workspaceId!, sourcePath, cursor)
-          discovered.push(...page.objects)
-          cursor = page.next_cursor ?? undefined
-        } while (cursor)
-        const children = discovered.sort(
-          (left, right) => {
-            if (left.kind !== right.kind) {
-              return left.kind === "folder" ? -1 : 1
-            }
-
-            return left.name.localeCompare(right.name)
-          }
-        )
-
-        for (const child of children) {
-          if (child.kind === "folder") {
-            const created = await createWorkspaceFolder(accessToken, item.workspaceId!, {
-              name: child.name,
-              parent_id: targetParentId,
-            })
-            await cloneChildren(child.path, created.object.id)
-          } else {
-            const content = await getWorkspaceObjectContent(
-              accessToken,
-              item.workspaceId!,
-              child.id
-            )
-            await createWorkspaceFile(accessToken, item.workspaceId!, {
-              name: child.name,
-              parent_id: targetParentId,
-              content: content.content,
-              mime_type: child.mime_type || "text/plain",
-            })
-          }
+      // Validate and read the complete bounded text tree before any create.
+      // Unsupported binary descendants cannot leave a half-created directory.
+      type CopyNode = { object: WorkspaceObject; content?: string; children: CopyNode[] }
+      let count = 0, bytes = 0, createdCount = 0
+      const readNode = async (object: WorkspaceObject): Promise<CopyNode> => {
+        if (++count > 2000) throw new Error(t("workspace.sidebarFeedback.copyBudget"))
+        const node: CopyNode = { object, children: [] }
+        if (object.kind === "file") {
+          if (!workspaceFileCapabilities(object).text) throw new Error(t("workspace.sidebarFeedback.copyUnsupported", { name: object.name }))
+          const response = await getWorkspaceObjectContent(accessToken, item.workspaceId!, object.id)
+          bytes += new TextEncoder().encode(response.content).byteLength
+          if (bytes > 16 * 1024 * 1024) throw new Error(t("workspace.sidebarFeedback.copyBudget"))
+          node.content = response.content
+        } else {
+          let cursor: string | undefined
+          const seen = new Set<string>()
+          do {
+            const page = await listWorkspaceDirectoryDeduped(accessToken, item.workspaceId!, object.path, cursor)
+            for (const child of page.objects) node.children.push(await readNode(child))
+            cursor = page.next_cursor ?? undefined
+            if (cursor && seen.has(cursor)) throw new Error(t("workspace.sidebarFeedback.copyBudget"))
+            if (cursor) seen.add(cursor)
+          } while (cursor)
         }
+        return node
       }
-
-      await cloneChildren(source.path, createdRoot.object.id)
+      const snapshot = await readNode(source)
+      const createNode = async (node: CopyNode, parentId: string | null, name: string): Promise<string> => {
+        if (scope !== directoryScopeRef.current) throw new Error(t("workspace.sidebarFeedback.copyInterrupted"))
+        const response = node.object.kind === "file"
+          ? await createWorkspaceFile(accessToken, item.workspaceId!, { name, parent_id: parentId, content: node.content!, mime_type: node.object.mime_type || "text/plain" })
+          : await createWorkspaceFolder(accessToken, item.workspaceId!, { name, parent_id: parentId })
+        createdCount += 1
+        for (const child of node.children) await createNode(child, response.object.id, child.object.name)
+        return response.object.id
+      }
+      try {
+        const id = await createNode(snapshot, source.parent_id ?? null, preferredName)
+        if (scope === directoryScopeRef.current) setSelectedEntryId(id)
+      } catch (error) {
+        if (createdCount) {
+          dispatchWorkspaceObjectsChanged({ workspaceId: item.workspaceId, action: "create_file", source: "user" })
+          throw new Error(t("workspace.sidebarFeedback.copyPartial", { count: createdCount, name: preferredName }), { cause: error })
+        }
+        throw error
+      }
     },
-    [accessToken]
+    [accessToken, t]
   )
 
   const handleObjectAction = React.useCallback(
@@ -1213,16 +1197,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }
 
           if (item.object.kind === "file") {
-            const response = await getWorkspaceObjectContent(
-              accessToken,
-              item.workspaceId,
-              item.object.id
-            )
-            downloadTextFile(
-              item.object.name,
-              response.content,
-              item.object.mime_type || "text/plain"
-            )
+            const blob = await downloadWorkspaceFile(accessToken, item.workspaceId, item.object.id)
+            if (!isCurrent()) return
+            downloadBlob(item.object.name, blob)
             notify.info({ title: t("workspace.sidebarFeedback.fileExported") })
             return
           }
@@ -1508,7 +1485,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SpaceSection
           title={t("sidebar.sections.team")}
           entries={teamSpaceEntries}
-          emptyLabel={t("sidebar.sections.emptyTeam")}
+          emptyLabel={null}
           isLoading={isTreeLoading && Boolean(teamWorkspaces.length)}
           error={treeError}
           canCreate

@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -7,10 +8,8 @@ import {
   CopyIcon,
   MailIcon,
   ShieldCheckIcon,
-  SparklesIcon,
   Trash2Icon,
   UserPlusIcon,
-  UsersIcon,
 } from "lucide-react";
 
 import {
@@ -146,12 +145,12 @@ export function CreateTeamWorkspacePage() {
     <form onSubmit={submit} className="max-w-2xl space-y-5 rounded-xl border bg-card p-5 sm:p-6">
       <fieldset disabled={isSubmitting || uncertain} className="space-y-5">
         <FormField htmlFor="team-workspace-name" label={t("team.create.name")}>
-          <Input id="team-workspace-name" value={teamName} onChange={event => setTeamName(event.target.value)} placeholder={t("team.create.namePlaceholder")} autoComplete="organization" />
+          <FormControl><Input id="team-workspace-name" value={teamName} onChange={event => setTeamName(event.target.value)} placeholder={t("team.create.namePlaceholder")} autoComplete="organization" /></FormControl>
         </FormField>
         <FormField label={t("team.create.purpose")}>
-          <select className="h-10 w-full rounded-md border bg-background px-3" value={purpose} onChange={event => setPurpose(event.target.value as typeof purpose)}>
+          <FormControl><select className="h-10 w-full rounded-md border bg-background px-3" value={purpose} onChange={event => setPurpose(event.target.value as typeof purpose)}>
             {purposeOptions.map(option => <option key={option} value={option}>{t(`team.purpose.${option}`)}</option>)}
-          </select>
+          </select></FormControl>
         </FormField>
       </fieldset>
       {error && <Notice tone="error">{error}</Notice>}
@@ -977,8 +976,7 @@ export function AcceptWorkspaceInvitationPage() {
 
   return (
     <AppPage
-      title={t("team.invitation.pageTitle")}
-      description={t("team.invitation.pageDescription")}
+      title={status === "accepted" ? t("team.invitation.acceptedHeading", { name: workspaceName }) : t("team.invitation.heading")}
     >
       <div className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="flex flex-col items-center text-center">
@@ -989,17 +987,7 @@ export function AcceptWorkspaceInvitationPage() {
               <MailIcon className="size-10 text-muted-foreground" />
             )}
           </div>
-          <p className="mt-6 text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-            Team Workspace
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold">
-            {status === "accepted"
-              ? t("team.invitation.acceptedHeading", { name: workspaceName })
-              : t("team.invitation.heading")}
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            {t("team.invitation.description")}
-          </p>
+
         </div>
 
         <div className="mt-8 grid gap-3">
@@ -1007,16 +995,6 @@ export function AcceptWorkspaceInvitationPage() {
             icon={<ShieldCheckIcon className="size-5" />}
             title={t("team.invitation.permissionTitle")}
             description={t("team.invitation.permissionDescription")}
-          />
-          <AccessRow
-            icon={<SparklesIcon className="size-5" />}
-            title={t("team.invitation.contextTitle")}
-            description={t("team.invitation.contextDescription")}
-          />
-          <AccessRow
-            icon={<UsersIcon className="size-5" />}
-            title={t("team.invitation.collaborationTitle")}
-            description={t("team.invitation.collaborationDescription")}
           />
         </div>
 

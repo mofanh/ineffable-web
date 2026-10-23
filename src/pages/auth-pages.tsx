@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react"
 import {
   EyeIcon,
@@ -224,7 +225,7 @@ function AuthPage({ mode }: AuthPageProps) {
                 label={t("auth.form.name")}
                 error={fieldErrors.displayName}
               >
-                <Input
+                <FormControl><Input
                   id="auth-name"
                   className="h-10 px-3"
                   value={form.displayName}
@@ -236,7 +237,7 @@ function AuthPage({ mode }: AuthPageProps) {
                   autoFocus
                   disabled={isSubmitting}
                   aria-invalid={Boolean(fieldErrors.displayName)}
-                />
+                /></FormControl>
               </FormField>
             ) : null}
 
@@ -245,7 +246,7 @@ function AuthPage({ mode }: AuthPageProps) {
               label={t("auth.form.email")}
               error={fieldErrors.email}
             >
-              <Input
+              <FormControl><Input
                 id="auth-email"
                 className="h-10 px-3"
                 type="email"
@@ -256,7 +257,7 @@ function AuthPage({ mode }: AuthPageProps) {
                 autoFocus={isLogin}
                 disabled={isSubmitting}
                 aria-invalid={Boolean(fieldErrors.email)}
-              />
+              /></FormControl>
             </FormField>
 
             {!isLogin ? (
@@ -267,7 +268,7 @@ function AuthPage({ mode }: AuthPageProps) {
                 error={fieldErrors.verificationCode}
               >
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <Input
+                  <FormControl><Input
                     id="auth-verification-code"
                     className="h-10 px-3 tracking-[0.2em]"
                     inputMode="numeric"
@@ -283,7 +284,7 @@ function AuthPage({ mode }: AuthPageProps) {
                     disabled={isSubmitting}
                     maxLength={6}
                     aria-invalid={Boolean(fieldErrors.verificationCode)}
-                  />
+                  /></FormControl>
                   <AsyncButton
                     type="button"
                     variant="outline"
@@ -315,7 +316,7 @@ function AuthPage({ mode }: AuthPageProps) {
               error={fieldErrors.password}
             >
               <div className="relative">
-                <Input
+                <FormControl><Input
                   id="auth-password"
                   className="h-10 px-3 pr-11"
                   type={showPassword ? "text" : "password"}
@@ -327,7 +328,7 @@ function AuthPage({ mode }: AuthPageProps) {
                   autoComplete={isLogin ? "current-password" : "new-password"}
                   disabled={isSubmitting}
                   aria-invalid={Boolean(fieldErrors.password)}
-                />
+                /></FormControl>
                 <Button
                   type="button"
                   variant="ghost"

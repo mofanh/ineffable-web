@@ -36,7 +36,7 @@ export function WorkspaceRuleField({ accessToken, workspaces, value, disabled, o
   })
   const personal = workspaces.find(space => space.workspace_type === "personal" && space.status === "active")
   const effective = automatic ? file.data?.object ? { workspace_id: file.data.object.workspace_id, object_id: file.data.object.id } : undefined : value
-  return <FormField label={t("chat.rule.title")} description={t("chat.rule.description")}>
+  return <FormField group label={t("chat.rule.title")} description={t("chat.rule.description")}>
     <div className="space-y-2" data-workspace-rule-field>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="min-w-0 flex-1 break-all text-sm text-muted-foreground">{automatic ? t("chat.rule.automatic") : effective ? (file.data ? `${workspaces.find(space => space.id === effective.workspace_id)?.name ?? effective.workspace_id}/${file.data.object.path}` : file.error ? t("chat.rule.unavailable") : t("common.loading")) : t("chat.rule.none")}</span>

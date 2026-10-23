@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { AppDisclosureSection, AppFieldGrid, FormField, ToggleField } from "@/components/app";
@@ -23,10 +24,10 @@ export function ImageModelFields({ model, onChange }: Props) {
     <AppFieldGrid>
       <ToggleField label={t(generation ? "images.generationEnabled" : "images.analysisEnabled")} checked={config.enabled === true} onCheckedChange={value => set("enabled", value)} />
       {generation ? <ToggleField label={t("images.referenceEditing")} checked={config.editing === true} onCheckedChange={value => set("editing", value)} /> : null}
-      <FormField label={t("images.runBudget")}><Input type="number" min={1} max={3} step={1} value={Number(config.max_calls_per_run ?? 3)} onChange={event => set("max_calls_per_run", Number(event.target.value))} /></FormField>
-      <FormField label={t("images.reserveCredits")}><Input type="number" min={0.001} step="any" value={Number(config.reservation_credits ?? 0)} onChange={event => set("reservation_credits", Number(event.target.value))} /></FormField>
+      <FormField label={t("images.runBudget")}><FormControl><Input type="number" min={1} max={3} step={1} value={Number(config.max_calls_per_run ?? 3)} onChange={event => set("max_calls_per_run", Number(event.target.value))} /></FormControl></FormField>
+      <FormField label={t("images.reserveCredits")}><FormControl><Input type="number" min={0.001} step="any" value={Number(config.reservation_credits ?? 0)} onChange={event => set("reservation_credits", Number(event.target.value))} /></FormControl></FormField>
       {generation ? <FormField label={t("images.quality")}><Select value={String(config.quality ?? "medium")} onValueChange={value => set("quality", value)}>
-        <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>
           <SelectItem value="low">{t("images.low")}</SelectItem><SelectItem value="medium">{t("images.medium")}</SelectItem><SelectItem value="high">{t("images.high")}</SelectItem>
         </SelectContent>
       </Select></FormField> : null}

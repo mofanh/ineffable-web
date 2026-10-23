@@ -1,55 +1,30 @@
 import { imageReferences } from "@/lib/image-reference"
-import { getToolName } from "@/features/chat/gateway-chat-helpers"
-import {
-  objectValue,
-  parseJsonObject,
-  stringValue,
-} from "@/features/chat/model/chat-parsing"
+import { objectValue, stringValue } from "@/features/chat/model/chat-parsing"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
-import { dispatchWorkspaceObjectsChanged } from "@/lib/workspace-events"
+import { dispatchWorkspaceObjectsChanged, type WorkspaceObjectsChangedDetail } from "@/lib/workspace-events"
 
+// Both realtime and restored results carry the same service-owned mutation facts.
+// Tool labels, command arguments and arbitrary stdout never decide side effects.
 export function notifyWorkspaceOutputEvent(event: GatewayChatStreamEvent) {
-  if (event.event === "model.images" || event.event === "tool.result") {
-    // The caller already deduplicates envelope identities. Refresh once per
-    // workspace in this bounded batch, using persisted typed references only.
-    const images = imageReferences(event.metadata?.images)
-    const workspaces = new Set<string>()
-    for (const image of images) {
-      if (workspaces.has(image.workspace_id)) continue
-      workspaces.add(image.workspace_id)
-      dispatchWorkspaceObjectsChanged({ workspaceId: image.workspace_id, objectId: image.object_id,
-        versionId: image.version_id, action: "create_file", source: "agent" })
+  if (event.event !== "model.images" && event.event !== "tool.result") return
+  const changed = new Set<string>()
+  const changes = event.metadata?.workspace_changes
+  if (event.event === "tool.result" && event.metadata?.settlement_status === "succeeded" && Array.isArray(changes)) {
+    for (const change of changes) {
+      const value = objectValue(change)
+      const workspaceId = stringValue(value?.workspace_id)
+      const objectId = stringValue(value?.object_id)
+      const action = stringValue(value?.action)
+      if (!workspaceId || !objectId || !["write_file", "create_folder", "rename_move", "delete"].includes(action)) continue
+      changed.add(workspaceId)
+      dispatchWorkspaceObjectsChanged({ workspaceId, objectId, path: stringValue(value?.path) || null,
+        versionId: stringValue(value?.version_id) || null, action: action as WorkspaceObjectsChangedDetail["action"], source: "agent" })
     }
-    if (images.length) return
   }
-  if (event.event !== "tool.result") {
-    return
+  for (const image of imageReferences(event.metadata?.images)) {
+    if (changed.has(image.workspace_id)) continue
+    changed.add(image.workspace_id)
+    dispatchWorkspaceObjectsChanged({ workspaceId: image.workspace_id, objectId: image.object_id,
+      versionId: image.version_id, action: "create_file", source: "agent" })
   }
-
-  const toolName = getToolName(event)
-  const action =
-    toolName === "workspace_write_file"
-      ? "write_file"
-      : toolName === "workspace_create_folder"
-        ? "create_folder"
-        : null
-  if (!action) {
-    return
-  }
-
-  const result = parseJsonObject(event.content)
-  const object = objectValue(result?.object) ?? result
-  const workspaceId = stringValue(object?.workspace_id ?? result?.workspace_id)
-  if (!workspaceId) {
-    return
-  }
-
-  dispatchWorkspaceObjectsChanged({
-    workspaceId,
-    objectId: stringValue(object?.id ?? result?.id) || null,
-    path: stringValue(object?.path ?? result?.path) || null,
-    action,
-    versionId: stringValue(result?.version_id) || null,
-    source: "agent",
-  })
 }

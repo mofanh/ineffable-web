@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { PencilIcon } from "lucide-react"
@@ -54,7 +55,7 @@ export function ConversationTitleEditor({ title, onSave }: {
     <AppDialog open={open} onOpenChange={changeOpen} title={t("chat.header.rename")} maxWidth="lg">
       <form onSubmit={(event) => void save(event)} className="space-y-4">
         <FormField label={t("chat.header.titleLabel")} htmlFor={fieldId}>
-          <Input id={fieldId} autoFocus value={draft} disabled={saving} onChange={(event) => setDraft(event.target.value)} />
+          <FormControl><Input id={fieldId} autoFocus value={draft} disabled={saving} onChange={(event) => setDraft(event.target.value)} /></FormControl>
         </FormField>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <AppDialogFooter>

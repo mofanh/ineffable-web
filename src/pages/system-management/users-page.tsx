@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react";
 import { isWriteOutcomeUnknown } from "@/features/admin-management/editor-requests";
 import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
@@ -558,10 +559,10 @@ export function SystemUserManagementPage() {
             <AppDisclosureSection title={t("system.users.roleAndPlan")}>
               <AppFieldGrid columns={1}>
                 <FormField label={t("system.users.user")}>
-                  <Input value={editingUser.email} readOnly />
+                  <FormControl><Input value={editingUser.email} readOnly /></FormControl>
                 </FormField>
                 <FormField label={t("system.users.role")} htmlFor="admin-user-role">
-                  <select
+                  <FormControl><select
                     id="admin-user-role"
                     value={editingRole}
                     disabled={state !== "idle"}
@@ -576,10 +577,10 @@ export function SystemUserManagementPage() {
                       {t("system.users.standardUser")}
                     </option>
                     <option value="admin">{t("system.users.admin")}</option>
-                  </select>
+                  </select></FormControl>
                 </FormField>
                 <FormField label={t("system.users.assignPlan")} htmlFor="admin-user-plan">
-                  <select
+                  <FormControl><select
                     id="admin-user-plan"
                     value={editingUserPlanId}
                     onChange={(event) =>
@@ -593,7 +594,7 @@ export function SystemUserManagementPage() {
                         {plan.display_name}
                       </option>
                     ))}
-                  </select>
+                  </select></FormControl>
                 </FormField>
               </AppFieldGrid>
             </AppDisclosureSection>

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Slot } from "radix-ui"
 
 import {
   Field,
@@ -37,28 +38,45 @@ export function FormSection({
   )
 }
 
-export function FormField({
-  label,
-  htmlFor,
-  description,
-  error,
-  children,
-  className,
-}: {
+type FieldIdentity = { id: string; labelId: string; describedBy?: string; invalid: boolean }
+const FieldIdentityContext = React.createContext<FieldIdentity | null>(null)
+
+/** Attach a field to its actual input or composite trigger, never to a root wrapper. */
+export function FormControl({ children, ...props }: React.ComponentProps<typeof Slot.Root>) {
+  const field = React.useContext(FieldIdentityContext)
+  if (!field || !React.isValidElement<React.HTMLAttributes<HTMLElement>>(children)) return <Slot.Root {...props}>{children}</Slot.Root>
+  const describedBy = [children.props["aria-describedby"], props["aria-describedby"], field.describedBy].filter(Boolean).join(" ") || undefined
+  const labelledBy = children.props["aria-labelledby"] ?? props["aria-labelledby"] ?? (children.props["aria-label"] || props["aria-label"] ? undefined : field.labelId)
+  return <Slot.Root {...props} id={field.id} aria-labelledby={labelledBy} aria-describedby={describedBy} aria-invalid={field.invalid || undefined}>
+    {React.cloneElement(children, { "aria-describedby": describedBy, "aria-invalid": field.invalid || children.props["aria-invalid"] })}
+  </Slot.Root>
+}
+
+export function FormField({ label, htmlFor, description, error, children, className, group = false }: {
   label: string
   htmlFor?: string
   description?: string
   error?: string | null
   children: React.ReactNode
   className?: string
+  group?: boolean
 }) {
+  const generatedId = React.useId()
+  const id = htmlFor || `${generatedId}-control`
+  const labelId = `${generatedId}-label`
+  const descriptionId = `${generatedId}-description`
+  const errorId = `${generatedId}-error`
+  const describedBy = [description && descriptionId, error && errorId].filter(Boolean).join(" ") || undefined
+  const identity = { id, labelId, describedBy, invalid: Boolean(error) }
   return (
-    <Field className={className} data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
-      {children}
-      {description ? <FieldDescription>{description}</FieldDescription> : null}
-      {error ? <FieldError>{error}</FieldError> : null}
-    </Field>
+    <FieldIdentityContext.Provider value={group ? null : identity}>
+      <Field className={className} data-invalid={Boolean(error)} role={group ? "group" : undefined} aria-labelledby={group ? labelId : undefined} aria-describedby={group ? describedBy : undefined}>
+        {group ? <FieldLabel asChild><span id={labelId}>{label}</span></FieldLabel> : <FieldLabel id={labelId} htmlFor={id}>{label}</FieldLabel>}
+        {children}
+        {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
+        {error ? <FieldError id={errorId}>{error}</FieldError> : null}
+      </Field>
+    </FieldIdentityContext.Provider>
   )
 }
 

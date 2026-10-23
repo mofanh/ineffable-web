@@ -52,6 +52,9 @@ jobs:
       - name: Internationalization
         run: npm run i18n:check
 
+      - name: Check request and UI ownership invariants
+        run: npm run check:logic-invariants
+
       - name: Chat architecture
         run: npm run check:chat-architecture
 

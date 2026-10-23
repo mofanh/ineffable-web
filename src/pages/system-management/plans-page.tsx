@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react";
 import { readPlanAccess, isWriteOutcomeUnknown } from "@/features/admin-management/editor-requests";
 import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
@@ -1082,7 +1083,7 @@ function PlanForm({
       <AppDisclosureSection title={t("system.plans.form.basic")}>
         <AppFieldGrid columns={1}>
           <FormField label={t("system.plans.form.internalName")} htmlFor="plan-internal-name">
-            <Input
+            <FormControl><Input
               id="plan-internal-name"
               value={plan.name}
               onChange={(event) =>
@@ -1090,10 +1091,10 @@ function PlanForm({
                   current ? { ...current, name: event.target.value } : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.plans.form.displayName")} htmlFor="plan-display-name">
-            <Input
+            <FormControl><Input
               id="plan-display-name"
               value={plan.display_name}
               onChange={(event) =>
@@ -1103,7 +1104,7 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <ToggleField
             label={t("system.plans.form.enable")}
@@ -1144,9 +1145,9 @@ function PlanForm({
                 })
               }
             >
-              <SelectTrigger>
+              <FormControl><SelectTrigger>
                 <SelectValue />
-              </SelectTrigger>
+              </SelectTrigger></FormControl>
               <SelectContent>
                 {capabilityPolicy.allowed_modes
                   .filter((mode) => mode !== "custom")
@@ -1162,7 +1163,7 @@ function PlanForm({
             label={t("system.plans.form.allowedCapabilityFamilies")}
             description={t(
               "system.plans.form.allowedCapabilityFamiliesDescription",
-            )}
+            )} group
           >
             <CapabilityFamilySelector
               entries={capabilityFamilies}
@@ -1428,7 +1429,7 @@ function PlanForm({
       >
         <AppFieldGrid columns={1}>
           <FormField label={t("system.plans.form.monthlyLimit")}>
-            <Input
+            <FormControl><Input
               type="number"
               value={plan.monthly_credit_limit ?? ""}
               onChange={(event) =>
@@ -1441,7 +1442,7 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
@@ -1451,7 +1452,7 @@ function PlanForm({
       >
         <AppFieldGrid columns={1}>
           <FormField label={t("system.plans.form.storageGb")}>
-            <Input
+            <FormControl><Input
               type="number"
               min={0}
               step="0.1"
@@ -1468,10 +1469,10 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.plans.form.workspaceCount")}>
-            <Input
+            <FormControl><Input
               type="number"
               min={0}
               step={1}
@@ -1486,10 +1487,10 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.plans.form.members")}>
-            <Input
+            <FormControl><Input
               type="number"
               min={0}
               step={1}
@@ -1506,10 +1507,10 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.plans.form.objects")}>
-            <Input
+            <FormControl><Input
               type="number"
               min={0}
               step={1}
@@ -1526,10 +1527,10 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.plans.form.fileMb")}>
-            <Input
+            <FormControl><Input
               type="number"
               min={0}
               step="0.1"
@@ -1546,7 +1547,7 @@ function PlanForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
@@ -1567,13 +1568,13 @@ function PolicyNumberField({
 }) {
   return (
     <FormField label={label}>
-      <Input
+      <FormControl><Input
         type="number"
         min={0}
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-      />
+      /></FormControl>
     </FormField>
   );
 }
@@ -1591,13 +1592,13 @@ function PolicyOptionalNumberField({
 }) {
   return (
     <FormField label={label} description={description}>
-      <Input
+      <FormControl><Input
         type="number"
         min={0}
         step={1}
         value={value ?? ""}
         onChange={(event) => onChange(numberOrNull(event.target.value))}
-      />
+      /></FormControl>
     </FormField>
   );
 }

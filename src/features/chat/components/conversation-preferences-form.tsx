@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { AsyncButton, FormField, ErrorState } from "@/components/app"
@@ -57,11 +58,11 @@ function PreferencesEditor({ accessToken, initial, onSaved, onConflict }: { acce
   }
   return <fieldset disabled={saving} className="min-w-0 space-y-5">
     <div className="grid gap-4 sm:grid-cols-2">
-      <FormField label={t("chat.header.timezone")}><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => { const timezone = e.target.value; setValue(current => ({ ...current, timezone })) }} /></FormField>
+      <FormField label={t("chat.header.timezone")}><FormControl><Input value={value.timezone} placeholder={Intl.DateTimeFormat().resolvedOptions().timeZone} onChange={(e) => { const timezone = e.target.value; setValue(current => ({ ...current, timezone })) }} /></FormControl></FormField>
     </div>
     <WorkspaceRuleField accessToken={accessToken} workspaces={workspaces} value={value.defaults_json.workspace_rule} disabled={saving} onChange={workspace_rule => setValue(current => ({ ...current, defaults_json: { ...current.defaults_json, workspace_rule } }))} />
     <FormField label={t("chat.rule.notesPath")} description={t("chat.rule.notesPathHint")}>
-      <Input aria-label={t("chat.rule.notesPath")} placeholder="system/memory" value={value.defaults_json.workspace_notes_path ?? ""} disabled={value.defaults_json.workspace_rule === null} onChange={event => { const path = event.target.value; setValue(current => ({ ...current, defaults_json: { ...current.defaults_json, workspace_notes_path: path || undefined } })) }} />
+      <FormControl><Input aria-label={t("chat.rule.notesPath")} placeholder="system/memory" value={value.defaults_json.workspace_notes_path ?? ""} disabled={value.defaults_json.workspace_rule === null} onChange={event => { const path = event.target.value; setValue(current => ({ ...current, defaults_json: { ...current.defaults_json, workspace_notes_path: path || undefined } })) }} /></FormControl>
     </FormField>
     <AutomationRuntimeFields allowWorkspaceBinding={false} accessToken={accessToken} conversationId={currentConversationId ?? ""} value={defaults} onChange={(defaults_json) => setValue(current => ({ ...current, defaults_json: { ...defaults_json, workspace_rule: current.defaults_json.workspace_rule, workspace_notes_path: current.defaults_json.workspace_notes_path } }))} title={t("chat.header.defaults")} description={t("chat.header.defaultsDescription")} />
     {conflict && <Notice tone="warning">

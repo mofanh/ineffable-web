@@ -24,7 +24,7 @@ try {
     else if (request.url().includes("sandbox/environments")) {
       const scope = request.headers()["x-tenant-id"]
       const suffix = scope === "workspace-b" ? "b" : "a"
-      body = { providers: [{ provider_id: "provider", display_name: `Sandbox ${suffix.toUpperCase()}` }], environments: [{ environment_id: `sandbox-${suffix}`, provider_id: "provider" }] }
+      body = { providers: [{ provider_id: "provider", status: "online", display_name: `Sandbox ${suffix.toUpperCase()}` }], environments: [{ environment_id: `sandbox-${suffix}`, provider_id: "provider", status: "ready" }] }
     } else if (request.url().includes("capability-catalog")) {
       assert.equal(request.headers()["x-tenant-id"], new URL(request.url()).searchParams.get("sandbox_environment_id") === "sandbox-a" ? "workspace-a" : "workspace-b")
       body = { items: Array.from({ length: 20 }, (_, i) => ({ key: { provider_id: "backend", capability_id: `tool-${i}` }, name: `Tool ${i}`, family: "workspace.files", provider_name: "Backend", model_tool_name: `tool_${i}`, description: "Test tool" })) }

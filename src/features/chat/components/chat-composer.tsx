@@ -357,7 +357,6 @@ export function ChatComposer({
                 className="flex items-start gap-1.5 rounded-lg bg-background px-2.5 py-2 text-[13px] leading-snug shadow-sm"
               >
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground/80">
-                  {item.status === "queued" ? t("chat.composer.queued") : ""}
                   {item.status === "promoting" ? t("chat.composer.promoting") : ""}
                   {item.status === "deleting" ? t("chat.composer.deleting") : ""}
                   {item.content.length > 100

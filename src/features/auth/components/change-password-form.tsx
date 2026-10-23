@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 import { AppDialog, AppDialogFooter, AsyncButton, FormField } from "@/components/app"
@@ -118,17 +119,17 @@ export function ChangePasswordForm({ accessToken, sessionId, email, onChanged }:
     }>
       <form id={`${id}-form`} className="space-y-4" onSubmit={(event) => void submit(event)}>
         <FormField htmlFor={`${id}-current`} label={t("account.password.current")}>
-          <Input id={`${id}-current`} type="password" autoComplete="current-password" required value={current} disabled={saving} onChange={(event) => setCurrent(event.target.value)} />
+          <FormControl><Input id={`${id}-current`} type="password" autoComplete="current-password" required value={current} disabled={saving} onChange={(event) => setCurrent(event.target.value)} /></FormControl>
         </FormField>
         <FormField htmlFor={`${id}-next`} label={t("account.password.next")} description={t("account.password.length")}>
-          <Input id={`${id}-next`} type="password" autoComplete="new-password" required value={next} disabled={saving} onChange={(event) => setNext(event.target.value)} />
+          <FormControl><Input id={`${id}-next`} type="password" autoComplete="new-password" required value={next} disabled={saving} onChange={(event) => setNext(event.target.value)} /></FormControl>
         </FormField>
         <FormField htmlFor={`${id}-confirm`} label={t("account.password.confirm")}>
-          <Input id={`${id}-confirm`} type="password" autoComplete="new-password" required value={confirmation} disabled={saving} onChange={(event) => setConfirmation(event.target.value)} />
+          <FormControl><Input id={`${id}-confirm`} type="password" autoComplete="new-password" required value={confirmation} disabled={saving} onChange={(event) => setConfirmation(event.target.value)} /></FormControl>
         </FormField>
         <FormField htmlFor={`${id}-code`} label={t("account.password.code")}>
           <div className="flex flex-wrap gap-2">
-            <Input className="min-w-0 flex-1" id={`${id}-code`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} disabled={saving} onChange={(event) => setCode(event.target.value)} />
+            <FormControl><Input className="min-w-0 flex-1" id={`${id}-code`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} disabled={saving} onChange={(event) => setCode(event.target.value)} /></FormControl>
             <AsyncButton type="button" variant="outline" isLoading={sending} disabled={saving || remaining > 0} onClick={() => void sendCode()}>{remaining > 0 ? t("account.password.resend", { seconds: remaining }) : t("account.password.sendCode")}</AsyncButton>
           </div>
         </FormField>

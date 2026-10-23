@@ -1,3 +1,5 @@
+import { FormControl } from "@/components/app/form"
+import { useEditorGuard } from "@/features/admin-management/use-editor-guard";
 import { ImageModelFields } from "./image-model-fields";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -122,6 +124,20 @@ export function SystemModelManagementPage() {
     () => new Set(),
   );
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const editor = useEditorGuard(currentSessionId);
+  React.useEffect(() => {
+    editor.begin();
+    setDialogOpen(false);
+    setEditingModel(null);
+    setState("idle");
+    setError("");
+  }, [currentSessionId, editor]);
+  function closeEditor(open: boolean) {
+    if (open || !editor.close()) return;
+    setDialogOpen(false);
+    setEditingModel(null);
+  }
+
   const [state, setState] = React.useState<LoadState>("idle");
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState("");
@@ -236,6 +252,9 @@ export function SystemModelManagementPage() {
     sortKey !== "sort_order";
 
   function openCreateDialog() {
+    editor.begin();
+    setState("idle");
+    setError("");
     setEditingModel({ ...emptyModel, metadata_json: {} });
     setEditingModelId(null);
     setDialogOpen(true);
@@ -269,6 +288,9 @@ export function SystemModelManagementPage() {
   }
 
   function openEditDialog(model: AdminModelProfile) {
+    editor.begin();
+    setState("idle");
+    setError("");
     setEditingModel({
       display_name: model.display_name,
       endpoint_kind: model.endpoint_kind,
@@ -323,6 +345,8 @@ export function SystemModelManagementPage() {
       return;
     }
 
+    if (!editor.startSave()) return;
+    const isCurrent = editor.capture();
     setState("saving");
     setError("");
     try {
@@ -333,6 +357,7 @@ export function SystemModelManagementPage() {
       const result = editingModelId
         ? await updateAdminModelProfile(accessToken, editingModelId, payload)
         : await createAdminModelProfile(accessToken, payload);
+      if (!isCurrent()) return;
       modelResource.setData((current) => ({
         profiles: [
           result.profile,
@@ -353,6 +378,7 @@ export function SystemModelManagementPage() {
       });
       setDialogOpen(false);
     } catch (saveError) {
+      if (!isCurrent()) return;
       const appError = normalizeAppError(saveError, {
         fallbackMessage: t("system.models.saveFailed"),
       });
@@ -362,7 +388,7 @@ export function SystemModelManagementPage() {
         description: appError.message,
       });
     } finally {
-      setState("idle");
+      if (isCurrent()) { editor.finishSave(); setState("idle"); }
     }
   }
 
@@ -768,7 +794,7 @@ export function SystemModelManagementPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setDialogOpen(false)}
+                onClick={() => closeEditor(false)}
               >
                 {t("system.models.form.cancel")}
               </Button>
@@ -783,7 +809,7 @@ export function SystemModelManagementPage() {
             </AppDialogFooter>
           ) : undefined
         }
-        onOpenChange={setDialogOpen}
+        onOpenChange={closeEditor}
       >
         {editingModel ? (
           <ModelForm
@@ -1022,7 +1048,7 @@ function ModelForm({
       >
         <AppFieldGrid>
           <FormField label={t("system.models.form.displayName")}>
-            <Input
+            <FormControl><Input
               value={model.display_name}
               onChange={(event) =>
                 onChange((current) =>
@@ -1031,10 +1057,10 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label="Endpoint">
-            <Input
+            <FormControl><Input
               value={model.endpoint_kind}
               onChange={(event) =>
                 onChange((current) =>
@@ -1043,7 +1069,7 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
@@ -1054,7 +1080,7 @@ function ModelForm({
       >
         <AppFieldGrid>
           <FormField label={t("system.models.form.upstreamModel")}>
-            <Input
+            <FormControl><Input
               value={model.upstream_model_name}
               onChange={(event) =>
                 onChange((current) =>
@@ -1063,10 +1089,10 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label="Base URL">
-            <Input
+            <FormControl><Input
               value={model.upstream_base_url ?? ""}
               onChange={(event) =>
                 onChange((current) =>
@@ -1078,10 +1104,10 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.models.form.keyRef")}>
-            <Input
+            <FormControl><Input
               value={model.upstream_api_key_ref ?? ""}
               placeholder={t("system.models.form.keyPlaceholder")}
               onChange={(event) =>
@@ -1094,7 +1120,7 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
@@ -1102,7 +1128,7 @@ function ModelForm({
       <AppDisclosureSection title={t("system.models.form.limits")}>
         <AppFieldGrid>
           <FormField label={t("system.models.form.context")}>
-            <Input
+            <FormControl><Input
               type="number"
               value={model.context_window_tokens ?? ""}
               onChange={(event) =>
@@ -1115,10 +1141,10 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.models.form.maxOutput")}>
-            <Input
+            <FormControl><Input
               type="number"
               min={1}
               value={model.max_output_tokens ?? ""}
@@ -1134,7 +1160,7 @@ function ModelForm({
                     : current,
                 );
               }}
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
@@ -1186,7 +1212,7 @@ function ModelForm({
       <AppDisclosureSection title={t("system.models.form.billing")}>
         <AppFieldGrid>
           <FormField label={t("system.models.form.multiplier")}>
-            <Input
+            <FormControl><Input
               type="number"
               step="0.01"
               value={model.usage_multiplier}
@@ -1200,10 +1226,10 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
           <FormField label={t("system.models.form.sort")}>
-            <Input
+            <FormControl><Input
               type="number"
               value={model.sort_order}
               onChange={(event) =>
@@ -1213,7 +1239,7 @@ function ModelForm({
                     : current,
                 )
               }
-            />
+            /></FormControl>
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>

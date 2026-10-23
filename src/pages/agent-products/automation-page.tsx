@@ -1,3 +1,4 @@
+import { FormControl } from "@/components/app/form"
 import { RuntimeConfigurationFields as AutomationRuntimeFields } from "@/features/chat/components/runtime-configuration-fields"
 import * as React from "react"
 import {
@@ -912,7 +913,7 @@ export function AutomationPage() {
           <FormSection className="space-y-4">
             {!editingAutomation && <FormField label={t("automation.form.conversation")} description={t("automation.form.conversationHint")}>
               <Select value={conversationTarget} onValueChange={setConversationTarget}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
                 <SelectContent><SelectItem value="__new__">{t("automation.form.newConversation")}</SelectItem>
                   {conversations.map((conversation) => <SelectItem key={conversation.id} value={conversation.id}>{conversation.title}</SelectItem>)}
                 </SelectContent>
@@ -922,7 +923,7 @@ export function AutomationPage() {
               htmlFor="automation-name"
               label={t("automation.form.name")}
             >
-              <Input
+              <FormControl><Input
                 id="automation-name"
                 className="h-10"
                 placeholder={t("automation.form.namePlaceholder")}
@@ -934,13 +935,13 @@ export function AutomationPage() {
                   }))
                 }
                 required
-              />
+              /></FormControl>
             </FormField>
             <FormField
               htmlFor="automation-description"
               label={t("automation.form.description")}
             >
-              <Input
+              <FormControl><Input
                 id="automation-description"
                 className="h-10"
                 placeholder={t("automation.form.descriptionPlaceholder")}
@@ -951,14 +952,14 @@ export function AutomationPage() {
                     description: event.target.value,
                   }))
                 }
-              />
+              /></FormControl>
             </FormField>
             <FormField
               htmlFor="automation-message"
               label={t("automation.form.message")}
               description={t("automation.form.messageDescription")}
             >
-              <Textarea
+              <FormControl><Textarea
                 id="automation-message"
                 placeholder={t("automation.form.messagePlaceholder")}
                 value={form.message}
@@ -970,7 +971,7 @@ export function AutomationPage() {
                 }
                 rows={6}
                 required
-              />
+              /></FormControl>
             </FormField>
             {runtimeConfig ? <AutomationRuntimeFields key={editingAutomation?.id ?? "new"} accessToken={accessToken} conversationId={conversationTarget === "__new__" ? "" : conversationTarget} value={runtimeConfig} onChange={setRuntimeConfig} /> : null}
             <FormField label={t("automation.form.triggerType")}>
@@ -986,9 +987,9 @@ export function AutomationPage() {
                   }))
                 }
               >
-                <SelectTrigger className="h-10 w-full">
+                <FormControl><SelectTrigger className="h-10 w-full">
                   <SelectValue placeholder={t("automation.form.chooseTriggerType")} />
-                </SelectTrigger>
+                </SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="manual">
                     {t("automation.form.manualOnly")}
@@ -1019,7 +1020,7 @@ export function AutomationPage() {
             </FormField>
           ) : null}
           {form.trigger_kind === "interval" ? (
-            <FormField label={t("automation.form.runInterval")}>
+            <FormField label={t("automation.form.runInterval")} group>
               <div className="grid gap-2 md:grid-cols-[1fr_160px]">
                 <Select
                   value={form.interval_preset}
@@ -1032,7 +1033,7 @@ export function AutomationPage() {
                     }))
                   }
                 >
-                  <SelectTrigger className="h-10 w-full">
+                  <SelectTrigger aria-label={t("automation.form.chooseInterval")} className="h-10 w-full">
                     <SelectValue placeholder={t("automation.form.chooseInterval")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1048,7 +1049,7 @@ export function AutomationPage() {
                     className="h-10"
                     type="number"
                     min="1"
-                    placeholder={t("automation.form.minutes")}
+                    aria-label={t("automation.form.minutes")} placeholder={t("automation.form.minutes")}
                     value={form.interval_minutes}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1065,7 +1066,7 @@ export function AutomationPage() {
           {form.trigger_kind === "calendar" ? (
             <FormField
               label={t("automation.form.calendarPlan")}
-              description={t("automation.form.calendarDescription")}
+              description={t("automation.form.calendarDescription")} group
             >
               <div className="grid gap-2 md:grid-cols-3">
                 <Select
@@ -1077,7 +1078,7 @@ export function AutomationPage() {
                     }))
                   }
                 >
-                  <SelectTrigger className="h-10 w-full">
+                  <SelectTrigger aria-label={t("automation.form.chooseFrequency")} className="h-10 w-full">
                     <SelectValue placeholder={t("automation.form.chooseFrequency")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1088,7 +1089,7 @@ export function AutomationPage() {
                 </Select>
                 <Input
                   className="h-10"
-                  placeholder="09:00:00"
+                  aria-label={t("automation.dateTime.time")} placeholder="09:00:00"
                   value={form.calendar_time}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -1100,7 +1101,7 @@ export function AutomationPage() {
                 />
                 <Input
                   className="h-10"
-                  placeholder="Asia/Shanghai"
+                  aria-label={t("chat.header.timezone")} placeholder="Asia/Shanghai"
                   value={form.calendar_timezone}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -1183,9 +1184,10 @@ function DateTimePicker({
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <PopoverPrimitive.Trigger asChild>
+      <PopoverPrimitive.Trigger asChild><FormControl>
         <button
           type="button"
+          aria-label={`${t("automation.form.runAt")}: ${label}`}
           className="border-input bg-background hover:bg-muted/60 flex h-11 w-full items-center justify-between gap-3 rounded-md border px-3 text-left text-sm transition-colors"
         >
           <span className="flex min-w-0 items-center gap-3">
@@ -1203,7 +1205,7 @@ function DateTimePicker({
             {t("automation.dateTime.modify")}
           </span>
         </button>
-      </PopoverPrimitive.Trigger>
+      </FormControl></PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           align="start"
