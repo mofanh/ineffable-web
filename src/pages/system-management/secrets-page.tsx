@@ -474,6 +474,7 @@ export function SystemSecretManagementPage() {
       >
         {editingSecret ? (
           <SecretForm
+            disabled={state === "saving"}
             mode={secretDialogMode}
             secret={editingSecret}
             onChange={setEditingSecret}
@@ -731,11 +732,13 @@ function formatCompactNumber(value: number) {
 }
 
 function SecretForm({
+  disabled,
   mode,
   secret,
   onChange,
   onSubmit,
 }: {
+  disabled: boolean;
   mode: "create" | "edit";
   secret: SecretForm;
   onChange: React.Dispatch<React.SetStateAction<SecretForm | null>>;
@@ -746,8 +749,8 @@ function SecretForm({
     <form
       id="admin-secret-form"
       onSubmit={(event) => void onSubmit(event)}
-      className="space-y-4"
     >
+      <fieldset disabled={disabled} className="min-w-0 space-y-4">
       <AppDisclosureSection
         title={t("system.secrets.form.security")}
         description={t("system.secrets.form.securityDescription")}
@@ -801,6 +804,7 @@ function SecretForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
+      </fieldset>
     </form>
   );
 }

@@ -28,7 +28,7 @@ try {
   await page.close()
  }
  // Native admin forms: duplicate submit, A response after opening B, and label/control wiring.
- for(const section of ["models","secrets"]) {
+ for(const section of ["models","secrets"]) for(const outcome of ["replacement","success","failure"]) {
   const page=await browser.newPage();page.on("pageerror",e=>console.error("pageerror",e.message));await setup(page);let release,entered, writes=0
   const gate=new Promise(resolve=>{release=resolve}), held=new Promise(resolve=>{entered=resolve})
   const models=["a","b"].map(id=>({...emptyModel,id,display_name:`Item ${id}`,archived_at:null}))
@@ -40,7 +40,7 @@ try {
    else if(path.endsWith("auth/me"))body={user:{id:"admin",role:"admin",email:"admin@example.com",display_name:"Admin",status:"active"},workspaces:[]}
    else if(path.endsWith("admin/models"))body={profiles:models}
    else if(path.endsWith("llm/secrets"))body={secrets,models:[]}
-   await route.fulfill({json:body})
+   await route.fulfill({status:write && outcome==="failure"?400:200,json:write && outcome==="failure"?{error:"save rejected"}:body})
   })
   await page.goto(`${origin}/scripts/admin-editor-fixture.html?page=${section}&language=en`)
   const row=id=>page.getByRole("row",{includeHidden:true}).filter({hasText:section==="models"?`Item ${id}`:`item-${id}`}).first()
@@ -50,6 +50,20 @@ try {
   assert.ok(labels.length>0&&labels.every(label=>label.exists),JSON.stringify(labels))
   await dialog.locator("form").evaluate(form=>{for(let i=0;i<2;i++)form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))})
   await held;assert.equal(writes,1,"same opening cannot submit twice")
+  const fields=dialog.locator("form input,form textarea,form button")
+  for(const field of await fields.all()) assert.equal(await field.isDisabled(),true,"save freezes the submitted draft")
+  if(outcome!=="replacement") {
+   const draft=await dialog.locator("input").evaluateAll(inputs=>inputs.map(input=>input.value))
+   const response=page.waitForResponse(response=>response.request().method()!=="GET");release();await response
+   if(outcome==="success")await dialog.waitFor({state:"hidden"})
+   else {
+    await page.locator('[role="alert"]').filter({hasText:"save rejected"}).waitFor()
+    assert.deepEqual(await dialog.locator("input").evaluateAll(inputs=>inputs.map(input=>input.value)),draft,"failed save keeps the submitted draft")
+    assert.equal(await dialog.getByRole("button",{name:/save/i}).isEnabled(),true)
+    assert.equal(await dialog.locator("fieldset").isDisabled(),false)
+   }
+   await page.close();continue
+  }
   await row("b").getByRole("button",{name:/edit/i,includeHidden:true}).evaluate(button=>button.click())
   release();await page.waitForResponse(response=>response.request().method()!=="GET")
   const expected=section==="models"?"Item b":"item-b"
@@ -79,6 +93,9 @@ try {
   if(change==="target") {await page.evaluate(()=>window.session.logout());await page.evaluate(()=>window.tickets[1]());await page.waitForTimeout(100);assert.ok(page.url().startsWith(origin))}
   await page.close()
  }
+ const {workspaceFileCapabilities}=await server.ssrLoadModule("/src/features/workspace/model/file-capabilities.ts")
+ for(const mime of ["text/plain; charset=utf-8","application/json","application/xml","application/javascript","application/yaml","application/x-yaml",null])assert.equal(workspaceFileCapabilities({kind:"file",mime_type:mime}).duplicate,true,mime)
+ for(const mime of ["image/png","application/octet-stream","application/sql","application/ld+json","application/json; charset=utf-8"])assert.equal(workspaceFileCapabilities({kind:"file",mime_type:mime}).duplicate,false,mime)
  // PNG export preserves bytes; unsupported folder descendants are rejected before creates.
  {
   const page=await browser.newPage();await setup(page)
@@ -111,6 +128,35 @@ try {
   await page.getByText(/cannot be duplicated/).waitFor()
   assert.equal(writes,0,"preflight must fail before creating a partial folder")
   assert.equal(textReads,0,"binary actions must never use the UTF-8 content endpoint")
+  await page.close()
+ }
+ // Both Gateway YAML MIME types work as individual files and folder descendants.
+ for(const mime of ["application/yaml","application/x-yaml"]) for(const target of ["file","folder"]) {
+  const page=await browser.newPage();await setup(page)
+  const workspace="00000000-0000-0000-0000-000000000001", writes=[]
+  const folder={id:"folder",workspace_id:workspace,parent_id:null,kind:"folder",name:"folder",path:"folder",mime_type:null}
+  const yaml={id:"yaml",workspace_id:workspace,parent_id:"folder",kind:"file",name:"config.yaml",path:"folder/config.yaml",mime_type:mime,current_version_id:"v-yaml"}
+  await page.route("**/gateway/v1/**",async route=>{
+   const url=new URL(route.request().url()),path=url.pathname
+   let body={conversations:[],invitations:[],objects:[],next_cursor:null}
+   if(route.request().method()!=="GET") {
+    const payload=route.request().postDataJSON();writes.push({path,payload})
+    body={object:{...(path.endsWith("/files")?yaml:folder),...payload,id:`created-${writes.length}`},version:{id:"created-version"}}
+   } else if(path.endsWith("auth/me"))body={user:{id:"actor",role:"user",status:"active"},workspaces:[{id:workspace,workspace_type:"personal",name:"Workspace"}]}
+   else if(path.endsWith("/access"))body={workspace:{id:workspace,workspace_type:"personal",name:"Workspace",status:"active"},membership:{role:"owner"},can_write:true}
+   else if(path.endsWith("/directory"))body={objects:url.searchParams.get("path")?[yaml]:[folder],next_cursor:null}
+   else if(path.endsWith("/content"))body={object:yaml,version:{id:"v-yaml"},content:"key: value\n"}
+   await route.fulfill({json:body})
+  })
+  await page.goto(`${origin}/scripts/workspace-image-fixture.html?tree=1&lang=en`)
+  await page.getByRole("button",{name:"folder",exact:true}).click()
+  await page.getByRole("button",{name:`Actions for ${target==="file"?"config.yaml":"folder"}`,exact:true}).click()
+  await page.getByRole("menuitem",{name:"Duplicate",exact:true}).click()
+  await page.getByText("Copy created",{exact:true}).waitFor()
+  assert.equal(writes.length,target==="file"?1:2)
+  const file=writes.find(write=>write.path.endsWith("/files"))
+  assert.equal(file.payload.mime_type,mime);assert.equal(file.payload.content,"key: value\n")
+  if(target==="folder")assert.equal(file.payload.parent_id,"created-1")
   await page.close()
  }
  // A service-owned fact refreshes the tree regardless of the current tool label.

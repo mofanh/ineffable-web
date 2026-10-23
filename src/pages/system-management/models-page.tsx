@@ -813,6 +813,7 @@ export function SystemModelManagementPage() {
       >
         {editingModel ? (
           <ModelForm
+            disabled={state === "saving"}
             model={editingModel}
             onChange={setEditingModel}
             onSubmit={saveModel}
@@ -1025,10 +1026,12 @@ function CapabilityTag({ children }: { children: React.ReactNode }) {
 }
 
 function ModelForm({
+  disabled,
   model,
   onChange,
   onSubmit,
 }: {
+  disabled: boolean;
   model: AdminModelProfilePayload;
   onChange: React.Dispatch<
     React.SetStateAction<AdminModelProfilePayload | null>
@@ -1040,8 +1043,8 @@ function ModelForm({
     <form
       id="admin-model-form"
       onSubmit={(event) => void onSubmit(event)}
-      className="space-y-4"
     >
+      <fieldset disabled={disabled} className="min-w-0 space-y-4">
       <AppDisclosureSection
         title={t("system.models.form.basic")}
         description={t("system.models.form.basicDescription")}
@@ -1243,6 +1246,7 @@ function ModelForm({
           </FormField>
         </AppFieldGrid>
       </AppDisclosureSection>
+      </fieldset>
     </form>
   );
 }
