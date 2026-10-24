@@ -384,17 +384,22 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       </div>
 
       {showScrollToBottom ? (
-        <div className="pointer-events-none absolute right-4 bottom-4">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="pointer-events-auto h-9 rounded-full px-3 shadow-md"
-            onClick={onScrollToBottomClick}
-          >
-            <ArrowDownIcon />
-            {t("chat.messages.latest")}
-          </Button>
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon-lg"
+                variant="outline"
+                aria-label={t("chat.messages.latest")}
+                className="pointer-events-auto rounded-full bg-background text-muted-foreground shadow-sm hover:text-foreground dark:bg-background"
+                onClick={onScrollToBottomClick}
+              >
+                <ArrowDownIcon aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>{t("chat.messages.latest")}</TooltipContent>
+          </Tooltip>
         </div>
       ) : null}
     </div>
