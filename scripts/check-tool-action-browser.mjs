@@ -10,7 +10,7 @@ let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
-  const page = await browser.newPage({ viewport: { width: 390, height: 1000 }, reducedMotion: "reduce" })
+  const page = await browser.newPage({ viewport: { width: 390, height: 1000 }, reducedMotion: "reduce", locale: "zh-CN" })
   const errors = []
   page.on("pageerror", error => errors.push(error.message))
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/tool-action-fixture.html`)

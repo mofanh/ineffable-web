@@ -7,12 +7,18 @@ assert.ok(executablePath)
 const server=await createServer({root:process.cwd(),logLevel:"error",server:{host:"127.0.0.1",port:0}})
 let browser
 try {
- await server.listen();browser=await chromium.launch({executablePath,headless:true,ignoreDefaultArgs:["--hide-scrollbars"]})
+ await server.listen()
+ // OS defaults differ: macOS usually overlays the bar, while Linux reserves a
+ // gutter. Exercise both real browser geometries instead of assuming either.
+ for(const mode of ["overlay","classic"]) {
+ browser=await chromium.launch({executablePath,headless:true,ignoreDefaultArgs:["--hide-scrollbars"],args:[`--${mode==="overlay"?"enable":"disable"}-features=OverlayScrollbar`]})
  const page=await browser.newPage({viewport:{width:800,height:600}})
  const errors=[];page.on("pageerror",e=>errors.push(e.message));page.on("console",m=>{if(/passive event listener|Unable to preventDefault/i.test(m.text()))errors.push(m.text())})
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/chat-scroll-boundary-fixture.html`)
  for(let mount=0;mount<2;mount++) {
   await page.locator('#boundary').waitFor()
+  const gutter=await page.locator('#boundary').evaluate(el=>el.offsetWidth-el.clientWidth-2)
+  assert.ok(mode==="overlay"?gutter===0:gutter>0,`${mode} browser must expose the expected scrollbar geometry; gutter=${gutter}`)
   await page.evaluate(()=>{
    window.wheelResults=[]
    document.getElementById('boundary').addEventListener('wheel',event=>window.wheelResults.push(event.defaultPrevented))
@@ -81,11 +87,17 @@ try {
   await page.locator('#boundary').evaluate(el=>{el.scrollTop=150})
   await page.mouse.move(padding.x,padding.y)
   await page.mouse.down()
-  // Overlay bars share the client box: require physical dragging and matching
-  // scroll. The scroll itself is modelled here; OS scrollbar paint is external.
+  // Only overlay bars share the client box. With a reserved gutter this same
+  // point is ordinary padding and must remain ignored, even during a drag.
+  // The overlay scroll itself is modelled; native thumb dragging is tested below.
   await page.mouse.move(padding.x,padding.y-30,{steps:3})
   await page.locator('#boundary').evaluate(el=>{el.scrollTop=50})
-  await page.waitForFunction(()=>Number(document.getElementById('boundary').dataset.intents)>=3)
+  if(mode==="overlay") {
+   await page.waitForFunction(()=>Number(document.getElementById('boundary').dataset.intents)>=3)
+  } else {
+   await page.waitForTimeout(50)
+   assert.equal(await intents(),2,'client padding beside a classic gutter does not become scrollbar intent')
+  }
   await page.mouse.up()
   const afterDrag=await intents()
   await page.locator('#boundary').evaluate(el=>{el.scrollTop=25})
@@ -115,5 +127,7 @@ try {
   await page.locator('#toggle').click()
  }
  assert.deepEqual(errors,[])
- console.log("native scroll containment, input intent, nested controls, StrictMode remount and cleanup passed")
+ console.log(`${mode} scrollbar: native scroll containment, input intent, nested controls, StrictMode remount and cleanup passed`)
+ await browser.close();browser=undefined
+ }
 } finally {await browser?.close();await server.close()}
