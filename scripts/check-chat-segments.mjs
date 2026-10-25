@@ -137,3 +137,27 @@ const approvalEntries=reconcileHumanInputAnswers([
  {id:"approval-receipt",role:"user",content:"Approved",timelineSeq:1000,humanInputResponse:{runId:"run",needId:"A",kind:"approval",approved:true}},
 ])
 assert.equal(approvalEntries[0].status,"approved","a canonical decision owns historical approval status")
+
+// Retry persistence can assign a newer seq to older process events after handoff.
+const coveredBefore = corrected.segments[segment(1).id]
+for (const [kind, content, extra] of [
+ ["model.text.delta", "late body", {}],
+ ["model.reasoning.delta", "late reasoning", {}],
+ ["tool.call.completed", "", {tool_call_id:"late",tool_name:"read_file",full_arguments:"{}"}],
+ ["tool.result", "late result", {tool_call_id:"late",tool_name:"read_file",status:"succeeded"}],
+]) {
+ const incoming=event(1,kind,content,extra)
+ const next=projectConversationOutputEvent(corrected,incoming,"run")
+ assert.equal(next.segments[segment(1).id],coveredBefore,"late process cannot reopen a complete canonical segment")
+ assert.equal(next.pane,corrected.pane,"covered retries cannot mutate rendered output")
+ assert.equal(next.eventCoverage,incoming.seq,"ignored process still advances observed event coverage")
+ corrected=next
+}
+let resumed=projectConversationOutputEvent(corrected,event(101,"model.text.delta","new epoch"),"run")
+assert.ok(body(resumed).endsWith("new epoch"),"new segment remains writable after previous handoff")
+const inProgress=projectConversationOutputEvent(undefined,event(102,"tool.call.completed","",{
+ canonical_reconciliation:true,canonical_message_seq:900,tool_call_id:"pending",tool_name:"read_file",
+ canonical_message:{content:"draft",tool_calls:[{id:"pending",name:"read_file",input:{}}]},
+}),"run")
+const continued=projectConversationOutputEvent(inProgress,event(102,"model.text.delta","still live"),"run")
+assert.ok(body(continued).includes("still live"),"incomplete canonical draft cannot suppress live process")

@@ -163,6 +163,11 @@ export function projectConversationOutputEvent(
     return { ...base, eventCoverage: Math.max(base.eventCoverage ?? 0, event.seq ?? 0),
       segments: { ...(base.segments ?? (base.pane.blockOrder.length || base.subagentOrder.length ? { legacy: { ...base, segments: undefined } } : {})), [key]: { ...(previous ?? createAssistantEntry("streaming", runId)), segmentIdentity: identity, canonicalDraft: draft } } }
   }
+  // A retry may deliver an older process event after canonical segment handoff.
+  // Its later transport seq does not make it newer than the formal output.
+  if (identity && Number.isSafeInteger(previous?.canonicalMessageSeqEnd) && !previous?.canonicalDraft) {
+    return { ...base, eventCoverage: Math.max(base.eventCoverage ?? 0, event.seq ?? 0) }
+  }
   const fragment = projectConversationOutputFragment(previous, event, runId)
   fragment.segmentIdentity = identity ?? undefined
   return updateAssistantSegment(base, key, fragment)
