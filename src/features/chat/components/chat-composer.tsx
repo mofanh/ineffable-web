@@ -74,6 +74,7 @@ type ChatComposerProps = {
   composer: string
   error: string | null
   isSending: boolean
+  canStop?: boolean
   isSubmittingInput: boolean
   canPromoteToGuided: boolean
   canResumePreInputQueue: boolean
@@ -129,6 +130,7 @@ export function ChatComposer({
   composer,
   error,
   isSending,
+  canStop = isSending,
   isSubmittingInput,
   canPromoteToGuided,
   canResumePreInputQueue,
@@ -529,7 +531,7 @@ export function ChatComposer({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {isSending ? (
+              {canStop ? (
                 <Button
                   size="icon"
                   variant="ghost"

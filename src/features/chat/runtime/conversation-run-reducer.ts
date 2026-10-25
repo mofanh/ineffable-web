@@ -1,3 +1,4 @@
+import { normalizeConversationAdmission, type ConversationAdmissionSummary } from "../../../lib/api/chat/conversation-admission.ts"
 import type { ConversationRunSummary } from "@/lib/api/api-client"
 import type { GatewayChatStreamEvent } from "@/lib/api/chat/gateway-events"
 import { getConversationEventIdentity, isConversationScopedEvent } from "../model/conversation-event-routing.ts"
@@ -20,6 +21,7 @@ export type StreamConnectionState =
 
 export type ConversationRunRuntime = {
   conversationId: string
+  admission: ConversationAdmissionSummary | null
   runId: string | null
   executionEpoch: number | null
   currentRun: ConversationRunSummary | null
@@ -42,7 +44,8 @@ export type RuntimeAction =
   | { type: "transport_closed" }
   | { type: "event"; event: GatewayChatStreamEvent }
   | { type: "activity-snapshot"; runId: string; executionEpoch: number; seq: number; activityVersion: number; compacting: boolean }
-  | { type: "run-snapshot"; run: ConversationRunSummary | null }
+  | { type: "run-snapshot"; run: ConversationRunSummary | null; admission?: ConversationAdmissionSummary | null }
+  | { type: "admission-snapshot"; admission: ConversationAdmissionSummary | null }
   | { type: "reset-coverage" }
   | { type: "reset" }
 
@@ -51,6 +54,7 @@ export function createConversationRunRuntime(
 ): ConversationRunRuntime {
   return {
     conversationId,
+    admission: null,
     runId: null,
     executionEpoch: null,
     currentRun: null,
@@ -121,15 +125,25 @@ export function acceptsRunLifecycleEvent(state: ConversationRunRuntime, event: G
   return !state.terminalEventSeen
 }
 
+function reduceAdmission(state: ConversationRunRuntime, raw: unknown): ConversationRunRuntime {
+  const admission = normalizeConversationAdmission(raw)
+  if (!admission || admission.conversation_id !== state.conversationId) return state
+  const previous = state.admission
+  if (previous && (admission.revision <= previous.revision || admission.generation < previous.generation)) return state
+  return { ...state, admission }
+}
+
 export function reduceConversationRunRuntime(
   state: ConversationRunRuntime,
   action: RuntimeAction
 ): ConversationRunRuntime {
   if (action.type === "reset") {
-    return createConversationRunRuntime(state.conversationId)
+    return { ...createConversationRunRuntime(state.conversationId), admission: state.admission }
   }
   if (action.type === "reset-coverage") return { ...state, lastSeq: 0 }
+  if (action.type === "admission-snapshot") return reduceAdmission(state, action.admission)
   if (action.type === "run-snapshot") {
+    state = reduceAdmission(state, action.admission)
     const run = action.run
     if (!run) return state.runId ? state : { ...state, currentRun: null }
     const epoch = validCounter(run.execution_epoch)
@@ -154,7 +168,7 @@ export function reduceConversationRunRuntime(
         !Number.isSafeInteger(action.executionEpoch) || action.executionEpoch < 0) return state
     if (state.runId && state.runId !== action.runId) {
       if (action.seq <= state.lifecycleSeq) return state
-      state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
+      state = { ...createConversationRunRuntime(state.conversationId), admission: state.admission, lastSeq: state.lastSeq }
     }
     if (action.executionEpoch < (state.executionEpoch ?? 0) || state.terminalEventSeen ||
         !Number.isSafeInteger(action.activityVersion) || action.activityVersion < 0) return state
@@ -165,7 +179,7 @@ export function reduceConversationRunRuntime(
   if (action.type === "connect") {
     if (action.runId === state.runId && action.executionEpoch != null && state.executionEpoch != null && action.executionEpoch < state.executionEpoch) return state
     if (action.runId && action.runId !== state.runId) {
-      state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq }
+      state = { ...createConversationRunRuntime(state.conversationId), admission: state.admission, lastSeq: state.lastSeq }
     }
     return {
       ...state,
@@ -215,7 +229,7 @@ export function reduceConversationRunRuntime(
   if (lifecycle && !acceptsRunLifecycleEvent(state, action.event)) return { ...state, lastSeq: seq }
   if (state.runId && state.runId !== identity.runId) {
     if (!lifecycle) return { ...state, lastSeq: seq }
-    state = { ...createConversationRunRuntime(state.conversationId), lastSeq: state.lastSeq, connection: state.connection }
+    state = { ...createConversationRunRuntime(state.conversationId), admission: state.admission, lastSeq: state.lastSeq, connection: state.connection }
   }
   const epoch = validCounter(action.event.metadata?.execution_epoch)
   if (!lifecycle && epoch != null && state.executionEpoch != null && epoch < state.executionEpoch) return { ...state, lastSeq: seq }

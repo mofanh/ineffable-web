@@ -15,7 +15,10 @@ export class ChatRuntimeStore {
   private readonly listeners = new Set<RuntimeListener>()
   // A stable React snapshot of the run projection reader. Invalidate only
   // when controls change; text / transport observations keep this identity.
-  private runProjection = { getRun: (id: string) => this.states.get(id)?.currentRun ?? null }
+  private runProjection = {
+    getRun: (id: string) => this.states.get(id)?.currentRun ?? null,
+    getAdmission: (id: string) => this.states.get(id)?.admission ?? null,
+  }
 
   getRunProjection() {
     return this.runProjection
@@ -38,7 +41,7 @@ export class ChatRuntimeStore {
     }
     if (action.type === "reset") this.telemetry.forget(current.runId)
     this.states.set(conversationId, next)
-    if (next.currentRun !== current.currentRun) this.runProjection = { ...this.runProjection }
+    if (next.currentRun !== current.currentRun || next.admission !== current.admission) this.runProjection = { ...this.runProjection }
     if (action.type === "event") this.telemetry.observe(action.event, next.runId, next.executionEpoch)
     this.listeners.forEach((listener) => listener())
     return next

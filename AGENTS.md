@@ -552,6 +552,13 @@ pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气
 旧 epoch、旧会话响应及旧人机等待回放不得覆盖更新状态。终态结束提示；不把检查
 压缩阈值当成实际压缩，不新增聊天气泡，不要求运行观察套餐权限。
 
+普通发送的 POST 只确认持久输入 receipt，不建立 assistant/run/stream 状态，也不占用 run 的 AbortController。
+queued/consuming/consumed/cancelled/guided_injected 共用收据解析；会话 list/get、收据与 pending
+摘要按 admission revision/generation 进入同一 run reducer。pending-only 会话仍由现有后台刷新
+观察，Stop 可以暂停尚无 run 的队列，继续只释放原队列；实际 run 与终态仍由同一快照和 run SSE
+接管。不得新增 successor 短轮询、自动重发 POST，或让旧 GET 覆盖新收据。运行
+`npm run check:chat-admission` 验证真实 Sidebar 的接纳、Stop/继续、旧响应和 SSE 接管。
+
 ## 普通会话与自动任务
 
 - 所有会话共用新建、历史列表、编辑和收发，不展示每日 root、跨日禁发、交接等待或独立的整理编辑器。日期分组只是列表视图。

@@ -42,7 +42,7 @@ try {
       const payload = request.postDataJSON()
       sends.push(payload)
       stored.set(payload.conversation_id, payload.capability_exposure)
-      body = { status: "queued", queue_len: 1, pending_id: 1, conversation_id: payload.conversation_id }
+      body = { status: "queued", queue_len: 1, pending_id: 1, conversation_id: payload.conversation_id, message_id: `input-${Date.now()}`, input_request_id: payload.input_request_id }
     } else if (path.endsWith("conversations/get")) {
       const id = url.searchParams.get("conversation_id")
       const selection = stored.get(id)

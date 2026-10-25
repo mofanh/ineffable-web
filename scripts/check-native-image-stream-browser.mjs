@@ -5,7 +5,7 @@ import { createServer } from "vite"
 const executablePath=["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome","/usr/bin/chromium"].find(existsSync)
 let response, ended=false
 const server=await createServer({root:process.cwd(),logLevel:"error",plugins:[{name:"stream-fixture",configureServer(server){server.middlewares.use((req,res,next)=>{
- if(req.url?.startsWith("/gateway/v1/conversations/send")){response=res;res.writeHead(200,{"Content-Type":"text/event-stream"});res.flushHeaders();return} next()
+ if(new URL(req.url,"http://localhost").pathname.endsWith("/subscribe")){response=res;res.writeHead(200,{"Content-Type":"text/event-stream"});res.flushHeaders();return} next()
 })}}],server:{host:"127.0.0.1",port:0}})
 let browser
 const workspace="00000000-0000-0000-0000-000000000001"
@@ -14,14 +14,18 @@ const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 try {
  await server.listen();browser=await chromium.launch({executablePath,headless:true});
  for (const status of ["completed", "failed", "cancelled"]) {
- response=undefined;ended=false;root.current_run.status=status;const page=await browser.newPage()
+ response=undefined;ended=false;root.current_run={id:"previous",status,is_live:false,lifecycle_seq:0};const page=await browser.newPage()
  const errors=[];page.on("pageerror",e=>errors.push(e.message));page.on("console",msg=>{if(msg.type()==="warning")console.log(msg.text())})
  await page.addInitScript(()=>{
  localStorage.setItem("ineffable.auth.access_token","fixture-token");localStorage.setItem("ineffable.auth.session_id","fixture-session");localStorage.setItem("ineffable.auth.access_expires_at",String(Date.now()/1000+3600));localStorage.setItem("ineffable.chat.new_conversation_draft","true")
  })
  await page.route("**/gateway/v1/**",async route=>{
  const url=new URL(route.request().url()),path=url.pathname
- if(path.endsWith("/send"))return route.continue()
+ if(path.endsWith("/subscribe"))return route.continue()
+ if(path.endsWith("/send")) {
+ const payload=route.request().postDataJSON();root.current_run={id:"run",status:"streaming",is_live:true,is_streaming:true,execution_epoch:0,lifecycle_seq:1}
+ return route.fulfill({json:{status:"queued",pending_id:1,message_id:"input",conversation_id:"today",input_request_id:payload.input_request_id}})
+ }
  let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
  if(path.endsWith("auth/me"))body={user:{id:"user",role:"user",status:"active"},workspaces:[{id:workspace,name:"Workspace",workspace_type:"personal"}],current_workspace_id:workspace}
  else if(path.endsWith("conversations/list"))body={conversations:[root]}

@@ -272,3 +272,25 @@ assert.notEqual(projectionStore.getRunProjection(),initialProjection,"background
 const terminalProjection = projectionStore.getRunProjection()
 projectionStore.dispatch("background",{type:"run-snapshot",run:snapshot("streaming",1,1,10)})
 assert.equal(projectionStore.getRunProjection(),terminalProjection,"rejected list snapshots cannot change menu or observation gates")
+
+// Admission is an independent monotonic fact, not evidence that a run exists.
+const admissionStore = new ChatRuntimeStore()
+const admission = { conversation_id: "waiting", queued_count: 1, queue_paused: false, generation: 0, revision: 2 }
+admissionStore.dispatch("waiting", { type: "admission-snapshot", admission })
+assert.equal(admissionStore.get("waiting").runId, null)
+assert.equal(admissionStore.get("waiting").lifecycle, "idle")
+assert.deepEqual(admissionStore.getRunProjection().getAdmission("waiting"), admission)
+admissionStore.dispatch("waiting", { type: "run-snapshot", run: null, admission: { ...admission, queued_count: 0, revision: 1 } })
+assert.deepEqual(admissionStore.get("waiting").admission, admission, "a GET started before the ACK cannot erase its queue")
+const paused = { ...admission, queue_paused: true, generation: 1, revision: 3 }
+admissionStore.dispatch("waiting", { type: "admission-snapshot", admission: paused })
+admissionStore.dispatch("waiting", { type: "admission-snapshot", admission: { ...admission, revision: 4 } })
+assert.deepEqual(admissionStore.get("waiting").admission, paused, "a regressing Stop generation cannot be accepted")
+admissionStore.dispatch("waiting", { type: "admission-snapshot", admission: { ...paused, conversation_id: "other", revision: 5 } })
+assert.deepEqual(admissionStore.get("waiting").admission, paused)
+admissionStore.applyEvent(event("waiting", "dispatched", 10, "run.started"))
+assert.equal(admissionStore.get("waiting").runId, "dispatched")
+assert.deepEqual(admissionStore.get("waiting").admission, paused, "run SSE must preserve the independent admission revision")
+admissionStore.dispatch("waiting", { type: "reset" })
+assert.deepEqual(admissionStore.get("waiting").admission, paused)
+console.log("admission receipt and stale snapshot checks passed")

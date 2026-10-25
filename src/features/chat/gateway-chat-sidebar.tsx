@@ -178,7 +178,6 @@ import {
 } from "@/features/chat/model/capability-exposure-draft"
 import {
   isActionablePreInput,
-  isPendingInputSuccessorRun,
 } from "@/features/chat/model/pending-input"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
@@ -547,12 +546,13 @@ export function GatewayChatSidebar({
   )
   const projectedConversations = React.useMemo(() => conversations.map(conversation => {
     const run = runProjection.getRun(conversation.id)
-    return run ? { ...conversation, current_run: run, current_run_id: run.id } : conversation
+    const admission = runProjection.getAdmission(conversation.id) ?? conversation.admission
+    return { ...conversation, admission, ...(run ? { current_run: run, current_run_id: run.id } : {}) }
   }), [conversations, runProjection])
   const compactingRunId = selectedRuntime?.compacting ? selectedRuntime.runId : null
   React.useEffect(() => {
     for (const conversation of conversations) runtimeStoreRef.current.dispatch(conversation.id, {
-      type: "run-snapshot", run: conversation.current_run ?? null,
+      type: "run-snapshot", run: conversation.current_run ?? null, admission: conversation.admission,
     })
   }, [conversations])
   const entriesRef = React.useRef<ChatEntry[]>([])
@@ -1031,7 +1031,9 @@ export function GatewayChatSidebar({
       })))
       const batches = messageIds.length ? Array.from({length:Math.ceil(messageIds.length / 128)}, (_, index) => messageIds.slice(index * 128, (index + 1) * 128)) : [[]]
       const responses = await Promise.all(batches.map(ids => getPendingInputs(accessToken, conversationId, ids)))
-      const res = responses[responses.length - 1]
+      const res = responses.reduce((latest, response) =>
+        (response.admission?.revision ?? -1) > (latest.admission?.revision ?? -1) ? response : latest
+      )
       const progress = responses.flatMap(response => (response.input_progress ?? []).flatMap(value => {
         const item = parseInputProgress(value)
         return item?.conversation_id === conversationId ? [item] : []
@@ -1039,6 +1041,9 @@ export function GatewayChatSidebar({
       if (currentConversationIdRef.current !== conversationId || requestId !== pendingInputRequestRef.current || generation !== humanInputSubmissionGenerationRef.current) {
         return
       }
+      const previousAdmission = runtimeStoreRef.current.get(conversationId).admission
+      if (res.admission && previousAdmission && res.admission.revision < previousAdmission.revision) return
+      runtimeStoreRef.current.dispatch(conversationId, { type: "admission-snapshot", admission: res.admission ?? null })
       const dbItems = res.pending_inputs.filter(isActionablePreInput)
       // Keep cancellation facts in this view's existing pending projection so a
       // history page already in flight cannot resurrect a removed message.
@@ -1347,7 +1352,8 @@ export function GatewayChatSidebar({
   }, [currentConversationId])
 
   const hasUnfinishedConversation = projectedConversations.some(
-    (conversation) => ["active", "awaiting_human", "suspended"].includes(getConversationRunLifecycle(conversation))
+    (conversation) => ["active", "awaiting_human", "suspended"].includes(getConversationRunLifecycle(conversation)) ||
+      Boolean(conversation.admission && conversation.admission.queued_count > 0 && !conversation.admission.queue_paused)
   )
   const isPageActive = usePageActive()
 
@@ -1473,6 +1479,8 @@ export function GatewayChatSidebar({
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
   const isSending = Boolean(selectedLiveRun)
+  const hasQueuedInput = Boolean(selectedRuntime?.admission && selectedRuntime.admission.queued_count > 0 && !selectedRuntime.admission.queue_paused)
+  const canStop = isSending || hasQueuedInput
   const isAwaitingVisibleResponse =
     isSubmittingInput ||
     ((streamStatus === "streaming" || streamStatus === "recovering") &&
@@ -1968,7 +1976,7 @@ export function GatewayChatSidebar({
           runtimeStoreRef.current.dispatch(conversationId, { type: "reset-coverage" })
         }
         if (conversationDetail) runtimeStoreRef.current.dispatch(conversationId, {
-          type: "run-snapshot", run: conversationDetail.current_run ?? null,
+          type: "run-snapshot", run: conversationDetail.current_run ?? null, admission: conversationDetail.admission,
         })
         const activity = response.run_activities?.find(item => item.run_id === conversationDetail?.current_run?.id)
         if (activity && conversationDetail && getConversationRunLifecycle(conversationDetail) === "active") runtimeStoreRef.current.dispatch(conversationId, {
@@ -2269,17 +2277,6 @@ export function GatewayChatSidebar({
         content,
       },
     ])
-  }
-
-  function appendUserMessage(content: string, id = createMessageId("user"), deliveryStatus: "sending" | "received" = "received", images: ImageReference[] = [], inputRequestId?: string) {
-    if (!content.trim() && images.length === 0) {
-      return
-    }
-
-    setEntries((current) => reduceCurrentTimeline(current, {
-      type: "user-entry",
-      entry: { id, role: "user", images, deliveryStatus, inputRequestId, content },
-    }))
   }
 
   function upsertApprovalEntry(approval: ApprovalEntry) {
@@ -2890,7 +2887,7 @@ export function GatewayChatSidebar({
           const conversation = await getConversation(accessToken, conversationId)
           if (!isCurrent()) return
           const runtime = runtimeStoreRef.current.dispatch(conversationId, {
-            type: "run-snapshot", run: conversation.current_run ?? null,
+            type: "run-snapshot", run: conversation.current_run ?? null, admission: conversation.admission,
           })
           if (runtime.runId !== expected.runId) {
             runtimeControllerRef.current.disconnect(conversationId)
@@ -3012,7 +3009,7 @@ export function GatewayChatSidebar({
   )
 
   const applyEnvelopeEvent = React.useEffectEvent((envelope: GatewayChatStreamEnvelope) => {
-    if (envelope.type === "queued" || envelope.type === "guided") {
+    if (envelope.type === "receipt") {
       return
     }
 
@@ -3297,6 +3294,9 @@ export function GatewayChatSidebar({
 
     try {
       await stopConversationRun(accessToken, conversationId)
+      if (!ownsOperation()) return
+      pendingInputRequestRef.current += 1
+      await Promise.all([refreshConversations(), refreshPendingInputsForConversation(conversationId)])
     } catch (stopError) {
       if (!ownsOperation()) return
       const message = reportChatError(
@@ -3528,7 +3528,10 @@ export function GatewayChatSidebar({
 
       setError(null)
       const guidedGeneration = humanInputSubmissionGenerationRef.current
-      const isCurrentGuidedSubmission = () => currentConversationIdRef.current === targetConversationId && humanInputSubmissionGenerationRef.current === guidedGeneration
+      const guidedView = { ...sendViewRef.current }
+      const ownsGuidedSession = () => sendViewRef.current.session === guidedView.session
+      const isCurrentGuidedSubmission = () => ownsGuidedSession() && sendViewRef.current.generation === guidedView.generation && currentConversationIdRef.current === targetConversationId && humanInputSubmissionGenerationRef.current === guidedGeneration
+      let guidedAccepted = false
       const inputRequestId = crypto.randomUUID()
       const optimisticId = createMessageId("guided")
       beginGuidedUserTurn(content, optimisticId, inputRequestId)
@@ -3551,41 +3554,39 @@ export function GatewayChatSidebar({
           },
           {
             onEnvelope: (envelope) => {
+              if (envelope.type !== "receipt" || envelope.conversation_id !== targetConversationId || envelope.input_request_id !== inputRequestId) {
+                throw new Error("Invalid conversation input receipt")
+              }
+              guidedAccepted = true
+              if (!ownsGuidedSession()) return
+              runtimeStoreRef.current.dispatch(targetConversationId, { type: "admission-snapshot", admission: envelope.admission ?? null })
+              void refreshConversations().catch(() => {})
               if (!isCurrentGuidedSubmission()) {
                 removeGuidedOptimisticEntry(targetConversationId, optimisticId)
-                if (currentConversationIdRef.current === targetConversationId) {
-                  void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
-                }
                 return
               }
-              if (
-                envelope.type === "guided" &&
-                envelope.message_id
-              ) {
-                setEntries((current) =>
-                  reduceCurrentTimeline(current, { type:"input-receipt", optimisticId, messageId:envelope.message_id ?? "" })
-                )
-              }
-              if (envelope.type === "queued") {
+              pendingInputRequestRef.current += 1
+              if (envelope.status === "guided_injected") {
+                setEntries((current) => reduceCurrentTimeline(current, { type: "input-receipt", optimisticId, messageId: envelope.message_id }))
+              } else {
                 setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
-              }
-              if (envelope.type === "queued" && envelope.pending_id != null) {
-                setPreInputQueue((current) => {
+                if (envelope.status === "queued") setPreInputQueue((current) => {
                   const id = `db-${envelope.pending_id}`
-                  if (current.some((item) => item.id === id)) return current
-                  return [...current, { id, messageId:envelope.message_id ?? undefined, content, status: "queued" }]
+                  return current.some((item) => item.id === id) ? current : [...current, { id, messageId: envelope.message_id, content, status: "queued" }]
                 })
               }
-              if (envelope.type === "guided" || envelope.type === "queued") {
-                void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
-              }
-              applyEnvelopeEvent(envelope)
+              void Promise.all([
+                refreshPendingInputsForConversation(targetConversationId),
+                syncLatestConversationMessagesPage(targetConversationId, null, "coalesce"),
+              ]).catch(() => {})
             },
           }
         )
         // Guided input belongs to the existing run; it does not commit next-send preferences.
+        if (!guidedAccepted) throw new Error("Missing conversation input receipt")
         return true
       } catch (enqueueError) {
+        if (guidedAccepted) return true
         if (!isCurrentGuidedSubmission()) {
           removeGuidedOptimisticEntry(targetConversationId, optimisticId)
           return false
@@ -3696,10 +3697,7 @@ export function GatewayChatSidebar({
 
     if (!ownsSession()) { releaseSubmission(); return false }
     const inputRequestId = crypto.randomUUID()
-    let acceptedAsRun = false
     let accepted = false
-    let queued = false
-    let userMessageCommitted = false
     const acceptSubmission = (commitSelection = true) => {
       if (accepted) {
         return
@@ -3761,160 +3759,47 @@ export function GatewayChatSidebar({
         {
           signal: controller.signal,
           onEnvelope: (envelope) => {
-            if (envelope.type === "queued") {
-              acceptSubmission(false)
-              queued = true
-              if (!isCurrentSubmission()) return
-              if (currentConversationIdRef.current === targetConversationId) {
-                setPreInputQueue((prev) => {
-                  const id =
-                    envelope.pending_id != null
-                      ? `db-${envelope.pending_id}`
-                      : createMessageId("preinput")
-                  if (prev.some((item) => item.id === id)) {
-                    return prev
-                  }
-                  return [...prev, { id, messageId:envelope.message_id ?? undefined, content, status: "queued" }]
-                })
-              }
-              void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
-              return
+            if (envelope.type !== "receipt" || envelope.conversation_id !== targetConversationId || envelope.input_request_id !== inputRequestId) {
+              throw new Error("Invalid conversation input receipt")
             }
-
+            // ACK is durable input admission, never a synthetic run or stream.
+            if (ownsSession()) runtimeStoreRef.current.dispatch(targetConversationId, {
+              type: "admission-snapshot", admission: envelope.admission ?? null,
+            })
             acceptSubmission()
+            if (ownsSession()) void refreshConversations().catch(() => {})
             if (!isCurrentSubmission()) return
-            if (!acceptedAsRun) {
-              acceptedAsRun = true
-              const previousController = abortRef.current
-              abortRef.current = controller
-              previousController?.abort()
-              clearRecoveryTimer()
-              recoveryRequestIdRef.current += 1
-              recoveryInFlightRef.current = false
-              resetTurnState()
-              activeStreamConversationIdRef.current = targetConversationId
-              updateStreamStatus("streaming")
-              persistResumeState({
-                conversationId: targetConversationId,
-                runId: null,
-                afterSeq:
-                  conversationSeqRef.current.get(targetConversationId) ?? null,
-                force: true,
-              })
-            }
-            if (!userMessageCommitted) {
-              userMessageCommitted = true
-              if (currentConversationIdRef.current === targetConversationId) {
-                appendUserMessage(content, undefined, "received", images, inputRequestId)
-                ensureAssistantEntry({
-                  modelProfileId: submissionModelProfileId,
-                  sandboxEnvironmentId: selectedSandboxEnvironmentId,
-                })
-              }
-            }
-            applyEnvelopeEvent(envelope)
+            pendingInputRequestRef.current += 1
+            if (envelope.status === "queued") setPreInputQueue((current) => {
+              const id = `db-${envelope.pending_id}`
+              return current.some((item) => item.id === id) ? current : [...current, {
+                id, messageId: envelope.message_id, content, status: "queued",
+              }]
+            })
+            void Promise.all([
+              refreshPendingInputsForConversation(targetConversationId),
+              syncLatestConversationMessagesPage(targetConversationId, null, "coalesce"),
+            ]).catch(() => {})
           },
         }
       )
-
-      if (!isCurrentSubmission()) return accepted
-      if (queued) {
-        releaseSubmission()
-        return true
-      }
-      if (!acceptedAsRun) {
-        releaseSubmission()
-        reconcileAgentIterationHandoff(
-          targetConversationId,
-          submissionAgentEvolutionWorkspaceId
-        )
-        return false
-      }
-
-      if (!controller.signal.aborted) {
-        releaseSubmission()
-        if (abortRef.current === controller) {
-          abortRef.current = null
-        }
-        if (!terminalEventSeenRef.current) {
-          updateStreamStatus("recovering")
-          setError(i18n.t("chat.gateway.streamCatchup"))
-          await recoverConversationEvents(targetConversationId, true)
-        }
-      }
-    } catch (streamError) {
-      if (!isCurrentSubmission()) return accepted
-      releaseSubmission()
-      if (!accepted) {
-        reconcileAgentIterationHandoff(
-          targetConversationId,
-          submissionAgentEvolutionWorkspaceId
-        )
-      }
-      if (controller.signal.aborted) {
-        if (abortRef.current === controller) {
-          clearRecoveryTimer()
-          abortRef.current = null
-          activeStreamConversationIdRef.current = null
-          activeRunIdRef.current = null
-          updateStreamStatus("idle")
-        }
-        return accepted
-      }
-
-      const message = reportChatError(
-        streamError,
+      if (!accepted) throw new Error("Missing conversation input receipt")
+      return true
+    } catch (sendError) {
+      // Once acknowledged, observation errors cannot undo admission or resend it.
+      if (accepted) return true
+      if (!isCurrentSubmission()) return false
+      reconcileAgentIterationHandoff(targetConversationId, submissionAgentEvolutionWorkspaceId)
+      if (!controller.signal.aborted) setError(reportChatError(
+        sendError,
         i18n.t("chat.gateway.sendFailed"),
         i18n.t("chat.gateway.sendFailedTitle"),
-        { toast: !acceptedAsRun, format: formatSendErrorMessage }
-      )
-      const recoverable =
-        typeof streamError === "object" &&
-        streamError !== null &&
-        "recoverable" in streamError
-          ? Boolean((streamError as { recoverable?: unknown }).recoverable)
-          : true
-
-      if (acceptedAsRun && recoverable) {
-        if (abortRef.current === controller) {
-          abortRef.current = null
-        }
-        updateStreamStatus("recovering")
-        setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
-        await recoverConversationEvents(targetConversationId, true)
-        return true
-      }
-
-      if (acceptedAsRun) {
-        activeStreamConversationIdRef.current = null
-        activeRunIdRef.current = null
-        clearConversationResumeState(targetConversationId)
-        updateStreamStatus("error")
-      }
-      setError(message)
-      if (acceptedAsRun) {
-        appendSystemMessage(
-          i18n.t("chat.gateway.sendFailedWithMessage", { message })
-        )
-        updateAssistantEntry((entry) =>
-          entry
-            ? {
-                ...entry,
-                status: "error",
-                pane: finalizePane(entry.pane),
-              }
-            : null
-        )
-      }
-      return acceptedAsRun
+        { format: formatSendErrorMessage }
+      ))
+      return false
     } finally {
       releaseSubmission()
-      if (abortRef.current === controller && !controller.signal.aborted) {
-        abortRef.current = null
-      }
     }
-
-    return true
   }
 
   async function handleSend() {
@@ -4146,61 +4031,17 @@ export function GatewayChatSidebar({
       return
     }
     const generation = humanInputSubmissionGenerationRef.current
-    const isCurrentResume = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
+    const view = { ...sendViewRef.current }
+    const isCurrentResume = () => sendViewRef.current.session === view.session && sendViewRef.current.generation === view.generation && currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
     setPendingQueueAction("resuming")
     try {
-      const predecessor = await getConversation(accessToken, conversationId)
-      if (!isCurrentResume()) {
-        return
-      }
-      const previousRunId = predecessor.current_run?.id ?? null
-      const resumed = await resumePendingInputs(accessToken, conversationId)
-      if (!isCurrentResume()) {
-        return
-      }
-      await refreshPendingInputsForConversation(conversationId)
-      if (!isCurrentResume()) {
-        return
-      }
-      if (resumed.released > 0) {
-        const deadline = Date.now() + 6_000
-        while (
-          isCurrentResume() &&
-          Date.now() < deadline
-        ) {
-          const conversation = await getConversation(accessToken, conversationId)
-          if (!isCurrentResume()) {
-            return
-          }
-          const nextRunId = conversation.current_run?.id ?? null
-          if (isPendingInputSuccessorRun(previousRunId, nextRunId)) {
-            await refreshConversations()
-            if (!isCurrentResume()) {
-              return
-            }
-            if (conversation.current_run?.is_live) {
-              void resumeConversationStream(
-                conversationId,
-                nextRunId,
-                conversationSeqRef.current.get(conversationId) ?? null
-              )
-            } else {
-              settleConversationRecovery(conversation)
-            }
-            return
-          }
-          await new Promise<void>((resolve) => {
-            window.setTimeout(resolve, 250)
-          })
-          if (!isCurrentResume()) {
-            return
-          }
-        }
-      }
+      await resumePendingInputs(accessToken, conversationId)
+      if (!isCurrentResume()) return
+      pendingInputRequestRef.current += 1
       await Promise.all([
         refreshConversations(),
         refreshPendingInputsForConversation(conversationId),
-        syncLatestConversationMessagesPage(conversationId),
+        syncLatestConversationMessagesPage(conversationId, null, "coalesce"),
       ])
     } catch (caught) {
       if (!isCurrentResume()) return
@@ -4221,7 +4062,8 @@ export function GatewayChatSidebar({
       return
     }
     const generation = humanInputSubmissionGenerationRef.current
-    const isCurrentClear = () => currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
+    const view = { ...sendViewRef.current }
+    const isCurrentClear = () => sendViewRef.current.session === view.session && sendViewRef.current.generation === view.generation && currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
     setPendingQueueAction("clearing")
     try {
       await clearPendingInputs(accessToken, conversationId)
@@ -4416,6 +4258,7 @@ export function GatewayChatSidebar({
         composer={composer}
         error={error}
         isSending={isSending}
+        canStop={canStop}
         isSubmittingInput={isSubmittingInput}
         canPromoteToGuided={
           selectedConversation?.current_run?.accepts_guided_input === true

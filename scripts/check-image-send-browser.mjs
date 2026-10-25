@@ -50,8 +50,7 @@ try {
         sends.push(route.request().postDataJSON())
         assert.deepEqual(sends.at(-1).runtime_overrides, { workspace: { mode: "disabled" } }, "ordinary chat clears any old default workspace binding")
         if(["late-ack","logout-ack","session-ack"].includes(scenario)) await new Promise(resolve=>{releaseSend=resolve})
-        if(["navigate","late-ack","logout-ack","session-ack"].includes(scenario)) return route.fulfill({contentType:"text/event-stream",body:`data: ${JSON.stringify({type:"event",event:{seq:1,event:"model.text.delta",content:"OLD_STREAM_OUTPUT",run_id:"run",metadata:{conversation_id:"created",scope:"main",execution_epoch:1}}})}\n\n`})
-        body={status:"queued",queue_len:1,pending_id:1,message_id:"message",conversation_id:"created"}
+        body={status:"queued",queue_len:1,pending_id:1,message_id:"message",conversation_id:sends.at(-1).conversation_id,input_request_id:sends.at(-1).input_request_id}
       }
       else if(path.endsWith("/observations/access"))body={allowed:false}
       await route.fulfill({json:body})

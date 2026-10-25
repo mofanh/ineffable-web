@@ -67,7 +67,7 @@ try {
     const idle = () => page.waitForFunction(() => document.querySelector("textarea")?.getAttribute("aria-busy") === "false")
     const ack = (item, close = true) => {
       item.res.writeHead(200, { "Content-Type": "text/event-stream" })
-      item.res.write(`data: ${JSON.stringify({ status: "queued", queue_len: 1, pending_id: pending.indexOf(item) + 1, conversation_id: item.payload.conversation_id })}\n\n`)
+      item.res.write(`data: ${JSON.stringify({ status: "queued", queue_len: 1, pending_id: pending.indexOf(item) + 1, conversation_id: item.payload.conversation_id, message_id: `input-${pending.indexOf(item) + 1}`, input_request_id: item.payload.input_request_id })}\n\n`)
       if (close) item.res.end()
     }
     try {

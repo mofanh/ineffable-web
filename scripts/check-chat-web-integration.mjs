@@ -97,13 +97,27 @@ assert.deepEqual(
     pending_id: "42",
   }),
   {
-    type: "guided",
+    type: "receipt",
+    status: "guided_injected",
     conversation_id: conversationId,
     message_id: "guided-message",
     pending_id: 42,
+    input_request_id: null,
+    admission: null,
+    seq: null,
+    queue_len: null,
   },
   "a guided acknowledgement must not be interpreted as a new run event"
 )
+for (const status of ["queued", "consuming", "consumed", "cancelled"]) {
+  const receipt = normalizeGatewayEnvelope({ status, pending_id: "9", conversation_id: conversationId, message_id: "input", input_request_id: "request" })
+  assert.equal(receipt?.type, "receipt")
+  assert.equal(receipt?.status, status)
+}
+for (const pending_id of [0, -1, "NaN", Number.MAX_SAFE_INTEGER + 1]) {
+  assert.equal(normalizeGatewayEnvelope({ status: "queued", pending_id, conversation_id: conversationId, message_id: "input" }), null)
+}
+assert.equal(normalizeGatewayEnvelope({ status: "queued", pending_id: 1 }), null)
 assert.equal(isActionablePreInput({ kind: "pre_input", status: "queued" }), true)
 assert.equal(
   isActionablePreInput({ kind: "guided", status: "queued" }),

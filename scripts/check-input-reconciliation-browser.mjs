@@ -35,7 +35,8 @@ try{
     if(path.endsWith("/send")){
       sendPayload=route.request().postDataJSON();await new Promise(resolve=>{releaseSend=resolve});
       if(sendPayload.input_mode!=="guided") {
-        await route.fulfill({contentType:"text/event-stream",body:`data: ${JSON.stringify({type:"event",event:{seq:40,event:"input.accepted",stream:"chat",run_id:"refresh-run",content:sendPayload.content,metadata:{conversation_id:"refresh-conversation",execution_epoch:1,input_progress:facts[0]}}})}\n\n`});return
+        body={status:"consumed",pending_id:323,conversation_id:"refresh-conversation",message_id:"dddddddd-dddd-4ddd-8ddd-dddddddddddd",input_request_id:sendPayload.input_request_id}
+        await route.fulfill({json:body});return
       }
       body={status:"guided_injected",conversation_id:"refresh-conversation",message_id:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",input_request_id:sendPayload.input_request_id,pending_id:322}
     }

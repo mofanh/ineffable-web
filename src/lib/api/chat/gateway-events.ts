@@ -1,3 +1,5 @@
+import { normalizeConversationAdmission, type ConversationAdmissionSummary, type ConversationInputStatus } from "./conversation-admission.ts"
+
 export type GatewayChatStreamEvent = {
   run_id?: string
   seq?: number
@@ -29,20 +31,15 @@ export type GatewayChatStreamEnvelope =
       error: string
     }
   | {
-      type: "queued"
-      queue_len: number
-      pending_id?: number | null
-      seq?: number | null
-      conversation_id?: string | null
-      input_request_id?: string | null
-      message_id?: string | null
-    }
-  | {
-      type: "guided"
+      type: "receipt"
+      status: ConversationInputStatus
       pending_id: number
-      conversation_id?: string | null
+      conversation_id: string
+      message_id: string
+      queue_len?: number | null
+      seq?: number | null
       input_request_id?: string | null
-      message_id?: string | null
+      admission?: ConversationAdmissionSummary | null
     }
 
 export function normalizeGatewayEnvelope(
@@ -82,55 +79,19 @@ export function normalizeGatewayEnvelope(
     }
   }
 
-  if (candidate.status === "queued" && typeof candidate.queue_len === "number") {
-    const pendingIdRaw = candidate.pending_id
-    const pendingId =
-      typeof pendingIdRaw === "number"
-        ? pendingIdRaw
-        : typeof pendingIdRaw === "string"
-          ? Number(pendingIdRaw)
-          : null
-
-    const seqRaw = candidate.seq
-    const seq =
-      typeof seqRaw === "number"
-        ? seqRaw
-        : typeof seqRaw === "string"
-          ? Number(seqRaw)
-          : null
-
+  if (["queued", "guided_injected", "consuming", "consumed", "cancelled"].includes(String(candidate.status))) {
+    const pendingId = typeof candidate.pending_id === "string" ? Number(candidate.pending_id) : candidate.pending_id
+    if (typeof pendingId !== "number" || !Number.isSafeInteger(pendingId) || pendingId <= 0 ||
+        typeof candidate.conversation_id !== "string" || !candidate.conversation_id ||
+        typeof candidate.message_id !== "string" || !candidate.message_id) return null
+    const counter = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null
     return {
-      type: "queued",
-      queue_len: candidate.queue_len as number,
-      pending_id: Number.isFinite(pendingId) ? pendingId : null,
-      seq: Number.isFinite(seq) ? seq : null,
-      conversation_id:
-        typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
-      ...(typeof candidate.input_request_id === "string" ? { input_request_id:candidate.input_request_id } : {}),
-      message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,
+      type: "receipt", status: candidate.status as ConversationInputStatus,
+      pending_id: pendingId, conversation_id: candidate.conversation_id, message_id: candidate.message_id,
+      input_request_id: typeof candidate.input_request_id === "string" ? candidate.input_request_id : null,
+      seq: counter(candidate.seq), queue_len: counter(candidate.queue_len),
+      admission: normalizeConversationAdmission(candidate.admission),
     }
   }
-
-  if (candidate.status === "guided_injected") {
-    const pendingIdRaw = candidate.pending_id
-    const pendingId =
-      typeof pendingIdRaw === "number"
-        ? pendingIdRaw
-        : typeof pendingIdRaw === "string"
-          ? Number(pendingIdRaw)
-          : Number.NaN
-    if (!Number.isFinite(pendingId)) {
-      return null
-    }
-    return {
-      type: "guided",
-      pending_id: pendingId,
-      conversation_id:
-        typeof candidate.conversation_id === "string" ? candidate.conversation_id : null,
-      ...(typeof candidate.input_request_id === "string" ? { input_request_id:candidate.input_request_id } : {}),
-      message_id: typeof candidate.message_id === "string" ? candidate.message_id : null,
-    }
-  }
-
   return null
 }

@@ -34,7 +34,7 @@ try {
       let body = { items: [], profiles: [], environments: [], providers: [], pending_inputs: [], events: [], next_seq: 0 }
       if (path.endsWith("/send")) {
         const payload = route.request().postDataJSON(); sends.push(payload)
-        return route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify({ status: "queued", pending_id: sends.length, queue_len: sends.length, conversation_id: payload.conversation_id })}\n\n` })
+        return route.fulfill({ contentType: "text/event-stream", body: `data: ${JSON.stringify({ status: "queued", pending_id: sends.length, queue_len: sends.length, conversation_id: payload.conversation_id, message_id: `input-${Date.now()}`, input_request_id: payload.input_request_id })}\n\n` })
       }
       if (path.endsWith("/subscribe")) return route.fulfill({ contentType: "text/event-stream", body: ": heartbeat\n\n" })
       if (path.endsWith("auth/me")) body = { user: { id: "owner", status: "active", role: "user" }, workspaces: [{ id: "personal", name: "Personal", workspace_type: "personal" }] }

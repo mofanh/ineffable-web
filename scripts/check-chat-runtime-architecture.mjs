@@ -200,21 +200,18 @@ assert.match(
   /function refreshFailedConversationProjection[\s\S]{0,400}refreshPendingInputsForConversation/,
   "every failed terminal projection must refresh the authoritative pending queue"
 )
-assert.match(
-  sidebar,
-  /resumed\.released > 0[\s\S]{0,1200}conversation\.current_run\?\.is_live[\s\S]{0,500}resumeConversationStream/,
-  "explicit queue resume must wait for the dispatcher-created run and attach recovery"
-)
-assert.match(
-  sidebar,
-  /const predecessor = await getConversation\(accessToken, conversationId\)[\s\S]{0,300}const previousRunId = predecessor\.current_run\?\.id \?\? null/,
-  "explicit queue resume must fence against the authoritative predecessor run"
-)
-assert.match(
-  sidebar,
-  /isPendingInputSuccessorRun\(previousRunId, nextRunId\)/,
-  "explicit queue resume must only attach to an explicit successor run"
-)
+const queueResume = sidebar.slice(sidebar.indexOf("  async function handleResumePreInputQueue()"), sidebar.indexOf("  async function handleClearPreInputQueue()"))
+assert.match(queueResume, /await resumePendingInputs\(accessToken, conversationId\)/)
+assert.match(queueResume, /refreshConversations\(\)/)
+assert.match(queueResume, /refreshPendingInputsForConversation\(conversationId\)/)
+assert.doesNotMatch(queueResume, /resumeConversationStream|is_live|while\s*\(/,
+  "queue release must use the same snapshot reducer and run observer, never a second successor polling loop")
+const ordinarySubmission = sidebar.slice(sidebar.indexOf("    const acceptSubmission ="), sidebar.indexOf("  async function handleSend()"))
+assert.match(ordinarySubmission, /envelope\.type !== "receipt"/)
+assert.doesNotMatch(ordinarySubmission, /ensureAssistantEntry|updateStreamStatus|activeRunIdRef|abortRef\.current/,
+  "input ACK must not create a run, assistant output, or steal a running subscription")
+assert.match(sidebar, /admission-snapshot/)
+assert.match(chatComposer, /canStop/)
 
 console.log("chat runtime architecture checks passed")
 

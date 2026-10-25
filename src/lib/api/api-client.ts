@@ -1,3 +1,5 @@
+import type { ConversationAdmissionSummary, ConversationInputStatus } from "./chat/conversation-admission"
+export type { ConversationAdmissionSummary } from "./chat/conversation-admission"
 import { noteFreshRun, releaseFreshRun, trackTelemetry } from "../telemetry/events"
 import {
   normalizeGatewayEnvelope,
@@ -132,6 +134,7 @@ export type WorkspaceObjectContentResponse = {
 }
 
 export type Conversation = {
+  admission?: ConversationAdmissionSummary | null
   id: string
   created_by: string
   title: string
@@ -1090,11 +1093,12 @@ export function deleteAutomation(accessToken: string, automationId: string) {
 }
 
 export type ConversationInputReceipt = {
+  admission?: ConversationAdmissionSummary | null
   input_request_id?: string
   conversation_id: string
   message_id: string
   pending_id: number
-  status: "queued" | "guided_injected" | "consuming" | "consumed" | "cancelled"
+  status: ConversationInputStatus
   automation_run_id?: string
   operation_id?: string
 }
@@ -2585,6 +2589,7 @@ export function getPendingInputs(
   return requestApiJson<{
     input_progress?: unknown[]
     pending_inputs: PendingInputItem[]
+    admission?: ConversationAdmissionSummary | null
     blocked_by_run_status: string | null
     blocked_by_run_id: string | null
     blocked_by_error_code: string | null
