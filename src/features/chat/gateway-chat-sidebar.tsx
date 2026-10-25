@@ -179,6 +179,7 @@ import {
 import {
   isActionablePreInput,
 } from "@/features/chat/model/pending-input"
+import { hasUnsettledConversationInput } from "@/lib/api/chat/conversation-admission"
 import { normalizeAppError } from "@/lib/app/api-errors"
 import { confirm } from "@/lib/app/confirm"
 import { notify } from "@/lib/app/notifications"
@@ -1353,7 +1354,7 @@ export function GatewayChatSidebar({
 
   const hasUnfinishedConversation = projectedConversations.some(
     (conversation) => ["active", "awaiting_human", "suspended"].includes(getConversationRunLifecycle(conversation)) ||
-      Boolean(conversation.admission && conversation.admission.queued_count > 0 && !conversation.admission.queue_paused)
+      hasUnsettledConversationInput(conversation.admission)
   )
   const isPageActive = usePageActive()
 
@@ -1479,8 +1480,7 @@ export function GatewayChatSidebar({
     ? i18n.t("chat.gateway.bound")
     : i18n.t("chat.gateway.unbound")
   const isSending = Boolean(selectedLiveRun)
-  const hasQueuedInput = Boolean(selectedRuntime?.admission && selectedRuntime.admission.queued_count > 0 && !selectedRuntime.admission.queue_paused)
-  const canStop = isSending || hasQueuedInput
+  const canStop = isSending || hasUnsettledConversationInput(selectedRuntime?.admission)
   const isAwaitingVisibleResponse =
     isSubmittingInput ||
     ((streamStatus === "streaming" || streamStatus === "recovering") &&

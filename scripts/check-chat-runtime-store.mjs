@@ -275,7 +275,7 @@ assert.equal(projectionStore.getRunProjection(),terminalProjection,"rejected lis
 
 // Admission is an independent monotonic fact, not evidence that a run exists.
 const admissionStore = new ChatRuntimeStore()
-const admission = { conversation_id: "waiting", queued_count: 1, queue_paused: false, generation: 0, revision: 2 }
+const admission = { conversation_id: "waiting", queued_count: 1, consuming_count: 0, queue_paused: false, generation: 0, revision: 2 }
 admissionStore.dispatch("waiting", { type: "admission-snapshot", admission })
 assert.equal(admissionStore.get("waiting").runId, null)
 assert.equal(admissionStore.get("waiting").lifecycle, "idle")
@@ -294,3 +294,9 @@ assert.deepEqual(admissionStore.get("waiting").admission, paused, "run SSE must 
 admissionStore.dispatch("waiting", { type: "reset" })
 assert.deepEqual(admissionStore.get("waiting").admission, paused)
 console.log("admission receipt and stale snapshot checks passed")
+
+const { hasUnsettledConversationInput } = await import("../src/lib/api/chat/conversation-admission.ts")
+const awaitingRecorder = { ...admission, queued_count: 0, consuming_count: 1, revision: 8 }
+assert.equal(hasUnsettledConversationInput(awaitingRecorder), true, "claim cannot stop background observation before run.started")
+assert.equal(hasUnsettledConversationInput({ ...awaitingRecorder, queue_paused: true }), true, "an executing root remains stoppable while its successors are paused")
+assert.equal(hasUnsettledConversationInput({ ...paused, consuming_count: 0 }), false)

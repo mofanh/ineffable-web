@@ -25,9 +25,9 @@ try {
     localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
     localStorage.setItem("ineffable.chat.new_conversation_draft", "true")
   })
-  let revision = 0, generation = 0, paused = false, queued = false, run = null, messages = [], listCalls = 0, stopCalls = 0, resumes = 0
+  let revision = 0, generation = 0, paused = false, queued = false, consuming = false, run = null, messages = [], listCalls = 0, stopCalls = 0, resumes = 0
   let holdQueue = false, staleQueueStarted
-  const admission = () => ({ conversation_id: "first", revision, generation, queued_count: queued ? 1 : 0, queue_paused: paused })
+  const admission = () => ({ conversation_id: "first", revision, generation, queued_count: queued ? 1 : 0, consuming_count: consuming ? 1 : 0, queue_paused: paused })
   const conversation = () => ({ id: "first", title: "Admission fixture", current_run_id: run?.id ?? null, current_run: run, admission: admission() })
   const queue = () => ({ pending_inputs: queued ? [{ id: 1, message_id: "input", conversation_id: "first", content: "WAITING_INPUT", kind: "pre_input", status: "queued", run_id: null }] : [], input_progress: [], admission: admission(), can_resume: queued && paused, blocked_by_run_status: null, blocked_by_run_id: null, blocked_by_error_code: null })
   await page.route("**/gateway/**", async route => {
@@ -81,7 +81,13 @@ try {
   const deadline = Date.now() + 8000
   while (listCalls <= before && Date.now() < deadline) await page.waitForTimeout(50)
   assert.ok(listCalls > before, "pending-only background conversation remains observed")
-  queued = false; revision++
+  queued = false; consuming = true; revision++
+  // Between claim and the first recorder event, only the consuming fact keeps
+  // this background conversation observable.
+  const claimedBefore = listCalls
+  const claimedDeadline = Date.now() + 12000
+  while (listCalls < claimedBefore + 2 && Date.now() < claimedDeadline) await page.waitForTimeout(50)
+  assert.ok(listCalls >= claimedBefore + 2, "claimed work without a visible run must remain observed")
   run = { id: "real-run", status: "streaming", version: 1, execution_epoch: 1, lifecycle_seq: 1, is_live: true, is_streaming: true }
   await page.getByRole("button", { name: "Select first", exact: true }).click()
   const connected = Date.now() + 8000
@@ -92,6 +98,7 @@ try {
   emit("run.started", null); emit("model.text.delta", "REAL_EXECUTION_RESULT")
   await page.getByText("REAL_EXECUTION_RESULT", { exact: true }).waitFor()
   messages = [{ id: "result", conversation_id: "first", run_id: "real-run", role: "assistant", message_type: "text", message_seq: 1, content: "REAL_EXECUTION_RESULT", metadata_json: {}, created_at: "2026-10-25T00:00:00Z" }]
+  consuming = false
   run = { ...run, status: "completed", version: 2, lifecycle_seq: seq + 1, is_live: false, is_streaming: false }; revision++
   emit("run.completed", null)
   await page.getByRole("button", { name: "Stop", exact: true }).waitFor({ state: "hidden" })
