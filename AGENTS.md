@@ -505,9 +505,9 @@ npm run build
 
 普通输入、预输入、引导输入和工具回答都在原用户消息上展示 Gateway 批量投影的 input_progress，实时接纳事件与历史走同一 timeline reducer。发送成功不等于 Agent 已接纳，run 结束也不能反推接纳；同一 run 的旧 epoch/version 与滞后历史不能覆盖已确认接纳。引导输入发送时保留当前 assistant 展示边界，收到真实接纳事件后才结束前一段；所有异步提交与提升回调冻结 conversation 和请求 generation。
 
-尚未消费的普通预输入只在待发送队列展示，开始处理后才出现在 transcript。引导投递若返回 queued，必须移除临时用户气泡并交回待发送队列，不得把排队确认绑定成聊天消息。
+尚未消费的普通输入仍由后端持久排队。服务端 `queued_in_timeline` 投影为 true 的可启动队首，使用原 `message_id` 在对话中显示“已收到”；其余输入在待处理队列展示。投影不代表已创建 run 或 Agent 已接纳，不放宽模型历史与消费门禁。暂停或前序阻塞使消息回到可操作队列；后续队首具备条件后可进入气泡，不依赖本机发送时的空闲猜测或延迟定时器。
 
-输入时间线 reducer 必须根据权威 input_progress 排除 queued/cancelled 的普通预输入，覆盖 hydrate、历史分页、实时合并和缓存清理；不能仅依赖后端新页省略消息，因为增量合并会保留既有气泡。浏览器回归必须验证连续两条排队输入、刷新、缓存与开始消费后单一气泡。
+输入时间线 reducer 共用权威 input_progress 与 pending 快照的展示投影，覆盖 hydrate、历史分页、实时合并和缓存清理；cancelled 与不可展示的 queued 输入不得被迟到历史复活。队列通知只触发既有快照刷新，不依据通知正文或临时 ID 创建队列项。过期 admission revision/generation 的 queued 收据不能重新追加队列。浏览器回归覆盖空闲首条、连续排队、Stop/继续、刷新和接纳先于 HTTP 回执，全程保持单一气泡。
 
 pending 接口中的 message_id/run_id 是清理旧 received/guided/无进度气泡的权威身份来源；待处理快照进入同一 reducer，并参与后续分页合并。已接纳消息和不同 successor 的消息不能被旧队列快照删除。队列刷新、删除和清空必须冻结会话与请求代次，取消操作使旧消息分页请求失效。
 

@@ -1,4 +1,5 @@
 export type InputProgress = {
+  queued_in_timeline?: boolean
   input_request_id?: string
   automation_source?: { automation_id: string; occurrence_id: string; name?: string; summary?: string }
   task_source?: { conversation_id: string; run_id: string }
@@ -30,6 +31,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
       ? item.task_source as { conversation_id: string; run_id: string } : undefined,
     input_request_id: typeof item.input_request_id === "string" ? item.input_request_id : undefined,
     message_seq: Number.isSafeInteger(item.message_seq) ? item.message_seq as number : undefined,
+    queued_in_timeline: item.queued_in_timeline === true,
     message_id: item.message_id, conversation_id: item.conversation_id,
     phase: item.phase as InputProgress["phase"], kind: typeof item.kind === "string" ? item.kind : "ordinary",
     run_id: typeof item.run_id === "string" ? item.run_id : null,
@@ -55,6 +57,7 @@ export function inputProgressLabel(progress: InputProgress | undefined, delivery
   if (!progress) return delivery ? `inputProgress.${delivery}` : null
   if (progress.phase === "cancelled") return "inputProgress.cancelled"
   if (progress.phase === "queued") {
+    if (progress.queued_in_timeline) return "inputProgress.received"
     return ["failed", "cancelled", "awaiting_human", "suspended"].includes(progress.run_state ?? "")
       ? "inputProgress.blocked" : "inputProgress.queued"
   }

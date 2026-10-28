@@ -10,8 +10,9 @@ const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 try {
   await server.listen()
   browser=await chromium.launch({executablePath,headless:true})
-  for (const scenario of ["normal", "new-draft", "navigate", "session-helper", "remount", "late-ack", "logout-ack", "session-ack", "workspace-draft", "human-none"]) {
+  for (const scenario of ["normal", "image-only", "new-draft", "navigate", "session-helper", "remount", "late-ack", "logout-ack", "session-ack", "workspace-draft", "human-none"]) {
     console.log(`image send scenario: ${scenario}`)
+    const idleInput = scenario === "normal" || scenario === "image-only"
     const page=await browser.newPage({viewport:{width:1200,height:900}})
     const errors=[];page.on("pageerror",e=>errors.push(e.message))
     await page.addInitScript(()=>{
@@ -37,7 +38,7 @@ try {
       else if(path.endsWith("conversations/create")) {await new Promise(resolve=>{releaseCreate=resolve});created=true;body=conversation("created")}
       else if(path.endsWith("conversations/get"))body=conversation(url.searchParams.get("conversation_id"))
       else if(path.endsWith("/directory"))body={objects:[],next_cursor:null}
-      else if(path.endsWith("/messages"))body={messages: scenario === "human-none" ? [{id:"canonical-wait",conversation_id:"first",run_id:"existing-run",role:"assistant",message_type:"text",content:"Waiting for your answer",timeline_seq:1,timeline_unit_id:"canonical-wait",canonical_seq:1,metadata_json:{},created_at:"2026-09-29T00:00:00Z",updated_at:"2026-09-29T00:00:00Z"}] : [],next_seq:0,page:{has_older:false,before:null}}
+      else if(path.endsWith("/messages"))body={messages: scenario === "human-none" ? [{id:"canonical-wait",conversation_id:"first",run_id:"existing-run",role:"assistant",message_type:"text",content:"Waiting for your answer",timeline_seq:1,timeline_unit_id:"canonical-wait",canonical_seq:1,metadata_json:{},created_at:"2026-09-29T00:00:00Z",updated_at:"2026-09-29T00:00:00Z"}] : idleInput && sends.length && url.searchParams.get("conversation_id")==="created" ? [{id:"message",conversation_id:"created",role:"user",message_type:"input",content:sends[0].content,timeline_seq:1,timeline_unit_id:"message:message",canonical_seq:1,metadata_json:{images:sends[0].images,input_progress:{message_id:"message",conversation_id:"created",kind:"pre_input",phase:"queued",queued_in_timeline:true}},created_at:"2026-10-28T00:00:00Z"}] : [],next_seq:0,page:{has_older:false,before:null}}
       else if(path.endsWith("models/profiles"))body={profiles:[{id:"vision",display_name:"Vision",supports_vision:true,is_default:true,enabled:true},{id:"vision-b",display_name:"Vision B",supports_vision:true,enabled:true}]}
       else if(path.endsWith("sandbox/environments"))body={providers:[{provider_id:"a",display_name:"Sandbox A",status:"online"},{provider_id:"b",display_name:"Sandbox B",status:"online"}],environments:[{environment_id:"sandbox-a",provider_id:"a",status:"ready"},{environment_id:"sandbox-b",provider_id:"b",status:"ready"}]}
       else if(path.endsWith("/images")){uploads++;body={image:{workspace_id:"00000000-0000-0000-0000-000000000001",object_id:`00000000-0000-0000-0001-00000000000${uploads}`,version_id:`00000000-0000-0000-0002-00000000000${uploads}`,mime_type:"image/png",width:1,height:1,size_bytes:png.length}}}
@@ -50,7 +51,7 @@ try {
         sends.push(route.request().postDataJSON())
         assert.deepEqual(sends.at(-1).runtime_overrides, { workspace: { mode: "disabled" } }, "ordinary chat clears any old default workspace binding")
         if(["late-ack","logout-ack","session-ack"].includes(scenario)) await new Promise(resolve=>{releaseSend=resolve})
-        body={status:"queued",queue_len:1,pending_id:1,message_id:"message",conversation_id:sends.at(-1).conversation_id,input_request_id:sends.at(-1).input_request_id}
+        body={status:"queued",queued_in_timeline:idleInput,queue_len:1,pending_id:1,message_id:"message",conversation_id:sends.at(-1).conversation_id,input_request_id:sends.at(-1).input_request_id}
       }
       else if(path.endsWith("/observations/access"))body={allowed:false}
       await route.fulfill({json:body})
@@ -127,7 +128,7 @@ try {
         await page.getByRole("menu").waitFor({state:"hidden"})
         await page.screenshot({path:`${process.env.IMAGE_MENU_SCREENSHOT_DIR}/attachment.png`})
       }
-      await composer.fill("ORIGINAL_SEND")
+      await composer.fill(scenario === "image-only" ? "" : "ORIGINAL_SEND")
       await composer.press("Enter")
     }
     const deadline=Date.now()+10000
@@ -167,8 +168,8 @@ try {
       await composer.waitFor()
     }
     if(["new-draft","late-ack","session-ack"].includes(scenario))await page.getByLabel("New conversation",{exact:true}).click()
-    else if(scenario!=="normal") await page.getByRole("button",{name:"Select other",exact:true}).click()
-    if(scenario!=="session-helper" && scenario!=="normal") {
+    else if(!idleInput) await page.getByRole("button",{name:"Select other",exact:true}).click()
+    if(scenario!=="session-helper" && !idleInput) {
       await composer.fill("NEW_DRAFT")
       await page.locator('input[type="file"]').setInputFiles({name:"new.png",mimeType:"image/png",buffer:png})
       await page.waitForFunction(()=>document.querySelector('img')?.getAttribute('src')?.startsWith('blob:'))
@@ -191,12 +192,17 @@ try {
       if(scenario==="late-ack") {
         await page.waitForFunction(()=>localStorage.getItem("ineffable.chat.model.created")==="vision")
       } else await page.waitForTimeout(150)
-      assert.equal(await composer.inputValue(),scenario==="normal"?"":"NEW_DRAFT")
-      assert.equal(await page.getByRole("button",{name:"Remove attachment",exact:true}).count(),scenario==="normal"?0:1,"new image draft must survive old acknowledgement")
-      assert.equal(uploads,scenario==="normal"?1:2)
+      assert.equal(await composer.inputValue(),idleInput?"":"NEW_DRAFT")
+      assert.equal(await page.getByRole("button",{name:"Remove attachment",exact:true}).count(),idleInput?0:1,"new image draft must survive old acknowledgement")
+      if(idleInput) {
+        await page.locator('[data-chat-row-key="message:message"] img').waitFor()
+        assert.equal(await page.locator('[data-chat-row-key="message:message"]').count(),1,"the received message retains its image before claim")
+        assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),0,"idle image input does not enter the visible queue")
+      }
+      assert.equal(uploads,idleInput?1:2)
       assert.equal(await page.getByText("OLD_STREAM_OUTPUT",{exact:true}).count(),0)
     } else await page.waitForTimeout(200)
-    assert.equal(await page.locator('[data-selection]').textContent(),scenario==="normal"?"created":["new-draft","late-ack","session-ack"].includes(scenario)?"new":"other")
+    assert.equal(await page.locator('[data-selection]').textContent(),idleInput?"created":["new-draft","late-ack","session-ack"].includes(scenario)?"new":"other")
     if(["new-draft","late-ack","session-ack"].includes(scenario)) {
       const readRecent=()=>page.evaluate(()=>[localStorage.getItem("ineffable.chat.model.new"),localStorage.getItem("ineffable.chat.sandbox.new")])
       assert.deepEqual(await readRecent(),["vision-b","sandbox-b"])

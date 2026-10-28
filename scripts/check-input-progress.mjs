@@ -95,3 +95,16 @@ assert.equal(reduceConversationTimeline([ordinaryCanonical],{type:"user-entry",e
 
 const canonicalReuse = {...ordinaryCanonical,id:"message:other-canonical",timelineUnitId:"message:other-canonical",inputProgress:{...ordinaryCanonical.inputProgress,message_id:"other-canonical"}}
 assert.equal(reduceConversationTimeline([ordinaryCanonical],{type:"canonical-patch",entries:[canonicalReuse]}).length,2,"request correlation cannot merge two real canonical messages")
+
+// Queue membership is durable; placement uses the server's display projection.
+const idleHead = {...queuedA, inputProgress:{...queuedA.inputProgress,queued_in_timeline:true,run_state:"completed"}}
+assert.equal(inputProgressLabel(idleHead.inputProgress), "inputProgress.received", "eligibility does not mean processing or an unconfirmed terminal")
+for (const type of ["hydrate", "canonical-patch", "prepend-history"]) {
+  assert.deepEqual(reduceConversationTimeline([], {type,entries:[idleHead,queuedB]}).map(e=>e.id), [idleHead.id])
+}
+const headIdentity = [{messageId:"m",runId:"r",inTimeline:true}]
+assert.equal(reduceConversationTimeline([idleHead],{type:"pending-inputs",inputs:headIdentity}).length,1)
+assert.equal(reduceConversationTimeline([idleHead],{type:"pending-inputs",inputs:pendingIdentities}).length,0,"Stop's current queue snapshot removes a formerly eligible head")
+assert.equal(reduceConversationTimeline([],{type:"hydrate",entries:[idleHead]},pendingIdentities).length,0,"old visible history cannot undo Stop")
+assert.equal(reduceConversationTimeline([],{type:"hydrate",entries:[queuedA]},headIdentity).length,1,"current head projection wins over older hidden history")
+assert.equal(reduceConversationTimeline([idleHead],{type:"input-progress",progress:accepted}).length,1,"real acceptance takes over the same bubble")

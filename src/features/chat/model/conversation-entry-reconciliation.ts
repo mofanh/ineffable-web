@@ -30,7 +30,7 @@ function timelineSequence(entry: ChatEntry) {
   return Number.isSafeInteger(entry.timelineSeq) ? entry.timelineSeq! : null
 }
 
-export type QueuedInputIdentity = { messageId: string; runId: string | null; pendingId?: number; cancelled?: boolean }
+export type QueuedInputIdentity = { messageId: string; runId: string | null; pendingId?: number; cancelled?: boolean; inTimeline?: boolean }
 
 function visibleTimelineEntries(entries: ChatEntry[], queuedInputs: readonly QueuedInputIdentity[] = []) {
   const queued = new Map(queuedInputs.map((input) => [`message:${input.messageId}`, input]))
@@ -40,8 +40,8 @@ function visibleTimelineEntries(entries: ChatEntry[], queuedInputs: readonly Que
     if (entry.inputProgress?.phase === "cancelled") return false
     const pending = queued.get(timelineIdentity(entry))
     if (pending?.cancelled) return false
-    if (pending && (!entry.inputProgress?.run_id || entry.inputProgress.run_id === pending.runId)) return false
-    return entry.inputProgress?.kind !== "pre_input" || !["queued", "cancelled"].includes(entry.inputProgress.phase)
+    if (pending && (!entry.inputProgress?.run_id || entry.inputProgress.run_id === pending.runId)) return pending.inTimeline === true
+    return entry.inputProgress?.kind !== "pre_input" || entry.inputProgress.queued_in_timeline === true || !["queued", "cancelled"].includes(entry.inputProgress.phase)
   })
 }
 

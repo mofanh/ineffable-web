@@ -29,7 +29,8 @@ try {
   let holdQueue = false, staleQueueStarted
   const admission = () => ({ conversation_id: "first", revision, generation, queued_count: queued ? 1 : 0, consuming_count: consuming ? 1 : 0, queue_paused: paused })
   const conversation = () => ({ id: "first", title: "Admission fixture", current_run_id: run?.id ?? null, current_run: run, admission: admission() })
-  const queue = () => ({ pending_inputs: queued ? [{ id: 1, message_id: "input", conversation_id: "first", content: "WAITING_INPUT", kind: "pre_input", status: "queued", run_id: null }] : [], input_progress: [], admission: admission(), can_resume: queued && paused, blocked_by_run_status: null, blocked_by_run_id: null, blocked_by_error_code: null })
+  const inputMessage = () => ({id:"input",timeline_unit_id:"message:input",timeline_seq:1,conversation_id:"first",role:"user",message_type:"input",message_seq:1,content:"WAITING_INPUT",created_at:"2026-10-28T00:00:00Z",metadata_json:{input_progress:{message_id:"input",conversation_id:"first",message_seq:1,kind:"pre_input",phase:queued?"queued":"received",queued_in_timeline:queued&&!paused,run_id:run?.id??null,run_state:run?.status??null}}})
+  const queue = () => ({ pending_inputs: queued ? [{ id: 1, message_id: "input", conversation_id: "first", content: "WAITING_INPUT", kind: "pre_input", status: "queued", run_id: null, queued_in_timeline: !paused }] : [], input_progress: [], admission: admission(), can_resume: queued && paused, blocked_by_run_status: null, blocked_by_run_id: null, blocked_by_error_code: null })
   await page.route("**/gateway/**", async route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith("/subscribe")) return route.continue()
@@ -39,7 +40,7 @@ try {
     else if (path.endsWith("conversations/preferences")) body = { timezone: "Asia/Shanghai", version: 0, defaults_json: {} }
     else if (path.endsWith("conversations/get")) body = conversation()
     else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model", display_name: "Model", enabled: true }] }
-    else if (path.endsWith("/messages")) body = { messages, next_seq: run?.lifecycle_seq ?? 0, page: { has_older: false, before: null } }
+    else if (path.endsWith("/messages")) body = { messages: (queued && !paused || consuming) ? [inputMessage(),...messages] : messages, next_seq: run?.lifecycle_seq ?? 0, page: { has_older: false, before: null } }
     else if (path.endsWith("/observations/access")) body = { allowed: false }
     else if (path.endsWith("/pending-inputs/resume")) { resumes++; paused = false; generation++; revision++; body = { ok: true, released: 1 } }
     else if (path.endsWith("/pending-inputs")) {
@@ -48,7 +49,7 @@ try {
     } else if (path.endsWith("/stop")) { stopCalls++; paused = true; generation++; revision++; body = { ok: true, cancelled: true } }
     else if (path.endsWith("/send")) {
       const payload = route.request().postDataJSON(); sends.push(payload); queued = true; revision++
-      body = { status: "queued", pending_id: 1, message_id: "input", conversation_id: "first", input_request_id: payload.input_request_id, admission: admission() }
+      body = { status: "queued", queued_in_timeline: true, pending_id: 1, message_id: "input", conversation_id: "first", input_request_id: payload.input_request_id, admission: admission() }
     }
     await route.fulfill({ json: body })
   })
@@ -63,10 +64,16 @@ try {
   await page.waitForFunction(() => document.querySelector("textarea")?.getAttribute("aria-busy") === "false")
   assert.equal(sends.length, 1); assert.equal(streams.size, 0, "admission without a run never opens a run SSE")
   assert.equal(run, null)
+  await page.locator('[data-chat-row-key="message:input"]').waitFor()
+  assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1,"received input appears once while claim is held")
+  assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),0,"idle head must not flash the queue")
   // Keep an old unpaused queue GET in flight while Stop commits a newer revision.
   await Promise.race([held, new Promise((_, reject) => setTimeout(() => reject(new Error("background queue GET was not observed")), 8000))])
   await page.getByRole("button", { name: "Stop", exact: true }).click()
   await page.getByRole("button", { name: "Continue", exact: true }).waitFor()
+  assert.equal(await page.locator('[data-chat-row-key="message:input"]').count(),0,"paused input returns to queue")
+  assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1,"paused input stays visible in one location")
+  assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),1,"paused input retains queue controls")
   assert.equal(stopCalls, 1); assert.equal(run, null, "Stop before claim must not create a run")
   releaseQueue(); await page.waitForTimeout(150)
   assert.equal(await page.getByRole("button", { name: "Continue", exact: true }).count(), 1)
@@ -74,6 +81,13 @@ try {
   await page.getByRole("button", { name: "Continue", exact: true }).click()
   await page.getByRole("button", { name: "Stop", exact: true }).waitFor()
   assert.equal(resumes, 1)
+  // Rebuild from server history and pending snapshots, without a local send flag.
+  holdQueue=false
+  await page.reload()
+  await page.getByRole("button",{name:"Select first",exact:true}).click()
+  await page.locator('[data-chat-row-key="message:input"]').waitFor()
+  assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1)
+  assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),0)
   // A new draft must still observe a queued conversation, with no fake run.
   await page.getByRole("button", { name: "New conversation", exact: true }).click()
   const before = listCalls

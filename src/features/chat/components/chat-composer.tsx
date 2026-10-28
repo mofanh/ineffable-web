@@ -47,6 +47,7 @@ import {
 } from "lucide-react"
 
 export type PreInputQueueItem = {
+  inTimeline?: boolean
   messageId?: string
   id: string
   content: string
@@ -249,6 +250,7 @@ export function ChatComposer({
     [sandboxOptions, selectedSandboxEnvironmentId, isSandboxCatalogLoaded, t]
   )
 
+  const queuedItems = preInputQueue.filter(item => !item.inTimeline)
   const isActionPending = (status?: PreInputQueueItem["status"]) =>
     status === "promoting" || status === "deleting"
   function updateText(value: string, position: number) {
@@ -303,13 +305,13 @@ export function ChatComposer({
       )}
     >
       {delivery ? <Notice tone="warning" className="mb-2">{t(delivery.key, { count: delivery.count })}</Notice> : null}
-      {preInputQueue.length > 0 ? (
+      {queuedItems.length > 0 ? (
         <div className="mb-1.5 space-y-1.5">
           <div className="flex min-h-6 items-center justify-between gap-2 px-1 text-[11px] font-medium text-muted-foreground">
             <div className="flex min-w-0 items-center gap-1.5">
               <GripVerticalIcon className="size-3 shrink-0" />
               <span className="shrink-0">
-                {t("chat.composer.queue", { count: preInputQueue.length })}
+                {t("chat.composer.queue", { count: queuedItems.length })}
               </span>
               {blockedPreInputRunStatus ? (
                 <span className="truncate text-amber-700 dark:text-amber-400">
@@ -353,7 +355,7 @@ export function ChatComposer({
             </div>
           </div>
           <div className="max-h-[140px] space-y-1 overflow-y-auto rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-1.5">
-            {preInputQueue.map((item) => (
+            {queuedItems.map((item) => (
               <div
                 key={item.id}
                 className="flex items-start gap-1.5 rounded-lg bg-background px-2.5 py-2 text-[13px] leading-snug shadow-sm"

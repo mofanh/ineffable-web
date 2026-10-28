@@ -32,6 +32,7 @@ export type GatewayChatStreamEnvelope =
     }
   | {
       type: "receipt"
+      queued_in_timeline?: boolean
       status: ConversationInputStatus
       pending_id: number
       conversation_id: string
@@ -86,6 +87,7 @@ export function normalizeGatewayEnvelope(
         typeof candidate.message_id !== "string" || !candidate.message_id) return null
     const counter = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null
     return {
+      queued_in_timeline: candidate.queued_in_timeline === true,
       type: "receipt", status: candidate.status as ConversationInputStatus,
       pending_id: pendingId, conversation_id: candidate.conversation_id, message_id: candidate.message_id,
       input_request_id: typeof candidate.input_request_id === "string" ? candidate.input_request_id : null,

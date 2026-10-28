@@ -98,6 +98,7 @@ assert.deepEqual(
   }),
   {
     type: "receipt",
+    queued_in_timeline: false,
     status: "guided_injected",
     conversation_id: conversationId,
     message_id: "guided-message",

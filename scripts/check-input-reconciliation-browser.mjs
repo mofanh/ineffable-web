@@ -20,12 +20,13 @@ try{
   const page=await browser.newPage({locale:"zh-CN"});const errors=[];page.on("pageerror",e=>errors.push(e.message))
   const messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
   const pending={id:321,message_id:messageId,run_id:"refresh-run",kind:"pre_input",status:"queued",content:"GUIDE_RACE"}
-  let queue=[pending],messages=[],facts=[],releasePromotion=null,queriedIds=[],holdQueue=false,releaseQueue=null,releaseSend=null,sendPayload=null,holdMessages=false,heldMessages=[]
+  let admission={conversation_id:"refresh-conversation",queued_count:1,consuming_count:0,queue_paused:false,revision:0,generation:0}
+  let queue=[pending],messages=[],facts=[],releasePromotion=null,queriedIds=[],releaseSend=null,sendPayload=null,holdMessages=false,heldMessages=[]
   await page.route("**/gateway/**",async route=>{
     const url=new URL(route.request().url()),path=url.pathname
     if(path.endsWith("/subscribe"))return route.continue()
     let body={items:[],profiles:[],environments:[],pending_inputs:[],events:[],next_seq:0}
-    if(path.endsWith("/get"))body={id:"refresh-conversation",title:"Input races",current_run_id:"refresh-run",current_run:{id:"refresh-run",status:"streaming",is_live:true,is_streaming:true,accepts_guided_input:true,execution_epoch:1}}
+    if(path.endsWith("/get"))body={admission,id:"refresh-conversation",title:"Input races",current_run_id:"refresh-run",current_run:{id:"refresh-run",status:"streaming",is_live:true,is_streaming:true,accepts_guided_input:true,execution_epoch:1}}
     if(path.endsWith("/observations/access"))body={allowed:false}
     if(path.endsWith("/messages")){
       body={messages,next_seq:0,page:{has_older:false,before:null}}
@@ -33,16 +34,19 @@ try{
     }
     if(path.endsWith("models/profiles"))body={profiles:[{id:"model",display_name:"Model",supports_tool_calls:true,enabled:true}]}
     if(path.endsWith("/send")){
-      sendPayload=route.request().postDataJSON();await new Promise(resolve=>{releaseSend=resolve});
+      sendPayload=route.request().postDataJSON();
+      admission={...admission,revision:admission.revision+1}
+      const receiptAdmission=structuredClone(admission)
+      const receiptMessageId=sendPayload.content==="CLEARED_BEFORE_ACK"?"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+      await new Promise(resolve=>{releaseSend=resolve});
       if(sendPayload.input_mode!=="guided") {
-        body={status:"consumed",pending_id:323,conversation_id:"refresh-conversation",message_id:"dddddddd-dddd-4ddd-8ddd-dddddddddddd",input_request_id:sendPayload.input_request_id}
+        body={status:"queued",queued_in_timeline:false,pending_id:323,conversation_id:"refresh-conversation",message_id:receiptMessageId,input_request_id:sendPayload.input_request_id,admission:receiptAdmission}
         await route.fulfill({json:body});return
       }
       body={status:"guided_injected",conversation_id:"refresh-conversation",message_id:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",input_request_id:sendPayload.input_request_id,pending_id:322}
     }
     if(path.endsWith("/pending-inputs")){
-      queriedIds.push(url.searchParams.get("message_ids"));body={pending_inputs:queue,input_progress:facts,blocked_by_run_status:null,can_resume:false}
-      if(holdQueue){holdQueue=false;await new Promise(resolve=>{releaseQueue=resolve})}
+      queriedIds.push(url.searchParams.get("message_ids"));body={admission,pending_inputs:queue,input_progress:facts,blocked_by_run_status:null,can_resume:false}
     }
     if(path.endsWith("/promote")){
       await new Promise(resolve=>{releasePromotion=resolve})
@@ -64,21 +68,13 @@ try{
   assert.equal(await page.getByText("GUIDE_RACE",{exact:true}).count(),1,"before HTTP acknowledgement there is exactly one message")
   const response=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/promote"));releasePromotion();await response
   assert.equal(await page.getByText("GUIDE_RACE",{exact:true}).count(),1)
-  // Exercise direct guided submission too: an in-flight local queue item has no DB identity yet.
-  holdQueue=true
+  // A wakeup without a persisted identity cannot manufacture a local queue
+  // item which would later be resent as a new guided POST.
+  const refresh = page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/pending-inputs"))
   for(const stream of streams)stream.write(`data: ${JSON.stringify({type:"event",event:{seq:20,event:"pending_input_queued",stream:"chat",run_id:"refresh-run",content:"DIRECT_GUIDE",metadata:{conversation_id:"refresh-conversation",execution_epoch:1,kind:"pre_input",content:"DIRECT_GUIDE"}}})}\n\n`)
-  await page.getByText(/DIRECT_GUIDE/).waitFor()
-  await page.getByRole("button",{name:"提升为引导",exact:true}).click()
-  const directDeadline=Date.now()+5000;while(!releaseSend&&Date.now()<directDeadline)await new Promise(r=>setTimeout(r,10));assert.ok(releaseSend)
-  assert.match(sendPayload.input_request_id,/^[0-9a-f-]{36}$/)
-  const directId="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
-  const directProgress={...progress,message_id:directId,message_seq:3,input_request_id:sendPayload.input_request_id}
-  messages.push({...messages[0],id:directId,timeline_unit_id:`message:${directId}`,timeline_seq:3,message_seq:3,content:"DIRECT_GUIDE",metadata_json:{input_request_id:sendPayload.input_request_id,input_progress:directProgress}})
-  for(const stream of streams)stream.write(`data: ${JSON.stringify({type:"event",event:{seq:21,event:"input.accepted",stream:"chat",run_id:"refresh-run",content:"DIRECT_GUIDE",metadata:{conversation_id:"refresh-conversation",execution_epoch:1,input_progress:directProgress}}})}\n\n`)
-  await page.locator(`[data-chat-row-key="message:${directId}"] [data-input-progress="accepted"]`).waitFor()
-  assert.equal(await page.getByText("DIRECT_GUIDE",{exact:true}).count(),1,"request identity binds the direct draft before its HTTP receipt")
-  const directResponse=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/send"));releaseSend();await directResponse;releaseQueue?.()
-  assert.equal(await page.getByText("DIRECT_GUIDE",{exact:true}).count(),1)
+  await refresh
+  assert.equal(await page.getByText("DIRECT_GUIDE",{exact:true}).count(),0,"only the server snapshot can add a queue item")
+  assert.equal(sendPayload,null,"queue wakeups must never resend user input")
   // A cancelled input stays readable to bounded reconciliation even when omitted from history.
   const oldId="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
   const received={...progress,message_id:oldId,message_seq:3,phase:"received"}
@@ -109,6 +105,22 @@ try{
   // Wait for React to apply the envelope callback, while every history patch stays held.
   await page.waitForTimeout(200)
   assert.equal(await page.locator("[data-chat-row-key]").getByText("ORDINARY_LATE",{exact:true}).count(),1,"ordinary late first frame cannot append a duplicate before refresh")
+  assert.equal(await page.getByText("ORDINARY_LATE",{exact:true}).count(),1,"late queued receipt must not resurrect a queue item")
   holdMessages=false;heldMessages.forEach(resolve=>resolve())
+  // A newer queue revision clears an input before its original queued ACK.
+  // No accepted bubble exists here: revision fencing alone must prevent resurrection.
+  await page.waitForFunction(()=>document.querySelector("textarea")?.getAttribute("aria-busy")==="false")
+  releaseSend=null;sendPayload=null
+  await page.locator("textarea").fill("CLEARED_BEFORE_ACK")
+  await page.locator("textarea").press("Enter")
+  const clearDeadline=Date.now()+5000;while(!releaseSend&&Date.now()<clearDeadline)await new Promise(r=>setTimeout(r,10));assert.ok(releaseSend)
+  admission={...admission,revision:admission.revision+1,generation:admission.generation+1,queued_count:0,queue_paused:true}
+  facts=[{...progress,message_id:"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",kind:"pre_input",phase:"cancelled"}]
+  const cleared=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/pending-inputs"))
+  emit(41,"pending_input_cancelled");await cleared
+  await page.waitForTimeout(100)
+  const clearAck=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith("/send"));releaseSend();await clearAck
+  await page.waitForFunction(()=>document.querySelector("textarea")?.getAttribute("aria-busy")==="false")
+  assert.equal(await page.getByText("CLEARED_BEFORE_ACK",{exact:true}).count(),0,"a late queued receipt cannot undo the newer cancellation revision")
   assert.deepEqual(errors,[]);console.log("input identity and cancellation browser checks passed")
 }finally{await browser?.close();await server.close()}

@@ -83,7 +83,6 @@ import {
   approvalNeedFromRaw,
   buildConversationTitle,
   objectValue,
-  parsePendingInputContent,
   parsePendingInputId,
   userInputNeedFromEvent,
   userInputNeedFromRaw,
@@ -1059,13 +1058,14 @@ export function GatewayChatSidebar({
         if (fact.phase === "cancelled") cancelled.set(fact.message_id, { messageId: fact.message_id, runId: fact.run_id ?? null, cancelled: true })
         if (fact.phase === "accepted") cancelled.delete(fact.message_id)
       }
-      const inputs: QueuedInputIdentity[] = [...dbItems.map((item) => ({ messageId: item.message_id, runId: item.run_id, pendingId: item.id })), ...cancelled.values()]
+      const inputs: QueuedInputIdentity[] = [...dbItems.map((item) => ({ messageId: item.message_id, runId: item.run_id, pendingId: item.id, inTimeline: item.queued_in_timeline === true })), ...cancelled.values()]
       pendingInputProjectionRef.current = { conversationId, inputs }
       setEntries((current) => reduceCurrentTimeline(current, { type: "pending-inputs", inputs, progress }))
       setPreInputQueue(
         dbItems.map((item) => ({
           id: `db-${item.id}`,
           messageId: item.message_id,
+          inTimeline: item.queued_in_timeline === true,
           content: item.content,
           status: "queued" as const,
         }))
@@ -1543,7 +1543,7 @@ export function GatewayChatSidebar({
           return Boolean(entry.needId || entry.approvalId)
         }
 
-        return Boolean(entry.content.trim())
+        return Boolean(entry.content.trim() || (entry.role === "user" && entry.images?.length))
       }),
     [conversationEntries]
   )
@@ -2686,17 +2686,8 @@ export function GatewayChatSidebar({
 
     // ── Pending Input 事件 ──
     if (event.event === "pending_input_queued") {
-      const content = parsePendingInputContent(event)
-      const id = parsePendingInputId(event)
-      if (!content) {
-        return
-      }
-      setPreInputQueue((prev) => {
-        const queueId = id != null ? `db-${id}` : createMessageId("preinput")
-        const next = prev.filter((item) => item.id !== queueId)
-        next.push({ id: queueId, content, status: "queued" })
-        return next
-      })
+      // A wakeup cannot project placement without the authoritative snapshot.
+      // The refresh above owns queue contents, blockers and revision together.
       return
     }
     if (event.event === "pending_input_guided") {
@@ -3218,6 +3209,36 @@ export function GatewayChatSidebar({
     selectedLiveRun?.id,
   ])
 
+  function applyQueuedInputReceipt(
+    receipt: Extract<GatewayChatStreamEnvelope, { type: "receipt" }>,
+    content: string,
+    images: import("@/lib/api/images").ImageReference[] | undefined,
+  ) {
+    if (receipt.status !== "queued") return
+    const current = runtimeStoreRef.current.get(receipt.conversation_id).admission
+    if (current && (!receipt.admission || receipt.admission.revision < current.revision ||
+        receipt.admission.generation < current.generation)) return
+    if (entriesRef.current.some(entry => entry.role === "user" && entry.id === `message:${receipt.message_id}` &&
+        entry.inputProgress?.phase === "accepted")) return
+    const inTimeline = receipt.queued_in_timeline === true
+    const id = `db-${receipt.pending_id}`
+    setPreInputQueue(current => current.some(item => item.id === id) ? current : [...current, {
+      id, messageId: receipt.message_id, content, status: "queued", inTimeline,
+    }])
+    if (inTimeline) setEntries(current => reduceCurrentTimeline(current, {
+      type: "user-entry", entry: {
+        id: `message:${receipt.message_id}`, timelineUnitId: `message:${receipt.message_id}`,
+        role: "user", content, images, deliveryStatus: "received",
+        inputProgress: {
+          message_id: receipt.message_id, conversation_id: receipt.conversation_id,
+          input_request_id: receipt.input_request_id ?? undefined,
+          kind: "pre_input", phase: "queued", queued_in_timeline: true,
+          run_id: null, run_state: null, execution_epoch: null, run_version: null,
+        },
+      },
+    }))
+  }
+
   function clearConversation() {
     messageProjectionRequestRef.current += 1
     setEntries([])
@@ -3570,10 +3591,7 @@ export function GatewayChatSidebar({
                 setEntries((current) => reduceCurrentTimeline(current, { type: "input-receipt", optimisticId, messageId: envelope.message_id }))
               } else {
                 setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
-                if (envelope.status === "queued") setPreInputQueue((current) => {
-                  const id = `db-${envelope.pending_id}`
-                  return current.some((item) => item.id === id) ? current : [...current, { id, messageId: envelope.message_id, content, status: "queued" }]
-                })
+                applyQueuedInputReceipt(envelope, content, images)
               }
               void Promise.all([
                 refreshPendingInputsForConversation(targetConversationId),
@@ -3770,12 +3788,7 @@ export function GatewayChatSidebar({
             if (ownsSession()) void refreshConversations().catch(() => {})
             if (!isCurrentSubmission()) return
             pendingInputRequestRef.current += 1
-            if (envelope.status === "queued") setPreInputQueue((current) => {
-              const id = `db-${envelope.pending_id}`
-              return current.some((item) => item.id === id) ? current : [...current, {
-                id, messageId: envelope.message_id, content, status: "queued",
-              }]
-            })
+            applyQueuedInputReceipt(envelope, content, images)
             void Promise.all([
               refreshPendingInputsForConversation(targetConversationId),
               syncLatestConversationMessagesPage(targetConversationId, null, "coalesce"),

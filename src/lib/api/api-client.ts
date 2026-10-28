@@ -1093,6 +1093,7 @@ export function deleteAutomation(accessToken: string, automationId: string) {
 }
 
 export type ConversationInputReceipt = {
+  queued_in_timeline?: boolean
   admission?: ConversationAdmissionSummary | null
   input_request_id?: string
   conversation_id: string
@@ -2567,6 +2568,7 @@ export function stopConversationRun(
 // ── Pending Inputs API ──
 
 export type PendingInputItem = {
+  queued_in_timeline?: boolean
   run_id: string | null
   id: number
   conversation_id: string
