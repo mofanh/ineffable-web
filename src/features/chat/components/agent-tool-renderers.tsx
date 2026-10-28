@@ -320,6 +320,7 @@ const TOOL_RENDERERS: Record<string, ToolRenderer> = {
     onSubmitUserInput,
   }) => (
     <RequestUserInputCard
+      key={JSON.stringify([tool.runId, tool.needId ?? tool.protocolId ?? tool.id])}
       tool={tool}
       canRespond={canRespondToUserInput}
       onSubmit={onSubmitUserInput}

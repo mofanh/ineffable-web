@@ -743,7 +743,8 @@ export function upsertToolInPane(
     }
   }
 
-  const blockId = createBlockId("tool")
+  // One canonical tool occurrence keeps its React identity across history reads.
+  const blockId = `tool:${toolId}`
   return {
     ...basePane,
     blockOrder: [...basePane.blockOrder, blockId],

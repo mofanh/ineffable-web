@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core'
 import { createServer } from 'vite'
 const executablePath = [process.env.CHROME_PATH, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/chromium'].find(path => path && existsSync(path))
 assert.ok(executablePath, 'Chrome required')
+for (const receiptStatus of ["queued", "consuming"]) {
 const streams=new Set(),requests=[],snapshots=[],heldHistory=[]
 const policy={allowed_modes:['smart','clean','full','custom'],exposure_budget:{max_count:24}}
 let run=null,sent=false,browser,seq=0,failRecovery=false,recoveryFailures=0
@@ -37,7 +38,7 @@ try {
   else if(path.endsWith('/pending-inputs'))body={pending_inputs:[],input_progress:[],admission:admission(),can_resume:false}
   else if(path.endsWith('/send')){
    const payload=route.request().postDataJSON();sent=true;run={id:'real-run',status:'streaming',version:1,execution_epoch:1,lifecycle_seq:1,is_live:true,is_streaming:true}
-   body={status:'queued',queued_in_timeline:true,pending_id:1,message_id:'input',conversation_id:'first',input_request_id:payload.input_request_id,admission:admission()}
+   body={status:receiptStatus,queued_in_timeline:receiptStatus==='queued',pending_id:1,message_id:'input',conversation_id:'first',input_request_id:payload.input_request_id,admission:admission()}
   }
   if(path.endsWith('/messages') && sent) await new Promise(resolve=>heldHistory.push(resolve))
   await route.fulfill({json:body})
@@ -50,6 +51,8 @@ try {
  const deadline=Date.now()+10000;while(!streams.size&&Date.now()<deadline)await page.waitForTimeout(25)
  assert.equal(streams.size,1,'normal first send should attach to actual run')
  await page.locator('[data-chat-thinking-placeholder]').waitFor()
+ await page.locator('[data-chat-row-key="message:input"]').waitFor()
+ assert.equal(await page.getByText('FIRST_ATTACH_INPUT',{exact:true}).count(),1,'receipt displays input before the held history read')
  assert.equal(await page.locator('[data-slot="toast-description"]').count(),0,'ordinary first attach must stay silent')
  assert.equal(await page.getByText('页面已恢复，正在重新连接会话流…',{exact:true}).count(),0)
  assert.equal(await page.locator('form .text-destructive').count(),0,'composer has no generic error banner')
@@ -80,3 +83,5 @@ try {
  assert.deepEqual(errors,[])
  console.log('first stream attach, silent readiness, bounded recovery notifications and canonical completion checks passed')
 }finally{heldHistory.splice(0).forEach(resolve=>resolve());for(const stream of streams)stream.end();await browser?.close();await server.close()}
+
+}

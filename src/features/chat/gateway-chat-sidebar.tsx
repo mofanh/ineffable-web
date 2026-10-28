@@ -27,8 +27,6 @@ import {
 import {
   finalizePane,
   getLatestToolByName,
-  type AgentPaneState,
-  type ToolCallView,
   upsertToolInPane,
 } from "@/features/chat/chat-pane-state"
 import { AgentPlanPanel } from "@/features/chat/components/agent-plan-panel"
@@ -274,33 +272,6 @@ function latestPlanTool(entries: ChatEntry[]) {
   return null
 }
 
-function updateToolInPane(
-  pane: AgentPaneState,
-  toolId: string,
-  updater: (tool: ToolCallView) => ToolCallView
-) {
-  const tool = pane.tools[toolId]
-  if (!tool) return pane
-  return {
-    ...pane,
-    tools: {
-      ...pane.tools,
-      [toolId]: updater(tool),
-    },
-  }
-}
-
-function updateToolInPaneForRun(
-  pane: AgentPaneState,
-  toolId: string,
-  runId: string,
-  updater: (tool: ToolCallView) => ToolCallView
-) {
-  const tool = pane.tools[toolId]
-  if (!tool || tool.runId !== runId) return pane
-  return updateToolInPane(pane, toolId, updater)
-}
-
 function findToolInEntries(entries: ChatEntry[], toolId: string, runId: string) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index]
@@ -313,31 +284,6 @@ function findToolInEntries(entries: ChatEntry[], toolId: string, runId: string) 
     }
   }
   return null
-}
-
-function updateUserInputToolInEntry(
-  entry: ChatEntry,
-  toolId: string,
-  runId: string,
-  updater: (tool: ToolCallView) => ToolCallView
-): ChatEntry {
-  if (entry.role !== "assistant") return entry
-  const pane = updateToolInPaneForRun(entry.pane, toolId, runId, updater)
-  const subagents = Object.fromEntries(
-    entry.subagentOrder.map((subagentId) => {
-      const subagent = entry.subagents[subagentId]
-      return [
-        subagentId,
-        subagent
-          ? {
-              ...subagent,
-              ...updateToolInPaneForRun(subagent, toolId, runId, updater),
-            }
-          : subagent,
-      ]
-    })
-  ) as Record<string, SubagentView>
-  return { ...entry, pane, subagents }
 }
 
 type GatewayChatSidebarProps = {
@@ -3215,22 +3161,34 @@ export function GatewayChatSidebar({
     selectedLiveRun?.id,
   ])
 
-  function applyQueuedInputReceipt(
+  function applyInputReceipt(
     receipt: Extract<GatewayChatStreamEnvelope, { type: "receipt" }>,
     content: string,
     images: import("@/lib/api/images").ImageReference[] | undefined,
   ) {
-    if (receipt.status !== "queued") return
+    if (!["queued", "consuming", "consumed"].includes(receipt.status)) return
     const current = runtimeStoreRef.current.get(receipt.conversation_id).admission
     if (current && (!receipt.admission || receipt.admission.revision < current.revision ||
         receipt.admission.generation < current.generation)) return
     if (entriesRef.current.some(entry => entry.role === "user" && entry.id === `message:${receipt.message_id}` &&
         entry.inputProgress?.phase === "accepted")) return
-    const inTimeline = receipt.queued_in_timeline === true
+    const queued = receipt.status === "queued"
+    const inTimeline = !queued || receipt.queued_in_timeline === true
     const id = `db-${receipt.pending_id}`
-    setPreInputQueue(current => current.some(item => item.id === id) ? current : [...current, {
-      id, messageId: receipt.message_id, content, status: "queued", inTimeline,
-    }])
+    if (queued) {
+      setPreInputQueue(current => current.some(item => item.id === id) ? current : [...current, {
+        id, messageId: receipt.message_id, content, status: "queued", inTimeline,
+      }])
+    } else {
+      // A claimed receipt supersedes an older pending projection even when the
+      // canonical history read is still in flight. It does not create a run.
+      const projection = pendingInputProjectionRef.current
+      if (projection?.conversationId === receipt.conversation_id) {
+        pendingInputProjectionRef.current = { ...projection,
+          inputs: projection.inputs.filter(input => input.messageId !== receipt.message_id) }
+      }
+      setPreInputQueue(current => current.filter(item => item.messageId !== receipt.message_id))
+    }
     if (inTimeline) {
       displayedConversationIdRef.current = receipt.conversation_id
       setDisplayedConversationId(receipt.conversation_id)
@@ -3242,7 +3200,7 @@ export function GatewayChatSidebar({
         inputProgress: {
           message_id: receipt.message_id, conversation_id: receipt.conversation_id,
           input_request_id: receipt.input_request_id ?? undefined,
-          kind: "pre_input", phase: "queued", queued_in_timeline: true,
+          kind: "pre_input", phase: queued ? "queued" : "received", queued_in_timeline: queued,
           run_id: null, run_state: null, execution_epoch: null, run_version: null,
         },
       },
@@ -3419,20 +3377,16 @@ export function GatewayChatSidebar({
     if (!targetConversationId) {
       throw new Error(i18n.t("chat.agent.answerSubmitFailed"))
     }
+    const view = { ...sendViewRef.current }
     const generation = ++humanInputSubmissionGenerationRef.current
     assistantEntryIdRef.current = null
     const isCurrentSubmission = () =>
+      sendViewRef.current.session === view.session &&
+      sendViewRef.current.generation === view.generation &&
       currentConversationIdRef.current === targetConversationId &&
       humanInputSubmissionGenerationRef.current === generation &&
       (!activeRunIdRef.current || activeRunIdRef.current === response.runId)
-    setEntries((current) =>
-      current.map((entry) =>
-        updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
-          ...tool,
-          status: "running",
-        }))
-      )
-    )
+
 
     try {
       const resumed = await resumeRunWithUserInput(
@@ -3459,14 +3413,6 @@ export function GatewayChatSidebar({
       applyResumeResponse(resumed, targetConversationId)
     } catch (submitError) {
       if (!isCurrentSubmission()) return
-      setEntries((current) =>
-        current.map((entry) =>
-          updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
-            ...tool,
-            status: tool.responseMessageId ? "succeeded" : "waiting",
-          }))
-        )
-      )
       // A lost acknowledgement can still have committed; recover the canonical tail.
       void syncLatestConversationMessagesPage(targetConversationId).catch(() => {})
       throw submitError
@@ -3585,7 +3531,7 @@ export function GatewayChatSidebar({
                 setEntries((current) => reduceCurrentTimeline(current, { type: "input-receipt", optimisticId, messageId: envelope.message_id }))
               } else {
                 setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
-                applyQueuedInputReceipt(envelope, content, images)
+                applyInputReceipt(envelope, content, images)
               }
               void Promise.all([
                 refreshPendingInputsForConversation(targetConversationId),
@@ -3778,7 +3724,7 @@ export function GatewayChatSidebar({
             if (ownsSession()) void refreshConversations().catch(() => {})
             if (!isCurrentSubmission()) return
             pendingInputRequestRef.current += 1
-            applyQueuedInputReceipt(envelope, content, images)
+            applyInputReceipt(envelope, content, images)
             void Promise.all([
               refreshPendingInputsForConversation(targetConversationId),
               syncLatestConversationMessagesPage(targetConversationId, null, "coalesce"),
