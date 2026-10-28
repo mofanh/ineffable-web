@@ -26,7 +26,8 @@ try {
     localStorage.setItem("ineffable.chat.new_conversation_draft", "true")
   })
   let revision = 0, generation = 0, paused = false, queued = false, consuming = false, run = null, messages = [], listCalls = 0, stopCalls = 0, resumes = 0
-  let holdQueue = false, staleQueueStarted
+  let holdQueue = false, staleQueueStarted, holdHistory = false
+  const heldHistory = []
   const admission = () => ({ conversation_id: "first", revision, generation, queued_count: queued ? 1 : 0, consuming_count: consuming ? 1 : 0, queue_paused: paused })
   const conversation = () => ({ id: "first", title: "Admission fixture", current_run_id: run?.id ?? null, current_run: run, admission: admission() })
   const inputMessage = () => ({id:"input",timeline_unit_id:"message:input",timeline_seq:1,conversation_id:"first",role:"user",message_type:"input",message_seq:1,content:"WAITING_INPUT",created_at:"2026-10-28T00:00:00Z",metadata_json:{input_progress:{message_id:"input",conversation_id:"first",message_seq:1,kind:"pre_input",phase:queued?"queued":"received",queued_in_timeline:queued&&!paused,run_id:run?.id??null,run_state:run?.status??null}}})
@@ -40,7 +41,10 @@ try {
     else if (path.endsWith("conversations/preferences")) body = { timezone: "Asia/Shanghai", version: 0, defaults_json: {} }
     else if (path.endsWith("conversations/get")) body = conversation()
     else if (path.endsWith("models/profiles")) body = { profiles: [{ id: "model", display_name: "Model", enabled: true }] }
-    else if (path.endsWith("/messages")) body = { messages: (queued && !paused || consuming) ? [inputMessage(),...messages] : messages, next_seq: run?.lifecycle_seq ?? 0, page: { has_older: false, before: null } }
+    else if (path.endsWith("/messages")) {
+      body = { messages: (queued && !paused || consuming) ? [inputMessage(),...messages] : messages, next_seq: run?.lifecycle_seq ?? 0, page: { has_older: false, before: null } }
+      if (holdHistory) await new Promise(resolve => heldHistory.push(resolve))
+    }
     else if (path.endsWith("/observations/access")) body = { allowed: false }
     else if (path.endsWith("/pending-inputs/resume")) { resumes++; paused = false; generation++; revision++; body = { ok: true, released: 1 } }
     else if (path.endsWith("/pending-inputs")) {
@@ -57,6 +61,13 @@ try {
   await page.getByRole("button", { name: "Select first", exact: true }).click()
   const composer = page.locator("textarea")
   await composer.fill("WAITING_INPUT")
+  await page.evaluate(() => {
+    window.__queueFlashes = 0
+    window.__queueObserver = new MutationObserver(() => {
+      if ([...document.querySelectorAll("button")].some(button => button.textContent.trim() === "Clear")) window.__queueFlashes++
+    })
+    window.__queueObserver.observe(document.body, {childList:true,subtree:true})
+  })
   holdQueue = true
   const held = new Promise(resolve => { staleQueueStarted = resolve })
   await composer.press("Enter")
@@ -67,6 +78,10 @@ try {
   await page.locator('[data-chat-row-key="message:input"]').waitFor()
   assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1,"received input appears once while claim is held")
   assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),0,"idle head must not flash the queue")
+  assert.equal(await page.evaluate(() => {
+    window.__queueObserver.disconnect()
+    return window.__queueFlashes
+  }),0,"idle first send must not briefly mount the visible queue")
   // Keep an old unpaused queue GET in flight while Stop commits a newer revision.
   await Promise.race([held, new Promise((_, reject) => setTimeout(() => reject(new Error("background queue GET was not observed")), 8000))])
   await page.getByRole("button", { name: "Stop", exact: true }).click()
@@ -78,9 +93,35 @@ try {
   releaseQueue(); await page.waitForTimeout(150)
   assert.equal(await page.getByRole("button", { name: "Continue", exact: true }).count(), 1)
   assert.equal(await page.getByRole("button", { name: "Stop", exact: true }).count(), 0)
+  // History arrives while the older paused pending projection is still current.
+  holdQueue = true
+  const resumeQueueHeld = new Promise(resolve => { staleQueueStarted = resolve })
+  const earlyHistory = page.waitForResponse(r => new URL(r.url()).pathname.endsWith("/messages"))
   await page.getByRole("button", { name: "Continue", exact: true }).click()
+  await resumeQueueHeld; await earlyHistory
+  assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1,"old pending projection retains the queue until a bubble takes over")
+  releaseQueue()
+  await page.locator('[data-chat-row-key="message:input"]').waitFor()
   await page.getByRole("button", { name: "Stop", exact: true }).waitFor()
+  assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),0)
   assert.equal(resumes, 1)
+  // Reverse order: pending is current, but canonical history is held. The
+  // input stays in the existing queue until the bounded fresh read completes.
+  await page.getByRole("button", { name: "Stop", exact: true }).click()
+  await page.getByRole("button", { name: "Continue", exact: true }).waitFor()
+  holdHistory = true
+  const updatedPending = page.waitForResponse(r => new URL(r.url()).pathname.endsWith("/pending-inputs"))
+  await page.getByRole("button", { name: "Continue", exact: true }).click()
+  await updatedPending
+  const historyDeadline=Date.now()+5000
+  while (!heldHistory.length && Date.now()<historyDeadline) await page.waitForTimeout(10)
+  assert.ok(heldHistory.length)
+  assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1,"a missing canonical bubble must not hide the only queue row")
+  assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),1)
+  holdHistory = false; heldHistory.splice(0).forEach(resolve => resolve())
+  await page.locator('[data-chat-row-key="message:input"]').waitFor()
+  assert.equal(await page.getByText("WAITING_INPUT",{exact:true}).count(),1)
+  assert.equal(await page.getByRole("button",{name:"Clear",exact:true}).count(),0)
   // Rebuild from server history and pending snapshots, without a local send flag.
   holdQueue=false
   await page.reload()

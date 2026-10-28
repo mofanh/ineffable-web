@@ -108,3 +108,5 @@ assert.equal(reduceConversationTimeline([idleHead],{type:"pending-inputs",inputs
 assert.equal(reduceConversationTimeline([],{type:"hydrate",entries:[idleHead]},pendingIdentities).length,0,"old visible history cannot undo Stop")
 assert.equal(reduceConversationTimeline([],{type:"hydrate",entries:[queuedA]},headIdentity).length,1,"current head projection wins over older hidden history")
 assert.equal(reduceConversationTimeline([idleHead],{type:"input-progress",progress:accepted}).length,1,"real acceptance takes over the same bubble")
+
+assert.equal(inputProgressLabel(reduceConversationTimeline([],{type:"hydrate",entries:[queuedA]},headIdentity)[0].inputProgress),"inputProgress.received","placement and label use the same pending snapshot")

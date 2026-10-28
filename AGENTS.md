@@ -633,3 +633,8 @@ queued/consuming/consumed/cancelled/guided_injected 共用收据解析；会话 
 Workspace 文件动作按 Gateway 文本写入 MIME 合同区分能力（包括 application/yaml、application/x-yaml）；原始文件导出使用鉴权下载接口与 Blob；文本复制先校验并读取有界完整树，二进制后代在任何创建前拒绝，已发生的部分创建必须明确报告。工具驱动刷新只消费统一 `workspace_changes` 或授权 image references，不能识别旧 flat 名称或猜 stdout。
 
 沙箱预览票据请求沿用 body 读取后的 session 校验；同 session/exposure 只合并在途请求。页面卸载、换目标或身份变化撤销旧 continuation 的导航权，不能把“请求成功”视为仍有权操作当前页面。
+
+- 可展示队首与 canonical 气泡的交接必须完整：只有气泡实际存在后才隐藏原队列项。
+  pending 快照先后于历史读取均应收敛；若快照确认队首可见但气泡缺失，通过既有 fresh
+  历史读取做一次有界补拉，保留会话/视图代次，不增加定时器或按正文猜测匹配。
+  气泡的展示位置和输入进度标签使用同一份已接纳 pending 投影。

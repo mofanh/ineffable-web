@@ -34,14 +34,19 @@ export type QueuedInputIdentity = { messageId: string; runId: string | null; pen
 
 function visibleTimelineEntries(entries: ChatEntry[], queuedInputs: readonly QueuedInputIdentity[] = []) {
   const queued = new Map(queuedInputs.map((input) => [`message:${input.messageId}`, input]))
-  return entries.filter((entry) => {
-    if (entry.role !== "user") return true
-    if (entry.inputProgress?.phase === "accepted") return true
-    if (entry.inputProgress?.phase === "cancelled") return false
+  return entries.flatMap<ChatEntry>((entry) => {
+    if (entry.role !== "user" || entry.inputProgress?.phase === "accepted") return [entry]
+    if (entry.inputProgress?.phase === "cancelled") return []
     const pending = queued.get(timelineIdentity(entry))
-    if (pending?.cancelled) return false
-    if (pending && (!entry.inputProgress?.run_id || entry.inputProgress.run_id === pending.runId)) return pending.inTimeline === true
-    return entry.inputProgress?.kind !== "pre_input" || entry.inputProgress.queued_in_timeline === true || !["queued", "cancelled"].includes(entry.inputProgress.phase)
+    if (pending?.cancelled) return []
+    if (pending && (!entry.inputProgress?.run_id || entry.inputProgress.run_id === pending.runId)) {
+      if (!pending.inTimeline) return []
+      // Placement and its label consume the same accepted queue snapshot.
+      return [entry.inputProgress?.phase === "queued"
+        ? {...entry,inputProgress:{...entry.inputProgress,queued_in_timeline:true}}
+        : entry]
+    }
+    return entry.inputProgress?.kind !== "pre_input" || entry.inputProgress.queued_in_timeline === true || !["queued", "cancelled"].includes(entry.inputProgress.phase) ? [entry] : []
   })
 }
 

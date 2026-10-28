@@ -1547,6 +1547,21 @@ export function GatewayChatSidebar({
       }),
     [conversationEntries]
   )
+  const visibleInputIds = React.useMemo(
+    () => new Set(visibleEntries.flatMap(entry => entry.role === "user" ? [entry.id] : [])),
+    [visibleEntries]
+  )
+  // Keep the existing queue row until its canonical bubble actually takes over.
+  const displayedPreInputQueue = React.useMemo(
+    () => preInputQueue.map(item => item.inTimeline && !visibleInputIds.has(`message:${item.messageId}`)
+      ? {...item,inTimeline:false} : item),
+    [preInputQueue, visibleInputIds]
+  )
+  const missingTimelineInputs = preInputQueue.filter(item => item.inTimeline && !visibleInputIds.has(`message:${item.messageId}`)).map(item => item.messageId)
+  const pendingTimelineReadKey = currentConversationId && missingTimelineInputs.length
+    ? JSON.stringify([currentConversationId, currentSessionId, sendViewRef.current.generation, selectedRuntime?.admission?.revision, missingTimelineInputs])
+    : null
+  const pendingTimelineReadRef = React.useRef<string | null>(null)
   const renderedEntries = React.useMemo(
     () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
     [renderedEntryLimit, visibleEntries]
@@ -2038,6 +2053,15 @@ export function GatewayChatSidebar({
     },
     [accessToken, setConversationLastSeq, reduceCurrentTimeline, latestPageLoader, reportChatError, observedWorkspaceChanges]
   )
+
+  React.useEffect(() => {
+    if (!currentConversationId || !pendingTimelineReadKey || pendingTimelineReadRef.current === pendingTimelineReadKey) return
+    pendingTimelineReadRef.current = pendingTimelineReadKey
+    // A pending snapshot can arrive after an older history read has filtered the
+    // head. Read after that fact, using the existing fresh/coalesced page loader.
+    // One bounded recovery per snapshot/view; failures keep the row and error UI.
+    void syncLatestConversationMessagesPage(currentConversationId, null, "fresh").catch(() => {})
+  }, [currentConversationId, pendingTimelineReadKey, syncLatestConversationMessagesPage])
 
   React.useEffect(() => {
     assistantVisualScheduler.discardPending()
@@ -3225,6 +3249,10 @@ export function GatewayChatSidebar({
     setPreInputQueue(current => current.some(item => item.id === id) ? current : [...current, {
       id, messageId: receipt.message_id, content, status: "queued", inTimeline,
     }])
+    if (inTimeline) {
+      displayedConversationIdRef.current = receipt.conversation_id
+      setDisplayedConversationId(receipt.conversation_id)
+    }
     if (inTimeline) setEntries(current => reduceCurrentTimeline(current, {
       type: "user-entry", entry: {
         id: `message:${receipt.message_id}`, timelineUnitId: `message:${receipt.message_id}`,
@@ -4280,7 +4308,7 @@ export function GatewayChatSidebar({
         blockedPreInputRunStatus={blockedPreInputRunStatus}
         blockedPreInputErrorCode={blockedPreInputErrorCode}
         pendingQueueAction={pendingQueueAction}
-        preInputQueue={preInputQueue}
+        preInputQueue={displayedPreInputQueue}
         accessToken={accessToken}
         workspaces={workspaces}
         currentWorkspaceId={attachmentWorkspace?.id}
