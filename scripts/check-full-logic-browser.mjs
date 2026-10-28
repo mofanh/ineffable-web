@@ -94,7 +94,11 @@ try {
    }
   })
   await page.goto(`${origin}/scripts/full-logic-fixture.html?preview`);await page.waitForFunction(()=>window.tickets?.length===1)
-  if(change==="unmount")await page.evaluate(()=>window.navigate("/"))
+  if(change==="unmount") {
+   await page.evaluate(()=>window.navigate("/"))
+   // navigate schedules a React transition; release the stale body only after unmount commits.
+   await page.getByText("Unmounted",{exact:true}).waitFor()
+  }
   else if(change==="target") {await page.evaluate(()=>window.navigate("/sandbox-preview/00000000-0000-4000-8000-000000000002"));await page.waitForFunction(()=>window.tickets.length===2)}
   else await page.evaluate(()=>window.session.logout())
   await page.evaluate(()=>window.tickets[0]());await page.waitForTimeout(100)
