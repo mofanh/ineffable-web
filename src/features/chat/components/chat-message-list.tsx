@@ -189,7 +189,7 @@ const ThinkingPlaceholder = React.memo(function ThinkingPlaceholder({ compacting
       aria-live="polite"
     >
       {compacting ? <ListCollapseIcon aria-hidden="true" className="size-3.5 motion-safe:animate-pulse" /> : <Loader2Icon className="size-3.5 animate-spin" />}
-      <span>{t(compacting ? "chat.messages.compacting" : "chat.messages.thinking")}</span>
+      <span>{t(compacting ? "chat.messages.compacting" : "chat.messages.processing")}</span>
     </div>
   )
 })

@@ -104,6 +104,7 @@ try {
       await composer.fill("first task"); await composer.press("Enter")
       if (scenario.endsWith("failure")) {
         await wait(() => initializers.length === 1, "initialization waits before send")
+        assert.equal(await page.locator("[data-chat-thinking-placeholder]").count(), 0, "initializing a submission is not Agent execution")
         const version = await page.locator("[data-selection-version]").textContent()
         await page.getByRole("button", { name: "Reselect workspace", exact: true }).click()
         assert.notEqual(await page.locator("[data-selection-version]").textContent(), version)
@@ -112,6 +113,7 @@ try {
         assert.equal(pending.length, 0, "failed initialization did not send")
       } else {
         await wait(() => pending.length === 1, "first POST reached actual fixture socket")
+        assert.equal(await page.locator("[data-chat-thinking-placeholder]").count(), 0, "unacknowledged input without a run must not show Agent activity")
         if (scenario.endsWith("reselect")) {
           const version = await page.locator("[data-selection-version]").textContent()
           await page.getByRole("button", { name: scenario === "workspace-reselect" ? "Reselect workspace" : "Select first", exact: true }).click()

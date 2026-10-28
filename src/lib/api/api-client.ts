@@ -2099,6 +2099,7 @@ export async function subscribeConversationEvents(
     runId?: string | null
     afterSeq?: number | null
     signal?: AbortSignal
+    onOpen?: () => void
     onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
   }
 ) {
@@ -2131,6 +2132,7 @@ export async function subscribeConversationEvents(
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
   try {
     if (contentType.includes("text/event-stream")) {
+      options.onOpen?.()
       await parseSseStream(
         response,
         normalizeGatewayEnvelope,

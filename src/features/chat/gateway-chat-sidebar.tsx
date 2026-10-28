@@ -447,7 +447,6 @@ export function GatewayChatSidebar({
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
-  const [error, setError] = React.useState<string | null>(null)
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false)
   const [isLoadingOlderEntries, setIsLoadingOlderEntries] = React.useState(false)
   const [olderMessagesError, setOlderMessagesError] = React.useState<string | null>(null)
@@ -527,7 +526,6 @@ export function GatewayChatSidebar({
     []
   )
 
-  const abortRef = React.useRef<AbortController | null>(null)
   // Submission ACK ownership is separate from an already admitted run's stream.
   const pendingSubmissionRef = React.useRef<AbortController | null>(null)
   const runtimeStoreRef = React.useRef(new ChatRuntimeStore())
@@ -593,6 +591,7 @@ export function GatewayChatSidebar({
   const recoveryInFlightRef = React.useRef(false)
   const recoveryRequestIdRef = React.useRef(0)
   const recoveryTimerRef = React.useRef<number | null>(null)
+  const recoveryFailureNotifiedRef = React.useRef<string | null>(null)
   const catchupInFlightRef = React.useRef(false)
   const conversationSeqRef = React.useRef(new Map<string, number>())
   const currentConversationIdRef = React.useRef<string | null>(currentConversationId)
@@ -1081,7 +1080,6 @@ export function GatewayChatSidebar({
     const runtimeController = runtimeControllerRef.current
     return () => {
       pendingSubmissionRef.current = null
-      abortRef.current?.abort()
       runtimeController.disconnectAll()
       if (recoveryTimerRef.current != null) {
         window.clearTimeout(recoveryTimerRef.current)
@@ -1481,10 +1479,8 @@ export function GatewayChatSidebar({
     : i18n.t("chat.gateway.unbound")
   const isSending = Boolean(selectedLiveRun)
   const canStop = isSending || hasUnsettledConversationInput(selectedRuntime?.admission)
-  const isAwaitingVisibleResponse =
-    isSubmittingInput ||
-    ((streamStatus === "streaming" || streamStatus === "recovering") &&
-      activeStreamConversationIdRef.current === currentConversationId)
+  // Admission and transport activity never imply that the Agent is executing.
+  const isAwaitingVisibleResponse = selectedRuntime?.lifecycle === "running"
   const selectedConversationTitle =
     selectedConversation?.title || i18n.t("chat.header.newChat")
   const headerConversations = React.useMemo(
@@ -1816,7 +1812,6 @@ export function GatewayChatSidebar({
         setOlderMessagesCursor(response.page?.before ?? null)
         setHasOlderMessages(Boolean(response.page?.has_older && response.page.before))
         setOlderMessagesError(null)
-        setError(null)
       })
       .catch((loadError) => {
         if (!ownsView()) return
@@ -2021,7 +2016,6 @@ export function GatewayChatSidebar({
         hydratedConversationIdRef.current = conversationId
         setHydratedConversationId(conversationId)
         setOlderMessagesError(null)
-        if (streamStatusRef.current !== "error") setError(null)
         return handoffConfirmed
       } catch (error) {
         if (
@@ -2034,8 +2028,8 @@ export function GatewayChatSidebar({
         ) {
           hydratedConversationIdRef.current = null
           setHydratedConversationId(null)
-          setError(reportChatError(error, i18n.t("chat.gateway.loadConversationFailed"),
-            i18n.t("chat.gateway.loadConversationFailedTitle"), { toast: false }))
+          reportChatError(error, i18n.t("chat.gateway.loadConversationFailed"),
+            i18n.t("chat.gateway.loadConversationFailedTitle"))
         }
         throw error
       } finally {
@@ -2074,7 +2068,6 @@ export function GatewayChatSidebar({
       return
     }
 
-    abortRef.current?.abort()
     runtimeControllerRef.current.disconnectAll()
     clearRecoveryTimer()
     activeStreamConversationIdRef.current = null
@@ -2108,7 +2101,6 @@ export function GatewayChatSidebar({
     setIsLoadingOlderEntries(false)
 
     if (!currentConversationId) {
-      setError(null)
       return
     }
 
@@ -2336,7 +2328,6 @@ export function GatewayChatSidebar({
     }
     completeAssistantEntry(undefined, awaitingRunId)
     assistantEntryIdRef.current = null
-    setError(null)
     updateStreamStatus("completed")
     if (conversationId) {
       // AwaitingHuman is also a canonical handoff: the question must acquire its
@@ -2436,7 +2427,6 @@ export function GatewayChatSidebar({
     activeRunIdRef.current = null
     clearConversationResumeState(conversationId)
     assistantEntryIdRef.current = null
-    setError(null)
     updateStreamStatus("completed")
     const handoff = !runId || canonicalMessageSeqEnd == null
       ? null
@@ -2466,6 +2456,8 @@ export function GatewayChatSidebar({
       return true
     }
     if (lifecycle === "suspended") {
+      terminalEventSeenRef.current = true
+      clearConversationResumeState(conversation.id)
       recoveryRequestIdRef.current += 1
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
@@ -2487,7 +2479,6 @@ export function GatewayChatSidebar({
       completeAssistantEntry(undefined, runId)
       assistantEntryIdRef.current = null
       updateStreamStatus("error")
-      setError(i18n.t("chat.gateway.sendFailed"))
       refreshFailedConversationProjection(conversation.id)
       return true
     }
@@ -2611,7 +2602,6 @@ export function GatewayChatSidebar({
       terminalEventSeenRef.current = true
       activeRunIdRef.current = null
       updateStreamStatus("error")
-      setError(errorMessage)
       updateAssistantEntry((entry) =>
         entry
           ? {
@@ -2659,7 +2649,6 @@ export function GatewayChatSidebar({
       activeRunIdRef.current = null
     }
     clearConversationResumeState(conversationId)
-    setError(null)
     updateStreamStatus("completed")
     void Promise.all([
       refreshConversations(),
@@ -2787,7 +2776,6 @@ export function GatewayChatSidebar({
       }
       updateStreamStatus("error")
       refreshFailedConversationProjection(conversationId)
-      setError(errorMessage)
       appendSystemMessage(
         i18n.t("chat.gateway.sendFailedWithMessage", { message: errorMessage })
       )
@@ -2834,7 +2822,6 @@ export function GatewayChatSidebar({
         }
         completeAssistantEntry()
         assistantEntryIdRef.current = null
-        setError(null)
         updateStreamStatus("completed")
       }
       return
@@ -2846,11 +2833,8 @@ export function GatewayChatSidebar({
     }
 
     if (streamStatusRef.current === "recovering") {
-      // 恢复/追赶路径在收到首个真实业务事件（文本/推理/工具增量）时立即切换为
-      // 流式状态并清除“正在重新连接会话流”提示，避免 LLM 已开始输出时 banner
-      // 一直残留到 run 终态。run.failed/approval/user_input 等分支已提前返回。
+      // Business events may also arrive through HTTP catch-up.
       updateStreamStatus("streaming")
-      setError(null)
     }
 
     applyMainEvent(event)
@@ -2920,13 +2904,17 @@ export function GatewayChatSidebar({
           expected.executionEpoch = runtime.executionEpoch
           settleConversationRecovery({ ...conversation, current_run: runtime.currentRun ?? conversation.current_run })
         }
+        if (isCurrent()) recoveryFailureNotifiedRef.current = null
       } catch (recoveryError) {
         if (isCurrent() && !terminalEventSeenRef.current) {
           updateStreamStatus("recovering")
-          setError(reportChatError(
-            recoveryError, i18n.t("chat.gateway.reconnecting"), i18n.t("chat.gateway.reconnectFailedTitle"),
-            { toast: false, format: (message) => i18n.t("chat.gateway.reconnectingWithMessage", { message }) }
-          ))
+          const failureKey = JSON.stringify([currentSessionId, conversationId, expected.runId, expected.executionEpoch])
+          runtimeStoreRef.current.dispatch(conversationId, { type: "recovering" })
+          if (recoveryFailureNotifiedRef.current !== failureKey) {
+            recoveryFailureNotifiedRef.current = failureKey
+            reportChatError(recoveryError, i18n.t("chat.gateway.reconnectFailed"),
+              i18n.t("chat.gateway.reconnectFailedTitle"))
+          }
         }
       } finally {
         if (ownsRequest()) {
@@ -2948,7 +2936,7 @@ export function GatewayChatSidebar({
       conversationId: string,
       runId?: string | null,
       afterSeq?: number | null,
-      reason: "restore" | "human-resume" = "restore"
+      reason: "observe" | "human-resume" = "observe"
     ) => {
       if (!accessToken || !conversationId) {
         return
@@ -2969,8 +2957,7 @@ export function GatewayChatSidebar({
         ? null
         : findAssistantEntryIdForRun(entriesRef.current, runId)
       const cursor = afterSeq ?? conversationSeqRef.current.get(conversationId) ?? null
-      updateStreamStatus(reason === "human-resume" ? "streaming" : "recovering")
-      setError(reason === "human-resume" ? null : i18n.t("chat.gateway.pageRestored"))
+      updateStreamStatus("streaming")
       persistResumeState({
         conversationId,
         runId: runId ?? null,
@@ -2986,11 +2973,12 @@ export function GatewayChatSidebar({
           (envelope) => {
             if (isCurrentConnection()) applyEnvelopeEvent(envelope)
           },
-          (targetConversationId, targetRunId, cursor, signal, onEnvelope) =>
+          (targetConversationId, targetRunId, cursor, signal, onEnvelope, onOpen) =>
             subscribeConversationEvents(accessToken, targetConversationId, {
               runId: targetRunId,
               afterSeq: cursor,
               signal,
+              onOpen,
               onEnvelope,
             })
         )
@@ -3005,19 +2993,13 @@ export function GatewayChatSidebar({
         }
         if (!terminalEventSeenRef.current) {
           updateStreamStatus("recovering")
-          setError(i18n.t("chat.gateway.streamCatchup"))
           await recoverConversationEvents(conversationId, true)
         }
-      } catch (resumeError) {
+      } catch {
         if (!isCurrentConnection()) return
-        const message = reportChatError(
-          resumeError,
-          i18n.t("chat.gateway.reconnectFailed"),
-          i18n.t("chat.gateway.reconnectFailedTitle"),
-          { toast: false }
-        )
+        // The controller retains the transport error; notify only if catch-up
+        // also fails, once for this recovery episode.
         updateStreamStatus("recovering")
-        setError(i18n.t("chat.gateway.reconnectingWithMessage", { message }))
         await recoverConversationEvents(conversationId, true)
       }
     }
@@ -3067,10 +3049,10 @@ export function GatewayChatSidebar({
       recoveryInFlightRef.current = false
       clearRecoveryTimer()
       updateStreamStatus("recovering")
-      setError(errorMessage)
       const conversationId =
         activeStreamConversationIdRef.current ?? currentConversationIdRef.current
       if (conversationId) {
+        runtimeStoreRef.current.dispatch(conversationId, { type: "recovering", error: errorMessage })
         void recoverConversationEvents(conversationId, true)
       }
       return
@@ -3276,7 +3258,6 @@ export function GatewayChatSidebar({
     hydratedConversationIdRef.current = null
     setHydratedConversationId(null)
     setIsLoadingMessages(false)
-    setError(null)
     setIsSubmittingInput(false)
     setRenderedEntryLimit(INITIAL_RENDERED_ENTRY_COUNT)
     pendingOlderLoadMetricsRef.current = null
@@ -3312,7 +3293,6 @@ export function GatewayChatSidebar({
     setCapabilityExposurePolicy(null)
     refreshCapabilityExposureDraft()
     selectConversationTarget(null)
-    abortRef.current?.abort()
     runtimeControllerRef.current.disconnectAll()
     updateStreamStatus("idle")
     clearConversation()
@@ -3323,7 +3303,6 @@ export function GatewayChatSidebar({
       activeStreamConversationIdRef.current ?? currentConversationIdRef.current
 
     if (!conversationId || !accessToken) {
-      abortRef.current?.abort()
       runtimeControllerRef.current.disconnectAll()
       return
     }
@@ -3339,7 +3318,6 @@ export function GatewayChatSidebar({
         executionEpoch:current.executionEpoch,generation:sendViewRef.current.generation,
       })
     }
-    setError(null)
 
     try {
       await stopConversationRun(accessToken, conversationId)
@@ -3348,14 +3326,10 @@ export function GatewayChatSidebar({
       await Promise.all([refreshConversations(), refreshPendingInputsForConversation(conversationId)])
     } catch (stopError) {
       if (!ownsOperation()) return
-      const message = reportChatError(
+      reportChatError(
         stopError,
         i18n.t("chat.gateway.stopFailed"),
         i18n.t("chat.gateway.stopFailedTitle")
-      )
-      setError(message)
-      appendSystemMessage(
-        i18n.t("chat.gateway.stopFailedWithMessage", { message })
       )
     }
   }
@@ -3383,8 +3357,6 @@ export function GatewayChatSidebar({
       status: approved ? "approving" : "rejecting",
       error: null,
     }))
-    setError(null)
-    updateStreamStatus("streaming")
 
     try {
       if (entry.approvalId) {
@@ -3414,18 +3386,14 @@ export function GatewayChatSidebar({
       const message = reportChatError(
         approvalError,
         i18n.t("chat.gateway.approvalFailed"),
-        i18n.t("chat.gateway.approvalFailed")
+        i18n.t("chat.gateway.approvalFailed"),
+        { toast: false }
       )
       updateApprovalEntry(entryId, (current) => ({
         ...current,
         status: "error",
         error: message,
       }))
-      updateStreamStatus("error")
-      setError(message)
-      appendSystemMessage(
-        i18n.t("chat.gateway.approvalFailedWithMessage", { message })
-      )
     }
   }
 
@@ -3457,7 +3425,6 @@ export function GatewayChatSidebar({
       currentConversationIdRef.current === targetConversationId &&
       humanInputSubmissionGenerationRef.current === generation &&
       (!activeRunIdRef.current || activeRunIdRef.current === response.runId)
-    setError(null)
     setEntries((current) =>
       current.map((entry) =>
         updateUserInputToolInEntry(entry, response.toolId, response.runId, (tool) => ({
@@ -3525,19 +3492,19 @@ export function GatewayChatSidebar({
       return false
     }
     if (selectedModelProfileId && !isModelCatalogLoaded) {
-      setError(i18n.t(modelCatalog.error ? "chat.composer.modelCatalogFailed" : "chat.composer.catalogLoading"))
+      notify.error({ title: i18n.t("chat.gateway.sendFailedTitle"), description: i18n.t(modelCatalog.error ? "chat.composer.modelCatalogFailed" : "chat.composer.catalogLoading") })
       return false
     }
     if (selectedModelProfileId && !modelProfiles.some(model => model.id === selectedModelProfileId)) {
-      setError(i18n.t("interaction.unavailableModel"))
+      notify.error({ title: i18n.t("chat.gateway.sendFailedTitle"), description: i18n.t("interaction.unavailableModel") })
       return false
     }
     if (selectedSandboxEnvironmentId && !isSandboxCatalogLoaded) {
-      setError(i18n.t(sandboxCatalog.error ? "chat.composer.sandboxCatalogFailed" : "chat.composer.catalogLoading"))
+      notify.error({ title: i18n.t("chat.gateway.sendFailedTitle"), description: i18n.t(sandboxCatalog.error ? "chat.composer.sandboxCatalogFailed" : "chat.composer.catalogLoading") })
       return false
     }
     if (selectedSandboxEnvironmentId && !sandboxOptions.some(option => option.environmentId === selectedSandboxEnvironmentId)) {
-      setError(i18n.t("interaction.unavailableEnvironment"))
+      notify.error({ title: i18n.t("chat.gateway.sendFailedTitle"), description: i18n.t("interaction.unavailableEnvironment") })
       return false
     }
     const submissionModelProfileId = resolveConfirmedComposerModelProfileId(
@@ -3575,7 +3542,6 @@ export function GatewayChatSidebar({
         return
       }
 
-      setError(null)
       const guidedGeneration = humanInputSubmissionGenerationRef.current
       const guidedView = { ...sendViewRef.current }
       const ownsGuidedSession = () => sendViewRef.current.session === guidedView.session
@@ -3638,13 +3604,12 @@ export function GatewayChatSidebar({
           return false
         }
         setEntries((current) => current.filter((entry) => entry.id !== optimisticId))
-        const message = reportChatError(
+        reportChatError(
           enqueueError,
           i18n.t("chat.gateway.sendFailed"),
           i18n.t("chat.gateway.sendFailedTitle"),
           { format: formatSendErrorMessage }
         )
-        setError(message)
         return false
       }
     }
@@ -3669,7 +3634,6 @@ export function GatewayChatSidebar({
       && sendViewRef.current.generation === submissionViewGeneration
     const canUpdateRecentSelection = () => isCurrentSubmission()
       && runtimePreferenceRevisionRef.current === submissionPreferenceRevision
-    setError(null)
     setIsSubmittingInput(true)
 
     let targetConversationId = submissionConversationId
@@ -3713,12 +3677,11 @@ export function GatewayChatSidebar({
       } catch (createError) {
         releaseSubmission()
         if (!isCurrentSubmission()) return false
-        const message = reportChatError(
+        reportChatError(
           createError,
           i18n.t("chat.gateway.initFailed"),
           i18n.t("chat.gateway.initFailedTitle")
         )
-        setError(message)
         return false
       }
     }
@@ -3728,12 +3691,11 @@ export function GatewayChatSidebar({
     } catch (primeError) {
       releaseSubmission()
       if (!isCurrentSubmission()) return false
-      const message = reportChatError(
+      reportChatError(
         primeError,
         i18n.t("chat.gateway.initFailed"),
         i18n.t("chat.gateway.initFailedTitle")
       )
-      setError(message)
       reconcileAgentIterationHandoff(
         targetConversationId,
         submissionAgentEvolutionWorkspaceId
@@ -3831,12 +3793,12 @@ export function GatewayChatSidebar({
       if (accepted) return true
       if (!isCurrentSubmission()) return false
       reconcileAgentIterationHandoff(targetConversationId, submissionAgentEvolutionWorkspaceId)
-      if (!controller.signal.aborted) setError(reportChatError(
+      if (!controller.signal.aborted) reportChatError(
         sendError,
         i18n.t("chat.gateway.sendFailed"),
         i18n.t("chat.gateway.sendFailedTitle"),
         { format: formatSendErrorMessage }
-      ))
+      )
       return false
     } finally {
       releaseSubmission()
@@ -3851,7 +3813,7 @@ export function GatewayChatSidebar({
 
     const submittedImages = imageDraft.images
     const submittedImageIds = imageDraft.items.map((item) => item.id)
-    if (submittedImages.length && !modelProfiles.find((model) => model.id === selectedModelProfileId)?.supports_vision && !auxiliaryVisionAvailable) { setError(i18n.t("images.visionRequired")); return }
+    if (submittedImages.length && !modelProfiles.find((model) => model.id === selectedModelProfileId)?.supports_vision && !auxiliaryVisionAvailable) { notify.error({ title: i18n.t("chat.gateway.sendFailedTitle"), description: i18n.t("images.visionRequired") }); return }
     const submittedComposer = composer
     await sendContentToApi(content, undefined, (acceptedConversationId, isCurrentView) => {
       if (isCurrentView && currentConversationIdRef.current === acceptedConversationId) setComposer((current) => (current === submittedComposer ? "" : current))
@@ -3991,7 +3953,7 @@ export function GatewayChatSidebar({
           }
           return
         }
-        const message = reportChatError(
+        reportChatError(
           promoteError,
           i18n.t("chat.gateway.promoteFailed"),
           i18n.t("chat.gateway.promoteFailed")
@@ -4003,10 +3965,6 @@ export function GatewayChatSidebar({
           }
           return [...prev, { ...item, status: "queued" }]
         })
-        setError(message)
-        appendSystemMessage(
-          i18n.t("chat.gateway.promoteFailedWithMessage", { message })
-        )
       })
       return
     }
@@ -4045,7 +4003,7 @@ export function GatewayChatSidebar({
         })
         .catch((deleteError) => {
           if (!isCurrentDelete()) return
-          const message = reportChatError(
+          reportChatError(
             deleteError,
             i18n.t("chat.gateway.deletePendingFailed"),
             i18n.t("chat.gateway.deletePendingFailed")
@@ -4054,10 +4012,6 @@ export function GatewayChatSidebar({
             prev.map((queueItem) =>
               queueItem.id === id ? { ...queueItem, status: "queued" } : queueItem
             )
-          )
-          setError(message)
-          appendSystemMessage(
-            i18n.t("chat.gateway.deletePendingFailedWithMessage", { message })
           )
         })
       return
@@ -4086,12 +4040,11 @@ export function GatewayChatSidebar({
       ])
     } catch (caught) {
       if (!isCurrentResume()) return
-      const message = reportChatError(
+      reportChatError(
         caught,
         i18n.t("chat.composer.resumeQueueFailed"),
         i18n.t("chat.composer.resumeQueueFailed")
       )
-      setError(message)
     } finally {
       if (isCurrentResume()) setPendingQueueAction("idle")
     }
@@ -4116,12 +4069,11 @@ export function GatewayChatSidebar({
       await syncLatestConversationMessagesPage(conversationId)
     } catch (caught) {
       if (!isCurrentClear()) return
-      const message = reportChatError(
+      reportChatError(
         caught,
         i18n.t("chat.composer.clearQueueFailed"),
         i18n.t("chat.composer.clearQueueFailed")
       )
-      setError(message)
     } finally {
       if (isCurrentClear()) setPendingQueueAction("idle")
     }
@@ -4297,7 +4249,6 @@ export function GatewayChatSidebar({
         }} onRetry={(item) => { void imageDraft.retry(item) }} />}
         isFullScreen={isFullScreen}
         composer={composer}
-        error={error}
         isSending={isSending}
         canStop={canStop}
         isSubmittingInput={isSubmittingInput}

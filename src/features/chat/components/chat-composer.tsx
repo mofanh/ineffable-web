@@ -73,7 +73,6 @@ type ChatComposerProps = {
   onImageFiles?: (files: File[]) => void
   isFullScreen: boolean
   composer: string
-  error: string | null
   isSending: boolean
   canStop?: boolean
   isSubmittingInput: boolean
@@ -129,7 +128,6 @@ export function ChatComposer({
   attachedImages = [], imageActions, imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
   isFullScreen,
   composer,
-  error,
   isSending,
   canStop = isSending,
   isSubmittingInput,
@@ -418,7 +416,6 @@ export function ChatComposer({
         {imageCount > 0 && modelOptions.some(model => model.id === selectedModelProfileId && !model.supportsVision && model.supportsAuxiliaryVision) ? <Notice>{t("images.auxiliaryHint")}</Notice> : null}
         {imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)) ? <Notice tone="warning">{t("images.visionRequired")}</Notice> : null}
         {inputDisabledReason && <Notice>{inputDisabledReason}</Notice>}
-        {error ? <p className="text-destructive text-xs">{error}</p> : null}
 
         {showFileMenu && <WorkspaceFileMenu key={scope} ref={menuRef} accessToken={accessToken!} workspaces={workspaces} currentWorkspaceId={currentWorkspaceId} query={trigger?.query ?? ""} onSelect={selectReference} />}
 

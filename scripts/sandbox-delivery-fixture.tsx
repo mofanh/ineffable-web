@@ -11,7 +11,7 @@ function Fixture() {
   const [pending, update] = React.useState(2)
   React.useEffect(() => { Object.assign(window, { deliveryFixture: { select, update } }) }, [])
   return <SidebarProvider><TooltipProvider><ChatComposer
-    isFullScreen={false} composer="" error={null} isSending={true} isSubmittingInput={false}
+    isFullScreen={false} composer="" isSending={true} isSubmittingInput={false}
     canPromoteToGuided={false} canResumePreInputQueue={false} blockedPreInputRunStatus={null}
     pendingQueueAction="idle" preInputQueue={[]} agentDescriptorOptions={[]} modelOptions={[]}
     isModelCatalogLoaded={true} isModelCatalogLoading={false} modelCatalogError={null} onModelCatalogRefresh={noop} isSandboxCatalogLoaded={true} sandboxCatalogError={null} selectedModelProfileId="" sandboxOptions={[

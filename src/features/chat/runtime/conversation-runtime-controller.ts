@@ -6,7 +6,8 @@ type Subscribe = (
   runId: string | null,
   afterSeq: number | null,
   signal: AbortSignal,
-  onEnvelope: (envelope: GatewayChatStreamEnvelope) => void
+  onEnvelope: (envelope: GatewayChatStreamEnvelope) => void,
+  onOpen: () => void
 ) => Promise<void>
 
 export class ConversationRuntimeController {
@@ -27,6 +28,8 @@ export class ConversationRuntimeController {
     this.disconnect(conversationId)
     const controller = new AbortController()
     this.subscriptions.set(conversationId, controller)
+    const isCurrentConnection = () => !controller.signal.aborted &&
+      this.subscriptions.get(conversationId) === controller
     this.store.dispatch(conversationId, { type: "connect", runId })
     try {
       await subscribe(
@@ -35,8 +38,13 @@ export class ConversationRuntimeController {
         afterSeq,
         controller.signal,
         (envelope) => {
-          if (!controller.signal.aborted && this.subscriptions.get(conversationId) === controller) {
+          if (isCurrentConnection()) {
             onEnvelope(envelope)
+          }
+        },
+        () => {
+          if (isCurrentConnection()) {
+            this.store.dispatch(conversationId, { type: "connected" })
           }
         }
       )

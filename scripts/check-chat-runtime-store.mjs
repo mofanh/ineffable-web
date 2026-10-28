@@ -89,10 +89,11 @@ const liveStore = new ChatRuntimeStore()
 const runtime = new ConversationRuntimeController(liveStore)
 liveStore.dispatch("conversation-a", { type: "connect", runId: "run-a", executionEpoch: 2 })
 const received = []
-let oldCallback
+let oldCallback, oldOpen, liveOpen
 let finishOld
 const oldConnection = runtime.connect("conversation-a", "run-a", 10, value => received.push(value),
-  async (_conversation, _run, _cursor, _signal, callback) => {
+  async (_conversation, _run, _cursor, _signal, callback, onOpen) => {
+    oldOpen = onOpen
     oldCallback = callback
     await new Promise(resolve => { finishOld = resolve })
   })
@@ -103,7 +104,8 @@ const stream = new ReadableStream({ start(controller) { bytes = controller } })
 const liveConnection = runtime.connect("conversation-a", "run-a", 11, value => {
   received.push(value)
   liveStore.applyEvent(value.event)
-}, async (conversation, run, cursor, signal, callback) => {
+}, async (conversation, run, cursor, signal, callback, onOpen) => {
+  liveOpen = onOpen
   assert.equal(conversation, "conversation-a")
   assert.equal(run, "run-a")
   assert.equal(cursor, 11, "resume forwards the conversation cursor")
@@ -111,6 +113,13 @@ const liveConnection = runtime.connect("conversation-a", "run-a", 11, value => {
   await parseSseStream(new Response(stream), raw => raw, callback)
 }).then(outcome => { closed = true; return outcome })
 assert.equal(liveStore.get("conversation-a").executionEpoch, 2, "reconnect preserves resumed epoch")
+assert.equal(liveStore.get("conversation-a").connection, "connecting")
+oldOpen()
+assert.equal(liveStore.get("conversation-a").connection, "connecting", "stale open cannot establish the replacement stream")
+const lifecycleBeforeOpen = liveStore.get("conversation-a").lifecycle
+liveOpen()
+assert.equal(liveStore.get("conversation-a").connection, "open", "HTTP stream open is observed before any model event")
+assert.equal(liveStore.get("conversation-a").lifecycle, lifecycleBeforeOpen, "connection establishment cannot start an Agent")
 oldCallback({ type: "event", event: event("conversation-a", "run-a", 12, "run.failed") })
 assert.equal(received.length, 0, "superseded callbacks cannot project stale events")
 const delta = { type: "event", event: event("conversation-a", "run-a", 12, "assistant.delta", "first") }

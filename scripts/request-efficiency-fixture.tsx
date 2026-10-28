@@ -20,7 +20,7 @@ function Fixture() {
   return <SidebarProvider><TooltipProvider><ChatComposer
     attachedImages={images.images} imageCount={images.items.length}
     imageAttachments={<>{images.items.map(item => <button key={item.id} type="button" onClick={() => { if (item.image) setComposer(removeImageFileReference(composer, item.image)); images.remove(item.id) }}>Remove test image</button>)}</>}
-    isFullScreen={false} composer={composer} error={null} isSending={false} isSubmittingInput={false}
+    isFullScreen={false} composer={composer} isSending={false} isSubmittingInput={false}
     canPromoteToGuided={false} canResumePreInputQueue={false} blockedPreInputRunStatus={null}
     pendingQueueAction="idle" preInputQueue={[]} accessToken={token} fileReferenceScope={scope} workspaces={[{ id: "11111111-1111-1111-1111-111111111111", name: "A" }, { id: "22222222-2222-2222-2222-222222222222", name: "B" }]}
     modelOptions={[]}
