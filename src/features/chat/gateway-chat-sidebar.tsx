@@ -547,6 +547,7 @@ export function GatewayChatSidebar({
   const streamStatusRef = React.useRef<StreamStatus>("idle")
   const skipNextConversationSyncRef = React.useRef<string | null>(null)
   const messageProjectionRequestRef = React.useRef(0)
+  const historyFailureNotifiedRef = React.useRef<string | null>(null)
   const agentEvolutionRequestRef = React.useRef(0)
   const pendingAgentIterationHandoffsRef = React.useRef(
     new Map<string, { requested: boolean }>()
@@ -1849,6 +1850,7 @@ export function GatewayChatSidebar({
       }
 
       const session = sendViewRef.current.session
+      const failureKey = JSON.stringify([session, conversationId, sendViewRef.current.generation])
       try {
         const [response, conversationDetail, exposureSnapshot] = await latestPageLoader.load(
           JSON.stringify([accessToken, conversationId]),
@@ -1891,6 +1893,7 @@ export function GatewayChatSidebar({
         ) {
           return handoffConfirmed
         }
+        historyFailureNotifiedRef.current = null
         const hydratedCapabilityExposure =
           conversationDetail?.capability_exposure_selection ?? null
         // A history refresh must not replace a newer optimistic draft.
@@ -1974,8 +1977,13 @@ export function GatewayChatSidebar({
         ) {
           hydratedConversationIdRef.current = null
           setHydratedConversationId(null)
-          reportChatError(error, i18n.t("chat.gateway.loadConversationFailed"),
-            i18n.t("chat.gateway.loadConversationFailedTitle"))
+          // Background triggers may retry the same unread page. One failed
+          // loading episode has one owner; a successful read re-arms feedback.
+          if (historyFailureNotifiedRef.current !== failureKey) {
+            historyFailureNotifiedRef.current = failureKey
+            reportChatError(error, i18n.t("chat.gateway.loadConversationFailed"),
+              i18n.t("chat.gateway.loadConversationFailedTitle"))
+          }
         }
         throw error
       } finally {
@@ -2924,7 +2932,10 @@ export function GatewayChatSidebar({
               runId: targetRunId,
               afterSeq: cursor,
               signal,
-              onOpen,
+              onOpen: () => {
+                onOpen()
+                if (!signal.aborted && isCurrentConnection()) recoveryFailureNotifiedRef.current = null
+              },
               onEnvelope,
             })
         )
@@ -3037,10 +3048,12 @@ export function GatewayChatSidebar({
       // A failed run keeps its error UI; conversation facts still arrive from
       // independent tasks after that failure.
       catchupInFlightRef.current = true
+      const view = { ...sendViewRef.current }
       try {
         const hasCursor = conversationSeqRef.current.has(conversationId)
         if (hydratedConversationIdRef.current !== conversationId || !hasCursor) {
-          await syncLatestConversationMessagesPage(conversationId, null, "coalesce")
+          // History loading owns its notification, including coalesced reads.
+          await syncLatestConversationMessagesPage(conversationId, null, "coalesce").catch(() => {})
           return
         }
 
@@ -3058,7 +3071,7 @@ export function GatewayChatSidebar({
         if (response.events.length > 0) {
           await Promise.all([
             refreshConversations(),
-            syncLatestConversationMessagesPage(conversationId),
+            syncLatestConversationMessagesPage(conversationId).catch(() => {}),
             refreshPendingInputsForConversation(conversationId),
           ])
           return
@@ -3066,6 +3079,8 @@ export function GatewayChatSidebar({
 
         setConversationLastSeq(conversationId, response.next_seq ?? afterSeq ?? 0)
       } catch (catchupError) {
+        if (sendViewRef.current.session !== view.session || sendViewRef.current.generation !== view.generation ||
+          currentConversationIdRef.current !== conversationId) return
         reportChatError(
           catchupError,
           i18n.t("chat.gateway.syncFailed"),
@@ -3281,7 +3296,12 @@ export function GatewayChatSidebar({
       await stopConversationRun(accessToken, conversationId)
       if (!ownsOperation()) return
       pendingInputRequestRef.current += 1
-      await Promise.all([refreshConversations(), refreshPendingInputsForConversation(conversationId)])
+      try {
+        await Promise.all([refreshConversations(), refreshPendingInputsForConversation(conversationId)])
+      } catch (caught) {
+        if (ownsOperation()) reportChatError(caught, i18n.t("chat.gateway.syncFailed"),
+          i18n.t("chat.gateway.syncFailedTitle"))
+      }
     } catch (stopError) {
       if (!ownsOperation()) return
       reportChatError(
@@ -3535,7 +3555,7 @@ export function GatewayChatSidebar({
               }
               void Promise.all([
                 refreshPendingInputsForConversation(targetConversationId),
-                syncLatestConversationMessagesPage(targetConversationId, null, "coalesce"),
+                syncLatestConversationMessagesPage(targetConversationId, null, "fresh"),
               ]).catch(() => {})
             },
           }
@@ -3727,7 +3747,9 @@ export function GatewayChatSidebar({
             applyInputReceipt(envelope, content, images)
             void Promise.all([
               refreshPendingInputsForConversation(targetConversationId),
-              syncLatestConversationMessagesPage(targetConversationId, null, "coalesce"),
+              // The ACK is newer than a history read started before the send.
+              // Publish the existing freshness barrier before any old page lands.
+              syncLatestConversationMessagesPage(targetConversationId, null, "fresh"),
             ]).catch(() => {})
           },
         }
@@ -3979,11 +4001,16 @@ export function GatewayChatSidebar({
       await resumePendingInputs(accessToken, conversationId)
       if (!isCurrentResume()) return
       pendingInputRequestRef.current += 1
-      await Promise.all([
-        refreshConversations(),
-        refreshPendingInputsForConversation(conversationId),
-        syncLatestConversationMessagesPage(conversationId, null, "coalesce"),
-      ])
+      try {
+        await Promise.all([
+          refreshConversations(),
+          refreshPendingInputsForConversation(conversationId),
+          syncLatestConversationMessagesPage(conversationId).catch(() => {}),
+        ])
+      } catch (caught) {
+        if (isCurrentResume()) reportChatError(caught, i18n.t("chat.gateway.syncFailed"),
+          i18n.t("chat.gateway.syncFailedTitle"))
+      }
     } catch (caught) {
       if (!isCurrentResume()) return
       reportChatError(
@@ -4010,9 +4037,14 @@ export function GatewayChatSidebar({
       if (!isCurrentClear()) return
       messageProjectionRequestRef.current += 1
       olderMessagesInFlightCursorRef.current = null
-      await refreshPendingInputsForConversation(conversationId)
-      if (!isCurrentClear()) return
-      await syncLatestConversationMessagesPage(conversationId)
+      try {
+        await refreshPendingInputsForConversation(conversationId)
+        if (!isCurrentClear()) return
+        await syncLatestConversationMessagesPage(conversationId).catch(() => {})
+      } catch (caught) {
+        if (isCurrentClear()) reportChatError(caught, i18n.t("chat.gateway.syncFailed"),
+          i18n.t("chat.gateway.syncFailedTitle"))
+      }
     } catch (caught) {
       if (!isCurrentClear()) return
       reportChatError(

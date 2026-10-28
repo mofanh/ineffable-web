@@ -58,8 +58,10 @@ let pageReads = 0, visibleEntries = [{ id: "old" }]
 const projectionScope = {
   ...scope, latestPageLoader: new ConversationPageLoader(),
   messageProjectionRequestRef: { current: 0 },
+  historyFailureNotifiedRef: { current: null },
   getConversationMessages: () => (++pageReads === 1 ? beforeTerminal.promise : afterTerminal.promise),
   getConversation: async () => ({}),
+  notifyWorkspaceOutputMessages() {}, observedWorkspaceChanges: new Set(),
   mapConversationMessagesToEntries: messages => messages,
   findLatestConversationRuntimeSelection: () => null,
   hasCanonicalAssistantHandoff: entries => entries.some(entry => entry.id === "canonical"),
@@ -72,7 +74,7 @@ const projectionScope = {
   setEntries: update => { visibleEntries = update(visibleEntries) },
   reduceCurrentTimeline: (_current, action) => action.entries,
   displayedConversationIdRef: { current: "a" }, setDisplayedConversationId() {},
-  setHydratedConversationId() {}, setOlderMessagesError() {}, setError() {},
+  setHydratedConversationId() {}, setOlderMessagesError() {},
 }
 const sync = callback("syncLatestConversationMessagesPage", projectionScope)
 const initial = sync("a", null, "coalesce"), terminal = sync("a", { runId: "run", messageSeqEnd: 2 }), ordinary = sync("a", null, "coalesce")

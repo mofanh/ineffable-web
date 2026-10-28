@@ -562,10 +562,13 @@ queued/consuming/consumed/cancelled/guided_injected 共用收据解析；会话 
 发送进度只属于当前提交操作；助手运行占位只读取 run reducer 接受的执行状态，不能从
 POST 在途或 SSE 连接状态推断模型正在思考。queued 队首与 consuming/consumed 回执按正式
 message identity 展示用户输入，历史慢返回不能吞掉已接收的气泡，也不能伪造 run。
+发送 ACK 后沿用现有 fresh 读取屏障，不能加入发送前的首屏快照并覆盖该回执。
 首次订阅、页面激活和自动补拉静默进行；HTTP SSE 建立由 controller 通知 connected，并
 校验连接代次。连续恢复失败按会话/run/epoch 只通知一次，恢复成功结束该次失败周期。
 不设置 composer 通用错误区；操作错误使用既有 toast，人工问题/审批错误归属原卡片，
 持久任务状态归属对应 run，不能把同一失败复制到多个区域。
+最新历史页的连续失败由当前读取投影统一提示，成功读取后结束失败周期；调用方不能再次
+报告同一错误。已成功的停止/队列操作与后续读取分别结算，补拉失败不能冒充操作失败。
 
 人工回答提交只改变局部提交态，不提前修改工具或 run 状态；失败后仍须补拉正式历史。
 工具 block 使用稳定调用 occurrence identity，问题卡按 run/need 隔离，canonical 刷新
