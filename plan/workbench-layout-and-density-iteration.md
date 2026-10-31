@@ -106,11 +106,11 @@ Phase 3 本地验证记录（集成基线 `59dcabb`）：
 
 ## 最终审查与证据
 
-- [ ] 独立审查仅接收本合同、仓库规则、起点/终点 SHA 和原始 diff，
+- [x] 独立审查仅接收本合同、仓库规则、起点/终点 SHA 和原始 diff，
   在 detached worktree 只读检查；阻断项修复后重审受影响路径。
-- [ ] 全部机械门禁真实通过，保留命令结果和截图路径；不删除断言、延长超时或跳过失败场景。
-- [ ] 明确浏览器检查使用本地模拟 Gateway 数据，不代表生产/真实 provider 联调。
-- [ ] 最终提交仅包含本轮改动，原有用户修改完整保留。
+- [x] 全部机械门禁真实通过，保留命令结果和截图路径；不删除断言、延长超时或跳过失败场景。
+- [x] 明确浏览器检查使用本地模拟 Gateway 数据，不代表生产/真实 provider 联调。
+- [x] 最终提交仅包含本轮改动，原有用户修改完整保留。
 
 ## 执行记录
 
@@ -135,3 +135,35 @@ Phase 3 本地验证记录（集成基线 `59dcabb`）：
   `ineffable-workbench-layout-{development,production}.{png,json}`。
 - Phase 2/3 为缩短等待，在隔离 worktree 并行实施；主线仍按阶段顺序合入，
   其它工作树不写本阶段代码，性能测量期间已暂停其它浏览器重负载。
+
+## 最终集成与修复记录
+
+- 产品提交按阶段合入：`243347e` 布局与偏好、`59dcabb` 输入区与运行设置、
+  `f3b26a4` 页面密度；随后为独立审查发现的边界提交 `76e837c`、`4c06ac2`、`09a8e5e`。
+- L1：原宽度动画在首屏、临界断点和退出全屏时存在绘制帧覆盖。最终聊天面板与占位同步更新，
+  左导航保留 CSS 动画；展开前收紧聊天预算，收起稳定后才释放。实际 CDP 绘制探针显示
+  退出全屏的面板/占位差为 0、覆盖为 0；负对照可复现最大 812px 差值，保留原断言。
+- C1：打开运行设置等临时弹层后往返桌面与手机，会有旧 Portal 被新父模态层隔离。
+  统一在 Sidebar 呈现变化时关闭临时子弹层；没有 Sidebar 作用域时保持原 Radix 所有权。
+  原唯一 Composer、草稿和业务选择不变，30 组设置检查包含 12 组真实壳层往返。
+- C2：收起的 offcanvas 内容原本仍进入 Tab 与可访问树。最终对关闭内容设置 inert/aria-hidden，
+  内部关闭时将焦点归还可见入口；已经在外部的焦点不被抢走。原探针确认首次收起导航和
+  关闭聊天均不再暴露隐藏目标，保留同一输入 DOM 与草稿；icon/none 模式继续可交互。
+- 最终产品 `09a8e5e` 已按影响重跑 i18n、lint（0 errors/0 warnings）、build、
+  workbench-layout 开发/生产、composer-settings、file-references、toast、responsive-layout、
+  shell-performance 开发/生产，全部 exit 0。前两阶段完整聊天、图片、选择目录、能力保存、
+  自动化与管理编辑/移动检查的结果继续保留；本轮没有削减 Frontend Quality 原有检查。
+- 性能首次开发检查有 100.6ms 的临界失败，原日志未覆盖。同环境旧基线 `4c06ac2`
+  也记录 100.9ms 失败；最终开发两种初始状态的中位首帧为 69.3/83.7ms，生产为
+  23.2/23.35ms，原预算不变。开发切换中导航与聊天重渲染均为 0，壳层为 2 次，
+  普通切换焦点归还几何读取为 0；CPU 前后观察另存，未将单次观察当作失败原因证明。
+- 最终主线门禁日志与修复前后证据：`/tmp/ineffable-ui-audit.KcNzFI/`。
+  `coupled-*.log` 为最后修复门禁，`coupled-performance-summary.json` 保留基线、首次失败及最终结果，
+  `coupled-original-fullscreen/` 与 `coupled-original-accessibility/` 为原始复现探针闭环。
+- 最终独立审查在干净 detached checkout `09a8e5e` 构建，原全屏绘制、Tab/AX 探针与
+  生产 workbench 均 exit 0：退出全屏首帧 chat/gap 同为 820px、覆盖为 0；
+  默认收起后的 12 次及关闭聊天后的 14 次 Tab 均落在可见目标。内部关闭立即归还焦点，
+  输入 DOM 与草稿保留。L1、C1、C2 全部关闭，未见新增发现。
+- 所有浏览器证据来自本地 Chrome 与模拟 Gateway，手机为浏览器视口验证；未声称真实设备、
+  Linux、生产 Gateway 或真实模型联调。新门禁已接入 GitHub workflow，远程 Actions 尚未运行。
+- 用户原有 `Dockerfile.source` 与未跟踪 `design.md` 未修改、未纳入提交。
