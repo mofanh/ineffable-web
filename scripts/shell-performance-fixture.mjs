@@ -14,6 +14,7 @@ export async function installShellFixture(page, open, { leftOpen = true } = {}) 
   await page.addInitScript(({ open, leftOpen }) => {
     if (typeof leftOpen === "boolean") document.cookie = `sidebar_state=${leftOpen}; path=/`
     window.__shellRenders = { shell: 0, navigation: 0, chat: 0 }
+    window.__shellFocusReturnReads = 0
     window.__shellLongTasks = []
     window.__shellNotifications = []
     window.addEventListener("ineffable:app-notification", event => window.__shellNotifications.push(event.detail))
@@ -66,6 +67,7 @@ export async function waitForShell(page) {
 export async function measureToggle(page) {
   return page.evaluate(async () => {
     window.__shellRenders = { shell: 0, navigation: 0, chat: 0 }
+    window.__shellFocusReturnReads = 0
     window.__shellLongTasks = []
     const samples = []
     let firstFrameMs = 0, previous = performance.now()
@@ -83,7 +85,7 @@ export async function measureToggle(page) {
     document.querySelector('[data-slot="sidebar-trigger"]').click()
     await done
     const values = samples.slice(1).sort((a, b) => a - b)
-    return { renders: window.__shellRenders, firstFrameMs, frames: samples.length, p95: values[Math.ceil(values.length * .95) - 1], max: Math.max(...values), longTasks: window.__shellLongTasks,
+    return { renders: window.__shellRenders, focusReturnReads: window.__shellFocusReturnReads, firstFrameMs, frames: samples.length, p95: values[Math.ceil(values.length * .95) - 1], max: Math.max(...values), longTasks: window.__shellLongTasks,
       gap: document.querySelector('[data-side="left"] [data-slot="sidebar-gap"]').getBoundingClientRect().width }
   })
 }

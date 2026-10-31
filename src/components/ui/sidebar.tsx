@@ -47,6 +47,7 @@ type SidebarContextProps = {
   setOpenCompact: (open: boolean) => void
   isCompact: boolean
   toggleSidebar: () => void
+  triggerRef: React.RefObject<HTMLButtonElement | null>
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
@@ -66,6 +67,7 @@ function SidebarProvider({
   onOpenChange: setOpenProp,
   persistCookie = true,
   keyboardShortcut = true,
+  triggerRef: triggerRefProp,
   compact,
   className,
   style,
@@ -77,11 +79,14 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
   persistCookie?: boolean
   keyboardShortcut?: boolean
+  triggerRef?: React.RefObject<HTMLButtonElement | null>
   compact?: boolean
 }) {
   const viewportIsCompact = useIsCompactLayout()
   const isCompact = compact ?? viewportIsCompact
   const [openCompact, setOpenCompactState] = React.useState(false)
+  const defaultTriggerRef = React.useRef<HTMLButtonElement | null>(null)
+  const triggerRef = triggerRefProp ?? defaultTriggerRef
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -156,8 +161,9 @@ function SidebarProvider({
       openCompact,
       setOpenCompact,
       toggleSidebar,
+      triggerRef,
     }),
-    [state, open, setOpen, isCompact, openCompact, setOpenCompact, toggleSidebar]
+    [state, open, setOpen, isCompact, openCompact, setOpenCompact, toggleSidebar, triggerRef]
   )
 
   return (
@@ -198,7 +204,7 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
   compactMode?: "drawer" | "full"
 }) {
-  const { isCompact, state, openCompact, setOpenCompact } = useSidebar()
+  const { isCompact, state, openCompact, setOpenCompact, triggerRef } = useSidebar()
   const visualViewport = useVisualViewport(isCompact && compactMode === "full")
   const [contentHost] = React.useState(() => {
     if (typeof document === "undefined") return null
@@ -211,6 +217,29 @@ function Sidebar({
   const returnFocusElement = React.useRef<HTMLElement | null>(null)
   const compactRef = React.useRef(isCompact)
   React.useLayoutEffect(() => { compactRef.current = isCompact }, [isCompact])
+  const closedOffcanvas = !isCompact && collapsible === "offcanvas" && state === "collapsed"
+  React.useLayoutEffect(() => {
+    if (!contentHost) return
+    const active = document.activeElement
+    if (closedOffcanvas && active instanceof HTMLElement &&
+      (contentHost.contains(active) || focusedElement.current === active)) {
+      const target = [triggerRef.current, returnFocusElement.current].find(element => {
+        if (!element?.isConnected || contentHost.contains(element) || element.matches(":disabled") ||
+          element.closest('[inert], [aria-hidden="true"]')) return false
+        const rect = element.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.left < window.innerWidth &&
+          rect.bottom > 0 && rect.top < window.innerHeight && getComputedStyle(element).visibility !== "hidden"
+      })
+      if (target) target.focus({ preventScroll: true })
+      else active.blur()
+      focusedElement.current = null
+    }
+    // The retained portal owns drafts/subscriptions even when its desktop
+    // offcanvas presentation leaves the keyboard and accessibility tree.
+    contentHost.toggleAttribute("inert", closedOffcanvas)
+    if (closedOffcanvas) contentHost.setAttribute("aria-hidden", "true")
+    else contentHost.removeAttribute("aria-hidden")
+  }, [closedOffcanvas, contentHost, triggerRef])
   const attachContentHost = React.useCallback((container: HTMLDivElement | null) => {
     if (!contentHost) return
     if (!container) {
@@ -359,10 +388,10 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-[var(--sidebar-width-gap,var(--sidebar-width))] bg-transparent transition-[width] duration-200 ease-linear",
-          // Budget reductions must take effect before paint, even while width
-          // is interpolating from a wider desktop/fullscreen presentation.
-          side === "right" && "max-w-[var(--sidebar-width-gap,var(--sidebar-width))]",
+          "relative w-[var(--sidebar-width-gap,var(--sidebar-width))] bg-transparent duration-200 ease-linear",
+          // The right dock and its reservation commit together; independent
+          // width/position animations can otherwise cover the middle column.
+          side === "left" ? "transition-[width]" : "transition-none",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -374,8 +403,8 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
-          side === "right" && "max-w-(--sidebar-width)",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
+          side === "left" ? "transition-[left,right,width]" : "transition-none",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -399,12 +428,15 @@ function Sidebar({
 function SidebarTrigger({
   className,
   onClick,
+  ref,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar, triggerRef } = useSidebar()
+  React.useImperativeHandle(ref, () => triggerRef.current!, [triggerRef])
 
   return (
     <Button
+      ref={triggerRef}
       data-sidebar="trigger"
       data-slot="sidebar-trigger"
       variant="ghost"

@@ -22,7 +22,7 @@ const modelProfiles = Array.from({ length: 2 }, (_, index) => ({
   context_window_tokens: 128000, max_output_tokens: 16000, max_tokens_per_request: 128000,
 }))
 const mode = production ? "production" : "development"
-const results = { mode, measurements: [], animation: [], modelMobile: [], painted: [] }
+const results = { mode, measurements: [], animation: [], modelMobile: [], painted: [], accessibility: [] }
 const paintDirectory = process.env.INEFFABLE_WORKBENCH_PAINT_OUTPUT || join(tmpdir(), `ineffable-workbench-paint-${mode}`)
 mkdirSync(paintDirectory, { recursive: true })
 let browser
@@ -92,15 +92,26 @@ function paintedBoxes(base64) {
   return { boxes, width }
 }
 
-async function capturePaint(page, label, targetViewport) {
+async function capturePaint(page, label, { targetViewport, fromFullscreen = false, expectedOpen } = {}) {
   const cdp = await page.context().newCDPSession(page), frames = [], failures = []
-  let resolveFirstFrame
+  let resolveFirstFrame, fullscreenFrames = 0
   const firstFrame = new Promise(resolve => { resolveFirstFrame = resolve })
   const capture = frame => {
     void cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
     try {
       const { boxes, width } = paintedBoxes(frame.data)
-      if (!boxes.center || !boxes.chat || !boxes.reserved) return
+      resolveFirstFrame()
+      if (!boxes.center) return
+      // Fullscreen deliberately overlays the middle; arm the exit probe on
+      // that actual surface, then check every subsequent docked paint.
+      if (fromFullscreen && !boxes.reserved && boxes.chat?.width >= width - 1) {
+        fullscreenFrames++
+        return
+      }
+      // A closed offcanvas pane paints no pixels. A visible pane without its
+      // gap (or the reverse) must still be recorded and fail the coupling check.
+      boxes.chat ??= { left: width, right: width, width: 0 }
+      boxes.reserved ??= { left: width, right: width, width: 0 }
       // Chrome can downscale a screencast frame while the viewport resizes.
       // Its metadata gives the represented viewport in CSS pixels.
       const scale = frame.metadata.deviceWidth / width
@@ -110,7 +121,6 @@ async function capturePaint(page, label, targetViewport) {
       const path = join(paintDirectory, `${label}-${frames.length}.png`)
       writeFileSync(path, Buffer.from(frame.data, "base64"))
       frames.push({ ...boxes, viewport: frame.metadata.deviceWidth, path })
-      resolveFirstFrame()
     } catch (error) { failures.push(error) }
   }
   cdp.on("Page.screencastFrame", capture)
@@ -132,7 +142,10 @@ async function capturePaint(page, label, targetViewport) {
     assert.deepEqual(failures, [])
     assert.ok(frames.length > 0, `${label}: capture actual painted layout frames`)
     assert.ok(!targetViewport || frames.some(frame => frame.viewport === targetViewport), `${label}: capture the target viewport during resize`)
-    results.painted.push({ label, frames })
+    assert.ok(frames.some(frame => frame.chat.width > 0), `${label}: observe the open docked pane`)
+    assert.ok(!fromFullscreen || fullscreenFrames > 0, `${label}: arm on the actual fullscreen surface`)
+    assert.ok(expectedOpen === undefined || frames.some(frame => (frame.chat.width > 0) === expectedOpen), `${label}: observe the target open state`)
+    results.painted.push({ label, fullscreenFrames, frames })
     // Save before assertions so a regression retains its failing painted frame.
     writeFileSync(join(paintDirectory, "measurements.json"), JSON.stringify(results.painted, null, 2))
   }
@@ -146,6 +159,35 @@ function assertPaintedLayouts() {
       assert.ok(Math.abs(frame.chat.width - frame.reserved.width) <= 1, `${label}: painted chat agrees with its reservation: ${JSON.stringify(frame)}`)
     }
   }
+}
+
+async function accessibilityControls(page) {
+  const cdp = await page.context().newCDPSession(page)
+  try {
+    await cdp.send("Accessibility.enable")
+    const { nodes } = await cdp.send("Accessibility.getFullAXTree")
+    return nodes.filter(node => !node.ignored && ["button", "link", "textbox"].includes(node.role?.value))
+      .map(node => ({ role: node.role.value, name: node.name?.value }))
+  } finally { await cdp.detach() }
+}
+
+async function assertVisibleTabs(page, count, label) {
+  const tabs = []
+  for (let index = 0; index < count; index++) {
+    await page.keyboard.press("Tab")
+    const focus = await page.evaluate(() => {
+      const node = document.activeElement, rect = node.getBoundingClientRect()
+      return {
+        body: node === document.body, name: node.getAttribute("aria-label") || node.textContent?.slice(0, 80),
+        closed: Boolean(node.closest('[data-slot="sidebar"][data-collapsible="offcanvas"]')),
+        inert: Boolean(node.closest("[inert]")), hidden: Boolean(node.closest('[aria-hidden="true"]')),
+        visible: rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.left < innerWidth && rect.bottom > 0 && rect.top < innerHeight,
+      }
+    })
+    tabs.push(focus)
+    assert.ok(!focus.closed && !focus.inert && !focus.hidden && (focus.body || focus.visible), `${label}: Tab reaches visible interactive content: ${JSON.stringify(focus)}`)
+  }
+  results.accessibility.push({ label, tabs })
 }
 
 async function measure(page) {
@@ -237,7 +279,8 @@ async function animateToggle(page, reverse = false) {
       function frame() {
         const main = document.querySelector('[data-slot="sidebar-inset"]').getBoundingClientRect()
         const chat = document.querySelector('[data-side="right"][data-slot="sidebar-container"]').getBoundingClientRect()
-        samples.push({ center: main.width, overlap: Math.max(0, main.right - chat.left) })
+        const gap = document.querySelector('[data-side="right"] [data-slot="sidebar-gap"]').getBoundingClientRect()
+        samples.push({ center: main.width, overlap: Math.max(0, main.right - chat.left), chat: chat.width, reserved: gap.width })
         if (performance.now() - start < 550) requestAnimationFrame(frame)
         else resolve()
       }
@@ -266,6 +309,24 @@ try {
   await defaults.locator('[data-slot="sidebar-trigger"]').waitFor()
   await defaults.waitForLoadState("networkidle")
   assert.equal(await defaults.locator('[data-side="left"][data-slot="sidebar"]').getAttribute("data-state"), "collapsed")
+  const initialAX = await accessibilityControls(defaults)
+  assert.equal(initialAX.filter(node => /^File \d+\.md$/.test(node.name)).length, 0, "default collapsed navigation is absent from the actual AX tree")
+  await assertVisibleTabs(defaults, 12, "default collapsed navigation")
+  const leftTrigger = defaults.locator('[data-slot="sidebar-trigger"]')
+  await leftTrigger.click()
+  await settled(defaults)
+  assert.ok((await accessibilityControls(defaults)).some(node => /^File \d+\.md$/.test(node.name)), "expanded navigation returns to the actual AX tree")
+  await defaults.getByRole("button", { name: "File 0.md", exact: true }).first().focus()
+  await defaults.keyboard.press("Control+b")
+  assert.equal(await leftTrigger.evaluate(node => node === document.activeElement), true, "closing focused navigation restores its visible trigger")
+  await settled(defaults)
+  await leftTrigger.click()
+  await settled(defaults)
+  const externalFocus = defaults.getByRole("button", { name: "Open AI assistant", exact: true })
+  await externalFocus.focus()
+  await defaults.keyboard.press("Control+b")
+  await settled(defaults)
+  assert.equal(await externalFocus.evaluate(node => node === document.activeElement), true, "closing navigation preserves valid external focus")
   await defaults.locator('[data-slot="sidebar-trigger"]').click()
   await settled(defaults)
   await defaults.reload()
@@ -278,6 +339,17 @@ try {
   assert.deepEqual(defaultsFixture.errors, [])
   assert.deepEqual(defaultsFixture.unexpected, [])
   await defaults.close()
+
+  if (!production) for (const variant of ["icon", "none"]) {
+    const visible = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    await visible.goto(`${url}/scripts/sidebar-accessibility-fixture.html?variant=${variant}`)
+    const control = visible.getByRole("button", { name: "Visible sidebar control", exact: true })
+    await control.waitFor()
+    await control.focus()
+    assert.equal(await control.evaluate(node => node === document.activeElement && !node.closest('[inert], [aria-hidden="true"]')), true, `${variant}: a visible collapsed variant stays interactive`)
+    assert.ok((await accessibilityControls(visible)).some(node => node.name === "Visible sidebar control"), `${variant}: a visible collapsed variant stays accessible`)
+    await visible.close()
+  }
 
   // A translated availability label must wrap before it can squeeze the name to
   // zero width. Keep the actual model page visible with chat closed on phones.
@@ -345,9 +417,12 @@ try {
   await assertDock(page, "root layout budget recovers without losing preference", { chat: maximum.chat, preference: maximumPreference })
 
   for (const reverse of [false, true, false]) {
+    const finishTogglePaint = await capturePaint(page, `left-toggle-${results.animation.length}`, { targetViewport: 1440, expectedOpen: true })
     const samples = await animateToggle(page, reverse)
     assert.ok(samples.every(sample => sample.overlap < 1), "CSS animation and rapid reversal keep content visible")
     assert.ok(samples.every(sample => sample.center >= 478), "both width transitions preserve the middle budget")
+    assert.ok(samples.every(sample => Math.abs(sample.chat - sample.reserved) < 1), "left animation preserves the actual chat reservation")
+    await finishTogglePaint()
     results.animation.push({ reverse, minCenter: Math.min(...samples.map(sample => sample.center)), maxOverlap: Math.max(...samples.map(sample => sample.overlap)) })
   }
   await assertDock(page, "after reversals", { left: 0, chat: maximum.chat, preference: maximumPreference })
@@ -384,20 +459,41 @@ try {
   assert.equal(await composer.inputValue(), "KEEP_LAYOUT_DRAFT")
   assert.equal(await composer.evaluate((node, original) => node === original, composerElement), true, "the same composer survives layout constraints")
 
+  for (const open of [false, true]) {
+    const finishTogglePaint = await capturePaint(page, `right-${open ? "open" : "close"}`, { targetViewport: 1440, expectedOpen: open })
+    await page.getByRole("button", { name: open ? "Open AI assistant" : "Collapse right sidebar", exact: true }).click()
+    if (!open) assert.equal(await page.getByRole("button", { name: "Open AI assistant", exact: true }).evaluate(node => node === document.activeElement), true, "internal chat close restores focus immediately")
+    await settled(page)
+    await finishTogglePaint()
+    if (!open) {
+      const opener = page.getByRole("button", { name: "Open AI assistant", exact: true })
+      assert.equal(await opener.evaluate(node => node === document.activeElement), true, "internal chat close restores the visible shell opener")
+      assert.ok(!(await accessibilityControls(page)).some(node => node.role === "textbox" && node.name === "Conversation message"), "closed retained composer is absent from the actual AX tree")
+      await assertVisibleTabs(page, 14, "closed retained chat")
+    } else {
+      assert.ok((await accessibilityControls(page)).some(node => node.role === "textbox" && node.name === "Conversation message"), "reopened composer returns to the actual AX tree")
+    }
+    assert.equal(await composer.inputValue(), "KEEP_LAYOUT_DRAFT", "right toggles retain the draft")
+    assert.equal(await composer.evaluate((node, original) => node === original, composerElement), true, "right toggles retain the composer instance")
+  }
+  await assertDock(page, "right reopened", { chat: 820, preference: 820 })
+
   await page.getByRole("button", { name: "Use AI assistant full screen", exact: true }).click()
   await settled(page)
   assert.equal(await page.locator('[data-side="right"][data-slot="sidebar-container"]').evaluate(node => node.getBoundingClientRect().width), 1440)
   assert.equal(await composer.inputValue(), "KEEP_LAYOUT_DRAFT")
   assert.equal(await composer.evaluate((node, original) => node === original, composerElement), true, "fullscreen retains the same composer instance")
+  const finishFullscreenExitPaint = await capturePaint(page, "exit-full-screen", { targetViewport: 1440, fromFullscreen: true, expectedOpen: true })
   await page.getByRole("button", { name: "Exit full screen", exact: true }).click()
   await assertDock(page, "exit full screen", { chat: 820, preference: 820 })
+  await finishFullscreenExitPaint()
 
   await page.locator('[data-slot="sidebar-trigger"]').click()
   await assertDock(page, "expanded before breakpoints", { left: 256, atBudget: true, preference: 820 })
   const unavailableWidth = await page.evaluate(() => innerWidth - document.getElementById("root").getBoundingClientRect().width)
   for (const [index, width] of [1052, 1051, 1052, 1024, 1052, 1440].entries()) {
     // Capture before the one-pixel drawer-to-three-column restoration.
-    const finishPaint = index === 2 ? await capturePaint(page, "boundary-1051-to-1052", width + unavailableWidth) : null
+    const finishPaint = index === 2 ? await capturePaint(page, "boundary-1051-to-1052", { targetViewport: width + unavailableWidth, expectedOpen: true }) : null
     await page.setViewportSize({ width: width + unavailableWidth, height: 900 })
     await assertDock(page, `boundary ${width}`, { available: width, left: width < 1052 ? 0 : 256, preference: 820 })
     await finishPaint?.()

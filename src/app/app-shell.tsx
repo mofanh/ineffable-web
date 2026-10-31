@@ -30,7 +30,7 @@ import type { Workspace } from "@/features/workspace/api/workspace-api"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useState } from "react"
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties, SetStateAction } from "react"
 import { PanelRightIcon } from "lucide-react"
@@ -56,6 +56,7 @@ function AppShellContent() {
   const { currentWorkspace, workspaces } = useWorkspaceSession()
   const isCompactLayout = useIsCompactLayout()
   const [leftSidebarRight, setLeftSidebarRight] = useState(0)
+  const rightSidebarTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [isRightSidebarFullScreen, setIsRightSidebarFullScreen] = useState(false)
   const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
   const breadcrumbs =
@@ -79,13 +80,14 @@ function AppShellContent() {
   const [hasOpenedChat, setHasOpenedChat] = useState(isRightSidebarOpen)
 
   const handleLeftSidebarOpenChange = useCallback((open: boolean) => {
-    // Commit the target once so both CSS width transitions start together.
+    // Reserve the expanded navigation before its CSS animation starts. Release
+    // that budget only when the existing observer publishes the settled gap;
+    // restoring chat width while navigation is still closing would squeeze main.
+    if (!open || isLeftSidebarCompact) return
     const container = document.querySelector<HTMLElement>(
       '[data-slot="sidebar"][data-side="left"] [data-slot="sidebar-container"]'
     )
-    setLeftSidebarRight(open && !isLeftSidebarCompact
-      ? Math.round(container?.getBoundingClientRect().width ?? 0)
-      : 0)
+    setLeftSidebarRight(Math.round(container?.getBoundingClientRect().width ?? 0))
   }, [isLeftSidebarCompact])
 
   useEffect(() => {
@@ -210,6 +212,7 @@ function AppShellContent() {
             <div className="flex shrink-0 items-center gap-2">
               {headerContent?.trailing}
               <Button
+                ref={rightSidebarTriggerRef}
                 type="button"
                 variant="ghost"
                 size="icon-sm"
@@ -264,6 +267,7 @@ function AppShellContent() {
         onOpenChange={setRightSidebarOpen}
         persistCookie={false}
         keyboardShortcut={false}
+        triggerRef={rightSidebarTriggerRef}
         className="w-auto"
         style={
           {

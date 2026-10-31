@@ -24,6 +24,11 @@ const server = production
     let code = baseline && baselineFiles.has(path) ? execFileSync("git", ["show", `${baseline}:${path}`], { encoding: "utf8" }) : source
     const counter = instrumented.get(path)
     if (counter) code = code.replace(counter[0], `${counter[0]}\nwindow.__shellRenders.${counter[1]}++;`)
+    if (path === "src/components/ui/sidebar.tsx") {
+      const geometryRead = "const rect = element.getBoundingClientRect()"
+      if (!baseline) assert.ok(code.includes(geometryRead), "instrument Sidebar focus-return geometry")
+      code = code.replace(geometryRead, `window.__shellFocusReturnReads++;\n${geometryRead}`)
+    }
     // Only expose the real selection command in this test build; it still updates
     // the production identity/version used by both sender and receiver.
     if (path === "src/features/auth/app-session.tsx") code = code.replace("<AuthSessionContext.Provider value={authValue}>", "<AuthSessionContext.Provider value={authValue}>{(window.__shellSelectConversation = selectConversation, window.__shellSelection = getConversationSelectionIdentity, window.__shellRefreshConversations = refreshConversationList, null)}")
@@ -79,6 +84,7 @@ try {
         assert.ok(sample.renders.shell <= 4, `no per-frame shell renders: ${JSON.stringify(sample.renders)}`)
         assert.equal(sample.renders.navigation, 0, "left animation does not render the workspace tree owner")
         assert.equal(sample.renders.chat, 0, "left animation does not render the chat owner")
+        assert.equal(sample.focusReturnReads, 0, "ordinary toggles do not measure focus-return targets")
       }
       assert.ok(sample.frames >= 10 && sample.p95 < 100, `sidebar frame budget: ${JSON.stringify(sample)}`)
     }
