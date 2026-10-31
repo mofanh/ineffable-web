@@ -177,7 +177,6 @@ try {
     if(["new-draft","late-ack","session-ack"].includes(scenario)) {
       await page.getByTitle("Vision",{exact:true}).click()
       await page.getByRole("option",{name:/Vision B/}).click()
-      await page.getByRole("button",{name:"Run settings",exact:true}).click()
       const sandboxButton=page.getByRole("button",{name:/No Sandbox/})
       await sandboxButton.click()
       await page.getByRole("option",{name:/Sandbox B/}).click()
@@ -211,6 +210,7 @@ try {
       await page.getByTitle("Vision B",{exact:true}).waitFor()
       assert.deepEqual(await readRecent(),["vision-b","sandbox-b"],"reload must preserve newer preferences")
     }
+    assert.equal(await page.locator('input[type="file"]').count(),1,"conversation changes retain one attachment input")
     assert.deepEqual(errors,[])
     await page.close()
   }

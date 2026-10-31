@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils"
 import { useOverlayOpen } from "@/components/ui/overlay-presentation"
 import { CheckIcon, ChevronRightIcon } from "lucide-react"
 
+const MemoDropdownMenuRoot = React.memo(DropdownMenuPrimitive.Root)
+
 function DropdownMenu({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   const overlay = useOverlayOpen(props)
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} {...overlay} />
+  return <MemoDropdownMenuRoot data-slot="dropdown-menu" {...props} {...overlay} />
 }
 
 function DropdownMenuPortal({

@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
   BotIcon,
+  BoxIcon,
   GripVerticalIcon,
   LoaderCircleIcon,
   RotateCcwIcon,
@@ -294,7 +295,7 @@ export function ChatComposer({
   return (
     <SidebarFooter
       className={cn(
-        "w-full px-2 pt-0 pb-[calc(0.5rem+env(safe-area-inset-bottom))]",
+        "@container/chat-composer w-full px-2 pt-0 pb-[calc(0.5rem+env(safe-area-inset-bottom))]",
         isFullScreen && "mx-auto max-w-[780px] px-5 md:px-2"
       )}
     >
@@ -441,11 +442,11 @@ export function ChatComposer({
           />
           <InputGroupAddon
             align="block-end"
-            className="cursor-default flex-col items-stretch gap-1 px-3 pb-2 pt-1"
+            className="cursor-default px-2 pb-2 pt-1"
           >
-            <div className="flex min-w-0 items-center gap-1" data-composer-primary-actions>
+            <div className="flex w-full min-w-0 items-center gap-0.5 @[480px]/chat-composer:gap-1" data-composer-primary-actions>
               {imageActions}
-              <div className="min-w-0 flex-1">
+              <div className="min-w-14 max-w-64 flex-initial">
                 <ComposerSingleSelect
                   value={selectedModelProfileId}
                   options={modelPickerOptions}
@@ -461,17 +462,52 @@ export function ChatComposer({
                   retryLabel={t("common.retry")}
                   onOpenChange={open => { if (open) onModelCatalogRefresh() }}
                   onValueChange={onModelProfileChange}
-                  className="h-auto min-h-9 gap-1.5 py-1 text-[13px]"
-                  wrapLabel
+                  className="px-1 @[480px]/chat-composer:px-2"
                 />
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="min-w-14 max-w-48 flex-initial">
+                <ComposerSingleSelect
+                  key={scope}
+                  value={selectedSandboxEnvironmentId || "__disabled__"}
+                  options={sandboxPickerOptions}
+                  icon={<BoxIcon className="size-3.5 shrink-0 text-muted-foreground" />}
+                  label={t("chat.composer.sandboxPickerLabel")}
+                  placeholder={t("chat.composer.sandbox")}
+                  emptyLabel={t("chat.composer.noMatchingSandboxes")}
+                  searchPlaceholder={t("chat.composer.sandboxSearch")}
+                  loading={isRefreshingSandboxOptions}
+                  loadingLabel={t("chat.composer.sandboxSyncing")}
+                  error={sandboxCatalogError}
+                  onRetry={onSandboxOptionsRefresh}
+                  retryLabel={t("common.retry")}
+                  onOpenChange={open => { if (open) onSandboxOptionsRefresh() }}
+                  onValueChange={value => onSandboxEnvironmentChange(value === "__disabled__" ? "" : value)}
+                  className="px-1 @[480px]/chat-composer:px-2"
+                />
+              </div>
+              <ComposerRunSettings
+                key={`run-settings:${scope}`}
+                capabilityExposureSelection={capabilityExposureSelection}
+                capabilityExposurePolicy={capabilityExposurePolicy}
+                capabilityExposureDraftStatus={capabilityExposureDraftStatus}
+                capabilityCatalog={capabilityCatalog}
+                capabilityCatalogStatus={capabilityCatalogStatus}
+                onCapabilityCatalogRefresh={onCapabilityCatalogRefresh}
+                onCapabilityExposureChange={onCapabilityExposureChange}
+                onCapabilityExposureDraftRefresh={onCapabilityExposureDraftRefresh}
+                agentIterationRequested={agentIterationRequested}
+                agentIterationMode={agentIterationMode}
+                isAgentIterationLoading={isAgentIterationLoading}
+                agentIterationUnavailableReason={agentIterationUnavailableReason}
+                onAgentIterationChange={onAgentIterationChange}
+              />
+              <div className="ml-auto flex shrink-0 items-center gap-1">
                 {canStop ? (
                   <Button
                     size="icon"
                     variant="ghost"
                     type="button"
-                    className="size-9 rounded-full border border-sidebar-border bg-background text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-foreground"
+                    className="size-8 rounded-full border border-sidebar-border bg-background text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-foreground"
                     onClick={onStop}
                     title={t("chat.composer.stop")}
                   >
@@ -510,30 +546,6 @@ export function ChatComposer({
                   </span>
                 </InputGroupButton>
               </div>
-            </div>
-            <div className="flex min-w-0 items-center">
-              <ComposerRunSettings
-                key={scope}
-                sandboxOptions={sandboxPickerOptions}
-                selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
-                isRefreshingSandboxOptions={isRefreshingSandboxOptions}
-                sandboxCatalogError={sandboxCatalogError}
-                onSandboxOptionsRefresh={onSandboxOptionsRefresh}
-                onSandboxEnvironmentChange={onSandboxEnvironmentChange}
-                capabilityExposureSelection={capabilityExposureSelection}
-                capabilityExposurePolicy={capabilityExposurePolicy}
-                capabilityExposureDraftStatus={capabilityExposureDraftStatus}
-                capabilityCatalog={capabilityCatalog}
-                capabilityCatalogStatus={capabilityCatalogStatus}
-                onCapabilityCatalogRefresh={onCapabilityCatalogRefresh}
-                onCapabilityExposureChange={onCapabilityExposureChange}
-                onCapabilityExposureDraftRefresh={onCapabilityExposureDraftRefresh}
-                agentIterationRequested={agentIterationRequested}
-                agentIterationMode={agentIterationMode}
-                isAgentIterationLoading={isAgentIterationLoading}
-                agentIterationUnavailableReason={agentIterationUnavailableReason}
-                onAgentIterationChange={onAgentIterationChange}
-              />
             </div>
           </InputGroupAddon>
         </InputGroup>

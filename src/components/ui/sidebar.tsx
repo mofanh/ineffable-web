@@ -51,6 +51,7 @@ type SidebarContextProps = {
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
+const SidebarTooltipContext = React.createContext(false)
 
 function useSidebar() {
   const context = React.useContext(SidebarContext)
@@ -261,7 +262,8 @@ function Sidebar({
   // One React subtree survives moves between docked and modal presentation.
   // Captured events include nested React portals belonging to this sidebar.
   const content = contentHost && createPortal(
-    <OverlayPresentationContext value={presentation}><div
+    <OverlayPresentationContext value={presentation}>
+    <SidebarTooltipContext value={!isCompact && collapsible === "icon" && state === "collapsed"}><div
       className="flex h-full min-h-0 w-full flex-col overflow-hidden"
       onPointerDownCapture={event => insideEvents.current.add(event.nativeEvent)}
       onFocusCapture={event => {
@@ -276,7 +278,7 @@ function Sidebar({
       }}
     >
       {children}
-    </div></OverlayPresentationContext>,
+    </div></SidebarTooltipContext></OverlayPresentationContext>,
     contentHost
   )
 
@@ -377,7 +379,11 @@ function Sidebar({
   return <>
     {content}
     <div
-      className="group peer text-sidebar-foreground hidden lg:block"
+      className={cn(
+        "group peer text-sidebar-foreground hidden lg:block",
+        side === "right" && "transition-[--sidebar-reveal] duration-200 ease-linear motion-reduce:transition-none"
+      )}
+      style={side === "right" ? { "--sidebar-reveal": state === "collapsed" && collapsible === "offcanvas" ? 0 : 1 } as React.CSSProperties : undefined}
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
@@ -389,10 +395,11 @@ function Sidebar({
         data-slot="sidebar-gap"
         className={cn(
           "relative w-[var(--sidebar-width-gap,var(--sidebar-width))] bg-transparent duration-200 ease-linear",
-          // The right dock and its reservation commit together; independent
-          // width/position animations can otherwise cover the middle column.
-          side === "left" ? "transition-[width]" : "transition-none",
-          "group-data-[collapsible=offcanvas]:w-0",
+          // One inherited progress animates the right pane and its reservation.
+          // Width/viewport/fullscreen changes still commit without interpolation.
+          side === "left"
+            ? "transition-[width] group-data-[collapsible=offcanvas]:w-0"
+            : "transition-none w-[calc(var(--sidebar-width-gap,var(--sidebar-width))*var(--sidebar-reveal))]",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
             ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
@@ -403,8 +410,10 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] lg:flex",
-          side === "left" ? "transition-[left,right,width]" : "transition-none",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) duration-200 ease-linear lg:flex",
+          side === "left"
+            ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] transition-[left,right,width]"
+            : "right-[calc(var(--sidebar-width)*(var(--sidebar-reveal)_-_1))] transition-none",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -709,10 +718,11 @@ function SidebarMenuButton({
   )
 }
 
-// Only tooltip visibility depends on the sidebar state, not the workspace row.
+// Offcanvas content never needs icon-mode tooltips. Its closed tooltip portals
+// should not subscribe to every navigation open/close through SidebarContext.
 function SidebarMenuTooltip(props: React.ComponentProps<typeof TooltipContent>) {
-  const { isCompact, state } = useSidebar()
-  return <TooltipContent side="right" align="center" hidden={state !== "collapsed" || isCompact} {...props} />
+  const visible = React.useContext(SidebarTooltipContext)
+  return <TooltipContent side="right" align="center" hidden={!visible} {...props} />
 }
 
 function SidebarMenuAction({

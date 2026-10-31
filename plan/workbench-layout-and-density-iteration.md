@@ -167,3 +167,27 @@ Phase 3 本地验证记录（集成基线 `59dcabb`）：
 - 所有浏览器证据来自本地 Chrome 与模拟 Gateway，手机为浏览器视口验证；未声称真实设备、
   Linux、生产 Gateway 或真实模型联调。新门禁已接入 GitHub workflow，远程 Actions 尚未运行。
 - 用户原有 `Dockerfile.source` 与未跟踪 `design.md` 未修改、未纳入提交。
+
+## 后续用户校正：紧凑单行与侧栏动效
+
+- 输入区底部改为单行；附件、模型、Sandbox、设置按内容宽度紧凑排列，剩余空间留在发送前。
+  Sandbox 从运行设置移回直接入口；长名称单行省略并保留完整 title，能力与迭代继续复用原设置。
+- 右栏恢复与左栏相同的 200ms linear 滑入/滑出；使用同一 CSS reveal 进度驱动面板位置和占位，
+  保留原实际绘制帧、宽度偏好、中栏保底和焦点隔离验证，不恢复独立的宽度/位置插值。
+- 侧栏外壳保持挂载，聊天正文仍首次打开后加载、之后保留；延迟模块加载不重启动画。
+  窄桌面在右栏退出后恢复导航，全屏关闭保留完整宽度到退出结束；减少动态效果可直接结算。
+- 合并行时的同级 key 冲突由图片回归检出；运行设置改用独立 key 命名空间，
+  11 个图片/会话场景确认始终只有一个附件 input，迟到回执不能替换新草稿和附件。
+- 开发性能初测与一次对照未通过原 100ms 门槛。CPU 采样定位到关闭的 Radix 菜单/提示重复渲染；
+  稳定弹层回调、memo 关闭的 Root，并将 tooltip 的订阅收敛为实际可见 icon 模式。
+  已打开弹层仍在呈现变化的同一次渲染关闭，保留受控/非受控及程序打开语义。
+- 最后代码通过 i18n、lint、build、shell-performance 开发/生产、workbench-layout 开发/生产、
+  完整 composer-settings 30 组、image-send 11 场景及 toast 三种尺寸。
+  本轮另通过模型/沙箱目录、能力保存、responsive-layout、管理移动与编辑、自动化回归。
+  新增实际滑动中间帧、首开壳层身份、反向滑动、1024/1051px 关闭与减少动态效果验证；
+  保留所有原绘制断言，另显式截取结算 surface，覆盖 screencast 省略末帧的情况。
+- 最终开发首帧中位 33.35/38.6ms、生产 16.1/16.5ms，左栏开合时导航/聊天 owner 重渲染仍为 0，原门槛未变。
+  日志为 `/tmp/ineffable-inline-*.log`；最终性能 JSON 为
+  `/tmp/ineffable-inline-shell-final-{development,production}.json`。
+  最初性能失败、基线/当前对照、CPU profile 与 timeline 另存同前缀，未将失败重解释为通过。
+  浏览器仍为本地 Chrome 与模拟 Gateway，未发布线上，原用户文件继续保留。

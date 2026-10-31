@@ -12,13 +12,17 @@ type OverlayOpenProps = {
 
 export function useOverlayOpen({ open, defaultOpen = false, onOpenChange }: OverlayOpenProps) {
   const presentation = React.useContext(OverlayPresentationContext)
+  const presentationRef = React.useRef(presentation)
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
   const [openingPresentation, setOpeningPresentation] = React.useState(presentation)
   const requestedOpen = open ?? uncontrolledOpen
 
+  React.useLayoutEffect(() => { presentationRef.current = presentation }, [presentation])
   React.useLayoutEffect(() => {
     if (presentation === undefined) return
     if (!requestedOpen) {
+      // Keep controlled/programmatic opens attached to the current container.
+      // The memoized closed Radix root does not need to render for this stamp.
       setOpeningPresentation(presentation)
     } else if (openingPresentation !== presentation) {
       setUncontrolledOpen(false)
@@ -27,10 +31,10 @@ export function useOverlayOpen({ open, defaultOpen = false, onOpenChange }: Over
   }, [onOpenChange, openingPresentation, presentation, requestedOpen])
 
   const handleOpenChange = React.useCallback((nextOpen: boolean) => {
-    setOpeningPresentation(presentation)
+    setOpeningPresentation(presentationRef.current)
     if (open === undefined) setUncontrolledOpen(nextOpen)
     onOpenChange?.(nextOpen)
-  }, [onOpenChange, open, presentation])
+  }, [onOpenChange, open])
 
   // Leave unscoped primitives under their original Radix state ownership.
   if (presentation === undefined) return { open, onOpenChange }

@@ -1,7 +1,7 @@
 import { AppSidebar } from "@/features/workspace/app-sidebar"
 import { RouteLoading } from "@/components/app/route-loading"
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { RightSidebar as ChatSidebar } from "@/components/right-sidebar"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import {
-  Sidebar,
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
@@ -30,17 +29,15 @@ import type { Workspace } from "@/features/workspace/api/workspace-api"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { Fragment, Suspense, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import type { CSSProperties, SetStateAction } from "react"
+import type { CSSProperties } from "react"
 import { PanelRightIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { TFunction } from "i18next"
 
 const NavigationSidebar = memo(AppSidebar)
-const RightSidebar = lazy(async () => ({
-  default: memo((await import("@/components/right-sidebar")).RightSidebar),
-}))
+const RightSidebar = memo(ChatSidebar)
 
 export function AppShell() {
   return (
@@ -75,8 +72,9 @@ function AppShellContent() {
     startRightSidebarResize,
     handleRightSidebarResizeKeyDown,
   } = useRightSidebarResize(leftSidebarRight)
+  const [isRightSidebarPresent, setIsRightSidebarPresent] = useState(isRightSidebarOpen)
   const isLeftSidebarCompact = isCompactLayout ||
-    (isRightSidebarOpen && viewportWidth < THREE_COLUMN_MIN_WIDTH)
+    ((isRightSidebarOpen || isRightSidebarPresent) && viewportWidth < THREE_COLUMN_MIN_WIDTH)
   const [hasOpenedChat, setHasOpenedChat] = useState(isRightSidebarOpen)
 
   const handleLeftSidebarOpenChange = useCallback((open: boolean) => {
@@ -94,18 +92,29 @@ function AppShellContent() {
     if (isRightSidebarOpen) setHasOpenedChat(true)
   }, [isRightSidebarOpen])
 
-  const setRightSidebarOpen = useCallback(
-    (value: SetStateAction<boolean>) => {
-      setIsRightSidebarOpen((currentOpen) => {
-        const nextOpen = typeof value === "function" ? value(currentOpen) : value
-        if (!nextOpen) {
-          setIsRightSidebarFullScreen(false)
-        }
-        return nextOpen
-      })
-    },
-    [setIsRightSidebarOpen]
-  )
+  const setRightSidebarOpen = setIsRightSidebarOpen
+
+  useLayoutEffect(() => {
+    if (isRightSidebarOpen) {
+      setIsRightSidebarPresent(true)
+      return
+    }
+    const sidebar = document.querySelector<HTMLElement>('[data-slot="sidebar"][data-side="right"].peer')
+    function finishClose() {
+      if (sidebar?.isConnected && getComputedStyle(sidebar).getPropertyValue("--sidebar-reveal").trim() !== "0") return
+      // Keep the narrow-layout navigation in its drawer until chat has left;
+      // fullscreen also keeps its width throughout the closing slide.
+      setIsRightSidebarPresent(false)
+      setIsRightSidebarFullScreen(false)
+    }
+    finishClose()
+    sidebar?.addEventListener("transitionend", finishClose)
+    sidebar?.addEventListener("transitioncancel", finishClose)
+    return () => {
+      sidebar?.removeEventListener("transitionend", finishClose)
+      sidebar?.removeEventListener("transitioncancel", finishClose)
+    }
+  }, [isRightSidebarOpen, isCompactLayout])
 
   useLayoutEffect(() => {
     const leftSidebarGap = document.querySelector<HTMLElement>(
@@ -277,39 +286,17 @@ function AppShellContent() {
           } as CSSProperties
         }
       >
-        {isRightSidebarOpen || hasOpenedChat ? (
-          <Suspense fallback={<RightSidebarLoading />}>
-            <RightSidebar
-              isFullScreen={isRightSidebarFullScreen}
-              onFullScreenChange={setIsRightSidebarFullScreen}
-            />
-          </Suspense>
-        ) : null}
+        <RightSidebar
+          mountChat={isRightSidebarOpen || hasOpenedChat}
+          isFullScreen={isRightSidebarFullScreen}
+          onFullScreenChange={setIsRightSidebarFullScreen}
+        />
       </SidebarProvider>
     </div>
   )
 }
 
 export default AppShell
-
-function RightSidebarLoading() {
-  const { t } = useTranslation()
-
-  return (
-    <Sidebar side="right" variant="inset" compactMode="full" className="p-0">
-      <div
-        role="status"
-        aria-label={t("shell.assistant.loading")}
-        className="space-y-4 p-4"
-      >
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <span className="sr-only">{t("shell.assistant.loading")}...</span>
-      </div>
-    </Sidebar>
-  )
-}
 
 function getWorkspaceBreadcrumbs(
   pathname: string,

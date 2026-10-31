@@ -96,10 +96,9 @@ async function capturePaint(page, label, { targetViewport, fromFullscreen = fals
   const cdp = await page.context().newCDPSession(page), frames = [], failures = []
   let resolveFirstFrame, fullscreenFrames = 0
   const firstFrame = new Promise(resolve => { resolveFirstFrame = resolve })
-  const capture = frame => {
-    void cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
+  const recordPaint = (data, deviceWidth) => {
     try {
-      const { boxes, width } = paintedBoxes(frame.data)
+      const { boxes, width } = paintedBoxes(data)
       resolveFirstFrame()
       if (!boxes.center) return
       // Fullscreen deliberately overlays the middle; arm the exit probe on
@@ -114,14 +113,18 @@ async function capturePaint(page, label, { targetViewport, fromFullscreen = fals
       boxes.reserved ??= { left: width, right: width, width: 0 }
       // Chrome can downscale a screencast frame while the viewport resizes.
       // Its metadata gives the represented viewport in CSS pixels.
-      const scale = frame.metadata.deviceWidth / width
+      const scale = deviceWidth / width
       for (const box of Object.values(boxes)) {
         for (const key of ["left", "right", "width"]) box[key] *= scale
       }
       const path = join(paintDirectory, `${label}-${frames.length}.png`)
-      writeFileSync(path, Buffer.from(frame.data, "base64"))
-      frames.push({ ...boxes, viewport: frame.metadata.deviceWidth, path })
+      writeFileSync(path, Buffer.from(data, "base64"))
+      frames.push({ ...boxes, viewport: deviceWidth, path })
     } catch (error) { failures.push(error) }
+  }
+  const capture = frame => {
+    void cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
+    recordPaint(frame.data, frame.metadata.deviceWidth)
   }
   cdp.on("Page.screencastFrame", capture)
   await cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 })
@@ -136,18 +139,22 @@ async function capturePaint(page, label, { targetViewport, fromFullscreen = fals
     } finally { clearTimeout(timer) }
   }
   return async () => {
+    // Screencast delivery may omit the last offscreen transition frame. Capture
+    // the settled surface explicitly as well; all intermediate paints remain.
+    const finalPaint = await page.screenshot()
+    recordPaint(finalPaint.toString("base64"), page.viewportSize().width)
     await cdp.send("Page.stopScreencast")
     cdp.removeListener("Page.screencastFrame", capture)
     await cdp.detach()
+    results.painted.push({ label, fullscreenFrames, frames })
+    // Keep failing painted frames as well as successful measurements.
+    writeFileSync(join(paintDirectory, "measurements.json"), JSON.stringify(results.painted, null, 2))
     assert.deepEqual(failures, [])
     assert.ok(frames.length > 0, `${label}: capture actual painted layout frames`)
     assert.ok(!targetViewport || frames.some(frame => frame.viewport === targetViewport), `${label}: capture the target viewport during resize`)
     assert.ok(frames.some(frame => frame.chat.width > 0), `${label}: observe the open docked pane`)
     assert.ok(!fromFullscreen || fullscreenFrames > 0, `${label}: arm on the actual fullscreen surface`)
     assert.ok(expectedOpen === undefined || frames.some(frame => (frame.chat.width > 0) === expectedOpen), `${label}: observe the target open state`)
-    results.painted.push({ label, fullscreenFrames, frames })
-    // Save before assertions so a regression retains its failing painted frame.
-    writeFileSync(join(paintDirectory, "measurements.json"), JSON.stringify(results.painted, null, 2))
   }
 }
 
@@ -296,6 +303,39 @@ async function animateToggle(page, reverse = false) {
   }, reverse)
 }
 
+async function startRightSlide(page, reverse = false) {
+  await page.evaluate(reverse => {
+    const recording = { active: true, reversed: false, frames: [] }
+    window.__workbenchRightSlide = recording
+    function frame() {
+      if (!recording.active) return
+      const root = document.querySelector('[data-slot="sidebar"][data-side="right"].peer')
+      const pane = root.querySelector('[data-slot="sidebar-container"]').getBoundingClientRect()
+      const gap = root.querySelector('[data-slot="sidebar-gap"]').getBoundingClientRect()
+      const main = document.querySelector('[data-slot="sidebar-inset"]').getBoundingClientRect()
+      const progress = Number(getComputedStyle(root).getPropertyValue("--sidebar-reveal"))
+      recording.frames.push({ progress, center: main.width, overlap: Math.max(0, main.right - pane.left), visible: Math.max(0, innerWidth - pane.left), reserved: gap.width })
+      if (reverse && !recording.reversed && root.dataset.state === "collapsed" && progress > 0 && progress < 0.8) {
+        recording.reversed = true
+        document.querySelector('header button[aria-label="Open AI assistant"]').click()
+      }
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  }, reverse)
+}
+
+async function finishRightSlide(page, label, { reverse = false } = {}) {
+  const recording = await page.evaluate(() => {
+    window.__workbenchRightSlide.active = false
+    return window.__workbenchRightSlide
+  })
+  results.animation.push({ label, ...recording })
+  assert.ok(recording.frames.some(frame => frame.progress > 0 && frame.progress < 1), `${label}: renders intermediate sliding frames`)
+  assert.ok(recording.frames.every(frame => frame.center >= 479 && frame.overlap <= 1 && Math.abs(frame.visible - frame.reserved) <= 1), `${label}: sliding pane stays coupled to its reservation and preserves the middle`)
+  if (reverse) assert.equal(recording.reversed, true, `${label}: reverses before the closing transition finishes`)
+}
+
 try {
   if (!production) await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
@@ -336,6 +376,14 @@ try {
   await settled(defaults)
   await defaults.reload()
   await defaults.locator('[data-side="left"][data-state="collapsed"]').waitFor({ state: "attached" })
+  const initialRightPane = await defaults.locator('[data-slot="sidebar-container"][data-side="right"]').elementHandle()
+  await startRightSlide(defaults)
+  await defaults.getByRole("button", { name: "Open AI assistant", exact: true }).click()
+  await defaults.getByRole("textbox", { name: "Conversation message", exact: true }).waitFor()
+  await settled(defaults)
+  await finishRightSlide(defaults, "first lazy chat opening")
+  assert.equal(await defaults.locator('[data-slot="sidebar-container"][data-side="right"]').evaluate((node, original) => node === original, initialRightPane), true, "lazy content loading preserves the animated sidebar shell")
+  await initialRightPane.dispose()
   assert.deepEqual(defaultsFixture.errors, [])
   assert.deepEqual(defaultsFixture.unexpected, [])
   await defaults.close()
@@ -348,7 +396,43 @@ try {
     await control.focus()
     assert.equal(await control.evaluate(node => node === document.activeElement && !node.closest('[inert], [aria-hidden="true"]')), true, `${variant}: a visible collapsed variant stays interactive`)
     assert.ok((await accessibilityControls(visible)).some(node => node.name === "Visible sidebar control"), `${variant}: a visible collapsed variant stays accessible`)
+    await visible.getByRole("button", { name: "Visible sidebar control", exact: true }).hover()
+    if (variant === "icon") await visible.getByRole("tooltip", { name: "Visible sidebar tooltip", exact: true }).waitFor()
+    else assert.equal(await visible.getByRole("tooltip", { name: "Visible sidebar tooltip", exact: true }).count(), 0, "static sidebar does not expose icon-only tooltips")
     await visible.close()
+  }
+
+  // Keep remembered navigation in its drawer until the closing chat has left.
+  // Restoring it at the start would squeeze main at the narrow desktop edge.
+  for (const width of [1024, 1051]) {
+    const critical = await browser.newPage({ viewport: { width, height: 900 } })
+    const criticalFixture = await installShellFixture(critical, true, { leftOpen: true })
+    await critical.goto(`${url}/channels`)
+    const input = critical.getByRole("textbox", { name: "Conversation message", exact: true })
+    await input.waitFor()
+    await input.fill("KEEP_NARROW_SLIDE_DRAFT")
+    await settled(critical)
+    await critical.addStyleTag({ content: paintMarkers })
+    const finishPaint = await capturePaint(critical, `narrow-${width}-right-close`, { targetViewport: width, expectedOpen: false })
+    await startRightSlide(critical)
+    await critical.getByRole("button", { name: "Collapse right sidebar", exact: true }).click()
+    await settled(critical)
+    await finishRightSlide(critical, `${width}px right closing`)
+    await finishPaint()
+    assert.equal(await critical.locator('[data-side="left"][data-slot="sidebar"]').getAttribute("data-state"), "expanded")
+    await startRightSlide(critical)
+    await critical.getByRole("button", { name: "Open AI assistant", exact: true }).click()
+    await settled(critical)
+    await finishRightSlide(critical, `${width}px right opening`)
+    assert.equal(await input.inputValue(), "KEEP_NARROW_SLIDE_DRAFT")
+    await critical.emulateMedia({ reducedMotion: "reduce" })
+    await critical.getByRole("button", { name: "Collapse right sidebar", exact: true }).click()
+    await settled(critical)
+    assert.equal(await critical.locator('[data-side="right"] [data-slot="sidebar-gap"]').evaluate(node => node.getBoundingClientRect().width), 0, "reduced motion closes without waiting for an animation event")
+    assert.ok(await critical.locator('[data-slot="sidebar-inset"]').evaluate(node => node.getBoundingClientRect().width >= 479))
+    assert.deepEqual(criticalFixture.errors, [])
+    assert.deepEqual(criticalFixture.unexpected, [])
+    await critical.close()
   }
 
   // A translated availability label must wrap before it can squeeze the name to
@@ -461,9 +545,11 @@ try {
 
   for (const open of [false, true]) {
     const finishTogglePaint = await capturePaint(page, `right-${open ? "open" : "close"}`, { targetViewport: 1440, expectedOpen: open })
+    await startRightSlide(page)
     await page.getByRole("button", { name: open ? "Open AI assistant" : "Collapse right sidebar", exact: true }).click()
     if (!open) assert.equal(await page.getByRole("button", { name: "Open AI assistant", exact: true }).evaluate(node => node === document.activeElement), true, "internal chat close restores focus immediately")
     await settled(page)
+    await finishRightSlide(page, `right ${open ? "opening" : "closing"}`)
     await finishTogglePaint()
     if (!open) {
       const opener = page.getByRole("button", { name: "Open AI assistant", exact: true })
@@ -477,6 +563,11 @@ try {
     assert.equal(await composer.evaluate((node, original) => node === original, composerElement), true, "right toggles retain the composer instance")
   }
   await assertDock(page, "right reopened", { chat: 820, preference: 820 })
+  await startRightSlide(page, true)
+  await page.getByRole("button", { name: "Collapse right sidebar", exact: true }).click()
+  await settled(page)
+  await finishRightSlide(page, "right rapid reversal", { reverse: true })
+  await assertDock(page, "right reversal retains preference", { chat: 820, preference: 820 })
 
   await page.getByRole("button", { name: "Use AI assistant full screen", exact: true }).click()
   await settled(page)

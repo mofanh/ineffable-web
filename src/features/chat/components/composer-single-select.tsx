@@ -37,7 +37,6 @@ type ComposerSingleSelectProps = {
   onRetry?: () => void
   retryLabel?: string
   className?: string
-  wrapLabel?: boolean
   onOpenChange?: (open: boolean) => void
   onValueChange: (value: string) => void
 }
@@ -56,7 +55,6 @@ export function ComposerSingleSelect({
   onRetry,
   retryLabel,
   className,
-  wrapLabel = false,
   onOpenChange,
   onValueChange,
 }: ComposerSingleSelectProps) {
@@ -137,7 +135,7 @@ export function ComposerSingleSelect({
         >
           {icon}
           <span className="sr-only">{label}: </span>
-          <span className={cn("min-w-0 flex-1 text-left", wrapLabel ? "line-clamp-2 whitespace-normal break-words [overflow-wrap:anywhere] leading-4" : "truncate")}>
+          <span className="min-w-0 flex-1 truncate text-left">
             {selectedOption?.label ?? placeholder}
           </span>
           {loading ? (

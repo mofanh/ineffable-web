@@ -164,7 +164,7 @@ try {
         await route.fulfill({ json: { conversations: [] } })
       })
     }
-    if (!production) await page.route("**/src/components/right-sidebar.tsx*", async route => {
+    if (!production) await page.route("**/src/features/chat/gateway-chat-sidebar.tsx*", async route => {
       started = true; await hold; await route.continue()
     })
     await page.goto(`${url}/workspace/${workspace}/objects/${imageId}`)
