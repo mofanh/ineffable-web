@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import { existsSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { inflateSync } from "node:zlib"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { chromium } from "playwright-core"
@@ -21,8 +22,131 @@ const modelProfiles = Array.from({ length: 2 }, (_, index) => ({
   context_window_tokens: 128000, max_output_tokens: 16000, max_tokens_per_request: 128000,
 }))
 const mode = production ? "production" : "development"
-const results = { mode, measurements: [], animation: [], modelMobile: [] }
+const results = { mode, measurements: [], animation: [], modelMobile: [], painted: [] }
+const paintDirectory = process.env.INEFFABLE_WORKBENCH_PAINT_OUTPUT || join(tmpdir(), `ineffable-workbench-paint-${mode}`)
+mkdirSync(paintDirectory, { recursive: true })
 let browser
+
+// These dimension-neutral bars belong to the actual layout boxes. Their PNG
+// pixel bounds measure what Chrome painted, after layout/ResizeObserver; rAF
+// alone can observe a geometry that is corrected before the frame is painted.
+const paintMarkers = `
+[data-slot="sidebar-inset"]::after,
+[data-side="right"][data-slot="sidebar-container"]::after,
+[data-side="right"] [data-slot="sidebar-gap"]::after {
+  content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
+  z-index:2147483647; pointer-events:none;
+}
+[data-slot="sidebar-inset"]::after { top:0; bottom:auto; background:rgb(255,0,255) }
+[data-side="right"][data-slot="sidebar-container"]::after { top:4px; bottom:auto; background:rgb(0,255,255) }
+[data-side="right"] [data-slot="sidebar-gap"] { z-index:2147483646 }
+[data-side="right"] [data-slot="sidebar-gap"]::after { background:rgb(255,255,0) }
+`
+
+function paintedBoxes(base64) {
+  const png = Buffer.from(base64, "base64"), chunks = []
+  let width, height, channels, position = 8
+  while (position < png.length) {
+    const length = png.readUInt32BE(position), type = png.toString("ascii", position + 4, position + 8)
+    const data = png.subarray(position + 8, position + 8 + length)
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0); height = data.readUInt32BE(4)
+      assert.equal(data[8], 8)
+      channels = data[9] === 6 ? 4 : data[9] === 2 ? 3 : 0
+      assert.ok(channels, "Chrome supplies RGB/RGBA painted PNGs")
+      assert.equal(data[12], 0)
+    }
+    if (type === "IDAT") chunks.push(data)
+    position += length + 12
+  }
+  const raw = inflateSync(Buffer.concat(chunks)), stride = width * channels
+  const boxes = {}, colors = { center: [255, 0, 255], chat: [0, 255, 255], reserved: [255, 255, 0] }
+  let previous = Buffer.alloc(stride), offset = 0
+  const paeth = (a, b, c) => {
+    const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c)
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c
+  }
+  for (let y = 0; y < height; y++) {
+    const filter = raw[offset++], row = Buffer.from(raw.subarray(offset, offset + stride))
+    offset += stride
+    assert.ok(filter <= 4)
+    for (let x = 0; x < stride; x++) {
+      const a = x >= channels ? row[x - channels] : 0, b = previous[x], c = x >= channels ? previous[x - channels] : 0
+      if (filter === 1) row[x] = (row[x] + a) & 255
+      else if (filter === 2) row[x] = (row[x] + b) & 255
+      else if (filter === 3) row[x] = (row[x] + Math.floor((a + b) / 2)) & 255
+      else if (filter === 4) row[x] = (row[x] + paeth(a, b, c)) & 255
+    }
+    for (const [name, color] of Object.entries(colors)) {
+      let first = -1, last = -1
+      for (let x = 0; x < width; x++) {
+        if (color.every((value, channel) => row[x * channels + channel] === value)) {
+          if (first < 0) first = x
+          last = x
+        }
+      }
+      if (first >= 0 && last - first + 1 > (boxes[name]?.width ?? 0)) boxes[name] = { left: first, right: last + 1, width: last - first + 1 }
+    }
+    previous = row
+  }
+  return { boxes, width }
+}
+
+async function capturePaint(page, label, targetViewport) {
+  const cdp = await page.context().newCDPSession(page), frames = [], failures = []
+  let resolveFirstFrame
+  const firstFrame = new Promise(resolve => { resolveFirstFrame = resolve })
+  const capture = frame => {
+    void cdp.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => {})
+    try {
+      const { boxes, width } = paintedBoxes(frame.data)
+      if (!boxes.center || !boxes.chat || !boxes.reserved) return
+      // Chrome can downscale a screencast frame while the viewport resizes.
+      // Its metadata gives the represented viewport in CSS pixels.
+      const scale = frame.metadata.deviceWidth / width
+      for (const box of Object.values(boxes)) {
+        for (const key of ["left", "right", "width"]) box[key] *= scale
+      }
+      const path = join(paintDirectory, `${label}-${frames.length}.png`)
+      writeFileSync(path, Buffer.from(frame.data, "base64"))
+      frames.push({ ...boxes, viewport: frame.metadata.deviceWidth, path })
+      resolveFirstFrame()
+    } catch (error) { failures.push(error) }
+  }
+  cdp.on("Page.screencastFrame", capture)
+  await cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 })
+  if (targetViewport) {
+    // Observe screencast readiness before triggering resize, so command/event
+    // delivery cannot race the entire transition. Keep recording from here.
+    let timer
+    try {
+      await Promise.race([firstFrame, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}: screencast did not become ready`)), 5000)
+      })])
+    } finally { clearTimeout(timer) }
+  }
+  return async () => {
+    await cdp.send("Page.stopScreencast")
+    cdp.removeListener("Page.screencastFrame", capture)
+    await cdp.detach()
+    assert.deepEqual(failures, [])
+    assert.ok(frames.length > 0, `${label}: capture actual painted layout frames`)
+    assert.ok(!targetViewport || frames.some(frame => frame.viewport === targetViewport), `${label}: capture the target viewport during resize`)
+    results.painted.push({ label, frames })
+    // Save before assertions so a regression retains its failing painted frame.
+    writeFileSync(join(paintDirectory, "measurements.json"), JSON.stringify(results.painted, null, 2))
+  }
+}
+
+function assertPaintedLayouts() {
+  for (const { label, frames } of results.painted) {
+    for (const frame of frames) {
+      assert.ok(frame.center.width >= 479, `${label}: painted middle meets 480px: ${JSON.stringify(frame)}`)
+      assert.ok(frame.center.right <= frame.chat.left + 1, `${label}: painted chat never covers the middle: ${JSON.stringify(frame)}`)
+      assert.ok(Math.abs(frame.chat.width - frame.reserved.width) <= 1, `${label}: painted chat agrees with its reservation: ${JSON.stringify(frame)}`)
+    }
+  }
+}
 
 async function measure(page) {
   return page.evaluate(() => {
@@ -178,14 +302,27 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   const fixture = await installShellFixture(page, true, { leftOpen: null })
   await page.context().addCookies([{ name: "sidebar_state", value: "true", url }])
-  await page.addInitScript(() => {
+  await page.addInitScript(markers => {
     if (!localStorage.getItem("ineffable.ui.right-sidebar.width")) localStorage.setItem("ineffable.ui.right-sidebar.width", "864")
-  })
+    const install = () => {
+      if (!document.documentElement) return false
+      const style = document.createElement("style")
+      style.textContent = markers
+      document.documentElement.appendChild(style)
+      return true
+    }
+    if (!install()) {
+      const observer = new MutationObserver(() => { if (install()) observer.disconnect() })
+      observer.observe(document, { childList: true })
+    }
+  }, paintMarkers)
   await page.route("**/gateway/v1/models/profiles", route => route.fulfill({ json: { profiles: modelProfiles } }))
+  const finishInitialPaint = await capturePaint(page, "remembered-left-first-paint")
   await page.goto(`${url}/models`)
   const composer = page.locator('[data-side="right"] textarea').first()
   await composer.waitFor()
   await page.waitForLoadState("networkidle")
+  await finishInitialPaint()
   await composer.fill("KEEP_LAYOUT_DRAFT")
   const composerElement = await composer.elementHandle()
   const resize = page.getByRole("separator", { name: "Resize AI assistant", exact: true })
@@ -258,9 +395,12 @@ try {
   await page.locator('[data-slot="sidebar-trigger"]').click()
   await assertDock(page, "expanded before breakpoints", { left: 256, atBudget: true, preference: 820 })
   const unavailableWidth = await page.evaluate(() => innerWidth - document.getElementById("root").getBoundingClientRect().width)
-  for (const width of [1052, 1051, 1024, 1052, 1440]) {
+  for (const [index, width] of [1052, 1051, 1052, 1024, 1052, 1440].entries()) {
+    // Capture before the one-pixel drawer-to-three-column restoration.
+    const finishPaint = index === 2 ? await capturePaint(page, "boundary-1051-to-1052", width + unavailableWidth) : null
     await page.setViewportSize({ width: width + unavailableWidth, height: 900 })
     await assertDock(page, `boundary ${width}`, { available: width, left: width < 1052 ? 0 : 256, preference: 820 })
+    await finishPaint?.()
   }
   await page.setViewportSize({ width: 1024, height: 900 })
   await assertDock(page, "left drawer fallback", { left: 0, preference: 820 })
@@ -328,6 +468,7 @@ try {
   assert.deepEqual(fixture.errors, [])
   assert.deepEqual(fixture.unexpected, [])
   await page.close()
+  assertPaintedLayouts()
   writeFileSync(join(tmpdir(), `ineffable-workbench-layout-${mode}.json`), JSON.stringify(results, null, 2))
   console.log(`${mode}: sidebar defaults/refresh, width budgets/preferences, pointer/keyboard, animation reversal, containers and compact/fullscreen draft continuity passed`)
 } finally {
