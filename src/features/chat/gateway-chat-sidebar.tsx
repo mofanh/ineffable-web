@@ -4143,7 +4143,6 @@ export function GatewayChatSidebar({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
       <ChatSidebarHeader
-        manageAgentPath={currentConversationId ? `/agent-nodes?${new URLSearchParams({ conversation: currentConversationId, workspace: "" })}` : undefined}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
