@@ -1,6 +1,3 @@
-import { BotIcon } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
-
 import { i18n } from "@/lib/i18n/i18n"
 
 type TranslationKey = string
@@ -15,38 +12,7 @@ type BreadcrumbDefinition = {
   path?: string
 }
 
-export type MainNavItem = {
-  titleKey: TranslationKey
-  path: string
-}
-
-export type MainNavGroup = {
-  titleKey: TranslationKey
-  path: string
-  icon: LucideIcon
-  items: MainNavItem[]
-}
-
-export type SimpleNavItem = {
-  titleKey: TranslationKey
-  path: string
-  icon: LucideIcon
-}
-
 export const defaultPath = "/automation"
-
-export const navigation = {
-  main: [
-    {
-      titleKey: "shell.routes.models",
-      path: "/models",
-      icon: BotIcon,
-      items: [],
-    },
-  ] as MainNavGroup[],
-  projects: [] as SimpleNavItem[],
-  secondary: [] as SimpleNavItem[],
-}
 
 export type RouteMeta = {
   path: string
@@ -140,8 +106,6 @@ function resolveRouteMeta(definition: RouteMetaDefinition): RouteMeta {
     })),
   }
 }
-
-export const allRouteMeta = routeMetaDefinitions.map(resolveRouteMeta)
 
 export function getRouteMeta(pathname: string) {
   if (pathname.startsWith("/workspace/")) {

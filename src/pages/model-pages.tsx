@@ -6,7 +6,6 @@ import {
   BracesIcon,
   EyeIcon,
   GaugeIcon,
-  MessageSquareTextIcon,
   SparklesIcon,
   WrenchIcon,
 } from "lucide-react";
@@ -20,7 +19,6 @@ import {
   StatusBadge,
 } from "@/components/app";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -200,10 +198,6 @@ export function ModelCenterPage() {
         .includes(normalizedQuery),
     );
   }, [profiles, query]);
-  const openAssistant = React.useCallback(() => {
-    window.dispatchEvent(new Event("ineffable:right-sidebar:open"));
-  }, []);
-
   return (
     <AppMetricPage
       eyebrow="Models"
@@ -236,12 +230,6 @@ export function ModelCenterPage() {
           tone: "indigo",
         },
       ]}
-      headerActions={
-        <Button type="button" size="sm" onClick={openAssistant}>
-          <MessageSquareTextIcon />
-          {t("modelCenter.openAssistant")}
-        </Button>
-      }
     >
       <Notice title={t("modelCenter.howToUse")}>
         {t("modelCenter.howToUseDescription")}

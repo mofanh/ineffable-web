@@ -8,12 +8,7 @@ import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } 
 import * as React from "react"
 import { useApiResource } from "@/lib/app/use-api-resource"
 
-import { NavSecondary } from "@/components/nav-secondary"
-import { defaultPath, navigation } from "@/routes/navigation"
-import {
-  preloadRouteModule,
-  preloadSystemManagementModules,
-} from "@/routes/route-modules"
+import { defaultPath } from "@/routes/navigation"
 import {
   Avatar,
   AvatarFallback,
@@ -40,9 +35,6 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
@@ -109,28 +101,7 @@ import {
   UserPlusIcon,
   UsersIcon,
   ZapIcon,
-  type LucideIcon,
 } from "lucide-react"
-
-const primaryNavItems: Array<{
-  id: string
-  titleKey: string
-  icon: LucideIcon
-  path: string
-  children?: Array<{
-    id: string
-    titleKey: string
-    icon: LucideIcon
-    path: string
-  }>
-}> = [
-  {
-    id: "automation",
-    titleKey: "sidebar.navigation.automation",
-    icon: ZapIcon,
-    path: "/automation",
-  },
-]
 
 function EntryIcon({ item }: { item: SidebarEntry }) {
   if (item.accent === "team") {
@@ -378,179 +349,36 @@ function SidebarEntryButton({
   )
 }
 
-function PrimaryNav({
-  items,
+function AutomationNav({
   onSelectEntry,
 }: {
-  items: typeof primaryNavItems
   onSelectEntry: (entryId: string) => void
 }) {
   const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
-  const { isCompact, setOpenCompact, state: sidebarState } = useSidebar()
-  const [openGroupIds, setOpenGroupIds] = React.useState<Set<string>>(
-    () =>
-      new Set(
-        items
-          .filter((item) =>
-            item.children?.some(
-              (child) => location.pathname === child.path.split("?")[0]
-            )
-          )
-          .map((item) => item.id)
-      )
-  )
-
-  React.useEffect(() => {
-    const activeGroup = items.find((item) =>
-      item.children?.some(
-        (child) => location.pathname === child.path.split("?")[0]
-      )
-    )
-    if (!activeGroup) {
-      return
-    }
-
-    setOpenGroupIds((current) => {
-      if (current.has(activeGroup.id)) {
-        return current
-      }
-      const next = new Set(current)
-      next.add(activeGroup.id)
-      return next
-    })
-  }, [items, location.pathname])
-
-  const closeCompactSidebar = () => {
-    if (isCompact) {
-      setOpenCompact(false)
-    }
-  }
+  const { isCompact, setOpenCompact } = useSidebar()
 
   return (
     <SidebarGroup className="pt-1">
       <SidebarGroupContent>
         <SidebarMenu className="gap-1">
-          {items.map((item) => {
-            const title = t(item.titleKey)
-            const Icon = item.icon
-            const children = item.children ?? []
-            const isGroup = children.length > 0
-            const isChildActive = children.some(
-              (child) => location.pathname === child.path.split("?")[0]
-            )
-            const isActive =
-              location.pathname === item.path.split("?")[0] || isChildActive
-            const isOpen = openGroupIds.has(item.id) || isChildActive
-
-            return (
-              <SidebarMenuItem key={item.id}>
-                <SidebarMenuButton
-                  type="button"
-                  size="lg"
-                  isActive={isActive && (!isGroup || !isOpen)}
-                  tooltip={title}
-                  aria-expanded={isGroup ? isOpen : undefined}
-                  aria-controls={isGroup ? `${item.id}-navigation` : undefined}
-                  onPointerEnter={() => {
-                    if (isGroup) {
-                      void preloadSystemManagementModules().catch(() => {})
-                    }
-                  }}
-                  onFocus={() => {
-                    if (isGroup) {
-                      void preloadSystemManagementModules().catch(() => {})
-                    }
-                  }}
-                  onClick={() => {
-                    onSelectEntry(item.id)
-                    if (isGroup) {
-                      if (sidebarState === "collapsed" && !isCompact) {
-                        const activeChild = children.find(
-                          (child) =>
-                            location.pathname === child.path.split("?")[0]
-                        )
-                        navigate(activeChild?.path ?? item.path)
-                        return
-                      }
-                      setOpenGroupIds((current) => {
-                        const next = new Set(current)
-                        if (next.has(item.id)) {
-                          next.delete(item.id)
-                        } else {
-                          next.add(item.id)
-                        }
-                        return next
-                      })
-                      return
-                    }
-                    navigate(item.path)
-                    closeCompactSidebar()
-                  }}
-                >
-                  <Icon className="text-sidebar-foreground/70" />
-                  <span>{title}</span>
-                  {isGroup ? (
-                    isOpen ? (
-                      <ChevronDownIcon
-                        className="ml-auto text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <ChevronRightIcon
-                        className="ml-auto text-sidebar-foreground/55 group-data-[collapsible=icon]:hidden"
-                        aria-hidden="true"
-                      />
-                    )
-                  ) : null}
-                </SidebarMenuButton>
-                {isGroup && isOpen ? (
-                  <SidebarMenuSub
-                    id={`${item.id}-navigation`}
-                    aria-label={title}
-                    className="mt-1"
-                  >
-                    {children.map((child) => {
-                      const childTitle = t(child.titleKey)
-                      const ChildIcon = child.icon
-                      const childActive =
-                        location.pathname === child.path.split("?")[0]
-                      return (
-                        <SidebarMenuSubItem key={child.id}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={childActive}
-                          >
-                            <Link
-                              to={child.path}
-                              onPointerEnter={() => {
-                                void preloadRouteModule(child.path).catch(
-                                  () => {}
-                                )
-                              }}
-                              onFocus={() => {
-                                void preloadRouteModule(child.path).catch(
-                                  () => {}
-                                )
-                              }}
-                              onClick={() => {
-                                onSelectEntry(child.id)
-                                closeCompactSidebar()
-                              }}
-                            >
-                              <ChildIcon className="text-sidebar-foreground/60" />
-                              <span>{childTitle}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      )
-                    })}
-                  </SidebarMenuSub>
-                ) : null}
-              </SidebarMenuItem>
-            )
-          })}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              type="button"
+              size="lg"
+              isActive={location.pathname === "/automation"}
+              tooltip={t("sidebar.navigation.automation")}
+              onClick={() => {
+                onSelectEntry("automation")
+                navigate("/automation")
+                if (isCompact) setOpenCompact(false)
+              }}
+            >
+              <ZapIcon className="text-sidebar-foreground/70" />
+              <span>{t("sidebar.navigation.automation")}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
@@ -1453,12 +1281,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     [navigate, collapsedEntryIds, loadDirectory, workspaceTrees]
   )
 
-  const navSecondary = navigation.secondary.map((item) => ({
-    title: t(item.titleKey),
-    url: item.path,
-    icon: <item.icon />,
-  }))
-
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
@@ -1477,10 +1299,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="px-0">
-        <PrimaryNav
-          items={primaryNavItems}
-          onSelectEntry={setSelectedEntryId}
-        />
+        <AutomationNav onSelectEntry={setSelectedEntryId} />
         <SidebarSeparator />
         <SpaceSection
           title={t("sidebar.sections.team")}
@@ -1529,9 +1348,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }}
           onAction={handleObjectAction}
         />
-        {navSecondary.length ? (
-          <NavSecondary items={navSecondary} className="mt-auto" />
-        ) : null}
       </SidebarContent>
       <SidebarFooter className="gap-2">
         <SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild isActive={location.pathname === "/settings"}><Link to="/settings"><SettingsIcon /><span>{t("interaction.settings")}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>

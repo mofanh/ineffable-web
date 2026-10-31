@@ -13,7 +13,7 @@ export const resources = {
         unsavedTitle: "有未保存的修改", unsavedHint: "保存后离开，或放弃修改继续。", reloadDiscard: "重新加载将放弃当前草稿。",
         draftRetained: "未保存的草稿已保留，可以导出后处理。", exportDraft: "导出草稿", refreshUnavailable: "暂时无法更新权限，写操作已暂停。请重试。",
         unavailableWorkspace: "当前工作空间已不可用，请明确选择可用空间后再发送。", unavailableEnvironment: "所选运行环境不可用，请重新选择。", unavailableModel: "所选模型不可用，请重新选择。",
-        pendingResult: "请求结果尚未确认，请刷新核对后再操作。", receivedTask: "执行请求已接收", viewModels: "查看可用模型",
+        pendingResult: "请求结果尚未确认，请刷新核对后再操作。", receivedTask: "执行请求已接收",
       },
       workspaceLifecycle: {
         lastOwner: "你是最后一位所有者，请先将其他成员设为所有者，再退出空间。", transferFirst: "退出前需转交所有权",
@@ -860,9 +860,6 @@ export const resources = {
           },
         },
         composer: {
-          searchAgents: "输入以搜索 Agent 文件",
-          createAgentHint:
-            "在 workspace 文件中创建 system/agents/*.md 后可引用",
           queue: "预输入队列 ({{count}})",
           queueBlocked: "前序任务失败，可查看运行详情",
           queueStopped: "已停止，等待继续",
@@ -885,13 +882,9 @@ export const resources = {
           deleteFromQueue: "从队列中删除",
           delete: "删除",
           add: "添加",
-          agentDescriptor: "Agent 描述文件",
-          agentFiles: "Agent 文件",
-          noMatchingAgents: "没有匹配的 Agent 文件",
-          noAgents: "暂无可引用的 Agent 文件",
           messageLabel: "对话消息",
           queuedPlaceholder: "继续输入，消息将在当前任务完成后发送…",
-          placeholder: "描述任务，或输入 @ 引用 Agent 文件…",
+          placeholder: "描述任务，或输入 @ 引用文件…",
           model: "模型",
           noModelSelected: "未选择模型",
           noModel: "无可使用的模型",
@@ -973,7 +966,7 @@ export const resources = {
           processing: "正在处理…",
           startTitle: "从一个任务开始",
           startDescription:
-            "让 AI 结合工作区文件分析内容、推进任务，或输入 @ 引用 Agent 描述文件。",
+            "描述你要完成的任务，或输入 @ 引用工作区文件。",
           older: "更早消息",
           retryOlder: "重试更早消息",
           approvalWaiting: "Sandbox 命令等待审批",
@@ -1091,11 +1084,6 @@ export const resources = {
           title: "当前计划",
           progress: "{{completed}} / {{total}}",
         },
-        queue: {
-          count: "预输入队列 · {{count}} 条",
-          guide: "引导",
-          remove: "从队列中移除",
-        },
         gateway: {
           noModel: "当前套餐暂无可用模型",
           bound: "已绑定产品会话",
@@ -1176,7 +1164,6 @@ export const resources = {
         workspaceTasks: "可执行工作区任务",
         reasoningModels: "推理模型",
         reasoningSupported: "支持深度推理",
-        openAssistant: "打开 AI 助手",
         howToUse: "如何使用模型",
         howToUseDescription:
           "打开右侧 AI 助手，在输入区底部选择本目录中的模型。具体可见范围和请求额度由当前套餐策略决定。",
@@ -1956,7 +1943,7 @@ export const resources = {
         unsavedTitle: "Unsaved changes", unsavedHint: "Save before leaving, or discard your changes.", reloadDiscard: "Reloading will discard your current draft.",
         draftRetained: "Your unsaved draft is retained and can be exported.", exportDraft: "Export draft", refreshUnavailable: "Permissions could not be refreshed. Writes are paused. Please retry.",
         unavailableWorkspace: "Your selected workspace is unavailable. Choose an available space before sending.", unavailableEnvironment: "The selected environment is unavailable. Choose another environment.", unavailableModel: "The selected model is unavailable. Choose another model.",
-        pendingResult: "The request result is not confirmed. Refresh and verify before acting again.", receivedTask: "Execution request received", viewModels: "View available models",
+        pendingResult: "The request result is not confirmed. Refresh and verify before acting again.", receivedTask: "Execution request received",
       },
       workspaceLifecycle: {
         lastOwner: "You are the last owner. Make another member an owner before leaving.", transferFirst: "Transfer ownership before leaving",
@@ -2822,9 +2809,6 @@ export const resources = {
           },
         },
         composer: {
-          searchAgents: "Type to search Agent files",
-          createAgentHint:
-            "Create system/agents/*.md in a workspace to reference Agent files",
           queue: "Pre-input queue ({{count}})",
           queueBlocked: "Previous task failed; see run details",
           queueStopped: "Stopped; waiting to continue",
@@ -2848,14 +2832,10 @@ export const resources = {
           deleteFromQueue: "Delete from queue",
           delete: "Delete",
           add: "Add",
-          agentDescriptor: "Agent descriptor",
-          agentFiles: "Agent files",
-          noMatchingAgents: "No matching Agent files",
-          noAgents: "No Agent files available",
           messageLabel: "Conversation message",
           queuedPlaceholder:
             "Keep typing. The message will be sent after the current task finishes…",
-          placeholder: "Describe a task, or type @ to reference an Agent file…",
+          placeholder: "Describe a task, or type @ to reference a file…",
           model: "Model",
           noModelSelected: "No model selected",
           noModel: "No model available",
@@ -2941,7 +2921,7 @@ export const resources = {
           processing: "Working…",
           startTitle: "Start with a task",
           startDescription:
-            "Ask AI to analyze workspace files, move work forward, or type @ to reference an Agent descriptor.",
+            "Describe what you want to do, or type @ to reference workspace files.",
           older: "Earlier messages",
           retryOlder: "Retry earlier messages",
           approvalWaiting: "Sandbox command awaiting approval",
@@ -3059,11 +3039,6 @@ export const resources = {
           title: "Current plan",
           progress: "{{completed}} / {{total}}",
         },
-        queue: {
-          count: "Pre-input queue · {{count}}",
-          guide: "Guide",
-          remove: "Remove from queue",
-        },
         gateway: {
           noModel: "No model is available on the current plan",
           bound: "Bound to product conversation",
@@ -3149,7 +3124,6 @@ export const resources = {
         workspaceTasks: "Can run workspace tasks",
         reasoningModels: "Reasoning models",
         reasoningSupported: "Deep reasoning supported",
-        openAssistant: "Open AI assistant",
         howToUse: "How to use models",
         howToUseDescription:
           "Open the AI assistant on the right and select a model below the composer. Visibility and request limits are controlled by your current plan.",

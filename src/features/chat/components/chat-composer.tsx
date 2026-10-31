@@ -86,7 +86,6 @@ type ChatComposerProps = {
   accessToken?: string | null
   workspaces?: { id: string; name: string }[]
   currentWorkspaceId?: string
-  modelPickerFooter?: React.ReactNode
   modelOptions: ModelProfileOption[]
   isModelCatalogLoaded: boolean
   isModelCatalogLoading: boolean
@@ -137,7 +136,7 @@ export function ChatComposer({
   blockedPreInputErrorCode,
   pendingQueueAction,
   preInputQueue,
-  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, modelPickerFooter,
+  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope,
   modelOptions,
   isModelCatalogLoaded,
   isModelCatalogLoading,
@@ -451,7 +450,6 @@ export function ChatComposer({
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
               <div className="flex w-fit min-w-0 max-w-40 shrink">
                 <ComposerSingleSelect
-                  footer={modelPickerFooter}
                   value={selectedModelProfileId}
                   options={modelPickerOptions}
                   icon={<BotIcon className="size-3.5 shrink-0 text-muted-foreground" />}

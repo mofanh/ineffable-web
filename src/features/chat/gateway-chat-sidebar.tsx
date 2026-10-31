@@ -1,6 +1,5 @@
 import { acceptsRunLifecycleEvent } from "./runtime/conversation-run-reducer"
 import { removeImageFileReference } from "@/lib/workspace-file-reference"
-import { Link } from "react-router-dom"
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
 import { IMAGE_REFERENCE_REQUEST, IMAGE_REFERENCE_TARGET_PROBE, IMAGE_REFERENCE_TARGET_READY, type ImageReferenceRequest } from "@/lib/image-reference-events"
 import { ImageAttachmentActions } from "@/features/chat/components/image-attachment-actions"
@@ -4213,7 +4212,6 @@ export function GatewayChatSidebar({
       <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
 
       <ChatComposer
-        modelPickerFooter={<Link to="/models">{i18n.t("interaction.viewModels")}</Link>}
         attachedImages={imageDraft.images}
         imageCount={imageDraft.items.length}
         imagesReady={imageDraft.ready}

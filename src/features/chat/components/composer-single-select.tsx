@@ -24,7 +24,6 @@ export type ComposerSingleSelectOption = {
 }
 
 type ComposerSingleSelectProps = {
-  footer?: React.ReactNode
   value: string
   options: ComposerSingleSelectOption[]
   icon: React.ReactNode
@@ -43,7 +42,6 @@ type ComposerSingleSelectProps = {
 }
 
 export function ComposerSingleSelect({
-  footer,
   value,
   options,
   icon,
@@ -252,7 +250,6 @@ export function ComposerSingleSelect({
             {emptyLabel}
           </div>
         ) : null}
-        {footer && <div className="border-t p-2 text-xs" onClick={() => setOpen(false)}>{footer}</div>}
       </PopoverContent>
     </Popover>
   )
