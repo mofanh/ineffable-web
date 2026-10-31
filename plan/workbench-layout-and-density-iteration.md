@@ -35,15 +35,33 @@
 
 ## Phase 2：聊天输入区与交互层级
 
-- [ ] 模型选择直接可见，运行设置有可见名称，长名称在窄 docked/全屏尺寸可辨认。
-- [ ] 复用同一套沙箱、能力和迭代控制及回调，不另建配置状态或请求路径。
-- [ ] 设置入口及内部所有控件键盘/触摸可达，嵌套弹层、错误/重试、loading 与 focus 正常。
-- [ ] 附件、文件引用、发送、Stop、排队和草稿连续；状态不单靠颜色区分。
-- [ ] 同步中英文，并通过相关浏览器检查，创建中文分点提交。
+- [x] 模型选择直接可见，运行设置有可见名称，长名称在窄 docked/全屏尺寸可辨认。
+- [x] 复用同一套沙箱、能力和迭代控制及回调，不另建配置状态或请求路径。
+- [x] 设置入口及内部所有控件键盘/触摸可达，嵌套弹层、错误/重试、loading 与 focus 正常。
+- [x] 附件、文件引用、发送、Stop、排队和草稿连续；状态不单靠颜色区分。
+- [x] 同步中英文，并通过相关浏览器检查，创建中文分点提交。
 
 本阶段门禁：`i18n:check`、`lint`、`build`、`check:composer-catalog`、
 `check:capability-save`、`check:file-references`、`check:chat-browser`。
 按影响补充图片、自动化配置与 toast 的相关验证。
+
+Phase 2 本地验证记录（基于 Phase 1 `243347e`）：
+
+- 模型、附件和发送/Stop 保持主操作行；运行设置位于第二行，沿用既有 props 与回调。
+- 修复 InputGroup 的禁用样式范围：仅实际输入控件 disabled 时降低组透明度，
+  空输入导致的 Send disabled 不再弱化模型、附件及设置。
+- `i18n:check`、`lint`、`build`、`check:composer-catalog`、`check:capability-save`、
+  `check:file-references`、完整 `check:chat-browser`、`check:images`、
+  `check:automation-runtime`、`check:sandbox-delivery-browser` 均 exit 0。
+- 新增 `check:composer-settings` 默认 18 组通过：中英文、明暗、300/320/390/768px，
+  以及真实 AppShell 的 390/900px 模态 Sheet 内嵌套沙箱/能力弹层、逐层 Escape、
+  焦点与背景隔离、outside 触摸、草稿和选择保留。该检查已接入 Frontend Quality 独立步骤。
+- 自动化日志：`/tmp/ineffable-ui-composer-validation/*-integrated.log`、
+  `composer-settings-final.log` 及基础检查的 `*-final.log`；
+  截图及 18 组结果：`/tmp/ineffable-ui-composer-validation/settings-artifacts/`。
+- 隔离工作树最初共享 Vite 缓存，导致两项初始化检查失败；将依赖缓存隔离后，
+  原断言、原超时的 images/file-references 原门禁串行通过，并在集成基线上再次通过。
+- 全部为本地 Chrome + 模拟 Gateway 数据；GitHub Actions 尚未运行，不代表生产联调。
 
 ## Phase 3：页面密度与视觉层级
 

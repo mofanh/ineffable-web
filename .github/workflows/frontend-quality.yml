@@ -70,6 +70,9 @@ jobs:
       - name: Chat browser
         run: npm run check:chat-browser
 
+      - name: Composer runtime settings and mobile portals
+        run: npm run check:composer-settings
+
       - name: Long conversation windows and input ownership
         run: |
           npm run check:chat-window

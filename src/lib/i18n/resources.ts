@@ -860,6 +860,7 @@ export const resources = {
           },
         },
         composer: {
+          runSettings: "运行设置",
           queue: "预输入队列 ({{count}})",
           queueBlocked: "前序任务失败，可查看运行详情",
           queueStopped: "已停止，等待继续",
@@ -2809,6 +2810,7 @@ export const resources = {
           },
         },
         composer: {
+          runSettings: "Run settings",
           queue: "Pre-input queue ({{count}})",
           queueBlocked: "Previous task failed; see run details",
           queueStopped: "Stopped; waiting to continue",

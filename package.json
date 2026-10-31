@@ -17,6 +17,7 @@
     "check:chat-web-integration": "tsx scripts/check-chat-web-integration.mjs",
     "check:tool-actions": "node scripts/check-tool-action-browser.mjs",
     "check:composer-catalog": "node scripts/check-composer-catalog-browser.mjs",
+    "check:composer-settings": "node --experimental-strip-types scripts/check-composer-settings-browser.mjs",
     "check:chat-stream-layout": "node scripts/check-chat-stream-layout-browser.mjs",
     "check:model-failure": "node --experimental-strip-types scripts/check-model-failure-presentation.mjs",
     "check:capability-catalog": "tsx scripts/check-capability-catalog-selection.mjs",

@@ -71,6 +71,11 @@ try {
     await page.waitForFunction(() => document.querySelector("[data-selection]")?.textContent === "first")
     const modelPicker = page.getByRole("button", { name: /Choose a model:/ })
     const sandboxPicker = page.getByRole("button", { name: /Choose a Sandbox environment:/ })
+    async function openRunSettings() {
+      const settings = page.getByRole("button", { name: "Run settings", exact: true })
+      if (await settings.getAttribute("aria-expanded") !== "true") await settings.click()
+      await page.getByRole("dialog", { name: "Run settings", exact: true }).waitFor()
+    }
     if (scenario === "model-failure") {
       await modelPicker.filter({ hasText: "Selected model not yet confirmed" }).waitFor()
       await wait(() => modelReads > 0, "initial model directory request")
@@ -95,6 +100,7 @@ try {
       await send("confirmed missing model")
       assert.equal(sends.length, 1, "a successful empty directory must reject the removed selection")
     } else if (scenario === "sandbox-refresh") {
+      await openRunSettings()
       await sandboxPicker.filter({ hasText: "Device" }).waitFor()
       let release, started
       const gate = new Promise(resolve => { release = resolve })
@@ -109,12 +115,14 @@ try {
       await send("send after transient refresh failure")
       await wait(() => sends.length === 2, "transient directory failure retains prior healthy snapshot")
       nextSandbox = { status: 403 }
+      await openRunSettings()
       await sandboxPicker.click()
       await page.getByRole("alert").filter({ hasText: "Could not load environments" }).waitFor()
       await page.keyboard.press("Escape")
       await send("denied directory")
       assert.equal(sends.length, 2, "403 revokes the directory snapshot instead of retaining it")
       nextSandbox = { empty: true }
+      await openRunSettings()
       await sandboxPicker.click()
       await page.getByRole("option", { name: /The selected environment is unavailable/ }).waitFor()
       await page.keyboard.press("Escape")
@@ -127,11 +135,13 @@ try {
       const failure = model ? "Could not load models" : "Could not load environments"
       const unconfirmed = model ? "Selected model not yet confirmed" : "Selected environment not yet confirmed"
       const label = model ? "Model One" : "Device"
+      if (!model) await openRunSettings()
       await picker.filter({ hasText: unconfirmed }).waitFor()
       await send("draft survives invalid initial catalog")
       assert.equal(sends.length, 0, "a malformed initial catalog is unknown, not confirmed empty")
       assert.equal(await page.locator("textarea").inputValue(), "draft survives invalid initial catalog")
       // Opening the menu retries the initial malformed response using the same resource.
+      if (!model) await openRunSettings()
       await picker.click()
       await page.getByRole("option", { name: new RegExp(label) }).waitFor()
       await page.keyboard.press("Escape")
@@ -150,6 +160,7 @@ try {
       for (const body of invalidBodies) {
         if (model) nextModels = { body }
         else nextSandbox = { body }
+        if (!model) await openRunSettings()
         await Promise.all([
           page.waitForResponse(response => response.url().includes(model ? "/models/profiles" : "/sandbox/environments")),
           picker.click(),

@@ -177,6 +177,7 @@ try {
     if(["new-draft","late-ack","session-ack"].includes(scenario)) {
       await page.getByTitle("Vision",{exact:true}).click()
       await page.getByRole("option",{name:/Vision B/}).click()
+      await page.getByRole("button",{name:"Run settings",exact:true}).click()
       const sandboxButton=page.getByRole("button",{name:/No Sandbox/})
       await sandboxButton.click()
       await page.getByRole("option",{name:/Sandbox B/}).click()

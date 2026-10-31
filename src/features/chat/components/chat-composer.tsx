@@ -7,7 +7,7 @@ import { notify } from "@/lib/app/notifications"
 import type { SandboxResultDeliveryHealth } from "@/lib/api/api-client"
 import { Notice } from "@/components/app/notice"
 import { sandboxDeliveryPresentation } from "@/features/chat/model/sandbox-delivery-presentation"
-import { CapabilityExposurePicker } from "@/features/chat/components/capability-exposure-picker"
+import { ComposerRunSettings } from "@/features/chat/components/composer-run-settings"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
 
@@ -25,7 +25,6 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { SidebarFooter } from "@/components/ui/sidebar"
-import { Switch } from "@/components/ui/switch"
 import type {
   CapabilityExposurePolicy,
   CapabilityExposureSelection,
@@ -35,9 +34,7 @@ import { cn } from "@/lib/utils"
 import {
   ArrowUpIcon,
   BotIcon,
-  BoxIcon,
   GripVerticalIcon,
-  GitBranchIcon,
   LoaderCircleIcon,
   RotateCcwIcon,
   SendHorizontalIcon,
@@ -444,11 +441,11 @@ export function ChatComposer({
           />
           <InputGroupAddon
             align="block-end"
-            className="cursor-default flex-nowrap items-center justify-between gap-1 px-3 pb-3 pt-1"
+            className="cursor-default flex-col items-stretch gap-1 px-3 pb-2 pt-1"
           >
-            {imageActions}
-            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden">
-              <div className="flex w-fit min-w-0 max-w-40 shrink">
+            <div className="flex min-w-0 items-center gap-1" data-composer-primary-actions>
+              {imageActions}
+              <div className="min-w-0 flex-1">
                 <ComposerSingleSelect
                   value={selectedModelProfileId}
                   options={modelPickerOptions}
@@ -464,37 +461,65 @@ export function ChatComposer({
                   retryLabel={t("common.retry")}
                   onOpenChange={open => { if (open) onModelCatalogRefresh() }}
                   onValueChange={onModelProfileChange}
+                  className="h-auto min-h-9 gap-1.5 py-1 text-[13px]"
+                  wrapLabel
                 />
               </div>
-              <div className="flex w-fit min-w-0 max-w-40 shrink">
-                <ComposerSingleSelect
-                  value={selectedSandboxEnvironmentId || "__disabled__"}
-                  options={sandboxPickerOptions}
-                  icon={
-                    <BoxIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  }
-                  label={t("chat.composer.sandboxPickerLabel")}
-                  placeholder={t("chat.composer.sandbox")}
-                  emptyLabel={t("chat.composer.noMatchingSandboxes")}
-                  searchPlaceholder={t("chat.composer.sandboxSearch")}
-                  loading={isRefreshingSandboxOptions}
-                  loadingLabel={t("chat.composer.sandboxSyncing")}
-                  error={sandboxCatalogError}
-                  onRetry={onSandboxOptionsRefresh}
-                  retryLabel={t("common.retry")}
-                  onOpenChange={(open) => {
-                    if (open) {
-                      onSandboxOptionsRefresh()
-                    }
-                  }}
-                  onValueChange={(value) => {
-                    const nextValue = value === "__disabled__" ? "" : value
-                    onSandboxEnvironmentChange(nextValue)
-                  }}
-                />
-              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                {canStop ? (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    type="button"
+                    className="size-9 rounded-full border border-sidebar-border bg-background text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-foreground"
+                    onClick={onStop}
+                    title={t("chat.composer.stop")}
+                  >
+                    <SquareIcon className="size-3.5 fill-current" />
+                    <span className="sr-only">{t("chat.composer.stop")}</span>
+                  </Button>
+                ) : null}
 
-              <CapabilityExposurePicker
+                <InputGroupButton
+                  type="submit"
+                  size="icon-sm"
+                  className={cn(
+                    "size-10 rounded-full bg-foreground text-background transition-[color,background-color,transform] hover:bg-foreground/85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground",
+                    isSending && "bg-amber-500 text-white hover:bg-amber-600"
+                  )}
+                  disabled={Boolean(inputDisabledReason) || (!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)))}
+                  title={
+                    isSubmittingInput
+                      ? t("chat.composer.submitting")
+                      : isSending
+                      ? t("chat.composer.enqueue")
+                      : t("chat.composer.sendMessage")
+                  }
+                >
+                  {isSubmittingInput ? (
+                    <LoaderCircleIcon className="animate-spin" />
+                  ) : (
+                    <ArrowUpIcon />
+                  )}
+                  <span className="sr-only">
+                    {isSubmittingInput
+                      ? t("chat.composer.submitting")
+                      : isSending
+                        ? t("chat.composer.joinQueue")
+                        : t("chat.composer.send")}
+                  </span>
+                </InputGroupButton>
+              </div>
+            </div>
+            <div className="flex min-w-0 items-center">
+              <ComposerRunSettings
+                key={scope}
+                sandboxOptions={sandboxPickerOptions}
+                selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
+                isRefreshingSandboxOptions={isRefreshingSandboxOptions}
+                sandboxCatalogError={sandboxCatalogError}
+                onSandboxOptionsRefresh={onSandboxOptionsRefresh}
+                onSandboxEnvironmentChange={onSandboxEnvironmentChange}
                 capabilityExposureSelection={capabilityExposureSelection}
                 capabilityExposurePolicy={capabilityExposurePolicy}
                 capabilityExposureDraftStatus={capabilityExposureDraftStatus}
@@ -503,74 +528,12 @@ export function ChatComposer({
                 onCapabilityCatalogRefresh={onCapabilityCatalogRefresh}
                 onCapabilityExposureChange={onCapabilityExposureChange}
                 onCapabilityExposureDraftRefresh={onCapabilityExposureDraftRefresh}
+                agentIterationRequested={agentIterationRequested}
+                agentIterationMode={agentIterationMode}
+                isAgentIterationLoading={isAgentIterationLoading}
+                agentIterationUnavailableReason={agentIterationUnavailableReason}
+                onAgentIterationChange={onAgentIterationChange}
               />
-
-              <div
-                className={cn(
-                  "flex h-8 shrink-0 items-center gap-1 rounded-full px-1.5 text-xs transition-colors",
-                  agentIterationRequested
-                    ? "bg-primary/8 text-foreground"
-                    : "text-muted-foreground hover:bg-sidebar-accent/70"
-                )}
-                title={
-                  agentIterationUnavailableReason ??
-                  `${t("chat.composer.nodeIteration")} · ${t(`chat.composer.iterationMode.${agentIterationMode}`)} · ${t("chat.composer.nodeIterationHint")}`
-                }
-              >
-                <GitBranchIcon className="size-3.5 shrink-0" />
-                <Switch
-                  size="sm"
-                  checked={agentIterationRequested}
-                  disabled={isAgentIterationLoading}
-                  aria-label={`${t("chat.composer.nodeIteration")} · ${t(`chat.composer.iterationMode.${agentIterationMode}`)}`}
-                  onCheckedChange={onAgentIterationChange}
-                />
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {canStop ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  type="button"
-                  className="size-9 rounded-full border border-sidebar-border bg-background text-muted-foreground shadow-none hover:bg-sidebar-accent hover:text-foreground"
-                  onClick={onStop}
-                  title={t("chat.composer.stop")}
-                >
-                  <SquareIcon className="size-3.5 fill-current" />
-                  <span className="sr-only">{t("chat.composer.stop")}</span>
-                </Button>
-              ) : null}
-
-              <InputGroupButton
-                type="submit"
-                size="icon-sm"
-                className={cn(
-                  "size-10 rounded-full bg-foreground text-background transition-[color,background-color,transform] hover:bg-foreground/85 active:scale-95 disabled:bg-muted disabled:text-muted-foreground",
-                  isSending && "bg-amber-500 text-white hover:bg-amber-600"
-                )}
-                disabled={Boolean(inputDisabledReason) || (!composer.trim() && imageCount === 0) || !imagesReady || isSubmittingInput || (imageCount > 0 && !modelOptions.some((model) => model.id === selectedModelProfileId && (model.supportsVision || model.supportsAuxiliaryVision)))}
-                title={
-                  isSubmittingInput
-                    ? t("chat.composer.submitting")
-                    : isSending
-                    ? t("chat.composer.enqueue")
-                    : t("chat.composer.sendMessage")
-                }
-              >
-                {isSubmittingInput ? (
-                  <LoaderCircleIcon className="animate-spin" />
-                ) : (
-                  <ArrowUpIcon />
-                )}
-                <span className="sr-only">
-                  {isSubmittingInput
-                    ? t("chat.composer.submitting")
-                    : isSending
-                      ? t("chat.composer.joinQueue")
-                      : t("chat.composer.send")}
-                </span>
-              </InputGroupButton>
             </div>
           </InputGroupAddon>
         </InputGroup>

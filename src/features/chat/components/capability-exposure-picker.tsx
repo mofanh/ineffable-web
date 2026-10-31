@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { capabilityCatalogFamilies, capabilityKeysEqual, filterCapabilityCatalog, groupCapabilityCatalog, updateSelectedCapabilityKeys } from "@/features/chat/model/capability-catalog-selection"
 import type { CapabilityExposureMode, CapabilityExposurePolicy, CapabilityExposureSelection, CapabilityCatalogEntry } from "@/lib/api/api-client"
+import { cn } from "@/lib/utils"
 
 type Props = {
+  className?: string
   capabilityExposureSelection: CapabilityExposureSelection | null
   capabilityExposurePolicy: CapabilityExposurePolicy | null
   capabilityExposureDraftStatus: "idle" | "loading" | "ready" | "error"
@@ -19,7 +21,7 @@ type Props = {
   onCapabilityExposureDraftRefresh: () => void
 }
 
-export function CapabilityExposurePicker({capabilityExposureSelection, capabilityExposurePolicy, capabilityExposureDraftStatus, capabilityCatalog, capabilityCatalogStatus, onCapabilityCatalogRefresh, onCapabilityExposureChange, onCapabilityExposureDraftRefresh}: Props) {
+export function CapabilityExposurePicker({className, capabilityExposureSelection, capabilityExposurePolicy, capabilityExposureDraftStatus, capabilityCatalog, capabilityCatalogStatus, onCapabilityCatalogRefresh, onCapabilityExposureChange, onCapabilityExposureDraftRefresh}: Props) {
   const { t } = useTranslation()
   const [capabilitySearch, setCapabilitySearch] = React.useState("")
   const allowedCapabilityModes = capabilityExposurePolicy?.allowed_modes ?? []
@@ -106,7 +108,7 @@ export function CapabilityExposurePicker({capabilityExposureSelection, capabilit
                     aria-label={`${t("chat.composer.capabilityModeLabel")}: ${selectionLabel}`}
                     variant="ghost"
                     size="sm"
-                    className="h-8 min-w-0 max-w-28 shrink gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground"
+                    className={cn("h-8 min-w-0 max-w-28 shrink gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground", className)}
                     title={
                       capabilityExposureDraftStatus === "error"
                         ? t("chat.composer.capabilityLoadFailed")

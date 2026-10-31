@@ -65,7 +65,17 @@ try {
     await route.fulfill({ json: body })
   })
   const picker = page.getByTitle("Controls which authorized tools the model sees this turn without expanding access", { exact: true })
+  async function openRunSettings() {
+    const settings = page.getByRole("button", { name: "Run settings", exact: true })
+    if (await settings.getAttribute("aria-expanded") !== "true") await settings.click()
+    await page.getByRole("dialog", { name: "Run settings", exact: true }).waitFor()
+  }
+  async function waitForSelection(label) {
+    await openRunSettings()
+    await picker.filter({ hasText: label }).waitFor()
+  }
   async function select(mode) {
+    await openRunSettings()
     await picker.click()
     await page.getByRole("menuitemradio", { name: mode, exact: true }).click()
     await page.getByRole("menuitemradio", { name: mode, exact: true }).waitFor({ state: "hidden" })
@@ -81,14 +91,14 @@ try {
   }
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/image-send-fixture.html`)
   await page.getByRole("button", { name: "Select first", exact: true }).click()
-  await picker.filter({ hasText: "Smart tools" }).waitFor()
+  await waitForSelection("Smart tools")
   await select("Clean tools")
   await select("All tools")
   assert.equal(writes.length, 1, "second save waits for the first")
   await settle(false)
   for (let n = 0; writes.length < 2 && n < 100; n++) await page.waitForTimeout(10)
   await settle(false)
-  await picker.filter({ hasText: "Smart tools" }).waitFor()
+  await waitForSelection("Smart tools")
   assert.equal(stored.get("first").mode, "smart", "two rejected drafts restore the last confirmed baseline")
 
   await select("Clean tools")
@@ -96,14 +106,14 @@ try {
   await settle(true)
   for (let n = 0; pending.length === 0 && n < 100; n++) await page.waitForTimeout(10)
   await settle(false)
-  await picker.filter({ hasText: "Clean tools" }).waitFor()
+  await waitForSelection("Clean tools")
   assert.equal(stored.get("first").mode, "clean", "a confirmed intermediate save becomes the rollback baseline")
 
   await select("Smart tools")
   await page.getByRole("button", { name: "Select other", exact: true }).click()
-  await picker.filter({ hasText: "All tools" }).waitFor()
+  await waitForSelection("All tools")
   await settle(false)
-  await picker.filter({ hasText: "All tools" }).waitFor()
+  await waitForSelection("All tools")
   assert.equal(stored.get("other").mode, "full", "late rejection cannot change the newly selected conversation")
   await select("Clean tools")
   holdHistory = true
@@ -117,13 +127,13 @@ try {
   forceHistory = false
   historyReleases.splice(0).forEach(release => release())
   await page.waitForTimeout(150)
-  await picker.filter({ hasText: "Clean tools" }).waitFor()
+  await waitForSelection("Clean tools")
   await select("Smart tools")
   await settle(false)
-  await picker.filter({ hasText: "Clean tools" }).waitFor()
+  await waitForSelection("Clean tools")
 
   await page.getByLabel("New conversation", { exact: true }).click()
-  await picker.filter({ hasText: "Smart tools" }).waitFor()
+  await waitForSelection("Smart tools")
   await select("Clean tools")
   holdCreatedDetail = true
   await page.locator("textarea").fill("first task")
@@ -135,7 +145,7 @@ try {
   await page.waitForTimeout(100)
   await select("All tools")
   await settle(false)
-  await picker.filter({ hasText: "Clean tools" }).waitFor()
+  await waitForSelection("Clean tools")
   assert.equal(stored.get("created").mode, "clean", "new conversation rollback uses the accepted send before detail hydration")
   assert.deepEqual(errors, [])
   console.log("capability save chain browser checks passed (double failure, confirmed success, conversation fence, accepted new draft, stale history during save)")

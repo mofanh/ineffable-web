@@ -37,6 +37,7 @@ type ComposerSingleSelectProps = {
   onRetry?: () => void
   retryLabel?: string
   className?: string
+  wrapLabel?: boolean
   onOpenChange?: (open: boolean) => void
   onValueChange: (value: string) => void
 }
@@ -55,6 +56,7 @@ export function ComposerSingleSelect({
   onRetry,
   retryLabel,
   className,
+  wrapLabel = false,
   onOpenChange,
   onValueChange,
 }: ComposerSingleSelectProps) {
@@ -125,7 +127,8 @@ export function ComposerSingleSelect({
           variant="ghost"
           size="sm"
           className={cn(
-            "h-8 w-full min-w-0 justify-start gap-1 rounded-full px-2 text-xs font-normal text-muted-foreground",
+            "h-8 w-full min-w-0 justify-start gap-1 rounded-full px-2 text-xs font-normal",
+            selectedOption ? "text-foreground" : "text-muted-foreground",
             className
           )}
           aria-label={`${label}: ${selectedOption?.label ?? placeholder}`}
@@ -134,7 +137,7 @@ export function ComposerSingleSelect({
         >
           {icon}
           <span className="sr-only">{label}: </span>
-          <span className="min-w-0 flex-1 truncate text-left">
+          <span className={cn("min-w-0 flex-1 text-left", wrapLabel ? "line-clamp-2 whitespace-normal break-words [overflow-wrap:anywhere] leading-4" : "truncate")}>
             {selectedOption?.label ?? placeholder}
           </span>
           {loading ? (
@@ -226,7 +229,7 @@ export function ComposerSingleSelect({
               }}
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-normal leading-5 text-foreground">
+                <span className="block whitespace-normal break-words [overflow-wrap:anywhere] text-[13px] font-normal leading-5 text-foreground">
                   {option.label}
                 </span>
                 {option.supportingContent ? (
