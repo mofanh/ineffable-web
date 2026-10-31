@@ -262,7 +262,7 @@ export function ModelCenterPage() {
             onRetry={resource.reload}
           >
             {filteredProfiles.length ? (
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 @min-[48rem]/metric-page:grid-cols-2">
                 {filteredProfiles.map((profile) => (
                   <ModelProfileCard key={profile.id} profile={profile} />
                 ))}

@@ -43,7 +43,7 @@ export function AppMetricPage({
   }, [headerActions, setHeaderContent])
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="@container/metric-page min-w-0 space-y-6">
       <section className="space-y-2">
         <p className="text-muted-foreground text-xs font-semibold tracking-[0.18em] uppercase">
           {eyebrow}
@@ -54,7 +54,7 @@ export function AppMetricPage({
         </p>
       </section>
 
-      <section className={cn("grid grid-cols-1 gap-2 sm:gap-4", metrics.length === 2 ? "sm:grid-cols-2" : metrics.length === 1 ? "sm:grid-cols-1" : "sm:grid-cols-3")}>
+      <section className={cn("grid grid-cols-1 gap-2 @min-[40rem]/metric-page:gap-4", metrics.length === 2 ? "@min-[40rem]/metric-page:grid-cols-2" : metrics.length === 1 ? "grid-cols-1" : "@min-[40rem]/metric-page:grid-cols-3")}>
         {metrics.map((metric) => (
           <MetricPanel key={metric.label} metric={metric} />
         ))}
@@ -68,9 +68,9 @@ export function AppMetricPage({
 function MetricPanel({ metric }: { metric: AppMetricCard }) {
   const Icon = metric.icon
   return (
-    <Card className="min-w-0 border-border/80 bg-muted/40 py-0 sm:py-4 shadow-none transition-colors hover:bg-muted/60">
-      <CardContent className="grid grid-cols-2 items-center gap-x-3 p-3 sm:block sm:p-5">
-        <div className="text-muted-foreground flex items-start justify-between gap-1 text-[10px] font-semibold tracking-wide uppercase sm:text-xs sm:tracking-wider">
+    <Card className="min-w-0 border-border/80 bg-muted/40 py-0 @min-[40rem]/metric-page:py-4 shadow-none transition-colors hover:bg-muted/60">
+      <CardContent className="grid grid-cols-2 items-center gap-x-3 p-3 @min-[40rem]/metric-page:block @min-[40rem]/metric-page:p-5">
+        <div className="text-muted-foreground flex items-start justify-between gap-1 text-[10px] font-semibold tracking-wide uppercase @min-[40rem]/metric-page:text-xs @min-[40rem]/metric-page:tracking-wider">
           <span>{metric.label}</span>
           <Icon
             className={cn(
@@ -82,10 +82,10 @@ function MetricPanel({ metric }: { metric: AppMetricCard }) {
             )}
           />
         </div>
-        <p className="wrap-anywhere text-right text-2xl sm:text-left font-semibold sm:mt-3 sm:text-3xl">
+        <p className="wrap-anywhere text-right text-2xl @min-[40rem]/metric-page:text-left font-semibold @min-[40rem]/metric-page:mt-3 @min-[40rem]/metric-page:text-3xl">
           {metric.value}
         </p>
-        {metric.detail ? <p className="text-muted-foreground col-span-2 mt-1 wrap-anywhere text-[11px] leading-4 sm:text-xs">
+        {metric.detail ? <p className="text-muted-foreground col-span-2 mt-1 wrap-anywhere text-[11px] leading-4 @min-[40rem]/metric-page:text-xs">
           {metric.detail}
         </p> : null}
       </CardContent>

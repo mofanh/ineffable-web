@@ -49,6 +49,9 @@ jobs:
       - name: Shell loading and sidebar interaction
         run: npm run check:shell-performance
 
+      - name: Workbench geometry and width preferences
+        run: npm run check:workbench-layout
+
       - name: Internationalization
         run: npm run i18n:check
 
@@ -86,6 +89,9 @@ jobs:
 
       - name: Production shell behavior
         run: npm run check:shell-performance -- --production
+
+      - name: Production workbench geometry and width preferences
+        run: npm run check:workbench-layout -- --production
 
       - name: Production chunk recovery
         run: npm run check:chunk-recovery -- --production

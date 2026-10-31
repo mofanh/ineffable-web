@@ -112,9 +112,15 @@ try {
     await page.waitForTimeout(350)
     const resize = page.getByRole("separator", { name: "Resize AI assistant", exact: true })
     await resize.focus(); await page.keyboard.press("End")
-    assert.equal(Number(await resize.getAttribute("aria-valuemax")), 864)
-    // Restore the minimum before using the shell header, which a maximized
-    // docked panel can legitimately cover.
+    assert.equal(Number(await resize.getAttribute("aria-valuemax")), 688)
+    const dockGeometry = await page.evaluate(() => ({
+      contentRight: document.querySelector('[data-slot="sidebar-inset"]').getBoundingClientRect().right,
+      chatLeft: document.querySelector('[data-side="right"][data-slot="sidebar-container"]').getBoundingClientRect().left,
+    }))
+    assert.ok(dockGeometry.contentRight <= dockGeometry.chatLeft, "maximized docked chat does not cover the page or header")
+    await page.getByRole("button", { name: "Close AI assistant", exact: true }).click()
+    await page.getByRole("button", { name: "Open AI assistant", exact: true }).click()
+    // Restore the minimum for the remaining compact-layout scenario.
     await page.keyboard.press("Home")
     await page.getByRole("button", { name: "Close AI assistant", exact: true }).click()
     await page.setViewportSize({ width: 900, height: 900 })
@@ -127,7 +133,7 @@ try {
     await page.locator('[data-side="left"][data-compact="true"]').waitFor({ state: "hidden" })
     await page.setViewportSize({ width: 1200, height: 900 })
     await page.waitForTimeout(350)
-    assert.equal(Number(await resize.getAttribute("aria-valuemax")), 880, "compact close leaves desktop left sidebar collapsed")
+    assert.equal(Number(await resize.getAttribute("aria-valuemax")), 704, "compact close leaves desktop left sidebar collapsed")
     assert.deepEqual(fixture.errors, [])
     assert.deepEqual(fixture.unexpected, [])
     await page.close()

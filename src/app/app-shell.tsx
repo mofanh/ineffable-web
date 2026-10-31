@@ -20,6 +20,7 @@ import {
 import {
   RIGHT_SIDEBAR_DEFAULT_WIDTH,
   RIGHT_SIDEBAR_MIN_WIDTH,
+  THREE_COLUMN_MIN_WIDTH,
   useRightSidebarResize,
 } from "@/app/shell/use-right-sidebar-resize"
 import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
@@ -29,7 +30,7 @@ import type { Workspace } from "@/features/workspace/api/workspace-api"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
 import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useState } from "react"
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import type { CSSProperties, SetStateAction } from "react"
 import { PanelRightIcon } from "lucide-react"
@@ -67,12 +68,25 @@ function AppShellContent() {
     rightSidebarWidth,
     rightSidebarMaxWidth,
     rightSidebarReservedWidth,
+    viewportWidth,
     setIsRightSidebarOpen,
     setRightSidebarWidth,
     startRightSidebarResize,
     handleRightSidebarResizeKeyDown,
   } = useRightSidebarResize(leftSidebarRight)
+  const isLeftSidebarCompact = isCompactLayout ||
+    (isRightSidebarOpen && viewportWidth < THREE_COLUMN_MIN_WIDTH)
   const [hasOpenedChat, setHasOpenedChat] = useState(isRightSidebarOpen)
+
+  const handleLeftSidebarOpenChange = useCallback((open: boolean) => {
+    // Commit the target once so both CSS width transitions start together.
+    const container = document.querySelector<HTMLElement>(
+      '[data-slot="sidebar"][data-side="left"] [data-slot="sidebar-container"]'
+    )
+    setLeftSidebarRight(open && !isLeftSidebarCompact
+      ? Math.round(container?.getBoundingClientRect().width ?? 0)
+      : 0)
+  }, [isLeftSidebarCompact])
 
   useEffect(() => {
     if (isRightSidebarOpen) setHasOpenedChat(true)
@@ -91,7 +105,7 @@ function AppShellContent() {
     [setIsRightSidebarOpen]
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const leftSidebarGap = document.querySelector<HTMLElement>(
       '[data-slot="sidebar"][data-side="left"] [data-slot="sidebar-gap"]'
     )
@@ -122,7 +136,7 @@ function AppShellContent() {
       leftSidebarGap?.removeEventListener("transitioncancel", updateLeftSidebarRight)
       window.removeEventListener("resize", updateLeftSidebarRight)
     }
-  }, [isCompactLayout])
+  }, [isLeftSidebarCompact])
 
   useEffect(() => {
     function handleOpenRightSidebar() {
@@ -144,7 +158,12 @@ function AppShellContent() {
 
   return (
     <div className="relative flex min-h-svh w-full bg-sidebar">
-      <SidebarProvider className="min-w-0">
+      <SidebarProvider
+        defaultOpen={false}
+        compact={isLeftSidebarCompact}
+        onOpenChange={handleLeftSidebarOpenChange}
+        className="min-w-0"
+      >
         <NavigationSidebar />
         <SidebarInset>
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 bg-background px-4">

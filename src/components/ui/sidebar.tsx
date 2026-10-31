@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
@@ -30,6 +31,13 @@ const SIDEBAR_WIDTH_COMPACT = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
+function readSidebarOpen(fallback: boolean) {
+  if (typeof document === "undefined") return fallback
+  const value = document.cookie.split(";").map(item => item.trim())
+    .find(item => item.startsWith(`${SIDEBAR_COOKIE_NAME}=`))?.split("=")[1]
+  return value === "true" ? true : value === "false" ? false : fallback
+}
+
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
   open: boolean
@@ -57,6 +65,7 @@ function SidebarProvider({
   onOpenChange: setOpenProp,
   persistCookie = true,
   keyboardShortcut = true,
+  compact,
   className,
   style,
   children,
@@ -67,28 +76,29 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
   persistCookie?: boolean
   keyboardShortcut?: boolean
+  compact?: boolean
 }) {
-  const isCompact = useIsCompactLayout()
+  const viewportIsCompact = useIsCompactLayout()
+  const isCompact = compact ?? viewportIsCompact
   const [openCompact, setOpenCompactState] = React.useState(false)
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
+  const [_open, _setOpen] = React.useState(() =>
+    persistCookie ? readSidebarOpen(defaultOpen) : defaultOpen
+  )
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value
-      if (setOpenProp) {
-        setOpenProp(openState)
-      } else {
-        _setOpen(openState)
-      }
+      if (openProp === undefined) _setOpen(openState)
+      setOpenProp?.(openState)
 
       if (persistCookie) {
         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       }
     },
-    [setOpenProp, open, persistCookie]
+    [setOpenProp, openProp, open, persistCookie]
   )
 
   const setOpenCompact = React.useCallback(
@@ -189,9 +199,56 @@ function Sidebar({
 }) {
   const { isCompact, state, openCompact, setOpenCompact } = useSidebar()
   const visualViewport = useVisualViewport(isCompact && compactMode === "full")
+  const [contentHost] = React.useState(() => {
+    if (typeof document === "undefined") return null
+    const host = document.createElement("div")
+    host.className = "flex h-full min-h-0 w-full flex-col overflow-hidden"
+    return host
+  })
+  const insideEvents = React.useRef(new WeakSet<Event>())
+  const focusedElement = React.useRef<HTMLElement | null>(null)
+  const returnFocusElement = React.useRef<HTMLElement | null>(null)
+  const compactRef = React.useRef(isCompact)
+  React.useLayoutEffect(() => { compactRef.current = isCompact }, [isCompact])
+  const attachContentHost = React.useCallback((container: HTMLDivElement | null) => {
+    if (!contentHost) return
+    if (!container) {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && contentHost.contains(active)) focusedElement.current = active
+      return
+    }
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active !== document.body && !contentHost.contains(active)) {
+      returnFocusElement.current = active
+    }
+    container.appendChild(contentHost)
+    if (focusedElement.current?.isConnected) focusedElement.current.focus({ preventScroll: true })
+  }, [contentHost])
+  // One React subtree survives moves between docked and modal presentation.
+  // Captured events include nested React portals belonging to this sidebar.
+  const content = contentHost && createPortal(
+    <div
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden"
+      onPointerDownCapture={event => insideEvents.current.add(event.nativeEvent)}
+      onFocusCapture={event => {
+        insideEvents.current.add(event.nativeEvent)
+        if (event.target instanceof HTMLElement) focusedElement.current = event.target
+      }}
+      onBlurCapture={event => {
+        // A media query may hide the dock before React moves its DOM host.
+        // Retain focus through that null-target blur, but release deliberate
+        // focus moves to another part of the app.
+        if (event.relatedTarget instanceof Node && !contentHost.contains(event.relatedTarget)) focusedElement.current = null
+      }}
+    >
+      {children}
+    </div>,
+    contentHost
+  )
 
   if (collapsible === "none") {
-    return (
+    return <>
+      {content}
       <div
         data-slot="sidebar"
         className={cn(
@@ -200,9 +257,9 @@ function Sidebar({
         )}
         {...props}
       >
-        {children}
+        <div className="flex h-full min-h-0 w-full flex-col" ref={attachContentHost} />
       </div>
-    )
+    </>
   }
 
   if (isCompact) {
@@ -226,7 +283,8 @@ function Sidebar({
           }
         : undefined
 
-    return (
+    return <>
+      {content}
       <Sheet open={openCompact} onOpenChange={setOpenCompact} {...props}>
         <SheetContent
           dir={dir}
@@ -244,20 +302,46 @@ function Sidebar({
             } as React.CSSProperties
           }
           side={side}
+          onOpenAutoFocus={event => {
+            const active = document.activeElement
+            if (active instanceof HTMLElement && !contentHost?.contains(active)) returnFocusElement.current = active
+            const target = focusedElement.current
+            focusedElement.current = null
+            if (target?.isConnected) {
+              event.preventDefault()
+              target.focus({ preventScroll: true })
+            }
+          }}
+          onCloseAutoFocus={event => {
+            // A responsive move keeps focus with the content, rather than
+            // returning it to the opener of the former modal presentation.
+            if (!compactRef.current) return
+            focusedElement.current = null
+            const target = returnFocusElement.current
+            if (target?.isConnected && target.getClientRects().length) {
+              event.preventDefault()
+              target.focus({ preventScroll: true })
+            }
+          }}
+          onPointerDownOutside={event => {
+            if (insideEvents.current.has(event.detail.originalEvent)) event.preventDefault()
+          }}
+          onFocusOutside={event => {
+            if (insideEvents.current.has(event.detail.originalEvent)) event.preventDefault()
+          }}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-            {children}
-          </div>
+          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden" ref={attachContentHost} />
         </SheetContent>
       </Sheet>
-    )
+    </>
   }
 
-  return (
+  return <>
+    {content}
     <div
       className="group peer text-sidebar-foreground hidden lg:block"
       data-state={state}
@@ -294,13 +378,13 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
+          ref={attachContentHost}
           className="bg-sidebar group-data-[variant=floating]:ring-sidebar-border flex size-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1"
         >
-          {children}
         </div>
       </div>
     </div>
-  )
+  </>
 }
 
 function SidebarTrigger({

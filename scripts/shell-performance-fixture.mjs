@@ -7,11 +7,12 @@ export const image = { workspace_id: workspace, object_id: imageId, version_id: 
 const workspaces = [{ id: workspace, name: "Personal", workspace_type: "personal" }, { id: team, name: "Team", workspace_type: "team" }]
 const object = { id: imageId, workspace_id: workspace, kind: "file", parent_id: null, name: "sample.png", path: "sample.png", mime_type: "image/png", current_version_id: version, updated_at: "2026-09-23T00:00:00Z" }
 
-export async function installShellFixture(page, open) {
+export async function installShellFixture(page, open, { leftOpen = true } = {}) {
   const requests = [], errors = [], unexpected = []
   page.on("request", request => requests.push({ path: new URL(request.url()).pathname, method: request.method(), auth: request.headers().authorization }))
   page.on("pageerror", error => errors.push(error.message))
-  await page.addInitScript(open => {
+  await page.addInitScript(({ open, leftOpen }) => {
+    if (typeof leftOpen === "boolean") document.cookie = `sidebar_state=${leftOpen}; path=/`
     window.__shellRenders = { shell: 0, navigation: 0, chat: 0 }
     window.__shellLongTasks = []
     window.__shellNotifications = []
@@ -23,7 +24,7 @@ export async function installShellFixture(page, open) {
     localStorage.setItem("ineffable.chat.new_conversation_draft", "true")
     localStorage.setItem("ineffable.ui.right-sidebar.open", String(open))
     localStorage.setItem("ineffable.ui.language", "en-US")
-  }, open)
+  }, { open, leftOpen })
   await page.route("**/gateway/**", async route => {
     const request = route.request(), p = new URL(request.url()).pathname
     const second = request.headers().authorization === "Bearer fixture-token-b"
