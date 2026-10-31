@@ -188,6 +188,117 @@ try {
     console.log(`composer settings: actual mobile Sheet/${width}px nested portals and draft passed`)
     await page.close()
   }
+  // Preserve the real Composer while temporary portals close at each dock/Sheet
+  // transition. Reopen each surface on both sides to exercise stack ownership.
+  for (const width of [320, 900]) for (const variant of ["settings", "sandbox", "capability", "model", "history", "attachments"]) {
+    const page = await browser.newPage({ viewport: { width, height: 900 }, locale: "en-US", hasTouch: true })
+    const fixture = await installShellFixture(page, false, { leftOpen: false })
+    const policy = { allowed_modes: ["smart", "full"], exposure_budget: { max_count: 12 } }
+    await page.route("**/gateway/v1/conversations/capability-exposure/policy*", route => route.fulfill({ json: { selection: { mode: "smart" }, capability_exposure_policy: { policy } } }))
+    await page.route("**/gateway/v1/sandbox/environments*", route => route.fulfill({ json: { providers: [{ provider_id: "remote-b", display_name: "Remote B", status: "online" }], environments: [{ environment_id: "b", provider_id: "remote-b", status: "ready" }] } }))
+    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/channels`)
+    const opener = page.getByRole("button", { name: "Open AI assistant", exact: true })
+    await opener.click()
+    const sheet = page.getByRole("dialog", { name: "Sidebar", exact: true })
+    const input = page.getByRole("textbox", { name: "Conversation message", exact: true })
+    const settings = page.getByRole("button", { name: "Run settings", exact: true })
+    const settingsDialog = page.getByRole("dialog", { name: "Run settings", exact: true })
+    const sandbox = page.getByRole("button", { name: /^Choose a Sandbox environment:/ })
+    const capability = page.getByRole("button", { name: /^Capability exposure:/ })
+    const model = page.getByRole("button", { name: /^Choose a model:/ })
+    const history = page.locator('[data-slot="sidebar-header"] [data-slot="dropdown-menu-trigger"]').last()
+    const attachments = page.getByRole("button", { name: "Add images", exact: true })
+    const temporaryLayers = page.locator('[data-slot="popover-content"], [data-slot="dropdown-menu-content"]')
+    await input.fill("KEEP_RESIZE_DRAFT")
+    const originalInput = await input.elementHandle()
+    await model.tap()
+    await page.getByRole("option", { name: /Fixture model/ }).tap()
+    await settings.tap()
+    await sandbox.tap()
+    await page.getByRole("option", { name: /Remote B/ }).tap()
+    await capability.tap()
+    await page.getByRole("menuitemradio", { name: "All tools", exact: true }).tap()
+    await page.getByRole("menu").waitFor({ state: "hidden" })
+    await page.keyboard.press("Escape")
+    await settingsDialog.waitFor({ state: "hidden" })
+
+    const nested = variant === "sandbox" || variant === "capability"
+    const trigger = variant === "model" ? model : variant === "history" ? history : variant === "attachments" ? attachments : settings
+    const deepestTrigger = variant === "sandbox" ? sandbox : variant === "capability" ? capability : trigger
+    const layer = variant === "sandbox" || variant === "model"
+      ? page.locator('[data-slot="popover-content"]').filter({ has: page.getByRole("listbox") })
+      : variant === "capability" || variant === "history" || variant === "attachments"
+        ? page.getByRole("menu")
+        : settingsDialog
+
+    async function openLayer() {
+      await trigger.tap()
+      if (nested) await deepestTrigger.tap()
+      await layer.waitFor()
+      await layer.evaluate(async node => { await Promise.allSettled(node.getAnimations().map(animation => animation.finished)) })
+      assert.equal(await layer.evaluate(node => Boolean(node.closest('[aria-hidden="true"]'))), false, "the top temporary surface stays in the accessibility tree")
+      const hit = await layer.evaluate(node => {
+        const rect = node.getBoundingClientRect()
+        return node.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+      })
+      assert.equal(hit, true, "the top temporary surface is above the parent Sheet")
+    }
+
+    async function assertPreserved() {
+      assert.equal(await input.evaluate((node, original) => node === original, originalInput), true, "presentation changes retain the same Composer input DOM instance")
+      assert.equal(await input.count(), 1, "there is only one Composer input")
+      assert.equal(await input.inputValue(), "KEEP_RESIZE_DRAFT")
+      assert.equal(await page.evaluate(() => localStorage.getItem("ineffable.ui.right-sidebar.open")), "true", "a presentation change does not close chat")
+      await model.filter({ hasText: "Fixture model" }).waitFor()
+    }
+
+    await openLayer()
+    await page.setViewportSize({ width: 1200, height: 900 })
+    await sheet.waitFor({ state: "hidden" })
+    await page.waitForFunction(() => !document.querySelector('[data-slot="popover-content"], [data-slot="dropdown-menu-content"]'))
+    await assertPreserved()
+    assert.equal(await trigger.evaluate(node => document.activeElement === node), true, "leaving the Sheet returns focus to the temporary layer trigger")
+    await openLayer()
+    await page.setViewportSize({ width, height: 900 })
+    await sheet.waitFor()
+    await page.waitForFunction(() => !document.querySelector('[data-slot="popover-content"], [data-slot="dropdown-menu-content"]'))
+    await assertPreserved()
+    assert.equal(await trigger.evaluate(node => document.activeElement === node), true, "entering the Sheet restores focus to the temporary layer trigger")
+    const background = page.locator('header button[aria-label="Close AI assistant"]').first()
+    assert.equal(await background.evaluate(node => Boolean(node.closest('[aria-hidden="true"]'))), true, "the new Sheet retains background aria isolation")
+    await background.evaluate(node => node.focus())
+    assert.equal(await sheet.evaluate(node => node.contains(document.activeElement)), true, "the new Sheet retains focus containment")
+    await page.screenshot({ path: join(output, `actual-shell-resize-${width}-${variant}-returned.png`), fullPage: true })
+
+    await openLayer()
+    await page.screenshot({ path: join(output, `actual-shell-resize-${width}-${variant}-reopened.png`), fullPage: true })
+    await page.keyboard.press("Escape")
+    await layer.waitFor({ state: "hidden" })
+    assert.equal(await sheet.isVisible(), true, "Escape closes the top temporary surface before the Sheet")
+    assert.equal(await deepestTrigger.evaluate(node => document.activeElement === node), true, "Escape returns focus to the immediate trigger")
+    if (nested) {
+      assert.equal(await settingsDialog.isVisible(), true, "nested Escape retains the settings surface")
+      await page.keyboard.press("Escape")
+      await settingsDialog.waitFor({ state: "hidden" })
+      assert.equal(await settings.evaluate(node => document.activeElement === node), true)
+      assert.equal(await sheet.isVisible(), true)
+    }
+    await page.keyboard.press("Escape")
+    await sheet.waitFor({ state: "hidden" })
+    assert.equal(await temporaryLayers.count(), 0, "closing chat leaves no orphan temporary portals")
+    await opener.click()
+    await sheet.waitFor()
+    await assertPreserved()
+    await settings.tap()
+    await sandbox.filter({ hasText: "Remote B" }).waitFor()
+    await capability.filter({ hasText: "All tools" }).waitFor()
+    assert.deepEqual(fixture.errors, [])
+    assert.deepEqual(fixture.unexpected, [])
+    results.push({ kind: "actual-shell-resize", width, variant, passed: true })
+    console.log(`composer settings: actual Sheet/${width}px dock round trip/${variant} passed`)
+    await originalInput.dispose()
+    await page.close()
+  }
   writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2))
 } finally {
   await browser?.close()

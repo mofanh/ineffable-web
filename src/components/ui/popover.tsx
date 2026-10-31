@@ -4,9 +4,11 @@ import * as React from "react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { useOverlayOpen } from "@/components/ui/overlay-presentation"
 
 function Popover(props: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+  const overlay = useOverlayOpen(props)
+  return <PopoverPrimitive.Root data-slot="popover" {...props} {...overlay} />
 }
 
 function PopoverTrigger(

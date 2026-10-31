@@ -8,6 +8,7 @@ import { useVisualViewport } from "@/hooks/use-visual-viewport"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { OverlayPresentationContext } from "@/components/ui/overlay-presentation"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
@@ -224,10 +225,14 @@ function Sidebar({
     container.appendChild(contentHost)
     if (focusedElement.current?.isConnected) focusedElement.current.focus({ preventScroll: true })
   }, [contentHost])
+  const presentation = collapsible === "none"
+    ? "static"
+    : isCompact ? (openCompact ? "modal" : "hidden")
+    : (state === "expanded" ? "docked" : "hidden")
   // One React subtree survives moves between docked and modal presentation.
   // Captured events include nested React portals belonging to this sidebar.
   const content = contentHost && createPortal(
-    <div
+    <OverlayPresentationContext value={presentation}><div
       className="flex h-full min-h-0 w-full flex-col overflow-hidden"
       onPointerDownCapture={event => insideEvents.current.add(event.nativeEvent)}
       onFocusCapture={event => {
@@ -242,7 +247,7 @@ function Sidebar({
       }}
     >
       {children}
-    </div>,
+    </div></OverlayPresentationContext>,
     contentHost
   )
 
