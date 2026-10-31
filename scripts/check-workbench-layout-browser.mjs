@@ -12,8 +12,16 @@ assert.ok(executablePath, "Chrome is required")
 const server = production
   ? await preview({ preview: { host: "127.0.0.1", port: 0 } })
   : await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0, watch: null, hmr: false } })
+const modelNamePrefix = "AtlasWorkspaceReasoningModelWithLongUnbrokenNameForContainerLayout"
+const modelProfiles = Array.from({ length: 2 }, (_, index) => ({
+  id: `model-${index}`, display_name: `${modelNamePrefix}${index}`, supports_tool_calls: true,
+  supports_reasoning: true, supports_json_schema: true, supports_vision: true,
+  input_modalities: ["text", "image"], output_modalities: ["text"], usage_multiplier: 1,
+  input_multiplier: 1, output_multiplier: 1, reasoning_multiplier: 1, cached_input_multiplier: 1,
+  context_window_tokens: 128000, max_output_tokens: 16000, max_tokens_per_request: 128000,
+}))
 const mode = production ? "production" : "development"
-const results = { mode, measurements: [], animation: [] }
+const results = { mode, measurements: [], animation: [], modelMobile: [] }
 let browser
 
 async function measure(page) {
@@ -22,9 +30,9 @@ async function measure(page) {
     const main = rect('[data-slot="sidebar-inset"]')
     const chat = rect('[data-side="right"][data-slot="sidebar-container"]')
     const gap = rect('[data-side="right"] [data-slot="sidebar-gap"]')
-    const metricPage = document.querySelector('main [class*="@container/metric-page"]')
-    const metricGrid = metricPage?.querySelector("section:nth-of-type(2)")
-    const modelGrid = document.querySelector('main [class*="metric-page:grid-cols-2"]')
+    const metricPage = document.querySelector('main [data-slot="metric-page"]')
+    const metricGrid = metricPage?.querySelector('[data-slot="metric-page-metrics"]')
+    const modelGrid = document.querySelector('main [data-slot="model-profile-grid"]')
     const columns = element => element ? getComputedStyle(element).gridTemplateColumns.split(" ").length : 0
     return {
       viewport: innerWidth,
@@ -37,6 +45,21 @@ async function measure(page) {
       preference: Number(localStorage.getItem("ineffable.ui.right-sidebar.width")),
       modelColumns: columns(modelGrid),
       metricColumns: columns(metricGrid),
+      metricCards: [...(metricGrid?.children ?? [])].map(card => ({ width: card.clientWidth, scrollWidth: card.scrollWidth })),
+      modelCards: [...(modelGrid?.children ?? [])].map(card => {
+        const header = card.querySelector('[data-slot="card-header"]')
+        const title = header.querySelector('[data-slot="card-title"]')
+        const badge = header.querySelector('[data-slot="badge"]')
+        const box = card.getBoundingClientRect(), state = badge?.getBoundingClientRect()
+        return {
+          width: card.clientWidth, scrollWidth: card.scrollWidth,
+          headerWidth: header.clientWidth, headerScrollWidth: header.scrollWidth,
+          titleVisible: Boolean(title.getBoundingClientRect().width && title.getBoundingClientRect().height),
+          fullTitle: title.getAttribute("title") === title.textContent,
+          stateVisible: Boolean(state?.width && state.height && getComputedStyle(badge).visibility === "visible"),
+          stateInside: Boolean(state && state.left >= box.left && state.right <= box.right + 1),
+        }
+      }),
     }
   })
 }
@@ -59,6 +82,14 @@ async function settled(page) {
   assert.ok(stable, "layout reaches a stable geometry after its CSS transitions")
 }
 
+function assertModelBounds(sample, label) {
+  assert.equal(sample.modelCards.length, 2, `${label}: both long-name models remain rendered`)
+  assert.ok(sample.modelCards.every(card => card.scrollWidth <= card.width + 1 && card.headerScrollWidth <= card.headerWidth + 1), `${label}: long model names fit the card and its header`)
+  assert.ok(sample.modelCards.every(card => card.stateVisible && card.stateInside), `${label}: availability stays visible within each long-name card`)
+  assert.ok(sample.metricCards.every(card => card.scrollWidth <= card.width + 1), `${label}: metric values and descriptions fit their container`)
+  assert.ok(sample.modelCards.every(card => card.titleVisible && card.fullTitle), `${label}: model names stay visible and retain the complete title`)
+}
+
 async function assertDock(page, label, expected = {}) {
   await settled(page)
   const sample = { label, ...await measure(page) }
@@ -66,6 +97,7 @@ async function assertDock(page, label, expected = {}) {
   assert.ok(sample.center >= 479, `${label}: actual middle meets the 480px budget: ${JSON.stringify(sample)}`)
   assert.ok(sample.overlap < 1, `${label}: middle is never covered: ${JSON.stringify(sample)}`)
   assert.ok(Math.abs(sample.chat - sample.reserved) < 1, `${label}: chat and its reserved width agree`)
+  assertModelBounds(sample, label)
   if (expected.atBudget) assert.ok(sample.center <= 497, `${label}: resizing reaches the middle-width boundary`)
   for (const [key, value] of Object.entries(expected)) {
     if (key !== "atBudget") assert.equal(sample[key], value, `${label}: ${key}`)
@@ -123,19 +155,33 @@ try {
   assert.deepEqual(defaultsFixture.unexpected, [])
   await defaults.close()
 
+  // A translated availability label must wrap before it can squeeze the name to
+  // zero width. Keep the actual model page visible with chat closed on phones.
+  for (const language of ["en-US", "zh-CN"]) for (const width of [320, 390]) {
+    const mobile = await browser.newPage({ viewport: { width, height: 844 } })
+    const mobileFixture = await installShellFixture(mobile, false, { leftOpen: null })
+    await mobile.addInitScript(language => localStorage.setItem("ineffable.ui.language", language), language)
+    await mobile.route("**/gateway/v1/models/profiles", route => route.fulfill({ json: { profiles: modelProfiles } }))
+    await mobile.goto(`${url}/models`)
+    await mobile.locator('[data-slot="model-profile-grid"]').waitFor()
+    await mobile.waitForLoadState("networkidle")
+    await mobile.evaluate(() => document.fonts.ready)
+    const sample = { language, width, ...await measure(mobile) }
+    assertModelBounds(sample, `${language} ${width}px model page`)
+    assert.ok(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "mobile models fit the viewport")
+    assert.deepEqual(mobileFixture.errors, [])
+    assert.deepEqual(mobileFixture.unexpected, [])
+    results.modelMobile.push(sample)
+    await mobile.close()
+  }
+
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   const fixture = await installShellFixture(page, true, { leftOpen: null })
   await page.context().addCookies([{ name: "sidebar_state", value: "true", url }])
   await page.addInitScript(() => {
     if (!localStorage.getItem("ineffable.ui.right-sidebar.width")) localStorage.setItem("ineffable.ui.right-sidebar.width", "864")
   })
-  await page.route("**/gateway/v1/models/profiles", route => route.fulfill({ json: { profiles: Array.from({ length: 2 }, (_, index) => ({
-    id: `model-${index}`, display_name: `Long model ${index} for container layout`, supports_tool_calls: true,
-    supports_reasoning: true, supports_json_schema: true, supports_vision: true,
-    input_modalities: ["text", "image"], output_modalities: ["text"], usage_multiplier: 1,
-    input_multiplier: 1, output_multiplier: 1, reasoning_multiplier: 1, cached_input_multiplier: 1,
-    context_window_tokens: 128000, max_output_tokens: 16000, max_tokens_per_request: 128000,
-  })) } }))
+  await page.route("**/gateway/v1/models/profiles", route => route.fulfill({ json: { profiles: modelProfiles } }))
   await page.goto(`${url}/models`)
   const composer = page.locator('[data-side="right"] textarea').first()
   await composer.waitFor()
@@ -246,7 +292,7 @@ try {
   assert.deepEqual(await composer.evaluate(node => [node.selectionStart, node.selectionEnd]), [5, 10], "selection survives the DOM host move")
   const compactChat = page.locator('[data-side="right"][data-compact="true"]')
   await page.getByRole("button", { name: /^Choose a model:/ }).click()
-  await page.getByRole("option").filter({ hasText: "Long model 0" }).first().click()
+  await page.getByRole("option").filter({ hasText: `${modelNamePrefix}0` }).first().click()
   assert.equal(await compactChat.isVisible(), true, "nested model popover interaction does not dismiss the chat")
   await compactChat.locator('[data-slot="dropdown-menu-trigger"]').first().click()
   await page.locator('[role="menu"] input').first().fill("search while modal")

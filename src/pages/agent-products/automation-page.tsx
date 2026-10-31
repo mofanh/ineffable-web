@@ -633,7 +633,6 @@ export function AutomationPage() {
 
   return (
     <AppMetricPage
-      eyebrow="Agent Automation"
       title={t("automation.page.title")}
       subtitle={t("automation.page.subtitle")}
       metrics={[
@@ -706,7 +705,7 @@ export function AutomationPage() {
         description={t("automation.page.listDescription")}
         icon={Zap}
         actions={
-          <div className="hidden min-w-72 md:block">
+          <div className="hidden min-w-72 @min-[40rem]/metric-page:block">
             <AppSearchBar
               value={query}
               onChange={setQuery}
@@ -715,7 +714,7 @@ export function AutomationPage() {
           </div>
         }
       >
-        <div className="space-y-3 md:hidden">
+        <div className="space-y-3 @min-[40rem]/metric-page:hidden">
           <AppSearchBar
             value={query}
             onChange={setQuery}
@@ -731,16 +730,17 @@ export function AutomationPage() {
           loadingLabel={t("automation.page.loading")}
           onRetry={() => void reload()}
         >
-          <div className="mt-3 grid gap-3">
+          <div data-slot="automation-list" className="mt-3 grid min-w-0 gap-3">
             {filteredAutomations.map((automation) => (
             <div
               key={automation.id}
-              className="rounded-xl border border-border bg-background/70 p-4 transition-colors hover:border-foreground/20"
+              data-slot="automation-item"
+              className="min-w-0 rounded-xl border border-border bg-background/70 p-4 transition-colors hover:border-foreground/20"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-[1_1_10rem]">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-base font-medium">{automation.name}</p>
+                    <p className="min-w-0 wrap-anywhere text-base font-medium">{automation.name}</p>
                     <StatusBadge
                       status={automation.status}
                       label={statusLabel(automation.status)}
@@ -756,20 +756,20 @@ export function AutomationPage() {
                       automation.conversation_id}
                   </button>
                 </div>
-                <Badge variant="outline">
+                <Badge variant="outline" className="shrink-0">
                   {triggerKindLabel(automation.trigger_kind)}
                 </Badge>
               </div>
               {automation.pause_reason === "workspace_archived" && <Notice>{t("workspaceLifecycle.taskPaused")}</Notice>}
               {actionStates[automation.id] === "uncertain" && <Notice tone="warning">{t("interaction.pendingResult")} <Button variant="link" disabled={automationResource.isRefreshing} onClick={() => void verifyActions(automation.id)}>{t("interaction.verifyResult")}</Button></Notice>}
-              {automation.runtime_config ? <button type="button" className="mt-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => startEditAutomation(automation)}>
+              {automation.runtime_config ? <button type="button" className="mt-2 max-w-full wrap-anywhere text-left text-xs text-muted-foreground hover:text-foreground" onClick={() => startEditAutomation(automation)}>
                 {t("automation.runtime.title")} · {automation.runtime_config.model_profile_id} · {t(`chat.composer.capabilityMode.${automation.runtime_config.capability_exposure.mode}`)}
               </button> : null}
-              <p className="mt-4 line-clamp-3 rounded-lg bg-muted/40 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
+              <p className="mt-4 line-clamp-3 wrap-anywhere rounded-lg bg-muted/40 px-3 py-2.5 text-sm leading-6 text-muted-foreground">
                 {automation.message}
               </p>
 
-              <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-3">
+              <dl className="mt-4 grid min-w-0 gap-3 text-xs @min-[40rem]/metric-page:grid-cols-3">
                 <div>
                   <dt className="text-muted-foreground">
                     {t("automation.page.triggerRule")}
@@ -804,20 +804,21 @@ export function AutomationPage() {
                     .map((run) => (
                       <div
                         key={run.id}
-                        className="flex items-center justify-between gap-2 text-muted-foreground"
+                        data-slot="automation-run"
+                        className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-muted-foreground"
                       >
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-[1_1_10rem] space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge status={run.status} label={statusLabel(run.status)} />
                             <span className="text-xs">{formatRunTime(run.scheduled_for ?? run.created_at)}</span>
                           </div>
-                          {run.error ? <p className="break-words text-destructive">{run.error}</p> : null}
+                          {run.error ? <p className="wrap-anywhere text-destructive">{run.error}</p> : null}
                         </div>
                         {run.conversation_id ? (
-                          <button type="button" className="shrink-0 hover:text-foreground hover:underline" onClick={() => openConversation(run.conversation_id)}>
+                          <button type="button" className="max-w-full shrink-0 wrap-anywhere text-left hover:text-foreground hover:underline" onClick={() => openConversation(run.conversation_id)}>
                             {t("automation.page.viewConversation")}
                           </button>
-                        ) : !run.error ? <span>{t("automation.page.noConversation")}</span> : null}
+                        ) : !run.error ? <span className="min-w-0 wrap-anywhere">{t("automation.page.noConversation")}</span> : null}
                       </div>
                     ))}
                 </div>

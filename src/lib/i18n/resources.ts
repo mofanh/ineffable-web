@@ -556,7 +556,7 @@ export const resources = {
         page: {
           title: "自动任务",
           subtitle:
-            "让 Agent 在指定时间回到原会话继续工作。你可以在这里查看排期、运行记录，或调整已经创建的任务。",
+            "查看任务排期、运行记录，并调整执行配置。",
           enabled: "已启用",
           scheduled: "已排期",
           scheduledDetail: "已有下次运行时间",
@@ -1159,15 +1159,12 @@ export const resources = {
         loadFailed: "模型目录加载失败。",
         title: "模型中心",
         subtitle:
-          "这里展示当前账号套餐真正可见且可用的模型。模型能力、上下文限制和用量倍率均来自 Gateway Model Profile。",
+          "查看当前套餐可用的模型、能力与用量倍率。",
         availableModels: "可用模型",
         visibleInPlan: "当前套餐可见",
         workspaceTasks: "可执行工作区任务",
         reasoningModels: "推理模型",
         reasoningSupported: "支持深度推理",
-        howToUse: "如何使用模型",
-        howToUseDescription:
-          "打开右侧 AI 助手，在输入区底部选择本目录中的模型。具体可见范围和请求额度由当前套餐策略决定。",
         search: "搜索模型名称或 ID",
         results: "{{count}} 个结果",
         empty: "当前套餐暂无可用模型",
@@ -1185,7 +1182,6 @@ export const resources = {
           noAssignment: "未分配套餐",
         },
         common: {
-          eyebrow: "系统管理",
           loading: "正在加载",
           refresh: "刷新",
           accessDenied: "管理员权限不足",
@@ -2490,7 +2486,7 @@ export const resources = {
         page: {
           title: "Automation",
           subtitle:
-            "Schedule an Agent to return to its original conversation, review runs, and adjust recurring work.",
+            "Review schedules and runs, and adjust execution settings.",
           enabled: "Enabled",
           scheduled: "Scheduled",
           scheduledDetail: "Automations with a next run",
@@ -3120,15 +3116,12 @@ export const resources = {
         loadFailed: "Unable to load the model catalog.",
         title: "Model center",
         subtitle:
-          "Models genuinely visible and available to your current plan. Capabilities, context limits, and usage multipliers come from Gateway Model Profiles.",
+          "Explore the models, capabilities, and usage multipliers available on your plan.",
         availableModels: "Available models",
         visibleInPlan: "Visible on current plan",
         workspaceTasks: "Can run workspace tasks",
         reasoningModels: "Reasoning models",
         reasoningSupported: "Deep reasoning supported",
-        howToUse: "How to use models",
-        howToUseDescription:
-          "Open the AI assistant on the right and select a model below the composer. Visibility and request limits are controlled by your current plan.",
         search: "Search model name or ID",
         results: "{{count}} results",
         empty: "No models available on this plan",
@@ -3147,7 +3140,6 @@ export const resources = {
           noAssignment: "No plan assigned",
         },
         common: {
-          eyebrow: "System management",
           loading: "Loading",
           refresh: "Refresh",
           accessDenied: "Administrator access required",

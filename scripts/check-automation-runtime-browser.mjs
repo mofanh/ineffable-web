@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
 import { chromium } from "playwright-core"
 import { createServer } from "vite"
+import { installShellFixture } from "./shell-performance-fixture.mjs"
 const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find((p) => p && existsSync(p))
 assert.ok(executablePath)
 const server = await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0 } })
@@ -165,5 +166,49 @@ try {
   await editorPage.getByText("Follow queue and execution progress in the linked conversation.", { exact: false }).waitFor()
   assert.equal(await editorPage.getByText("Automation started", { exact: true }).count(), 0)
   await editorPage.close()
+  // Exercise actual mobile page contents, including translated actions and long
+  // unbroken identifiers; an outer card clipping overflow is not sufficient.
+  for (const language of ["en-US", "zh-CN"]) for (const width of [320, 390, 1440]) {
+    const mobile = await browser.newPage({ viewport: { width, height: 844 }, locale: language })
+    const docked = width >= 1024
+    const mobileFixture = await installShellFixture(mobile, docked, { leftOpen: false })
+    await mobile.addInitScript(({ language, docked }) => {
+      localStorage.setItem("ineffable.ui.language", language)
+      if (docked) localStorage.setItem("ineffable.ui.right-sidebar.width", "944")
+    }, { language, docked })
+    const longName = "WorkspaceAutomationWithLongUnbrokenName".repeat(3)
+    await mobile.route("**/gateway/v1/automations", route => {
+      assert.equal(route.request().method(), "GET", "mobile layout checks must not mutate automation data")
+      return route.fulfill({ json: {
+        automations: [{ id: "mobile", name: longName, message: "LongTaskInstructions".repeat(20), conversation_id: "LongConversationIdentifier".repeat(3), status: "active", trigger_kind: "interval", trigger_spec: { interval_minutes: 60 }, next_run_at: "2026-10-30T08:00:00Z", runtime_config: { model_profile_id: "LongModelIdentifier".repeat(4), workspace_id: null, sandbox: null, capability_exposure: { mode: "smart" } } }],
+        runs: ["completed", "failed"].map(status => ({ id: status, automation_id: "mobile", conversation_id: "conversation", status, created_at: "2026-10-30T08:00:00Z", ...(status === "failed" ? { error: "WorkspaceAccessWasRevokedByOwner".repeat(5) } : {}) })),
+      } })
+    })
+    await mobile.goto(`http://127.0.0.1:${server.httpServer.address().port}/automation`)
+    const item = mobile.locator('[data-slot="automation-item"]')
+    await item.getByText(longName, { exact: true }).waitFor()
+    await mobile.waitForLoadState("networkidle")
+    await mobile.evaluate(() => document.fonts.ready)
+    if (docked) {
+      const center = await mobile.locator('[data-slot="sidebar-inset"]').evaluate(element => element.getBoundingClientRect().width)
+      assert.ok(center >= 479 && center <= 497, "automation exercises an actual constrained desktop center")
+      assert.equal(await mobile.locator('[data-slot="card-header"] input').isVisible(), false, "narrow centers keep search out of the title row")
+      assert.equal(await mobile.locator('[data-slot="card-content"] input').isVisible(), true, "search remains available below the title")
+    }
+    assert.equal(await item.locator('[data-slot="automation-run"]').count(), 2, "both run records remain available")
+    assert.ok(await mobile.locator('[data-slot="card"]').evaluateAll(cards => cards.every(card => card.scrollWidth <= card.clientWidth + 1)), "automation cards must not clip their contents")
+    assert.ok(await item.evaluate(element => {
+      const box = element.getBoundingClientRect()
+      return element.scrollWidth <= element.clientWidth + 1 && [...element.querySelectorAll('button, [data-slot="badge"]')].every(control => {
+        const bounds = control.getBoundingClientRect()
+        return bounds.width > 0 && bounds.left >= box.left && bounds.right <= box.right + 1
+      })
+    }), "task actions, runtime configuration and run statuses fit the card")
+    assert.ok(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "automation page fits the phone viewport")
+    assert.deepEqual(mobileFixture.errors, [])
+    assert.deepEqual(mobileFixture.unexpected, [])
+    console.log(`PASS automation layout: ${language} ${width}px`)
+    await mobile.close()
+  }
   console.log("automation runtime browser checks passed")
 } finally { await browser?.close(); await server.close() }

@@ -187,7 +187,6 @@ export function SystemPageShell({
   const { t } = useTranslation();
   return (
     <AppMetricPage
-      eyebrow={t("system.common.eyebrow")}
       title={title}
       subtitle={subtitle}
       metrics={
@@ -222,7 +221,7 @@ export function SystemPageShell({
         empty={false}
         onRetry={onRefresh}
       >
-        <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+        <div className="flex min-w-0 flex-col gap-4">
           {children}
         </div>
       </DataState>

@@ -65,16 +65,44 @@ Phase 2 本地验证记录（基于 Phase 1 `243347e`）：
 
 ## Phase 3：页面密度与视觉层级
 
-- [ ] 收敛共享指标页标题、间距、指标卡密度；页面真实主内容提前。
-- [ ] 模型页、自动化页和管理页面按现有共享层收敛，不复制页面 shell。
-- [ ] 清理重复眉题和常驻帮助块，更新双语产品文案，重要动作和选中值清楚可辨。
-- [ ] 验证浅/深色、中英文、320/390px 手机及桌面中栏宽度，弹窗和图表不溢出。
-- [ ] 将本轮已验证规则补充进 AGENTS.md，不改用户未跟踪的 design.md。
-- [ ] 通过本阶段检查并创建中文分点提交。
+- [x] 收敛共享指标页标题、间距、指标卡密度；页面真实主内容提前。
+- [x] 模型页、自动化页和管理页面按现有共享层收敛，不复制页面 shell。
+- [x] 清理重复眉题和常驻帮助块，更新双语产品文案，重要动作和选中值清楚可辨。
+- [x] 验证浅/深色、中英文、320/390px 手机及桌面中栏宽度，弹窗和图表不溢出。
+- [x] 将本轮已验证规则补充进 AGENTS.md，不改用户未跟踪的 design.md。
+- [x] 通过本阶段检查并创建中文分点提交。
 
 本阶段门禁：`i18n:check`、`lint`、`build`、`check:admin-mobile`、
 `check:admin-editor`、`check:automation-runtime`、`check:toast`，
 并对生产包做中英文、明暗、桌面/手机的实际页面截图检查。
+
+Phase 3 本地验证记录（集成基线 `59dcabb`）：
+
+- AppMetricPage 删除 eyebrow API 与重复眉题；共享标题、指标与页面间距收紧，
+  保留所有指标真实值/说明和 header actions。模型页移除常驻操作教程与实现术语，
+  同步双语资源；管理页继续复用原有单列 shell，未变更 API、权限或编辑保存流程。
+- 保留 Phase 1 的 metric-page 命名容器和模型/指标列数规则，在既有节点增加稳定
+  data-slot。工作台几何检查改用这些定位，原宽度、动画、偏好、断点和草稿断言保留；
+  额外覆盖长模型名的卡片/标题内部 scrollWidth、名称及套餐状态可见性，以及中英文 320/390px。
+- 生产英文 320px 检查发现模型套餐状态把名称挤成零宽，以及自动任务运行记录和触发标签
+  撑出卡片。已修正真实 flex/grid 收缩和换行边界；任务搜索与时间网格按中栏容器宽度排版。
+  未增加裁切、放宽内部宽度断言、删除场景或延长超时。原失败输出和截图单独保留。
+- `i18n:check`（2 种语言、1825 个叶子键）、`lint`（0 errors/0 warnings）、`build`、
+  `check:workbench-layout` 开发/生产、`check:admin-mobile`、`check:admin-editor`、
+  `check:automation-runtime`、`check:toast` 均 exit 0。构建仅保留既有图片模块分包提示。
+- workbench 每版保留 25 个稳定几何样本和三轮 CSS 动画，另有四组手机模型回归；
+  automation-runtime 保留原运行/编辑流程，新增中英文 320/390px 与实际 480px 桌面中栏共六组。
+  Frontend Quality 保留所有原门禁，并加入管理移动布局、编辑、自动任务和 toast 的一个顺序步骤。
+- 生产视觉：模型中心、自动任务、模型管理 × 中英文 × 浅/深色 × 320/390/1200px，
+  另在 1200px 视口约束内容容器为 480px，合计 48 页及四组手机管理弹窗、52 张 PNG。
+  每组检查实际构建 Inter 字体与内部宽度；模型卡片另验名称及状态可见性，
+  模型管理页另验真实趋势曲线与长模型名 tooltip。
+  已人工查看英文手机、窄中栏、深色桌面和深色编辑窗口代表图；这不等于逐张人工评审。
+- 原始命令日志、截图与 JSON：`/tmp/ineffable-density-validation/`；
+  最终生产截图与 48 组测量为 `production-artifacts/`，检查源码为 `production-visual.mjs`。
+  修复前失败记录位于 `production-visual-before-*-fix.log` 与对应 artifact 目录。
+- 依赖缓存与 Inter 字体已在各 worktree 隔离；浏览器为本地 Chrome 156，Node 22.20。
+  全部使用模拟 Gateway，未写生产服务，GitHub Actions 远程尚未运行；最终独立审查仍待主协调完成。
 
 ## 最终审查与证据
 

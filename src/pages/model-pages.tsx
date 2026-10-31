@@ -15,7 +15,6 @@ import {
   AppMetricPage,
   AppSearchBar,
   DataState,
-  Notice,
   StatusBadge,
 } from "@/components/app";
 import { Badge } from "@/components/ui/badge";
@@ -73,25 +72,25 @@ function ModelProfileCard({ profile }: { profile: ModelProfile }) {
   const capabilities = capabilityItems(profile);
 
   return (
-    <Card className="border-border/80 bg-muted/25 py-0 shadow-none transition-colors hover:bg-muted/40">
-      <CardHeader className="border-b border-border/70 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
+    <Card className="gap-0 border-border/80 bg-card py-0 shadow-none">
+      <CardHeader className="border-b border-border/70 py-3">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-[1_1_10rem] items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background">
               <BotIcon className="size-4 text-muted-foreground" />
             </div>
             <div className="min-w-0">
-              <CardTitle className="truncate">{profile.display_name}</CardTitle>
+              <CardTitle className="truncate" title={profile.display_name}>{profile.display_name}</CardTitle>
               <CardDescription className="mt-1 truncate font-mono text-xs">
                 {profile.id}
               </CardDescription>
             </div>
           </div>
-          <StatusBadge status="usable" label={t("modelCenter.usable")} />
+          <StatusBadge status="usable" label={t("modelCenter.usable")} className="shrink-0" />
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 py-4">
+      <CardContent className="space-y-3 py-3">
         <div className="grid grid-cols-2 gap-3 rounded-lg border bg-background/70 p-3 text-xs sm:grid-cols-4">
           <div>
             <p className="text-muted-foreground">
@@ -140,7 +139,7 @@ function ModelProfileCard({ profile }: { profile: ModelProfile }) {
                 className={
                   capability.enabled
                     ? "bg-background"
-                    : "text-muted-foreground opacity-55"
+                    : "text-muted-foreground"
                 }
               >
                 <Icon />
@@ -200,7 +199,6 @@ export function ModelCenterPage() {
   }, [profiles, query]);
   return (
     <AppMetricPage
-      eyebrow="Models"
       title={t("modelCenter.title")}
       subtitle={t("modelCenter.subtitle")}
       metrics={[
@@ -231,10 +229,6 @@ export function ModelCenterPage() {
         },
       ]}
     >
-      <Notice title={t("modelCenter.howToUse")}>
-        {t("modelCenter.howToUseDescription")}
-      </Notice>
-
       <section className="overflow-hidden rounded-xl border border-border/80 bg-muted/15">
         <AppListToolbar
           search={
@@ -262,7 +256,7 @@ export function ModelCenterPage() {
             onRetry={resource.reload}
           >
             {filteredProfiles.length ? (
-              <div className="grid gap-4 @min-[48rem]/metric-page:grid-cols-2">
+              <div data-slot="model-profile-grid" className="grid gap-4 @min-[48rem]/metric-page:grid-cols-2">
                 {filteredProfiles.map((profile) => (
                   <ModelProfileCard key={profile.id} profile={profile} />
                 ))}

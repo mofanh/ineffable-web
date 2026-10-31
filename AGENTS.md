@@ -398,6 +398,24 @@ const confirmed = await confirm({
 
 单控件使用 `FormField` + `FormControl`，将稳定 ID、label、description/error 关联到真实 input 或 trigger；复合选择器在内部 trigger 接入，不能把 ID 放到 Select/Popover root。多控件使用 `FormField group` 并为各成员提供独立名称。已有显式 htmlFor/id 继续配对保留。管理编辑器的保存、错误和 finally 必须持有同一打开代次和 session 的写回权。
 
+## 工作台布局与页面密度
+
+- 左栏首次收起，后续恢复用户明确选择；聊天偏好宽度与当前生效宽度分别管理。
+  宽度预算使用真实根容器和导航占位，临时约束不能覆盖偏好；断点、抽屉和全屏切换保留同一聊天实例与草稿。
+- 指标、模型卡片和列表搜索区按自身命名容器宽度排版，不按视口猜测中栏空间。
+  几何检查使用既有节点的稳定 data-slot，保留实际中栏、占位、动画和列数断言。
+- 功能页复用 AppMetricPage 的单一标题和必要说明，不新增重复英文眉题或常驻操作教程。
+  压缩间距时保留指标真实值、完整说明、标题动作与必要的能力和计费信息；使用语义色，不用额外透明度弱化正文。
+- 长模型名的 flex/grid 父项必须可收缩；名称可省略并保留完整 title，状态徽标保持可见。
+  空间不足时按内容换行，不能让较长的译文状态把名称挤成零宽。
+  任务元数据、运行记录和操作也需按内容收缩与换行；同时检查卡片、内部标题区的 scrollWidth
+  和状态/按钮边界，不能依靠外层 overflow-hidden 掩盖溢出。
+- Composer 直接展示模型，将低频运行选项放入具名设置入口并复用原状态和回调。
+  禁用发送不能降低整组控件透明度；嵌套弹层继续遵守 Sheet 模态焦点与逐层 Escape。
+- 修改共享指标页或壳层后运行 check:workbench-layout 的开发/生产版本，以及
+  check:admin-mobile、check:admin-editor、check:automation-runtime、check:toast；
+  页面视觉另验中英文、明暗、320/390px 和桌面，生产截图使用实际构建字体。
+
 ## 系统管理页面设计约束
 
 系统管理页面包括：

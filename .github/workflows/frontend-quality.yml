@@ -52,6 +52,13 @@ jobs:
       - name: Workbench geometry and width preferences
         run: npm run check:workbench-layout
 
+      - name: Shared pages and interaction continuity
+        run: |
+          npm run check:admin-mobile
+          npm run check:admin-editor
+          npm run check:automation-runtime
+          npm run check:toast
+
       - name: Internationalization
         run: npm run i18n:check
 
