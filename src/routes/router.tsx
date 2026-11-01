@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react"
+import { Suspense, lazy, useEffect } from "react"
 import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import { FullPageLoading } from "@/components/app/route-loading"
@@ -7,13 +7,34 @@ import {
   RedirectIfAuthenticated,
   RequireAdmin,
   RequireAuth,
+  useAuthSession,
 } from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
 import { defaultPath } from "@/routes/navigation"
 
 const TeamWorkspaceDirectoryPage = lazy(() => import("@/pages/team-workspace-directory-page"))
 const SettingsPage = lazy(() => import("@/pages/settings-page"))
-const App = lazy(() => import("@/App"))
+let appModule: Promise<typeof import("@/App")> | undefined
+function loadApp() {
+  return (appModule ??= import("@/App"))
+}
+const App = lazy(loadApp)
+
+function AuthEntryRoute() {
+  const { status } = useAuthSession()
+  useEffect(() => {
+    if (status === "authenticated") {
+      // Overlap code loading with bootstrap's first list. The same promise,
+      // including rejection, is consumed by lazy and the existing route boundary.
+      void loadApp().catch(() => undefined)
+    }
+  }, [status])
+  return (
+    <RedirectIfAuthenticated>
+      <AuthLayout />
+    </RedirectIfAuthenticated>
+  )
+}
 const AccountPage = lazy(async () => ({
   default: (await import("@/pages/account-pages")).AccountPage,
 }))
@@ -133,11 +154,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     errorElement: <RouteErrorPage />,
-    element: (
-      <RedirectIfAuthenticated>
-        <AuthLayout />
-      </RedirectIfAuthenticated>
-    ),
+    element: <AuthEntryRoute />,
     children: [
       {
         index: true,
