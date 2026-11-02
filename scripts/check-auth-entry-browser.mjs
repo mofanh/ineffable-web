@@ -29,7 +29,9 @@ try {
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
   const scenarios = ["selected", "removed", "draft", "selection-change", "session-change", "chunk-failure", "unauthenticated"]
   assert.ok(!process.argv[2] || scenarios.includes(process.argv[2]))
-  for (const scenario of process.argv[2] ? [process.argv[2]] : scenarios) {
+  const cases = ["/", "/automation"].flatMap(entryPath =>
+    (process.argv[2] ? [process.argv[2]] : scenarios).map(scenario => ({ entryPath, scenario })))
+  for (const { entryPath, scenario } of cases) {
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, locale: "en-US" })
     const fixture = await installShellFixture(page, false)
     await page.addInitScript(scenario => {
@@ -59,7 +61,7 @@ try {
     })
     await page.route("**/gateway/v1/automations*", route => route.fulfill({ json: { automations: [], runs: [] } }))
     try {
-      await page.goto(origin + "/")
+      await page.goto(origin + entryPath)
       await within(meEntered.promise, "auth request did not start")
       assert.equal(moduleRequests, 0, "unverified local token must not preload App")
       assert.equal(await page.locator('[data-slot="sidebar-trigger"]').count(), 0)
@@ -104,9 +106,9 @@ try {
       }
       assert.deepEqual(fixture.errors, [], scenario)
       assert.deepEqual(fixture.unexpected, [], scenario)
-      console.log(`auth entry: ${scenario} passed`)
+      console.log(`auth entry: ${entryPath} ${scenario} passed`)
     } catch (error) {
-      console.error({ scenario, url: page.url(), text: await page.locator("body").innerText(), errors: fixture.errors, listRequests, moduleRequests })
+      console.error({ entryPath, scenario, url: page.url(), text: await page.locator("body").innerText(), errors: fixture.errors, listRequests, moduleRequests })
       throw error
     } finally {
       meRelease.release(); listRelease.release(); await page.close()

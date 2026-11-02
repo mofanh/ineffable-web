@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react"
+import { Suspense, lazy, useEffect, useState } from "react"
 import { Navigate, createBrowserRouter } from "react-router-dom"
 
 import { FullPageLoading } from "@/components/app/route-loading"
@@ -11,22 +11,37 @@ import {
 } from "@/features/auth/app-session"
 import { AuthLayout } from "@/layouts/auth-layout"
 import { defaultPath } from "@/routes/navigation"
+import { createDeferredModule } from "@/lib/app/deferred-module"
 
 const TeamWorkspaceDirectoryPage = lazy(() => import("@/pages/team-workspace-directory-page"))
 const SettingsPage = lazy(() => import("@/pages/settings-page"))
-let appModule: Promise<typeof import("@/App")> | undefined
-function loadApp() {
-  return (appModule ??= import("@/App"))
+const appModule = createDeferredModule(() => import("@/App"))
+
+function BootstrappedApp() {
+  const { isBootstrapping } = useAuthSession()
+  const [hasEntered, setHasEntered] = useState(false)
+  const module = appModule.useModule()
+  useEffect(() => {
+    if (!isBootstrapping) setHasEntered(true)
+  }, [isBootstrapping])
+  // Initial selection must settle, but a later refresh must preserve drafts and streams.
+  if (!module || (!hasEntered && isBootstrapping)) return <FullPageLoading />
+  const App = module.default
+  return <App />
 }
-const App = lazy(loadApp)
+
+function AppRoute() {
+  const { currentSessionId } = useAuthSession()
+  return <BootstrappedApp key={currentSessionId} />
+}
 
 function AuthEntryRoute() {
   const { status } = useAuthSession()
   useEffect(() => {
     if (status === "authenticated") {
       // Overlap code loading with bootstrap's first list. The same promise,
-      // including rejection, is consumed by lazy and the existing route boundary.
-      void loadApp().catch(() => undefined)
+      // including rejection, is consumed by AppRoute and the existing error boundary.
+      void appModule.preload().catch(() => undefined)
     }
   }, [status])
   return (
@@ -186,9 +201,7 @@ export const router = createBrowserRouter([
     errorElement: <RouteErrorPage />,
     element: (
       <RequireAuth>
-        <Suspense fallback={<FullPageLoading />}>
-          <App />
-        </Suspense>
+        <AppRoute />
       </RequireAuth>
     ),
     children: [
