@@ -200,6 +200,7 @@ export function AppSessionProvider({
   }))
   const { workspaceId: currentWorkspaceId, conversationId: currentConversationId, version: selectionVersion } = selection
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
+  const hydrationRef = React.useRef<{ generation: number; pending: number } | null>(null)
   const refreshAppDataPromiseRef = React.useRef<Promise<boolean> | null>(null)
   const initialBootstrapStartedRef = React.useRef(false)
   const conversationSelectionRef = React.useRef(selection)
@@ -231,6 +232,7 @@ export function AppSessionProvider({
     conversationRefreshRequestRef.current += 1
     updateConversationSelection({ workspaceId: null, conversationId: null }, true)
     refreshAppDataPromiseRef.current = null
+    hydrationRef.current = null
     clearApiResourceCache()
     setIsBootstrapping(false)
     setCurrentUser(null)
@@ -354,25 +356,40 @@ export function AppSessionProvider({
     async (token: string) => {
       const generation = sessionGenerationRef.current
       const identity = sessionIdentityRef.current
-      const me = await fetchMe(token)
       if (!isCurrentSession(generation, identity)) return
-      const nextWorkspaces = me.workspaces
+      if (hydrationRef.current?.generation !== generation) {
+        hydrationRef.current = { generation, pending: 0 }
+      }
+      const hydration = hydrationRef.current
+      hydration.pending += 1
+      setIsBootstrapping(true)
+      try {
+        const me = await fetchMe(token)
+        if (!isCurrentSession(generation, identity)) return
+        const nextWorkspaces = me.workspaces
 
-      setCurrentUser(me.user)
-      setWorkspaces(nextWorkspaces)
+        setCurrentUser(me.user)
+        setWorkspaces(nextWorkspaces)
 
-      // A refresh must not silently move an existing execution selection to another space.
-      const nextWorkspaceId = conversationSelectionRef.current.workspaceId ?? chooseWorkspaceId(
-        nextWorkspaces,
-        conversationSelectionRef.current.workspaceId,
-        me.current_workspace_id,
-      )
+        // A refresh must not silently move an existing execution selection to another space.
+        const nextWorkspaceId = conversationSelectionRef.current.workspaceId ?? chooseWorkspaceId(
+          nextWorkspaces,
+          conversationSelectionRef.current.workspaceId,
+          me.current_workspace_id,
+        )
 
-      updateConversationSelection({ workspaceId: nextWorkspaceId })
-      writeStorage(STORAGE_KEYS.workspaceId, nextWorkspaceId)
-      setStatus("authenticated")
+        updateConversationSelection({ workspaceId: nextWorkspaceId })
+        writeStorage(STORAGE_KEYS.workspaceId, nextWorkspaceId)
+        setStatus("authenticated")
 
-      await refreshConversations(nextWorkspaceId, token)
+        await refreshConversations(nextWorkspaceId, token)
+      } finally {
+        hydration.pending -= 1
+        // Every entry uses this hydration boundary; an older account cannot settle it.
+        if (hydrationRef.current === hydration && isCurrentSession(generation, identity)) {
+          setIsBootstrapping(hydration.pending > 0)
+        }
+      }
     },
     [refreshConversations, isCurrentSession, updateConversationSelection],
   )
@@ -391,8 +408,6 @@ export function AppSessionProvider({
         return false
       }
 
-      setIsBootstrapping(true)
-
       try {
         await hydrateWithToken(accessToken)
         return isCurrentSession(generation, identity)
@@ -404,8 +419,6 @@ export function AppSessionProvider({
           setStatus(current => current === "authenticated" ? current : "loading")
         }
         return false
-      } finally {
-        if (isCurrentSession(generation, identity)) setIsBootstrapping(false)
       }
     })()
 

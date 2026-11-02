@@ -27,7 +27,7 @@ try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-  const scenarios = ["selected", "removed", "draft", "selection-change", "session-change", "chunk-failure", "unauthenticated"]
+  const scenarios = ["selected", "removed", "draft", "selection-change", "session-change", "token-refresh-overlap", "chunk-failure", "unauthenticated"]
   assert.ok(!process.argv[2] || scenarios.includes(process.argv[2]))
   const cases = ["/", "/automation"].flatMap(entryPath =>
     (process.argv[2] ? [process.argv[2]] : scenarios).map(scenario => ({ entryPath, scenario })))
@@ -39,7 +39,7 @@ try {
       else localStorage.setItem("ineffable.chat.conversation_id", "old")
       if (scenario !== "draft") localStorage.removeItem("ineffable.chat.new_conversation_draft")
     }, scenario)
-    const meEntered = gate(), meRelease = gate(), listEntered = gate(), listRelease = gate(), appEntered = gate()
+    const meEntered = gate(), meRelease = gate(), listEntered = gate(), listRelease = gate(), secondListEntered = gate(), secondListRelease = gate(), appEntered = gate()
     let moduleRequests = 0, listRequests = 0
     await page.route("**/src/App.tsx*", async route => {
       moduleRequests++; appEntered.release()
@@ -55,7 +55,10 @@ try {
     })
     await page.route("**/gateway/v1/conversations/list*", async route => {
       listRequests++
-      if (route.request().headers().authorization === "Bearer fixture-token-b") return route.fulfill({ json: { conversations: [{ id: "new-account", title: "New account conversation" }] } })
+      if (["Bearer fixture-token-b", "Bearer fixture-token-renewed"].includes(route.request().headers().authorization)) {
+        secondListEntered.release(); await secondListRelease.promise
+        return route.fulfill({ json: { conversations: [{ id: scenario === "session-change" ? "new-account" : "old", title: "Reconciled conversation" }] } })
+      }
       listEntered.release(); await listRelease.promise
       await route.fulfill({ json: { conversations: scenario === "removed" ? [] : [{ id: "old", title: "Old conversation" }, ...(scenario === "selection-change" && listRequests > 1 ? [{ id: "chosen", title: "Chosen conversation" }] : [])] } })
     })
@@ -78,13 +81,22 @@ try {
         assert.equal(await page.locator('[data-slot="sidebar-trigger"]').count(), 0, "preload must not mount App before existing bootstrap")
         assert.equal(countPath(apiRequests(fixture.requests), "/messages"), 0, "preloading must not read an unconfirmed stored selection")
         if (scenario === "selection-change") await page.evaluate(() => window.__entrySelect("chosen"))
-        if (scenario === "session-change") {
-          await page.evaluate(() => {
-            localStorage.setItem("ineffable.auth.session_id", "fixture-session-b")
-            localStorage.setItem("ineffable.auth.access_token", "fixture-token-b")
+        if (["session-change", "token-refresh-overlap"].includes(scenario)) {
+          await page.evaluate(scenario => {
+            if (scenario === "session-change") localStorage.setItem("ineffable.auth.session_id", "fixture-session-b")
+            localStorage.setItem("ineffable.auth.access_token", scenario === "session-change" ? "fixture-token-b" : "fixture-token-renewed")
             window.dispatchEvent(new StorageEvent("storage", { key: "ineffable.auth.access_token" }))
-          })
-          await page.waitForFunction(() => window.__entryAuth?.currentUser?.id === "user-b" && !window.__entryAuth.isBootstrapping)
+          }, scenario)
+          await within(secondListEntered.promise, "new session list did not start")
+          await page.waitForFunction(id => window.__entryAuth?.currentUser?.id === id, scenario === "session-change" ? "user-b" : "user")
+          assert.equal(await page.evaluate(() => window.__entryAuth.isBootstrapping), true, "new session still owns its first list")
+          const oldResponse = page.waitForResponse(response => response.url().includes("/conversations/list") && response.request().headers().authorization === "Bearer fixture-token")
+          listRelease.release()
+          await within(oldResponse.then(response => response.finished()), "old session list did not settle")
+          await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+          assert.equal(await page.evaluate(() => window.__entryAuth.isBootstrapping), true, "old session cannot clear new bootstrap")
+          assert.equal(await page.locator('[data-slot="sidebar-trigger"]').count(), 0, "new session cannot mount before its list reconciles")
+          secondListRelease.release()
         }
         listRelease.release()
         if (scenario === "chunk-failure") {
@@ -100,7 +112,7 @@ try {
         }
         assert.equal(moduleRequests, 1, "preload and route reuse one module request, including rejection")
         // The existing Automation landing page refreshes the list once after mounting.
-        const expectedLists = scenario === "chunk-failure" ? 1 : scenario === "session-change" ? 3 : 2
+        const expectedLists = scenario === "chunk-failure" ? 1 : ["session-change", "token-refresh-overlap"].includes(scenario) ? 3 : 2
         if (scenario !== "chunk-failure") await page.getByRole("heading", { name: /automation/i }).first().waitFor()
         assert.equal(listRequests, expectedLists, `${scenario}: only bootstrap and existing landing-page refresh`)
       }
@@ -111,7 +123,7 @@ try {
       console.error({ entryPath, scenario, url: page.url(), text: await page.locator("body").innerText(), errors: fixture.errors, listRequests, moduleRequests })
       throw error
     } finally {
-      meRelease.release(); listRelease.release(); await page.close()
+      meRelease.release(); listRelease.release(); secondListRelease.release(); await page.close()
     }
   }
 } finally { await browser?.close(); await server.close() }
