@@ -200,7 +200,7 @@ export function AppSessionProvider({
   }))
   const { workspaceId: currentWorkspaceId, conversationId: currentConversationId, version: selectionVersion } = selection
   const [isBootstrapping, setIsBootstrapping] = React.useState(false)
-  const hydrationRef = React.useRef<{ generation: number; pending: number } | null>(null)
+  const hydrationRef = React.useRef<{ generation: number; pending: number; initialized: boolean } | null>(null)
   const refreshAppDataPromiseRef = React.useRef<Promise<boolean> | null>(null)
   const initialBootstrapStartedRef = React.useRef(false)
   const conversationSelectionRef = React.useRef(selection)
@@ -307,7 +307,7 @@ export function AppSessionProvider({
       tokenOverride?: string | null,
     ) => {
       const token = tokenOverride ?? accessToken
-      if (!captureAuthSession(token)()) return
+      if (!captureAuthSession(token)()) return false
       const generation = sessionGenerationRef.current
       const identity = sessionIdentityRef.current
       const requestId = ++conversationRefreshRequestRef.current
@@ -318,7 +318,7 @@ export function AppSessionProvider({
         setConversations([])
         updateConversationSelection({ conversationId: null })
         writeStorage(STORAGE_KEYS.conversationId, null)
-        return
+        return false
       }
 
       const response = await listConversations(token, {
@@ -334,7 +334,7 @@ export function AppSessionProvider({
           currentSelectionVersion: conversationSelectionRef.current.version,
         })
       ) {
-        return
+        return false
       }
 
       setConversations(response.conversations)
@@ -348,6 +348,7 @@ export function AppSessionProvider({
       })
       updateConversationSelection({ conversationId: nextId })
       writeStorage(STORAGE_KEYS.conversationId, nextId)
+      return true
     },
     [accessToken, isCurrentSession, updateConversationSelection],
   )
@@ -358,7 +359,7 @@ export function AppSessionProvider({
       const identity = sessionIdentityRef.current
       if (!isCurrentSession(generation, identity)) return
       if (hydrationRef.current?.generation !== generation) {
-        hydrationRef.current = { generation, pending: 0 }
+        hydrationRef.current = { generation, pending: 0, initialized: false }
       }
       const hydration = hydrationRef.current
       hydration.pending += 1
@@ -382,12 +383,22 @@ export function AppSessionProvider({
         writeStorage(STORAGE_KEYS.workspaceId, nextWorkspaceId)
         setStatus("authenticated")
 
-        await refreshConversations(nextWorkspaceId, token)
+        let applied = await refreshConversations(nextWorkspaceId, token)
+        // An explicit selection may supersede the first list. Reconcile its current
+        // snapshot once; a newer hydration owns its own reconciliation instead.
+        if (!applied && !hydration.initialized && hydration.pending === 1 && isCurrentSession(generation, identity)) {
+          applied = await refreshConversations(nextWorkspaceId, token)
+        }
+        if (applied) hydration.initialized = true
       } finally {
         hydration.pending -= 1
         // Every entry uses this hydration boundary; an older account cannot settle it.
         if (hydrationRef.current === hydration && isCurrentSession(generation, identity)) {
           setIsBootstrapping(hydration.pending > 0)
+          // Finishing a failed/stale request is not a successful first hydration.
+          // Keep the existing loading/retry route until a current list was applied;
+          // subsequent refresh failures must preserve the already initialized UI.
+          if (hydration.pending === 0 && !hydration.initialized) setStatus("loading")
         }
       }
     },
@@ -633,7 +644,7 @@ export function AppSessionProvider({
   )
 
   const refreshConversationList = React.useCallback(
-    () => refreshConversations(),
+    async () => { await refreshConversations() },
     [refreshConversations],
   )
 

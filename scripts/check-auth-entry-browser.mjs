@@ -112,7 +112,7 @@ try {
         }
         assert.equal(moduleRequests, 1, "preload and route reuse one module request, including rejection")
         // The existing Automation landing page refreshes the list once after mounting.
-        const expectedLists = scenario === "chunk-failure" ? 1 : ["session-change", "token-refresh-overlap"].includes(scenario) ? 3 : 2
+        const expectedLists = scenario === "selection-change" ? 3 : scenario === "chunk-failure" ? 1 : ["session-change", "token-refresh-overlap"].includes(scenario) ? 3 : 2
         if (scenario !== "chunk-failure") await page.getByRole("heading", { name: /automation/i }).first().waitFor()
         assert.equal(listRequests, expectedLists, `${scenario}: only bootstrap and existing landing-page refresh`)
       }
