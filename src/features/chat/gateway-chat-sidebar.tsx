@@ -40,7 +40,6 @@ import { ChatSidebarHeader } from "@/features/chat/components/chat-sidebar-heade
 import {
   createEmptySubagent,
   createMessageId,
-  getEventFingerprint,
   hasAssistantEntryContent,
   isSubScope,
   isToolEvent,
@@ -551,7 +550,6 @@ export function GatewayChatSidebar({
   const pendingAgentIterationHandoffsRef = React.useRef(
     new Map<string, { requested: boolean }>()
   )
-  const seenEventRef = React.useRef(new Set<string>())
   const workspaceObservationsRef = React.useRef({ session: currentSessionId, seen: new Set<string>() })
   if (workspaceObservationsRef.current.session !== currentSessionId) {
     workspaceObservationsRef.current = { session: currentSessionId, seen: new Set<string>() }
@@ -1664,7 +1662,7 @@ export function GatewayChatSidebar({
   )
 
   const setConversationLastSeq = React.useCallback(
-    (conversationId: string, seq: number | null | undefined) => {
+    (conversationId: string, seq: number | null | undefined, persist = true) => {
       if (!conversationId || typeof seq !== "number" || !Number.isFinite(seq)) {
         return
       }
@@ -1677,7 +1675,7 @@ export function GatewayChatSidebar({
         conversationSeqRef.current.set(conversationId, current)
       }
 
-      if (conversationId === activeStreamConversationIdRef.current) {
+      if (persist && conversationId === activeStreamConversationIdRef.current) {
         persistResumeState({
           conversationId,
           afterSeq: conversationSeqRef.current.get(conversationId) ?? normalized,
@@ -2030,7 +2028,6 @@ export function GatewayChatSidebar({
     recoveryInFlightRef.current = false
     updateStreamStatus("idle")
     assistantEntryIdRef.current = null
-    seenEventRef.current = new Set()
     setShowScrollToBottom(false)
     autoStickToBottomRef.current = true
     lastViewportScrollTopRef.current = 0
@@ -2086,7 +2083,6 @@ export function GatewayChatSidebar({
   }, [scrollToBottom])
 
   function resetSeenCaches() {
-    seenEventRef.current = new Set()
   }
 
   function resetTurnState() {
@@ -2180,11 +2176,9 @@ export function GatewayChatSidebar({
       return
     }
 
-    const changed = activeRunIdRef.current !== normalized
+    if (activeRunIdRef.current === normalized) return
     activeRunIdRef.current = normalized
-    if (changed) {
-      void refreshConversations().catch(() => {})
-    }
+    void refreshConversations().catch(() => {})
     updateAssistantEntry((entry) =>
       entry && !entry.runId
         ? {
@@ -2981,7 +2975,7 @@ export function GatewayChatSidebar({
       if (!nextRuntime || nextRuntime === previousRuntime) {
         return
       }
-      setConversationLastSeq(identity.conversationId, envelope.event.seq)
+      setConversationLastSeq(identity.conversationId, envelope.event.seq, false)
       persistResumeState({
         conversationId: identity.conversationId,
         runId: isConversationScopedEvent(envelope.event) ? nextRuntime.runId : identity.runId,
@@ -3014,12 +3008,8 @@ export function GatewayChatSidebar({
       return
     }
 
-    const fingerprint = getEventFingerprint(envelope.event)
-    if (seenEventRef.current.has(fingerprint)) {
-      return
-    }
-
-    seenEventRef.current.add(fingerprint)
+    // The runtime reducer above accepts each durable sequence only once. Do not
+    // retain a second copy of every payload as a deduplication fingerprint.
     applyEvent(envelope.event)
   })
 
