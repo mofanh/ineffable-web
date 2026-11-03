@@ -66,6 +66,15 @@ export async function parseApiError(response: Response) {
   }
 }
 
+/** Preserve the same structured server error for JSON and streaming sends. */
+export async function parseApiRequestError(response: Response): Promise<ApiRequestError> {
+  const detail = await response.clone().json().catch(() => null) as { reason?: unknown } | null
+  return new ApiRequestError(await parseApiError(response), {
+    status: response.status,
+    cause: typeof detail?.reason === "string" ? { reason: detail.reason } : undefined,
+  })
+}
+
 export function isAccessTokenExpiredError(error: unknown) {
   const message =
     error instanceof Error
@@ -183,10 +192,9 @@ export async function requestApiJson<T>(
   })
 
   if (!response.ok) {
-    const detail = await response.clone().json().catch(() => null) as { reason?: unknown } | null
-    const message = await parseApiError(response)
+    const error = await parseApiRequestError(response)
     assertSession()
-    throw new ApiRequestError(message, { status: response.status, cause: typeof detail?.reason === "string" ? { reason: detail.reason } : undefined })
+    throw error
   }
 
   const body = (await response.json()) as T

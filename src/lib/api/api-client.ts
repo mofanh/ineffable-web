@@ -13,6 +13,7 @@ import {
   getApiBaseUrl,
   isAccessTokenExpiredError,
   parseApiError,
+  parseApiRequestError,
   requestApi,
   requestApiJson,
 } from "@/lib/api/base-client"
@@ -2208,7 +2209,7 @@ export async function streamConversationSend(
   })
 
   if (!response.ok) {
-    throw withRecoverableFlag(createApiError(await parseApiError(response)), false)
+    throw withRecoverableFlag(await parseApiRequestError(response), false)
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""
@@ -2570,6 +2571,7 @@ export function stopConversationRun(
 // ── Pending Inputs API ──
 
 export type PendingInputItem = {
+  hold_reason?: string | null
   queued_in_timeline?: boolean
   run_id: string | null
   id: number
@@ -2598,6 +2600,7 @@ export function getPendingInputs(
     blocked_by_run_id: string | null
     blocked_by_error_code: string | null
     can_resume: boolean
+    hold_reason: string | null
   }>(
     `/gateway/v1/conversations/${conversationId}/pending-inputs${query}`,
     {
@@ -2608,10 +2611,13 @@ export function getPendingInputs(
 
 export function resumePendingInputs(
   accessToken: string,
-  conversationId: string
+  conversationId: string,
+  generation: number,
+  headId: number,
+  retryUnknown = false
 ) {
   return requestApiJson<{ ok: boolean; released: number }>(
-    `/gateway/v1/conversations/${conversationId}/pending-inputs/resume`,
+    `/gateway/v1/conversations/${conversationId}/pending-inputs/resume?generation=${generation}&head_id=${headId}&retry_unknown=${retryUnknown}`,
     {
       method: "POST",
       accessToken,

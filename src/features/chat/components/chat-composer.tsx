@@ -1,4 +1,4 @@
-import { pendingQueueReasonKey } from "@/features/chat/model/pending-queue-presentation"
+import { pendingHoldReasonKey } from "@/features/chat/model/pending-queue-presentation"
 import type { ImageReference } from "@/lib/image-reference"
 import { WorkspaceFileMenu, type FileMenuHandle } from "./workspace-file-menu"
 import { WorkspaceFileTags } from "./workspace-file-tags"
@@ -45,6 +45,7 @@ import {
 } from "lucide-react"
 
 export type PreInputQueueItem = {
+  holdReason?: string | null
   inTimeline?: boolean
   messageId?: string
   id: string
@@ -76,7 +77,7 @@ type ChatComposerProps = {
   isSubmittingInput: boolean
   canPromoteToGuided: boolean
   canResumePreInputQueue: boolean
-  blockedPreInputRunStatus: string | null
+  pendingQueueHoldReason: string | null
   blockedPreInputErrorCode?: string | null
   pendingQueueAction: "idle" | "resuming" | "clearing"
   preInputQueue: PreInputQueueItem[]
@@ -130,7 +131,7 @@ export function ChatComposer({
   isSubmittingInput,
   canPromoteToGuided,
   canResumePreInputQueue,
-  blockedPreInputRunStatus,
+  pendingQueueHoldReason,
   blockedPreInputErrorCode,
   pendingQueueAction,
   preInputQueue,
@@ -290,6 +291,11 @@ export function ChatComposer({
     addReferences(pasted.references, draft.text.slice(0, start) + pasted.text + draft.text.slice(end), start + pasted.text.length)
   }
 
+  const firstHoldReason = queuedItems[0]?.holdReason
+  const displayedHoldReason = pendingQueueHoldReason ?? (
+    firstHoldReason && queuedItems.every(item => item.holdReason === firstHoldReason) ? firstHoldReason : null
+  )
+
   const delivery = sandboxDeliveryPresentation(sandboxOptions.find((option) => option.environmentId === selectedSandboxEnvironmentId)?.resultDelivery)
 
   return (
@@ -306,11 +312,11 @@ export function ChatComposer({
             <div className="flex min-w-0 items-center gap-1.5">
               <GripVerticalIcon className="size-3 shrink-0" />
               <span className="shrink-0">
-                {t("chat.composer.queue", { count: queuedItems.length })}
+                {t(displayedHoldReason ? "chat.composer.heldInputs" : "chat.composer.queue", { count: queuedItems.length })}
               </span>
-              {blockedPreInputRunStatus ? (
+              {displayedHoldReason ? (
                 <span className="truncate text-amber-700 dark:text-amber-400">
-                  {t(pendingQueueReasonKey(blockedPreInputRunStatus, blockedPreInputErrorCode))}
+                  {t(pendingHoldReasonKey(displayedHoldReason, blockedPreInputErrorCode))}
                 </span>
               ) : null}
             </div>
@@ -329,7 +335,7 @@ export function ChatComposer({
                   ) : (
                     <RotateCcwIcon className="size-3" />
                   )}
-                  {t("chat.composer.resumeQueue")}
+                  {t(pendingQueueHoldReason === "outcome_unknown" ? "chat.composer.retryUnknown" : "chat.composer.resumeQueue")}
                 </Button>
               ) : null}
               <Button
@@ -356,6 +362,7 @@ export function ChatComposer({
                 className="flex items-start gap-1.5 rounded-lg bg-background px-2.5 py-2 text-[13px] leading-snug shadow-sm"
               >
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground/80">
+                  {item.holdReason && item.holdReason !== displayedHoldReason ? <span className="mb-1 block text-xs text-amber-700 dark:text-amber-400">{t(pendingHoldReasonKey(item.holdReason))}</span> : null}
                   {item.status === "promoting" ? t("chat.composer.promoting") : ""}
                   {item.status === "deleting" ? t("chat.composer.deleting") : ""}
                   {item.content.length > 100
@@ -375,7 +382,7 @@ export function ChatComposer({
                     }
                     onClick={() => onPromoteToGuided(item.id)}
                     disabled={
-                      !canPromoteToGuided || isActionPending(item.status)
+                      !canPromoteToGuided || Boolean(item.holdReason) || isActionPending(item.status)
                     }
                   >
                     <SendHorizontalIcon className="size-3" />

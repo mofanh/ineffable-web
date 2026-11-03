@@ -189,19 +189,19 @@ assert.match(sidebar, /response\.output\?\.trim\(\) && !hasForwardAssistantOutpu
 assert.match(history, /metadata_json\.web_view !== undefined/)
 assert.match(apiClient, /pending-inputs\/resume/)
 assert.match(apiClient, /pending-inputs\/clear/)
-assert.match(sidebar, /res\.blocked_by_run_status/)
+assert.match(sidebar, /res\.hold_reason/)
 assert.match(sidebar, /res\.can_resume/)
-assert.match(sidebar, /resumePendingInputs\(accessToken, conversationId\)/)
+assert.match(sidebar, /resumePendingInputs\(accessToken, conversationId, admissionGeneration, headId, retryUnknown\)/)
 assert.match(sidebar, /clearPendingInputs\(accessToken, conversationId\)/)
 assert.match(chatComposer, /canResumePreInputQueue/)
-assert.match(chatComposer, /pendingQueueReasonKey\(blockedPreInputRunStatus, blockedPreInputErrorCode\)/)
+assert.match(chatComposer, /pendingHoldReasonKey\(displayedHoldReason, blockedPreInputErrorCode\)/)
 assert.match(
   sidebar,
   /function refreshFailedConversationProjection[\s\S]{0,400}refreshPendingInputsForConversation/,
   "every failed terminal projection must refresh the authoritative pending queue"
 )
 const queueResume = sidebar.slice(sidebar.indexOf("  async function handleResumePreInputQueue()"), sidebar.indexOf("  async function handleClearPreInputQueue()"))
-assert.match(queueResume, /await resumePendingInputs\(accessToken, conversationId\)/)
+assert.match(queueResume, /await resumePendingInputs\(accessToken, conversationId, admissionGeneration, headId, retryUnknown\)/)
 assert.match(queueResume, /refreshConversations\(\)/)
 assert.match(queueResume, /refreshPendingInputsForConversation\(conversationId\)/)
 assert.doesNotMatch(queueResume, /resumeConversationStream|is_live|while\s*\(/,

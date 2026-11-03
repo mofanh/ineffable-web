@@ -4,6 +4,7 @@ import { AppSessionProvider, RequireAuth, useAppSession } from "../src/features/
 import { GatewayChatSidebar } from "../src/features/chat/gateway-chat-sidebar"
 import { SidebarProvider } from "../src/components/ui/sidebar"
 import { TooltipProvider } from "../src/components/ui/tooltip"
+import { AppConfirmProvider } from "../src/lib/app/confirm"
 import { AppToaster } from "../src/components/app/app-toaster"
 import { i18n } from "../src/lib/i18n/i18n"
 import "../src/index.css"
@@ -19,4 +20,4 @@ function Fixture() {
     <button onClick={() => void session.createConversation("helper")}>Create through session</button>
   </div><RequireAuth><SidebarProvider><TooltipProvider><GatewayChatSidebar isFullScreen onFullScreenChange={() => {}} /></TooltipProvider></SidebarProvider></RequireAuth><AppToaster /></>
 }
-createRoot(document.getElementById("root")!).render(<MemoryRouter><AppSessionProvider><Fixture /></AppSessionProvider></MemoryRouter>)
+createRoot(document.getElementById("root")!).render(<MemoryRouter><AppSessionProvider><AppConfirmProvider><Fixture /></AppConfirmProvider></AppSessionProvider></MemoryRouter>)

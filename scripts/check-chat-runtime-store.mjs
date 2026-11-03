@@ -284,7 +284,7 @@ assert.equal(projectionStore.getRunProjection(),terminalProjection,"rejected lis
 
 // Admission is an independent monotonic fact, not evidence that a run exists.
 const admissionStore = new ChatRuntimeStore()
-const admission = { conversation_id: "waiting", queued_count: 1, consuming_count: 0, queue_paused: false, generation: 0, revision: 2 }
+const admission = { conversation_id: "waiting", queued_count: 1, consuming_count: 0, held_count: 0, queue_paused: false, generation: 0, revision: 2 }
 admissionStore.dispatch("waiting", { type: "admission-snapshot", admission })
 assert.equal(admissionStore.get("waiting").runId, null)
 assert.equal(admissionStore.get("waiting").lifecycle, "idle")
@@ -309,3 +309,5 @@ const awaitingRecorder = { ...admission, queued_count: 0, consuming_count: 1, re
 assert.equal(hasUnsettledConversationInput(awaitingRecorder), true, "claim cannot stop background observation before run.started")
 assert.equal(hasUnsettledConversationInput({ ...awaitingRecorder, queue_paused: true }), true, "an executing root remains stoppable while its successors are paused")
 assert.equal(hasUnsettledConversationInput({ ...paused, consuming_count: 0 }), false)
+
+assert.equal(hasUnsettledConversationInput({ ...admission, queued_count: 0, held_count: 4 }), false, "retained work alone must not project active execution")

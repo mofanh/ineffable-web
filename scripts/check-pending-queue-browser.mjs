@@ -8,7 +8,7 @@ assert.ok(executablePath, "Chrome required")
 const streams = new Set()
 let hold = false, release = null
 const pending = { id: 123, message_id: "queued", run_id: "old-run", content: "QUEUED_FIXTURE", kind: "pre_input", status: "queued" }
-let queue = { pending_inputs: [pending], blocked_by_run_status: "failed", blocked_by_run_id: "old-run", blocked_by_error_code: "context_request_overflow", can_resume: true }
+let queue = { pending_inputs: [pending], hold_reason: "failed", blocked_by_run_status: "failed", blocked_by_run_id: "old-run", blocked_by_error_code: "context_request_overflow", can_resume: true }
 const server = await createServer({ root: process.cwd(), logLevel: "error", optimizeDeps: {entries:["scripts/live-refresh-fixture.html"]}, plugins: [{name:"pending-fixture", enforce:"pre", resolveId(id) {
   if (id === "@/features/auth/app-session" || id.endsWith("/src/features/auth/app-session")) return resolve("scripts/live-refresh-session-fixture.ts")
 }, configureServer(server) { server.middlewares.use((req,res,next) => {
@@ -46,7 +46,7 @@ try {
   assert.equal(await page.getByText("QUEUED_FIXTURE",{exact:true}).count(),0,"late GET cannot resurrect consumed queue")
   assert.equal(await page.getByText("请求超出上下文容量，请调整模型或工具配置",{exact:true}).count(),0)
   // A → B → A must invalidate the first A request even when its conversation id matches again.
-  release=null; hold=true;queue={pending_inputs:[pending],blocked_by_run_status:"failed",blocked_by_error_code:"context_request_overflow",can_resume:true}
+  release=null; hold=true;queue={pending_inputs:[pending],hold_reason:"failed",blocked_by_run_status:"failed",blocked_by_error_code:"context_request_overflow",can_resume:true}
   send(3,"pending_input_queued");await waitForHeld()
   const select=id=>page.evaluate(id=>window.dispatchEvent(new CustomEvent("fixture:select",{detail:id})),id)
   await select("other-conversation");queue={pending_inputs:[],blocked_by_run_status:null,blocked_by_error_code:null,can_resume:false};await select("refresh-conversation")

@@ -1,3 +1,4 @@
+import { pendingInputErrorKey } from "@/features/chat/model/pending-queue-presentation"
 import { acceptsRunLifecycleEvent } from "./runtime/conversation-run-reducer"
 import { removeImageFileReference } from "@/lib/workspace-file-reference"
 import type { ChatRowWindowHandle } from "@/features/chat/components/chat-row-window"
@@ -456,7 +457,8 @@ export function GatewayChatSidebar({
       options?: { toast?: boolean; format?: (message: string) => string }
     ) => {
       const appError = normalizeAppError(caught, { fallbackMessage })
-      const message = options?.format
+      const pendingErrorKey = pendingInputErrorKey(appError.cause)
+      const message = pendingErrorKey ? i18n.t(pendingErrorKey) : options?.format
         ? options.format(appError.message)
         : appError.message
       if (options?.toast ?? true) {
@@ -585,10 +587,8 @@ export function GatewayChatSidebar({
     return projectAcceptedRunStatus(entries, conversationId ? runtimeStoreRef.current.getRunProjection().getRun(conversationId) : null)
   }, [])
   const [preInputQueue, setPreInputQueue] = React.useState<PreInputQueueItem[]>([])
-  const [blockedPreInputRunStatus, setBlockedPreInputRunStatus] = React.useState<
-    string | null
-  >(null)
   const [blockedPreInputErrorCode, setBlockedPreInputErrorCode] = React.useState<string | null>(null)
+  const [pendingQueueHoldReason, setPendingQueueHoldReason] = React.useState<string | null>(null)
   const [canResumePreInputQueue, setCanResumePreInputQueue] = React.useState(false)
   const [pendingQueueAction, setPendingQueueAction] = React.useState<
     "idle" | "resuming" | "clearing"
@@ -632,7 +632,7 @@ export function GatewayChatSidebar({
       pendingInputProjectionRef.current = null
       setPreInputQueue([])
       setPendingQueueAction("idle")
-      setBlockedPreInputRunStatus(null)
+      setPendingQueueHoldReason(null)
       setBlockedPreInputErrorCode(null)
       setCanResumePreInputQueue(false)
       recoveryRequestIdRef.current += 1
@@ -1011,9 +1011,10 @@ export function GatewayChatSidebar({
           inTimeline: item.queued_in_timeline === true,
           content: item.content,
           status: "queued" as const,
+          holdReason: item.hold_reason ?? null,
         }))
       )
-      setBlockedPreInputRunStatus(res.blocked_by_run_status)
+      setPendingQueueHoldReason(res.hold_reason ?? null)
       setBlockedPreInputErrorCode(res.blocked_by_error_code ?? null)
       setCanResumePreInputQueue(res.can_resume)
     },
@@ -1233,7 +1234,7 @@ export function GatewayChatSidebar({
   React.useEffect(() => {
     if (!currentConversationId || !accessToken) {
       setPreInputQueue([])
-      setBlockedPreInputRunStatus(null)
+      setPendingQueueHoldReason(null)
       setBlockedPreInputErrorCode(null)
       setCanResumePreInputQueue(false)
       return
@@ -3985,9 +3986,18 @@ export function GatewayChatSidebar({
     const generation = humanInputSubmissionGenerationRef.current
     const view = { ...sendViewRef.current }
     const isCurrentResume = () => sendViewRef.current.session === view.session && sendViewRef.current.generation === view.generation && currentConversationIdRef.current === conversationId && humanInputSubmissionGenerationRef.current === generation
+    const admissionGeneration = runtimeStoreRef.current.get(conversationId).admission?.generation
+    const headKey = preInputQueue[0]?.id
+    const headId = headKey?.startsWith("db-") ? Number(headKey.slice(3)) : null
+    if (admissionGeneration == null || headId == null) return
     setPendingQueueAction("resuming")
     try {
-      await resumePendingInputs(accessToken, conversationId)
+      const retryUnknown = pendingQueueHoldReason === "outcome_unknown"
+      if (retryUnknown) {
+        const accepted = await confirm({ title: i18n.t("chat.composer.retryUnknownConfirm"), variant: "destructive" })
+        if (!accepted || !isCurrentResume()) return
+      }
+      await resumePendingInputs(accessToken, conversationId, admissionGeneration, headId, retryUnknown)
       if (!isCurrentResume()) return
       pendingInputRequestRef.current += 1
       try {
@@ -4221,7 +4231,7 @@ export function GatewayChatSidebar({
           selectedConversation?.current_run?.accepts_guided_input === true
         }
         canResumePreInputQueue={canResumePreInputQueue}
-        blockedPreInputRunStatus={blockedPreInputRunStatus}
+        pendingQueueHoldReason={pendingQueueHoldReason}
         blockedPreInputErrorCode={blockedPreInputErrorCode}
         pendingQueueAction={pendingQueueAction}
         preInputQueue={displayedPreInputQueue}

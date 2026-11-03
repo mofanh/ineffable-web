@@ -28,10 +28,10 @@ try {
   let revision = 0, generation = 0, paused = false, queued = false, consuming = false, run = null, messages = [], listCalls = 0, stopCalls = 0, resumes = 0
   let holdQueue = false, staleQueueStarted, holdHistory = false
   const heldHistory = []
-  const admission = () => ({ conversation_id: "first", revision, generation, queued_count: queued ? 1 : 0, consuming_count: consuming ? 1 : 0, queue_paused: paused })
+  const admission = () => ({ conversation_id: "first", revision, generation, queued_count: queued && !paused ? 1 : 0, held_count: queued && paused ? 1 : 0, consuming_count: consuming ? 1 : 0, queue_paused: paused })
   const conversation = () => ({ id: "first", title: "Admission fixture", current_run_id: run?.id ?? null, current_run: run, admission: admission() })
   const inputMessage = () => ({id:"input",timeline_unit_id:"message:input",timeline_seq:1,conversation_id:"first",role:"user",message_type:"input",message_seq:1,content:"WAITING_INPUT",created_at:"2026-10-28T00:00:00Z",metadata_json:{input_progress:{message_id:"input",conversation_id:"first",message_seq:1,kind:"pre_input",phase:queued?"queued":"received",queued_in_timeline:queued&&!paused,run_id:run?.id??null,run_state:run?.status??null}}})
-  const queue = () => ({ pending_inputs: queued ? [{ id: 1, message_id: "input", conversation_id: "first", content: "WAITING_INPUT", kind: "pre_input", status: "queued", run_id: null, queued_in_timeline: !paused }] : [], input_progress: [], admission: admission(), can_resume: queued && paused, blocked_by_run_status: null, blocked_by_run_id: null, blocked_by_error_code: null })
+  const queue = () => ({ hold_reason: paused ? "paused" : null, pending_inputs: queued ? [{ id: 1, message_id: "input", conversation_id: "first", content: "WAITING_INPUT", kind: "pre_input", status: "queued", run_id: null, queued_in_timeline: !paused }] : [], input_progress: [], admission: admission(), can_resume: queued && paused, blocked_by_run_status: null, blocked_by_run_id: null, blocked_by_error_code: null })
   await page.route("**/gateway/**", async route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith("/subscribe")) return route.continue()
@@ -46,7 +46,11 @@ try {
       if (holdHistory) await new Promise(resolve => heldHistory.push(resolve))
     }
     else if (path.endsWith("/observations/access")) body = { allowed: false }
-    else if (path.endsWith("/pending-inputs/resume")) { resumes++; paused = false; generation++; revision++; body = { ok: true, released: 1 } }
+    else if (path.endsWith("/pending-inputs/resume")) {
+      const request = new URL(route.request().url())
+      assert.equal(Number(request.searchParams.get("generation")), generation)
+      assert.equal(Number(request.searchParams.get("head_id")), 1)
+      resumes++; paused = false; generation++; revision++; body = { ok: true, released: 1 } }
     else if (path.endsWith("/pending-inputs")) {
       body = structuredClone(queue())
       if (holdQueue) { holdQueue = false; staleQueueStarted?.(); await new Promise(resolve => { releaseQueue = resolve }) }

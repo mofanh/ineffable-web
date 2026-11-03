@@ -3,6 +3,7 @@ export type ConversationInputStatus = "queued" | "guided_injected" | "consuming"
 export type ConversationAdmissionSummary = {
   conversation_id: string
   queued_count: number
+  held_count?: number
   consuming_count: number
   queue_paused: boolean
   generation: number
@@ -18,6 +19,7 @@ export function normalizeConversationAdmission(raw: unknown): ConversationAdmiss
   }
   return {
     conversation_id: value.conversation_id, queued_count: value.queued_count as number, consuming_count: value.consuming_count as number,
+    held_count: typeof value.held_count === "number" && Number.isSafeInteger(value.held_count) && value.held_count >= 0 ? value.held_count : 0,
     queue_paused: value.queue_paused, generation: value.generation as number, revision: value.revision as number,
   }
 }
