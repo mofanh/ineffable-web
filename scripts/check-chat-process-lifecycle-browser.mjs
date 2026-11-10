@@ -38,7 +38,7 @@ try {
       if (status !== "streaming") { terminalMessages++;return route.fulfill({status:500,json:{error:{message:"TERMINAL_HISTORY_UNAVAILABLE"}}}) }
       const common={conversation_id:"refresh-conversation",created_at:"2026-10-21T00:00:00Z",updated_at:"2026-10-21T00:00:00Z"}
       body={messages:[{...common,id:"user",role:"user",message_type:"input",message_seq:1,timeline_seq:1,timeline_unit_id:"message:user",content:"Lifecycle task",metadata_json:{}},
-        {...common,id:"process",run_id:"refresh-run",role:"assistant",message_type:"output",message_seq:2,canonical_seq:2,timeline_seq:2,timeline_unit_id:"run:refresh-run:anchor:2",content:"LIVE PROCESS CONTENT",run_status:"streaming",metadata_json:{assistant_phase:"commentary",transcript_segment:{id:"refresh-run:1:1",turn:1,execution_epoch:1}}}],next_seq:0,page:{has_older:false,before:null}}
+        {...common,id:"process",run_id:"refresh-run",role:"assistant",message_type:"output",message_seq:2,canonical_seq:2,timeline_seq:2,timeline_unit_id:"run:refresh-run:anchor:2",content:"LIVE PROCESS CONTENT",run_status:"streaming",metadata_json:{reasoning_content:"LIVE THINKING",assistant_phase:"commentary",transcript_segment:{id:"refresh-run:1:1",turn:1,execution_epoch:1}}}],next_seq:0,page:{has_older:false,before:null}}
     }
     await route.fulfill({json:body})
   })
@@ -51,6 +51,9 @@ try {
     await subscribed
     const toggle=page.locator("[data-chat-process-toggle]")
     await toggle.waitFor()
+    assert.equal(await toggle.getAttribute("aria-expanded"),"false")
+    await toggle.click()
+    assert.equal(await toggle.getAttribute("aria-expanded"),"true")
     await toggle.click()
     assert.equal(await toggle.getAttribute("aria-expanded"),"false")
     assert.ok(streams.size,"actual Sidebar subscribed to SSE")

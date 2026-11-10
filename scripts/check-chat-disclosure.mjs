@@ -58,6 +58,7 @@ const pinned=[
  ...["pending","running","waiting","failed","cancelled"].map((status,i)=>({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"tool",nodeId:`active-${i}`,status,payload:{tool:{status}},fallback:{title:"tool"}})),
  ...[{status:"succeeded",settlementStatus:"outcome_unknown"},{status:"succeeded",operation:{status:"save_pending"}},{status:"succeeded",images:[{}]}].map((tool,i)=>({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"tool",nodeId:`unsafe-${i}`,status:"settled",payload:{tool},fallback:{title:"tool"}})),
  {schemaVersion:1,pluginId:"ineffable.web.default",renderer:"reasoning",nodeId:"malformed",status:"settled",payload:null,fallback:{title:"invalid"}},
+ ...["failed","cancelled","waiting"].map(status=>({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"reasoning",nodeId:`reasoning-${status}`,status,payload:{block:{content:"attention"}},fallback:{title:"attention"}})),
  {schemaVersion:1,pluginId:"custom",renderer:"tool",nodeId:"plugin",status:"settled",payload:{},fallback:{title:"unknown"}},
  {schemaVersion:1,pluginId:"ineffable.web.default",renderer:"text",nodeId:"image",status:"settled",payload:{content:"picture",images:[{}]},fallback:{title:"picture"}},
 ]

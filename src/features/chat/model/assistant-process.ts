@@ -21,9 +21,10 @@ export function isAssistantProcessNode(node: WebNodeView, activeNeedId?: string 
 }
 
 export function assistantAnswerText(entry: AssistantEntry) {
+  const finalIds = finalAssistantBlockIds(entry)
   return entry.pane.blockOrder.flatMap(id => {
     const block = entry.pane.blocks[id]
-    return block?.type === "text" && block.assistantPhase !== "commentary" ? [block.content] : []
+    return block?.type === "text" && (finalIds.size ? finalIds.has(id) : block.assistantPhase !== "commentary") ? [block.content] : []
   }).join("\n\n").trim()
 }
 
@@ -34,7 +35,7 @@ export function canAutoCollapseAssistantProcess(entry: AssistantEntry) {
   const segments = entry.segments ? Object.values(entry.segments) : [entry]
   return segments.length > 0 && segments.every(segment =>
     Number.isSafeInteger(segment.canonicalMessageSeqEnd) && !segment.canonicalDraft) &&
-    Boolean(assistantAnswerText(entry) || Object.values(entry.pane.blocks).some(block => block.type === "text" && block.images?.length))
+    Object.values(entry.pane.blocks).some(block => block.type === "text" && (block.images?.length || (block.assistantPhase !== "commentary" && block.content.trim())))
 }
 
 export type AssistantProcessGroup = {
@@ -105,10 +106,11 @@ export function projectAssistantProcessLayout(
   entry: AssistantEntry,
   nodes: readonly WebNodeView[],
   eligible: (node: WebNodeView) => boolean,
-  activeNeedId?: string | null
+  activeNeedId?: string | null,
+  allowConsolidation = true
 ): AssistantProcessLayout {
   const finalIds = finalAssistantBlockIds(entry)
-  const consolidated = finalIds.size > 0
+  const consolidated = allowConsolidation && finalIds.size > 0
   const scope = entry.timelineUnitId ?? `${entry.runId ?? "local"}:${entry.humanInputBoundarySeq ?? entry.id}`
   const groups: AssistantProcessGroup[] = []
   const membership = new Map<string, AssistantProcessGroup>()
@@ -140,7 +142,7 @@ export function projectAssistantProcessLayout(
   }
   for (const node of nodes) {
     const text = textPayload(node)
-    const isProcess = eligible(node) && (settledProcessNode(node, activeNeedId) ||
+    const isProcess = !["waiting", "failed", "cancelled"].includes(node.status) && eligible(node) && (settledProcessNode(node, activeNeedId) ||
       (consolidated && text && !text.images?.length && !finalIds.has(node.nodeId)))
     if (isProcess) pending.push(node)
     else if (!consolidated) flush()

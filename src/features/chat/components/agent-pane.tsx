@@ -1,5 +1,4 @@
-import { isAssistantProcessNode } from "../model/assistant-process"
-import { ChatProcessButton, useChatProcessDisclosure } from "./chat-process"
+import { ChatProcessNodes } from "./chat-process-nodes"
 import { ChatRowWindow } from "./chat-row-window"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { InfoIcon } from "lucide-react"
@@ -27,7 +26,7 @@ import {
   type ThinkBlock,
   type ToolCallView,
 } from "@/features/chat/chat-pane-state"
-import type { SubagentView } from "@/features/chat/gateway-chat-types"
+import type { AssistantEntry, SubagentView } from "@/features/chat/gateway-chat-types"
 import {
   renderSpecializedTool,
   type AgentUserInputResponse,
@@ -1106,7 +1105,7 @@ export const WebNodeList = React.memo(function WebNodeList({
   onSubmitUserInput?: (response: AgentUserInputResponse) => Promise<void>
   subagentOrder?: string[]
   subagents?: Record<string, SubagentView>
-  process?: { identity: string; autoCollapse: boolean; forceOpen: boolean; duration: string | null }
+  process?: { entry: AssistantEntry; forceOpen: boolean; duration: string | null }
 }) {
   const [projectionCache] = React.useState(() => new WebNodeProjectionCache())
   const nodes = React.useMemo(
@@ -1134,18 +1133,13 @@ export const WebNodeList = React.memo(function WebNodeList({
     const protocolId = "protocolId" in tool ? tool.protocolId : undefined
     return (needId ?? protocolId) === activeHumanNeedId
   }).map(webNodeKey) : [], [activeHumanNeedId, nodes])
-  const { rootRef, buttonRef, expanded, toggle } = useChatProcessDisclosure({ identity: process?.identity, autoCollapse: Boolean(process?.autoCollapse), forceOpen: Boolean(process?.forceOpen) })
-  const controls = React.useId()
-  const processNodes = React.useMemo(() => new Set(process ? nodes.filter(node =>
-    pane.blocks[node.nodeId]?.type !== "plugin" && DEFAULT_WEB_NODE_REGISTRY.resolve(node) &&
-    isAssistantProcessNode(node, activeHumanNeedId)).map(webNodeKey) : []), [process, nodes, pane.blocks, activeHumanNeedId])
-  const visibleNodes = React.useMemo(() => expanded || !process ? nodes : nodes.filter(node => !processNodes.has(webNodeKey(node))), [expanded, nodes, process, processNodes])
-  return <div className="text-sm" ref={rootRef} data-chat-process-expanded={processNodes.size ? expanded : undefined}>
-    {processNodes.size > 0 && <ChatProcessButton buttonRef={buttonRef} expanded={expanded} disabled={Boolean(process?.forceOpen)} duration={process?.duration} controls={controls} onToggle={toggle} />}
-    <div id={controls}>
-    <ChatRowWindow nested items={visibleNodes} getKey={webNodeKey} estimateSize={estimateWebNode} gap={12} pinnedKeys={pinnedKeys}>
-      {(node) => <WebNodeItem node={node} context={context} />}
-    </ChatRowWindow>
-    </div>
-  </div>
+  const eligible = React.useCallback((node: (typeof nodes)[number]) =>
+    pane.blocks[node.nodeId]?.type !== "plugin" && DEFAULT_WEB_NODE_REGISTRY.resolve(node) !== null, [pane.blocks])
+  if (process) return <ChatProcessNodes entry={process.entry} nodes={nodes} eligible={eligible}
+    forceOpen={process.forceOpen} duration={process.duration} pinnedKeys={pinnedKeys} activeNeedId={activeHumanNeedId}>
+    {node => <WebNodeItem node={node} context={context} />}
+  </ChatProcessNodes>
+  return <div className="text-sm"><ChatRowWindow nested items={nodes} getKey={webNodeKey} estimateSize={estimateWebNode} gap={12} pinnedKeys={pinnedKeys}>
+    {node => <WebNodeItem node={node} context={context} />}
+  </ChatRowWindow></div>
 })

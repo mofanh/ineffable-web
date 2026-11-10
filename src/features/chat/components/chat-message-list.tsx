@@ -1,4 +1,4 @@
-import { assistantAnswerText, canAutoCollapseAssistantProcess } from "../model/assistant-process"
+import { assistantAnswerText } from "../model/assistant-process"
 import { ChatProcessDisclosureProvider } from "./chat-process"
 import { splitFileReferences } from "@/lib/workspace-file-reference"
 import { WorkspaceFileTags } from "./workspace-file-tags"
@@ -590,7 +590,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                 <WebNodeList
                       accessToken={accessToken} onImageReference={onImageReference}
                   pane={entry.pane}
-                  process={{ identity: entry.timelineUnitId ?? entry.id, autoCollapse: canAutoCollapseAssistantProcess(entry), forceOpen: entry.status === "error" || ["failed", "cancelled", "awaiting_human", "suspended"].includes(entry.runStatus ?? "") || Boolean(activeHumanRunId && entry.runId === activeHumanRunId), duration: formatRunDuration(entry.runDurationMs) }}
+                  process={{ entry, forceOpen: entry.status === "error" || ["failed", "cancelled", "awaiting_human", "suspended"].includes(entry.runStatus ?? "") || Boolean(activeHumanRunId && entry.runId === activeHumanRunId), duration: formatRunDuration(entry.runDurationMs) }}
                   isStreaming={showStreamingTail}
                   prefersReducedMotion={prefersReducedMotion}
                   canRespondToUserInput={
