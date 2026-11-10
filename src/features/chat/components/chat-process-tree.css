@@ -1,0 +1,49 @@
+/* Row-local rails work with the existing window: no nested scroll region,
+   absolute row positioning, or DOM tree that grows with the full transcript. */
+.chat-process-tree-row {
+  position: relative;
+  min-width: 0;
+}
+
+.chat-process-tree-row[data-chat-tree-role="branch"] {
+  padding-inline-start: 22px;
+}
+
+.chat-process-tree-row::before,
+.chat-process-tree-row::after {
+  position: absolute;
+  pointer-events: none;
+  border-color: var(--border);
+}
+
+.chat-process-tree-row[data-chat-tree-role="branch"]::before {
+  content: "";
+  inset-inline-start: 6px;
+  top: 16px;
+  bottom: calc(100% - 16px);
+  border-inline-start-width: 1px;
+}
+
+.chat-process-tree-row[data-chat-tree-role="branch"][data-tree-before="true"]::before {
+  top: -12px;
+}
+
+.chat-process-tree-row[data-chat-tree-role="branch"][data-tree-after="true"]::before {
+  bottom: -12px;
+}
+
+.chat-process-tree-row[data-chat-tree-role="branch"]::after {
+  content: "";
+  inset-inline-start: 6px;
+  top: 16px;
+  width: 10px;
+  border-block-start-width: 1px;
+}
+
+.chat-process-tree-row[data-chat-tree-role="process"][data-tree-after="true"]::after {
+  content: "";
+  inset-inline-start: 6px;
+  top: 22px;
+  bottom: -12px;
+  border-inline-start-width: 1px;
+}

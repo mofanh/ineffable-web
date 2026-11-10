@@ -119,7 +119,7 @@ export function ChatProcessButton({ expanded, disabled, duration, controls, onTo
   const { t } = useTranslation()
   return <button type="button" aria-expanded={expanded} aria-controls={controls}
     disabled={disabled} onClick={onToggle} data-chat-process-toggle
-    className="mb-3 flex max-w-full items-center gap-1.5 rounded-sm py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
+    className="flex max-w-full items-center gap-1.5 rounded-sm py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
     <ChevronRightIcon aria-hidden="true" className={cn("size-3.5 shrink-0 motion-safe:transition-transform", expanded && "rotate-90")} />
     <span>{duration ? t("presentation.processDuration", { duration }) : t("presentation.process")}</span>
   </button>

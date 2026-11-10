@@ -5,7 +5,7 @@ import { projectAssistantProcessLayout, type AssistantProcessGroup } from "../mo
 import { ChatProcessButton, useChatProcessDisclosures, useProcessConsolidation } from "./chat-process"
 import { ChatRowWindow } from "./chat-row-window"
 
-type Row = { key: string; node: WebNodeView } | { key: string; group: AssistantProcessGroup }
+type Row = { key: string; node: WebNodeView; branch: boolean } | { key: string; group: AssistantProcessGroup }
 const rowKey = (row: Row) => row.key
 const estimateRow = (row: Row) => "group" in row ? 32 : 120
 
@@ -38,7 +38,11 @@ export function ChatProcessNodes({ entry, nodes, eligible, forceOpen, duration, 
       inserted.add(group.id)
       rows.push({ key: group.id, group })
     }
-    if (!group || isExpanded(group)) rows.push({ key: node.nodeId, node })
+    if (!group || isExpanded(group)) rows.push({ key: node.nodeId, node,
+      // Only native process rows join the rail. Artifacts, plugins and final
+      // answers retain their full-width content seat and original renderer.
+      branch: Boolean(group) || (["reasoning", "update", "tool"].includes(node.renderer) && eligible(node)),
+    })
   }
   const pinned = focusedRow ? [...pinnedKeys, focusedRow] : pinnedKeys
   return <div ref={rootRef} className="text-sm"
@@ -51,10 +55,25 @@ export function ChatProcessNodes({ entry, nodes, eligible, forceOpen, duration, 
     onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocusedRow(null) }}>
     <div id={controls}>
       <ChatRowWindow nested items={rows} getKey={rowKey} estimateSize={estimateRow} gap={12} pinnedKeys={pinned}>
-        {row => "node" in row ? children(row.node) : <div data-chat-row-key={row.key} data-process-group={row.key}>
-          <ChatProcessButton expanded={isExpanded(row.group)} disabled={forceOpen} controls={controls}
-            duration={layout.consolidated ? duration : null} onToggle={event => toggle(row.group, event.currentTarget)} />
-        </div>}
+        {(row, index) => {
+          const previous = rows[index - 1]
+          const next = rows[index + 1]
+          const branch = "node" in row && row.branch
+          const before = Boolean(previous && ("group" in previous || previous.branch))
+          const after = Boolean(next && "node" in next && next.branch)
+          return (
+            <div className="chat-process-tree-row"
+              data-chat-tree-role={"group" in row ? "process" : branch ? "branch" : "content"}
+              data-tree-before={before} data-tree-after={after}>
+              {"node" in row ? children(row.node) : (
+                <div data-chat-row-key={row.key} data-process-group={row.key}>
+                  <ChatProcessButton expanded={isExpanded(row.group)} disabled={forceOpen} controls={controls}
+                    duration={layout.consolidated ? duration : null} onToggle={event => toggle(row.group, event.currentTarget)} />
+                </div>
+              )}
+            </div>
+          )
+        }}
       </ChatRowWindow>
     </div>
   </div>

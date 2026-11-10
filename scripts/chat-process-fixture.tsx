@@ -19,19 +19,20 @@ function emit(turn: number, kind: string, content: string, extra = {}) {
 }
 function save(name: string) { snapshots[name] = current! }
 emit(1,"model.reasoning.delta","THINK ONE\n\nChecking implementation details.\n\n".repeat(8))
-emit(1,"tool.call.started","",{tool_call_id:"read-0",tool_name:"workspace"})
+emit(1,"tool.call.started","",{tool_call_id:"read-0",tool_name:"workspace.read"})
 save("work-1")
 for (let i=0;i<60;i++) {
-  if (i) emit(1,"tool.call.started","",{tool_call_id:`read-${i}`,tool_name:"workspace"})
-  emit(1,"tool.call.completed","",{tool_call_id:`read-${i}`,tool_name:"workspace",full_arguments:JSON.stringify({command:`read /file-${i}.md`})})
-  emit(1,"tool.result","tool result",{tool_call_id:`read-${i}`,tool_name:"workspace",settlement_status:"succeeded"})
+  if (i) emit(1,"tool.call.started","",{tool_call_id:`read-${i}`,tool_name:"workspace.read"})
+  emit(1,"tool.call.completed","",{tool_call_id:`read-${i}`,tool_name:"workspace.read",full_arguments:JSON.stringify({path:`/file-${i}.md`})})
+  emit(1,"tool.result","tool result",{tool_call_id:`read-${i}`,tool_name:"workspace.read",settlement_status:"succeeded"})
 }
 emit(2,"model.text.delta","PROCESS ONLY\n\n"+"Checking implementation details.\n\n".repeat(12),{assistant_phase:"commentary"})
 save("body-1")
 emit(2,"model.text.delta","More details.")
 save("body-1-more")
 emit(3,"model.reasoning.delta","THINK TWO")
-emit(3,"tool.call.started","",{tool_call_id:"second",tool_name:"workspace"})
+emit(3,"tool.call.started","",{tool_call_id:"second",tool_name:"workspace.read"})
+emit(3,"tool.call.completed","",{tool_call_id:"second",tool_name:"workspace.read",full_arguments:JSON.stringify({path:"/notes/result.md"})})
 save("work-2")
 emit(3,"tool.result","second result",{tool_call_id:"second",tool_name:"workspace",settlement_status:"succeeded"})
 emit(4,"model.text.delta","STAGE ANSWER",{assistant_phase:"partial_answer"})
@@ -48,6 +49,18 @@ emit(1,"model.stream.other","",{web_view:{schemaVersion:1,pluginId:"ineffable.we
 save("declared-plugin")
 emit(2,"model.text.delta","Actual prose",{assistant_phase:"commentary"})
 save("plugin-body")
+current=undefined
+emit(1,"model.reasoning.delta","先检查配置文件与端口监听状态，再测试网络连接。")
+emit(1,"model.text.delta","我先查看当前配置和端口情况。",{assistant_phase:"commentary"})
+for (const [index,path] of ["/config/proxy.toml","/config/network.toml"].entries()) {
+  emit(2,"tool.call.completed","",{tool_call_id:`config-${index}`,tool_name:"workspace.read",full_arguments:JSON.stringify({path})})
+  emit(2,"tool.result",JSON.stringify({window:{start_line:1,end_line:20}}),{tool_call_id:`config-${index}`,tool_name:"workspace.read",settlement_status:"succeeded"})
+}
+emit(3,"model.reasoning.delta","检查 7890 端口是否有进程监听。")
+emit(3,"tool.call.completed","",{tool_call_id:"listener",tool_name:"exec_command",full_arguments:JSON.stringify({command:"lsof -nP -iTCP:7890 -sTCP:LISTEN"})})
+emit(3,"tool.result",JSON.stringify({error:"No listener on port 7890"}),{tool_call_id:"listener",tool_name:"exec_command",settlement_status:"failed"})
+emit(4,"model.text.delta","## 检查结果\n\n配置使用 **7890** 端口，但当前没有进程监听。启动代理后，再测试 GitHub 连接。",{assistant_phase:"final_answer"})
+save("tree-demo")
 
 function Fixture() {
   const [stage,setStage] = React.useState("final-stream")
@@ -80,7 +93,7 @@ function Fixture() {
   },[stage,status,canonical,mount,longFinal])
   return <div className="flex h-screen min-w-0 flex-col">
     <div className="flex shrink-0 flex-wrap gap-2 text-xs" data-fixture-controls>
-      {["work-1","body-1","body-1-more","work-2","body-2","unknown","final-stream","plugin-thinking","declared-plugin","plugin-body"].map(value=><button key={value} onClick={()=>{setStage(value);setStatus("streaming")}}>{value}</button>)}
+      {["work-1","body-1","body-1-more","work-2","body-2","unknown","final-stream","plugin-thinking","declared-plugin","plugin-body","tree-demo"].map(value=><button key={value} onClick={()=>{setStage(value);setStatus("streaming")}}>{value}</button>)}
       {["completed","streaming","failed","cancelled","awaiting_human","suspended"].map(value=><button key={value} onClick={()=>setStatus(value)}>{value}</button>)}
       <button onClick={()=>setCanonical(value=>!value)}>canonical</button>
       <button onClick={()=>setMount(value=>value+1)}>remount-row</button>
