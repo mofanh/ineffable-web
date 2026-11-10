@@ -13,7 +13,7 @@
     "check:input-progress": "tsx scripts/check-input-progress.mjs",
     "check:chat-store": "node --experimental-strip-types scripts/check-chat-runtime-store.mjs",
     "check:chat-architecture": "node --experimental-strip-types scripts/check-chat-runtime-architecture.mjs",
-    "check:chat-web-runtime": "tsx scripts/check-chat-web-runtime.mjs && tsx scripts/check-chat-segments.mjs && tsx scripts/check-chat-process.mjs",
+    "check:chat-web-runtime": "tsx scripts/check-chat-web-runtime.mjs && tsx scripts/check-chat-segments.mjs && tsx scripts/check-chat-process.mjs && tsx scripts/check-chat-disclosure.mjs",
     "check:chat-web-integration": "tsx scripts/check-chat-web-integration.mjs",
     "check:tool-actions": "node scripts/check-tool-action-browser.mjs",
     "check:composer-catalog": "node scripts/check-composer-catalog-browser.mjs",
