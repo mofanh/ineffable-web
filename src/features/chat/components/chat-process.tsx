@@ -33,6 +33,7 @@ function hasProcessInteraction(root: HTMLElement | null) {
 export function useProcessConsolidation(complete: boolean, rootRef: React.RefObject<HTMLDivElement | null>) {
   const [accepted, setAccepted] = React.useState(complete)
   React.useLayoutEffect(() => {
+    if (typeof document === "undefined") return
     const root = rootRef.current
     let disposed = false
     const apply = () => {
@@ -62,6 +63,7 @@ export function useChatProcessDisclosures(groups: readonly AssistantProcessGroup
   const [, rerender] = React.useReducer(value => value + 1, 0)
 
   React.useLayoutEffect(() => {
+    if (typeof document === "undefined") return
     const root = rootRef.current
     let disposed = false
     function applyPolicies() {

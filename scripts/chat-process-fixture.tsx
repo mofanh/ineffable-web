@@ -28,6 +28,8 @@ for (let i=0;i<60;i++) {
 }
 emit(2,"model.text.delta","PROCESS ONLY\n\n"+"Checking implementation details.\n\n".repeat(12),{assistant_phase:"commentary"})
 save("body-1")
+emit(2,"model.text.delta","More details.")
+save("body-1-more")
 emit(3,"model.reasoning.delta","THINK TWO")
 emit(3,"tool.call.started","",{tool_call_id:"second",tool_name:"workspace"})
 save("work-2")
@@ -71,7 +73,7 @@ function Fixture() {
   },[stage,status,canonical,mount,longFinal])
   return <div className="flex h-screen min-w-0 flex-col">
     <div className="flex shrink-0 flex-wrap gap-2 text-xs" data-fixture-controls>
-      {["work-1","body-1","work-2","body-2","unknown","final-stream"].map(value=><button key={value} onClick={()=>{setStage(value);setStatus("streaming")}}>{value}</button>)}
+      {["work-1","body-1","body-1-more","work-2","body-2","unknown","final-stream"].map(value=><button key={value} onClick={()=>{setStage(value);setStatus("streaming")}}>{value}</button>)}
       {["completed","streaming","failed","cancelled","awaiting_human","suspended"].map(value=><button key={value} onClick={()=>setStatus(value)}>{value}</button>)}
       <button onClick={()=>setCanonical(value=>!value)}>canonical</button>
       <button onClick={()=>setMount(value=>value+1)}>remount-row</button>
