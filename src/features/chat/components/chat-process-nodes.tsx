@@ -63,7 +63,9 @@ export function ChatProcessNodes({ entry, nodes, eligible, forceOpen, duration, 
           const after = Boolean(next && "node" in next && next.branch)
           return (
             <div className="chat-process-tree-row"
-              data-chat-tree-role={"group" in row ? "process" : branch ? "branch" : "content"}
+              data-chat-tree-role={"group" in row ? "process" : branch
+                ? ["text", "update"].includes(row.node.renderer) ? "prose" : "branch"
+                : "content"}
               data-tree-before={before} data-tree-after={after}>
               {"node" in row ? children(row.node) : (
                 <div data-chat-row-key={row.key} data-process-group={row.key}>

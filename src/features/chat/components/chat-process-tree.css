@@ -1,11 +1,14 @@
 /* Row-local rails work with the existing window: no nested scroll region,
    absolute row positioning, or DOM tree that grows with the full transcript. */
 .chat-process-tree-row {
+  --chat-tree-stem: color-mix(in oklab, var(--border) 72%, transparent);
+  --chat-tree-branch: color-mix(in oklab, var(--border) 92%, transparent);
   position: relative;
   min-width: 0;
 }
 
-.chat-process-tree-row[data-chat-tree-role="branch"] {
+.chat-process-tree-row[data-chat-tree-role="branch"],
+.chat-process-tree-row[data-chat-tree-role="prose"] {
   padding-inline-start: 22px;
 }
 
@@ -13,37 +16,59 @@
 .chat-process-tree-row::after {
   position: absolute;
   pointer-events: none;
-  border-color: var(--border);
+  border-color: var(--chat-tree-stem);
 }
 
 .chat-process-tree-row[data-chat-tree-role="branch"]::before {
   content: "";
   inset-inline-start: 6px;
-  top: 16px;
-  bottom: calc(100% - 16px);
+  top: 8px;
+  bottom: calc(100% - 8px);
   border-inline-start-width: 1px;
 }
 
 .chat-process-tree-row[data-chat-tree-role="branch"][data-tree-before="true"]::before {
-  top: -12px;
+  top: -6px;
 }
 
 .chat-process-tree-row[data-chat-tree-role="branch"][data-tree-after="true"]::before {
-  bottom: -12px;
+  bottom: -6px;
 }
 
 .chat-process-tree-row[data-chat-tree-role="branch"]::after {
   content: "";
   inset-inline-start: 6px;
-  top: 16px;
-  width: 10px;
-  border-block-start-width: 1px;
+  top: 8px;
+  width: 12px;
+  height: 8px;
+  border-inline-start-width: 1px;
+  border-block-end-width: 1px;
+  border-end-start-radius: 8px;
+  border-color: var(--chat-tree-branch);
+}
+
+/* Prose keeps its alignment and rail without a branch through each paragraph.
+   Each row draws half the 12px window gap, avoiding doubled translucent seams. */
+.chat-process-tree-row[data-chat-tree-role="prose"]::before {
+  content: "";
+  inset-inline-start: 6px;
+  top: 0;
+  bottom: 0;
+  border-inline-start-width: 1px;
+}
+
+.chat-process-tree-row[data-chat-tree-role="prose"][data-tree-before="true"]::before {
+  top: -6px;
+}
+
+.chat-process-tree-row[data-chat-tree-role="prose"][data-tree-after="true"]::before {
+  bottom: -6px;
 }
 
 .chat-process-tree-row[data-chat-tree-role="process"][data-tree-after="true"]::after {
   content: "";
   inset-inline-start: 6px;
   top: 22px;
-  bottom: -12px;
+  bottom: -6px;
   border-inline-start-width: 1px;
 }

@@ -138,6 +138,31 @@ try {
   await toggles.click();await expanded(true)
   assert.equal(await pane.locator('[data-target-kind="read"]').count(),2,"consecutive native tool calls retain separate leaves")
   assert.equal(await pane.locator('[data-chat-row-window]').count(),1)
+  const prose=page.getByText("我先查看当前配置和端口情况。",{exact:true})
+    .locator('xpath=ancestor::*[@data-chat-tree-role][1]')
+  assert.equal(await prose.getAttribute("data-chat-tree-role"),"prose")
+  assert.equal(await prose.evaluate(n=>getComputedStyle(n,'::after').content),"none","process prose has no horizontal branch")
+  const leaf=failedTool.locator('xpath=ancestor::*[@data-chat-tree-role][1]')
+  const curve=await leaf.evaluate(n=>{
+    const stem=getComputedStyle(n,'::before'),elbow=getComputedStyle(n,'::after')
+    return {radius:parseFloat(elbow.borderEndStartRadius),stemEnd:n.clientHeight-parseFloat(stem.bottom),elbowStart:parseFloat(elbow.top)}
+  })
+  assert.ok(curve.radius>0,"branches turn through a curve")
+  assert.ok(Math.abs(curve.stemEnd-curve.elbowStart)<0.5,"last stem ends where its curve begins, without a square tail")
+  const gaps=await pane.evaluate(pane=>{
+    const rows=[...pane.querySelectorAll('[data-chat-tree-role]')]
+    return rows.flatMap((row,index)=>{
+      if(row.dataset.treeAfter!=='true') return []
+      const next=rows[index+1]
+      const stem=getComputedStyle(row,row.dataset.chatTreeRole==='process'?'::after':'::before')
+      const following=getComputedStyle(next,'::before')
+      return [row.getBoundingClientRect().bottom-parseFloat(stem.bottom)-(next.getBoundingClientRect().top+parseFloat(following.top))]
+    })
+  })
+  assert.ok(gaps.length>0&&gaps.every(gap=>Math.abs(gap)<0.5),"neighboring rails meet without gaps or doubled translucent spans")
+  await page.evaluate(()=>document.documentElement.dir='rtl')
+  assert.ok(await leaf.evaluate(n=>parseFloat(getComputedStyle(n,'::after').borderBottomRightRadius)>0),"curves follow logical direction")
+  await page.evaluate(()=>document.documentElement.dir='ltr')
   assert.deepEqual(errors,[])
   console.log("segmented process browser lifecycle, final handoff, focus/selection, preferences, virtualization and viewport checks passed")
 } finally {await browser?.close();await server.close()}
