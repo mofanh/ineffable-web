@@ -161,3 +161,44 @@ const inProgress=projectConversationOutputEvent(undefined,event(102,"tool.call.c
 }),"run")
 const continued=projectConversationOutputEvent(inProgress,event(102,"model.text.delta","still live"),"run")
 assert.ok(body(continued).includes("still live"),"incomplete canonical draft cannot suppress live process")
+
+// Reproduce production lifecycle interleaving without private conversation data.
+const { processCompletionEvents } = await import("./process-completion-events.mjs")
+const { canAutoCollapseAssistantProcess, finalAssistantBlockIds } = await import("../src/features/chat/model/assistant-process.ts")
+const { finalizePane } = await import("../src/features/chat/chat-pane-state.ts")
+let completedLive
+for (const incoming of processCompletionEvents()) completedLive=projectConversationOutputEvent(completedLive,incoming,"refresh-run")
+completedLive={...completedLive,status:"done",runStatus:"completed",pane:finalizePane(completedLive.pane)}
+assert.equal(completedLive.segments.unattributed,undefined,"empty lifecycle events must not create an uncovered output segment")
+assert.equal(Object.keys(completedLive.segments).length,3)
+assert.equal(canAutoCollapseAssistantProcess(completedLive),true,"live canonical handoff can collapse without rebuilding from history")
+assert.equal(finalAssistantBlockIds(completedLive).size,1)
+
+// No event-name whitelist: preserve real output and parser state even without
+// segment identity, including metadata-only native/plugin/subagent projections.
+const baseEvent={run_id:"refresh-run",seq:1000,stream:"chat",phase:"model",scope:"main",content:"",metadata:{}}
+const emptyLifecycle=projectConversationOutputEvent(completedLive,{...baseEvent,event:"agent.process"},"refresh-run")
+assert.equal(emptyLifecycle.segments,completedLive.segments)
+assert.equal(emptyLifecycle.pane,completedLive.pane)
+assert.equal(emptyLifecycle.eventCoverage,1000,"no-op lifecycle still advances coverage")
+for (const incoming of [
+ {...baseEvent,event:"model.text.delta",content:"unattributed body"},
+ {...baseEvent,event:"model.reasoning.delta",content:"unattributed reasoning"},
+ {...baseEvent,event:"model.text.delta",content:"<thi"},
+ {...baseEvent,event:"model.stream.other",metadata:{assistant_phase:"commentary"}},
+ {...baseEvent,event:"model.images",metadata:{images:[image]}},
+ {...baseEvent,event:"tool.call.started",metadata:{tool_call_id:"unknown",tool_name:"workspace"}},
+ {...baseEvent,event:"plugin.update",metadata:{web_view:{schemaVersion:1,pluginId:"custom",renderer:"text",nodeId:"unattributed-plugin",status:"settled",payload:{content:"plugin"},fallback:{title:"Plugin"}}}},
+ {...baseEvent,event:"subagent.started",scope:"sub",metadata:{subagent_id:"child",subagent_name:"Child"}},
+ {...baseEvent,event:"future.event",content:"future event content"},
+]) {
+ const retained=projectConversationOutputEvent(completedLive,incoming,"refresh-run")
+ assert.ok(retained.segments.unattributed,`${incoming.event} has meaningful projection state`)
+ assert.equal(canAutoCollapseAssistantProcess({...retained,status:"done"}),false,"real uncovered state must continue to block consolidation")
+}
+let tagged=projectConversationOutputEvent(completedLive,{...baseEvent,event:"model.text.delta",content:"<thi"},"refresh-run")
+assert.equal(tagged.segments.unattributed.pane.pendingTagBuffer,"<thi")
+tagged=projectConversationOutputEvent(tagged,{...baseEvent,seq:1001,event:"agent.process"},"refresh-run")
+tagged=projectConversationOutputEvent(tagged,{...baseEvent,seq:1002,event:"model.text.delta",content:"nk>preserved</think>"},"refresh-run")
+assert.ok(Object.values(tagged.pane.blocks).some(block=>block.type==="think" && block.content==="preserved"),"no-op lifecycle cannot discard split-tag parsing state")
+console.log("live completion with lifecycle interleaving and unattributed projection checks passed")

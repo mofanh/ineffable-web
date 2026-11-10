@@ -168,7 +168,16 @@ export function projectConversationOutputEvent(
   if (identity && Number.isSafeInteger(previous?.canonicalMessageSeqEnd) && !previous?.canonicalDraft) {
     return { ...base, eventCoverage: Math.max(base.eventCoverage ?? 0, event.seq ?? 0) }
   }
-  const fragment = projectConversationOutputFragment(previous, event, runId)
+  const seed = previous ?? createAssistantEntry("streaming", runId)
+  const fragment = projectConversationOutputFragment(seed, event, runId)
+  // Lifecycle/progress events still advance observation coverage, but a no-op
+  // projection is not an output segment requiring canonical handoff. Compare
+  // projected state rather than event names or visible text: phase frames,
+  // split tags, images, declared views and child panes can carry no body text.
+  if (!identity && !previous && fragment.pane === seed.pane &&
+      fragment.subagents === seed.subagents && fragment.subagentOrder === seed.subagentOrder) {
+    return { ...base, eventCoverage: Math.max(base.eventCoverage ?? 0, event.seq ?? 0) }
+  }
   fragment.segmentIdentity = identity ?? undefined
   return updateAssistantSegment(base, key, fragment)
 }

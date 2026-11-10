@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 import { chromium } from "playwright-core"
 import { createServer } from "vite"
+import { processCompletionEvents } from "./process-completion-events.mjs"
 
 const executablePath = [process.env.CHROME_PATH,"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome","/usr/bin/google-chrome","/usr/bin/chromium"].find(path=>path && existsSync(path))
 assert.ok(executablePath)
@@ -22,7 +23,7 @@ try {
   browser = await chromium.launch({executablePath,headless:true})
   const page = await browser.newPage({viewport:{width:800,height:900}})
   const errors=[];page.on("pageerror",error=>errors.push(error.message))
-  let status="streaming",resumeMode="none",terminalMessages=0
+  let status="streaming",resumeMode="none",terminalMessages=0,completionScenario=false
   const conversation = () => ({id:"refresh-conversation",title:"Process lifecycle",current_run_id:"refresh-run",current_run:{
     id:"refresh-run",status,execution_epoch:1,version:status === "streaming" ? 1 : 2,lifecycle_seq:status === "streaming" ? 0 : 5,
     is_live:status === "streaming",is_streaming:status === "streaming",accepts_guided_input:status === "streaming",resume_mode:resumeMode,
@@ -38,7 +39,7 @@ try {
       if (status !== "streaming") { terminalMessages++;return route.fulfill({status:500,json:{error:{message:"TERMINAL_HISTORY_UNAVAILABLE"}}}) }
       const common={conversation_id:"refresh-conversation",created_at:"2026-10-21T00:00:00Z",updated_at:"2026-10-21T00:00:00Z"}
       body={messages:[{...common,id:"user",role:"user",message_type:"input",message_seq:1,timeline_seq:1,timeline_unit_id:"message:user",content:"Lifecycle task",metadata_json:{}},
-        {...common,id:"process",run_id:"refresh-run",role:"assistant",message_type:"output",message_seq:2,canonical_seq:2,timeline_seq:2,timeline_unit_id:"run:refresh-run:anchor:2",content:"LIVE PROCESS CONTENT",run_status:"streaming",metadata_json:{reasoning_content:"LIVE THINKING",assistant_phase:"commentary",transcript_segment:{id:"refresh-run:1:1",turn:1,execution_epoch:1}}}],next_seq:0,page:{has_older:false,before:null}}
+        ...completionScenario?[]:[{...common,id:"process",run_id:"refresh-run",role:"assistant",message_type:"output",message_seq:2,canonical_seq:2,timeline_seq:2,timeline_unit_id:"run:refresh-run:anchor:2",content:"LIVE PROCESS CONTENT",run_status:"streaming",metadata_json:{reasoning_content:"LIVE THINKING",assistant_phase:"commentary",transcript_segment:{id:"refresh-run:1:1",turn:1,execution_epoch:1}}}]],next_seq:0,page:{has_older:false,before:null}}
     }
     await route.fulfill({json:body})
   })
@@ -66,8 +67,46 @@ try {
     assert.equal(await page.getByText("LIVE PROCESS CONTENT",{exact:true}).isVisible(),true)
     if (outcome !== "suspended") assert.ok(terminalMessages > 0,"history failure did not determine process visibility")
   }
+  // The real Sidebar must consolidate inline canonical handoff without a page
+  // reload or a successful terminal history response. Include the same empty
+  // lifecycle interleaving that occurs between production model/tool chunks.
+  status="streaming";resumeMode="none";terminalMessages=0;completionScenario=true
+  const subscribed = page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/subscribe"))
+  await page.goto(url)
+  await subscribed
+  await page.getByText("Lifecycle task",{exact:true}).waitFor()
+  const publish = event => {
+    assert.ok(streams.size,"real Sidebar stream is connected")
+    for (const stream of streams) stream.write(`data: ${JSON.stringify({type:"event",event})}\n\n`)
+  }
+  const events=processCompletionEvents()
+  const split=events.findIndex(event=>event.metadata.canonical_reconciliation)
+  for (const event of events.slice(0,split)) publish(event)
+  await page.getByRole("heading",{name:"FINAL ANSWER",exact:true}).waitFor()
+  assert.equal(await page.getByText("INTERMEDIATE 2",{exact:true}).isVisible(),true,"running prose is still visible")
+  assert.equal(await page.locator("[data-chat-process-mode]").getAttribute("data-chat-process-mode"),"stages")
+  status="completed"
+  for (const event of events.slice(split)) publish(event)
+  publish({run_id:"refresh-run",seq:events.at(-1).seq+1,ts_ms:1,stream:"run",scope:"run",event:"run.completed",content:null,
+    metadata:{conversation_id:"refresh-conversation",execution_epoch:1,run_version:2,canonical_message_seq_end:6,canonical_reconcile_message_seq_end:6}})
+  await page.waitForFunction(()=>document.querySelector("[data-chat-process-mode]")?.getAttribute("data-chat-process-mode")==="completed")
+  const toggle=page.locator("[data-chat-process-toggle]")
+  assert.equal(await toggle.count(),1,"completed process has a single disclosure")
+  assert.equal(await toggle.getAttribute("aria-expanded"),"false")
+  assert.equal(await page.getByText("INTERMEDIATE 1",{exact:true}).count(),0)
+  assert.equal(await page.getByText("INTERMEDIATE 2",{exact:true}).count(),0)
+  assert.equal(await page.getByText("Full final paragraph.",{exact:true}).isVisible(),true)
+  assert.equal(await page.locator("table").isVisible(),true,"the entire final Markdown remains visible")
+  if (process.env.CHAT_PROCESS_COMPLETION_SCREENSHOT) await page.screenshot({path:process.env.CHAT_PROCESS_COMPLETION_SCREENSHOT})
+  await page.waitForFunction(()=>document.querySelector("[data-chat-process-mode]")?.getAttribute("data-chat-process-mode")==="completed")
+  assert.ok(terminalMessages>0,"inline handoff completed while terminal history was unavailable")
+  await toggle.click()
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true")
+  await page.getByText("INTERMEDIATE 1",{exact:true}).waitFor({state:"attached"})
+  await page.getByText("INTERMEDIATE 2",{exact:true}).waitFor({state:"attached"})
+  assert.equal(await page.locator("[data-tool-call-id]").count(),2,"original tool occurrences remain available")
   assert.deepEqual(errors,[])
-  console.log("real Sidebar lifecycle keeps cancelled, failed and suspended processes visible without history")
+  console.log("real Sidebar completes and collapses without reload; cancelled/failed/suspended processes stay visible without history")
 } finally {
   await browser?.close()
   for (const stream of streams) stream.end()
