@@ -10,7 +10,7 @@ import type {
 } from "@/features/chat/chat-pane-state"
 import { i18n } from "@/lib/i18n/i18n"
 import { cn } from "@/lib/utils"
-import { ChevronDownIcon, WrenchIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, CircleHelpIcon, CircleMinusIcon, CircleXIcon, DotIcon, LoaderCircleIcon, WrenchIcon } from "lucide-react"
 
 function toolStatusLabel(status: ToolCallStatus) {
   switch (status) {
@@ -45,23 +45,6 @@ function statusTone(status: ToolCallStatus) {
       return "text-amber-700 dark:text-amber-400"
     default:
       return "text-foreground/65"
-  }
-}
-
-function statusMarkerTone(status: ToolCallStatus) {
-  switch (status) {
-    case "running":
-      return "bg-sky-500"
-    case "waiting":
-      return "bg-amber-500"
-    case "succeeded":
-      return "bg-emerald-500"
-    case "failed":
-      return "bg-destructive"
-    case "cancelled":
-      return "bg-amber-500"
-    default:
-      return "bg-foreground/35"
   }
 }
 
@@ -101,6 +84,13 @@ export function ToolCallShell({
     defaultOpen ?? (autoOpenActive && isActive)
   )
   const previousStatusRef = React.useRef<ToolCallStatus>(tool.status)
+  const attention = tool.settlementStatus === "outcome_unknown" || tool.operation?.status === "save_pending"
+  const quietSuccess = tool.status === "succeeded" && statusLabel == null && !summaryTone &&
+    tool.settlementStatus !== "outcome_unknown" && tool.operation?.status !== "save_pending"
+  const StatusIcon = tool.status === "failed" || summaryTone === "error" ? CircleXIcon
+    : tool.status === "cancelled" ? CircleMinusIcon
+    : quietSuccess ? CheckIcon : tool.status === "running" ? LoaderCircleIcon
+    : tool.status === "waiting" || attention ? CircleHelpIcon : DotIcon
 
   React.useEffect(() => {
     const previousStatus = previousStatusRef.current
@@ -125,24 +115,24 @@ export function ToolCallShell({
         if (lockOpen && !nextOpen) return
         setOpen(nextOpen)
       }}
-      className={cn("flex flex-col", className)}
+      className={cn("@container/tool flex flex-col", className)}
     >
       <CollapsibleTrigger asChild>
         <button
           type="button"
           data-tool-call-id={tool.id}
           data-tool-status={tool.status}
-          className="group flex min-h-7 w-full min-w-0 items-center gap-2 text-left text-[12px] text-foreground/62 select-none transition-colors hover:text-foreground/85 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
+          className="group flex min-h-8 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 text-left text-[13px] text-foreground/70 select-none transition-colors hover:text-foreground/90 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         >
-          <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="order-1 inline-flex min-w-0 flex-1 items-center gap-1.5">
             {icon ?? <WrenchIcon className="size-3.5 flex-none" />}
-            <span data-tool-title className="truncate">{title ?? tool.name}</span>
+            <span data-tool-title className="min-w-0 flex-1 truncate">{title ?? tool.name}</span>
           </span>
           {!open && summary ? (
             <span
               data-tool-summary
               className={cn(
-                "min-w-0 max-w-[45%] truncate text-[11px] text-foreground/45",
+                "order-3 min-w-0 basis-full truncate pl-5 text-[11px] text-foreground/50 @md/tool:order-2 @md/tool:max-w-[35%] @md/tool:basis-auto @md/tool:pl-0",
                 (tool.status === "failed" || summaryTone === "error") && "text-destructive/85"
               )}
             >
@@ -152,19 +142,20 @@ export function ToolCallShell({
           <span
             aria-live="polite"
             className={cn(
-              "ml-auto inline-flex shrink-0 items-center gap-1 text-[10px]",
-              statusTone(tool.status)
+              "order-2 ml-auto inline-flex shrink-0 items-center gap-1 text-[10px] @md/tool:order-3",
+              summaryTone === "error" ? "text-destructive" : attention ? "text-amber-700 dark:text-amber-400"
+                : tool.status === "succeeded" && statusLabel != null ? "text-foreground/60" : statusTone(tool.status)
             )}
           >
-            <span
+            <StatusIcon
               aria-hidden="true"
               className={cn(
-                "size-1.5 rounded-full",
-                statusMarkerTone(tool.status),
-                tool.status === "running" && "animate-pulse"
+                "size-3.5 shrink-0",
+                tool.status === "running" && "motion-safe:animate-spin"
               )}
             />
-            {statusLabel ?? (tool.settlementStatus === "outcome_unknown" ? i18n.t("trajectory.statuses.outcome_unknown") : toolStatusLabel(tool.status))}
+            <span data-tool-status-label className={quietSuccess ? "sr-only" : undefined}>{statusLabel ?? (tool.settlementStatus === "outcome_unknown" ? i18n.t("trajectory.statuses.outcome_unknown")
+              : tool.operation?.status === "save_pending" ? i18n.t("chat.agent.storagePending") : toolStatusLabel(tool.status))}</span>
             <ChevronDownIcon className="size-3.5 flex-none -rotate-90 transition-transform group-data-[state=open]:rotate-0" />
           </span>
         </button>

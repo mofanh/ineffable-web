@@ -32,6 +32,7 @@ import {
   type AgentUserInputResponse,
 } from "@/features/chat/components/agent-tool-renderers"
 import { ToolCallShell } from "@/features/chat/components/tool-call-shell"
+import { ToolActionIcon, ToolActionLabel } from "./tool-action-label"
 import {
   registerDefaultWebNodeRenderer,
   WebNodeRendererRegistry,
@@ -893,7 +894,8 @@ const ToolCallCard = React.memo(function ToolCallCard({
   return (
     <ToolCallShell
       tool={tool}
-      title={presentation.title}
+      title={presentation.action ? <ToolActionLabel action={presentation.action} /> : presentation.title}
+      icon={presentation.action ? <ToolActionIcon kind={presentation.action.kind} /> : undefined}
       summary={presentation.summary}
       summaryTone={presentation.summaryTone}
       statusLabel={presentation.statusLabel}

@@ -6,6 +6,7 @@ import { i18n } from "@/lib/i18n/i18n"
 type JsonObject = Record<string, unknown>
 type ResultKind = "terminal" | "read" | "write" | "list" | "search" | "stat"
 type Action = { title: string; target?: string; resultKind?: ResultKind }
+export type ToolCallAction = { label: string; target: string | null; kind: ResultKind | "tool" }
 
 const TOOL_SUMMARY_MAX_LENGTH = 140
 const ANSI_ESCAPE_SEQUENCE = new RegExp(
@@ -251,6 +252,7 @@ export function getToolCallPresentation(tool: ToolCallView) {
   )
   return {
     title,
+    action: action ? { label: action.title, target, kind: action.resultKind ?? "tool" } satisfies ToolCallAction : null,
     summary,
     summaryTone: failed || commandFailed ? "error" as const : undefined,
     // A successful observation is not a successful process exit.

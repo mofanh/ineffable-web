@@ -1044,6 +1044,7 @@ export const resources = {
           answerSubmitFailed: "提交选择失败。",
           answerSubmitFailedTitle: "无法提交选择",
           inputNoLongerActive: "这个问题已不再等待回答。",
+          storagePending: "待保存",
           toolTitles: {
             readFile: "读取文件",
             readFileTarget: "读取 {{target}}",
@@ -3009,6 +3010,7 @@ export const resources = {
           answerSubmitFailed: "Unable to submit the answer.",
           answerSubmitFailedTitle: "Answer submission failed",
           inputNoLongerActive: "This question is no longer awaiting an answer.",
+          storagePending: "Awaiting storage",
           toolTitles: {
             readFile: "Read file",
             readFileTarget: "Read {{target}}",

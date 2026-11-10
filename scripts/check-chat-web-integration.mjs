@@ -500,6 +500,9 @@ const runningCommand = {
   status: "running",
 }
 assert.match(getToolCallTitle(runningCommand), /npm run build/)
+assert.deepEqual(getToolCallPresentation(runningCommand).action, {
+  label: i18n.t("chat.agent.toolTitles.executeCommand"), target: "npm run build", kind: "terminal",
+})
 assert.equal(getToolCallSummary(runningCommand), null)
 assert.equal(
   getToolCallSummary({
@@ -525,6 +528,20 @@ const fileRead = {
   status: "succeeded",
 }
 assert.match(getToolCallTitle(fileRead), /src\/app\.ts/)
+assert.deepEqual(getToolCallPresentation(fileRead).action, {
+  label: i18n.t("chat.agent.toolTitles.readFile"), target: "src/app.ts", kind: "read",
+})
+for (const [facts, expected] of [
+  [{settlementStatus:"outcome_unknown"}, i18n.t("trajectory.statuses.outcome_unknown")],
+  [{operation:{status:"save_pending",executionIdentity:"operation",replayable:false}}, i18n.t("chat.agent.storagePending")],
+]) {
+  let shell
+  await act(async () => { shell=TestRenderer.create(React.createElement(ToolCallShell,{tool:{...fileRead,...facts}},"details")) })
+  const label=shell.root.findByProps({"data-tool-status-label":true})
+  assert.equal(label.props.children,expected)
+  assert.notEqual(label.props.className,"sr-only","unsettled operations require visible status")
+  await act(async()=>shell.unmount())
+}
 assert.equal(
   getToolCallSummary(fileRead),
   `${i18n.t("chat.agent.lineRange")} 1–100`
