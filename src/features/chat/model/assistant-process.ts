@@ -120,7 +120,7 @@ export function projectAssistantProcessLayout(
   let bodyFollows = false
   for (let i = nodes.length - 1; i >= 0; i--) {
     if (bodyFollows) followingBody.add(nodes[i].nodeId)
-    if (textPayload(nodes[i])?.content.trim()) bodyFollows = true
+    if (textPayload(nodes[i])?.content.trim() && eligible(nodes[i])) bodyFollows = true
   }
   let pending: WebNodeView[] = []
   const flush = () => {

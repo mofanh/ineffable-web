@@ -41,6 +41,13 @@ save("unknown")
 emit(6,"model.reasoning.delta","FINAL THINKING")
 emit(6,"model.text.delta","FINAL ANSWER\n\nFinal details.\n\n| Item | Result |\n| --- | --- |\n| Check | Passed |",{assistant_phase:"final_answer"})
 save("final-stream")
+current=undefined
+emit(1,"model.reasoning.delta","CURRENT THINKING")
+save("plugin-thinking")
+emit(1,"model.stream.other","",{web_view:{schemaVersion:1,pluginId:"ineffable.web.default",renderer:"text",nodeId:"declared-text",status:"settled",payload:{content:"DECLARED PLUGIN",streaming:false},fallback:{title:"Plugin"}}})
+save("declared-plugin")
+emit(2,"model.text.delta","Actual prose",{assistant_phase:"commentary"})
+save("plugin-body")
 
 function Fixture() {
   const [stage,setStage] = React.useState("final-stream")
@@ -73,7 +80,7 @@ function Fixture() {
   },[stage,status,canonical,mount,longFinal])
   return <div className="flex h-screen min-w-0 flex-col">
     <div className="flex shrink-0 flex-wrap gap-2 text-xs" data-fixture-controls>
-      {["work-1","body-1","body-1-more","work-2","body-2","unknown","final-stream"].map(value=><button key={value} onClick={()=>{setStage(value);setStatus("streaming")}}>{value}</button>)}
+      {["work-1","body-1","body-1-more","work-2","body-2","unknown","final-stream","plugin-thinking","declared-plugin","plugin-body"].map(value=><button key={value} onClick={()=>{setStage(value);setStatus("streaming")}}>{value}</button>)}
       {["completed","streaming","failed","cancelled","awaiting_human","suspended"].map(value=><button key={value} onClick={()=>setStatus(value)}>{value}</button>)}
       <button onClick={()=>setCanonical(value=>!value)}>canonical</button>
       <button onClick={()=>setMount(value=>value+1)}>remount-row</button>

@@ -21,10 +21,10 @@ export function ChatProcessDisclosureProvider({ children }: { children: React.Re
   return <DisclosureContext.Provider value={choices}>{children}</DisclosureContext.Provider>
 }
 
-function hasProcessInteraction(root: HTMLElement | null) {
+function hasProcessInteraction(root: HTMLElement | null, protectToggle = false) {
   const active = document.activeElement
   const selection = window.getSelection()
-  return Boolean(root && ((root.contains(active) && !(active instanceof Element && active.closest("[data-chat-process-toggle]"))) ||
+  return Boolean(root && ((root.contains(active) && (protectToggle || !(active instanceof Element && active.closest("[data-chat-process-toggle]")))) ||
     (selection && !selection.isCollapsed && selection.containsNode(root, true))))
 }
 
@@ -37,7 +37,7 @@ export function useProcessConsolidation(complete: boolean, rootRef: React.RefObj
     const root = rootRef.current
     let disposed = false
     const apply = () => {
-      if (!disposed) setAccepted(current => complete && (current || !hasProcessInteraction(root)))
+      if (!disposed) setAccepted(current => complete && (current || !hasProcessInteraction(root, true)))
     }
     const interactionEnded = () => queueMicrotask(apply)
     root?.addEventListener("focusout", interactionEnded)
