@@ -2,6 +2,7 @@ import type { ApprovalEntry } from "../gateway-chat-types"
 import { imageReferences } from "@/lib/image-reference"
 import { mergeAssistantSegments, transcriptSegment, updateUserInputTool } from "./assistant-segments"
 import { parseInputProgress } from "./input-progress"
+import { canonicalReplyTo } from "./agent-report-turns"
 import { humanInputResponseIdentity, reconcileHumanInputAnswers, inputBoundaryForRun } from "./human-input-timeline"
 import {
   applyCanonicalMessageToPane,
@@ -476,6 +477,8 @@ function buildAssistantEntryFromMessages(
     capabilityExposure,
     createdAt,
     canonicalMessageSeqEnd,
+    canonicalReplyTo: canonicalReplyTo(messages.find(message => Number.isSafeInteger(message.canonical_seq) &&
+      message.metadata_json?.response_to_message_seq != null)?.metadata_json),
     historyMessages: messages,
     timelineSeq,
     timelineUnitId,

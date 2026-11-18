@@ -15,7 +15,7 @@ import { ConversationPageLoader } from "@/features/chat/model/conversation-page-
 import { useApiResource } from "@/lib/app/use-api-resource"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
-import { projectAgentReportTurns } from "@/features/chat/model/agent-report-turns"
+import { isAgentReportInput, needsReportSource, projectAgentReportTurns } from "@/features/chat/model/agent-report-turns"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
@@ -969,7 +969,7 @@ export function GatewayChatSidebar({
       const generation = humanInputSubmissionGenerationRef.current
       const messageIds = Array.from(new Set(entriesRef.current.flatMap(entry => {
         if (entry.role !== "user" || entry.inputProgress?.phase === "cancelled") return []
-        if (entry.inputProgress?.phase === "accepted" && ["completed", "failed", "cancelled"].includes(entry.inputProgress.run_state ?? "")) return []
+        if (!needsReportSource(entry) && entry.inputProgress?.phase === "accepted" && ["completed", "failed", "cancelled"].includes(entry.inputProgress.run_state ?? "")) return []
         const id = entry.inputProgress?.message_id ?? (entry.id.startsWith("message:") ? entry.id.slice(8) : undefined)
         return id ? [id] : []
       })))
@@ -1485,7 +1485,7 @@ export function GatewayChatSidebar({
           return Boolean(entry.needId || entry.approvalId)
         }
 
-        return Boolean(entry.content.trim() || (entry.role === "user" && entry.images?.length))
+        return Boolean(entry.content.trim() || (entry.role === "user" && (entry.images?.length || isAgentReportInput(entry))))
       }),
     [conversationEntries]
   )
@@ -1493,6 +1493,17 @@ export function GatewayChatSidebar({
     () => new Set(visibleEntries.flatMap(entry => entry.role === "user" ? [entry.id] : [])),
     [visibleEntries]
   )
+  const unresolvedReportSources = React.useMemo(() => conversationEntries.filter(needsReportSource).map(entry => entry.id).join(","), [conversationEntries])
+  React.useEffect(() => {
+    if (currentConversationId && unresolvedReportSources) {
+      const generation = sendViewRef.current.generation
+      void refreshPendingInputsForConversation(currentConversationId).catch(error => {
+        if (sendViewRef.current.generation === generation && currentConversationIdRef.current === currentConversationId) {
+          reportChatError(error, i18n.t("chat.gateway.loadFailed"), i18n.t("chat.gateway.loadHistoryFailed"))
+        }
+      })
+    }
+  }, [currentConversationId, unresolvedReportSources, refreshPendingInputsForConversation, reportChatError])
   // Keep the existing queue row until its canonical bubble actually takes over.
   const displayedPreInputQueue = React.useMemo(
     () => preInputQueue.map(item => item.inTimeline && !visibleInputIds.has(`message:${item.messageId}`)
@@ -2634,10 +2645,10 @@ export function GatewayChatSidebar({
           assistantEntryIdRef.current = null
         }
         setEntries((current) => reduceCurrentTimeline(current, {
-          type: "input-progress", progress, content: needsSource ? undefined : event.content ?? undefined,
+          type: "input-progress", progress, content: event.content ?? (needsSource ? "" : undefined), awaitingReportSource: Boolean(needsSource),
         }))
       }
-      if (event.metadata?.replayed !== true || needsSource) {
+      if (event.metadata?.replayed !== true) {
         void syncLatestConversationMessagesPage(identity.conversationId, null, "coalesce").catch(() => {})
       }
       return

@@ -41,7 +41,7 @@ import {
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
 import { AgentReportStep } from "./agent-report-step"
-import { isAgentReportInput } from "../model/agent-report-turns"
+import { isAgentReportInput, needsReportSource } from "../model/agent-report-turns"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import { useChatScrollBoundary, type ChatScrollDirection } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
@@ -408,7 +408,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   )
 })
 
-const entryKey = (entry: ChatEntry) => entry.id
+const entryKey = (entry: ChatEntry) => entry.timelineUnitId ?? entry.id
 const estimateEntry = (entry: ChatEntry) => entry.role === "assistant" ? 320 : 88
 const ChatMessageRow = React.memo(function ChatMessageRow({
   entry, isLast, trialVerdict, compactingRunId, accessToken, onImageReference,
@@ -437,8 +437,9 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
             entry.status === "done" &&
             Boolean(answerText)
 
+          if (needsReportSource(entry)) return null
           if (isAgentReportInput(entry)) {
-            return <div data-chat-row-key={entry.id} data-chat-entry-role="agent-report">
+            return <div data-chat-row-key={entryKey(entry)} data-chat-entry-role="agent-report">
               <AgentReportStep report={entry.inputProgress.agent_report} />
             </div>
           }
@@ -447,8 +448,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
             const progressLabel = inputProgressLabel(entry.inputProgress, entry.deliveryStatus)
             return (
               <div
-                key={entry.id}
-                data-chat-row-key={entry.id}
+                key={entryKey(entry)}
+                data-chat-row-key={entryKey(entry)}
                 data-chat-entry-role="user"
                 className="flex justify-end"
               >
@@ -478,7 +479,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
 
           if (entry.role === "system" && entry.taskResult) {
             const result = entry.taskResult
-            return <div key={entry.id} data-chat-row-key={entry.id} data-chat-entry-role="system" className="rounded-xl border border-border/60 px-4 py-3 text-sm">
+            return <div key={entryKey(entry)} data-chat-row-key={entryKey(entry)} data-chat-entry-role="system" className="rounded-xl border border-border/60 px-4 py-3 text-sm">
               <div className="font-medium">{result.title}</div>
               <div className="mt-1 text-xs text-muted-foreground">{t(`chat.header.taskResult.${result.outcome}`)}</div>
               {onOpenConversation ? <Button variant="ghost" size="sm" className="mt-2" onClick={() => onOpenConversation(result.conversationId)}>{t("chat.header.openTask")}</Button> : null}
@@ -488,8 +489,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
           if (entry.role === "system") {
             return (
               <div
-                key={entry.id}
-                data-chat-row-key={entry.id}
+                key={entryKey(entry)}
+                data-chat-row-key={entryKey(entry)}
                 data-chat-entry-role="system"
                 className="flex justify-start gap-3"
               >
@@ -512,8 +513,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
 
             return (
               <div
-                key={entry.id}
-                data-chat-row-key={entry.id}
+                key={entryKey(entry)}
+                data-chat-row-key={entryKey(entry)}
                 data-chat-entry-role="approval"
                 className="flex justify-start gap-3"
               >
@@ -588,8 +589,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
 
           return (
             <div
-              key={entry.id}
-              data-chat-row-key={entry.id}
+              key={entryKey(entry)}
+              data-chat-row-key={entryKey(entry)}
               data-chat-entry-role="assistant"
               className="flex w-full justify-start"
             >

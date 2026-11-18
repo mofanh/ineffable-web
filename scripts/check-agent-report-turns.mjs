@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history.ts"
-import { isAgentReportInput, projectAgentReportTurns } from "../src/features/chat/model/agent-report-turns.ts"
+import { isAgentReportInput, needsReportSource, projectAgentReportTurns } from "../src/features/chat/model/agent-report-turns.ts"
+import { bindAssistantToHumanBoundary } from "../src/features/chat/model/human-input-timeline.ts"
+import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector.ts"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 import { projectAssistantProcessLayout, assistantAnswerText } from "../src/features/chat/model/assistant-process.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
@@ -48,6 +50,16 @@ const orphan = page([output(4,1,"commentary","other"),receipt,output(6,4,"final_
 assert.equal(projectAgentReportTurns(orphan).length,3,"no adjacent-run or unproven reply-anchor inference")
 const stale = page([output(4,1,"commentary","r",2),receipt,output(6,2,"final_answer","r",2)])
 assert.equal(projectAgentReportTurns(stale).length,3,"a receipt cannot join another execution epoch")
+const resumed = output(6,2,"final_answer","r",2)
+resumed.metadata_json.response_to_message_id = receipt.id
+resumed.metadata_json.response_to_message_seq = receipt.canonical_seq
+assert.equal(projectAgentReportTurns(page([question,prefix,receipt,resumed])).length,2,"Finalizer can answer a previously accepted input after durable resume")
+const restored = projectConversationOutputEvent(undefined,{run_id:"r",event:"assistant.snapshot",role:"assistant",scope:"main",seq:8,
+  content:"restored",metadata:{...resumed.metadata_json,canonical_reconciliation:true,canonical_message_seq:6,transcript_segment_complete:true}},"r")
+const withLive = [...page([question,prefix,receipt]), bindAssistantToHumanBoundary(restored,[],2)]
+assert.equal(projectAgentReportTurns(withLive).length,2,"inline Finalizer handoff proves the same response owner as refreshed history")
+resumed.metadata_json.response_to_message_id = question.id
+assert.equal(projectAgentReportTurns(page([question,prefix,receipt,resumed])).length,3,"a later epoch needs the exact canonical input owner")
 const provisional = rows.map((r,i)=>i===1 ? { ...r, segments:undefined, canonicalMessageSeqEnd:null,segmentIdentity:{execution_epoch:1,turn:1,id:"partial"} } : r)
 const pendingTurn = projectAgentReportTurns(provisional).at(-1)
 assert.equal(projectAssistantProcessLayout(pendingTurn,nodes,()=>true).consolidated,false)
@@ -56,6 +68,16 @@ const once = reduceConversationTimeline([], {type:"input-progress",progress:inpu
 const again = reduceConversationTimeline(once,{type:"input-progress",progress:{...inputRow.inputProgress,agent_report:undefined},content:envelope})
 assert.equal(again.length,1)
 assert.equal(again[0].inputProgress.agent_report.content,"report 2")
+const old = {...inputRow.inputProgress, agent_report:undefined}
+const unclassified = reduceConversationTimeline([human],{type:"input-progress",progress:old,content:envelope,awaitingReportSource:true})
+assert.ok(needsReportSource(unclassified[1]))
+assert.equal(bindAssistantToHumanBoundary({role:"assistant",runId:"r"},unclassified).humanInputBoundarySeq,2)
+for (const expected of [inputRow.inputProgress.agent_report, null]) {
+  const hydrated = reduceConversationTimeline(unclassified,{type:"pending-inputs",inputs:[],progress:[{...old,agent_report:expected}]})
+  assert.ok(!needsReportSource(hydrated[1]))
+  assert.equal(hydrated[1].content,envelope)
+  assert.equal(isAgentReportInput(hydrated[1]),!!expected)
+}
 const paged = reduceConversationTimeline(rows.slice(2),{type:"prepend-history",entries:rows.slice(0,2)})
 assert.deepEqual(projectAgentReportTurns(paged).at(-1).reportTurn.map(p=>p.id),turn.reportTurn.map(p=>p.id))
 console.log("Agent mailbox reports preserve source, order, epoch, paging, canonical coverage and human input boundaries")

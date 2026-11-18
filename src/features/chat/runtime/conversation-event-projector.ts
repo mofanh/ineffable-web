@@ -1,4 +1,5 @@
 import { canonicalMessagesToGatewayEvents } from "../model/canonical-message-event"
+import { canonicalReplyTo } from "../model/agent-report-turns"
 import { updateAssistantSegment, updateUserInputTool, transcriptSegment } from "../model/assistant-segments"
 import {
   applyMessageToPane,
@@ -155,7 +156,8 @@ export function projectConversationOutputEvent(
       content: event.content ?? "", metadata, runId, reasoningContent: firstForMessage && typeof metadata.reasoning_content === "string" ? metadata.reasoning_content : null,
     }], { stream: "history", phase: "history", defaultRunId: runId })
     for (const projected of converted) draft = projectConversationOutputFragment(draft, projected, runId)
-    draft = { ...draft, segmentIdentity: identity, canonicalMessageSeqEnd: sequence, eventCoverage: event.seq }
+    draft = { ...draft, segmentIdentity: identity, canonicalMessageSeqEnd: sequence, eventCoverage: event.seq,
+      canonicalReplyTo: canonicalReplyTo(metadata) ?? draft.canonicalReplyTo }
     if (event.metadata.transcript_segment_complete === true) {
       draft.pane = finalizePane(draft.pane)
       return updateAssistantSegment(base, key, draft)

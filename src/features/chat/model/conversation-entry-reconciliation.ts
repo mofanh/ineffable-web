@@ -110,7 +110,7 @@ export type ConversationTimelineAction =
   | { type: "user-entry"; entry: Extract<ChatEntry, { role: "user" }> }
   | { type: "pending-inputs"; inputs: QueuedInputIdentity[]; progress?: InputProgress[] }
   | { type: "input-receipt"; optimisticId: string; messageId: string }
-  | { type: "input-progress"; progress: InputProgress; content?: string }
+  | { type: "input-progress"; progress: InputProgress; content?: string; awaitingReportSource?: boolean }
   | { type: "hydrate"; entries: ChatEntry[] }
   | {
       type: "canonical-patch"
@@ -160,15 +160,16 @@ export function reduceConversationTimeline(
     return sortTimeline(visibleTimelineEntries(next, action.inputs))
   }
   if (action.type === "input-progress") {
-    const progress = action.progress
+    const { progress, awaitingReportSource } = action
     const identity = `message:${progress.message_id}`
     const next = bindRequestMessages(current, [progress]).map((entry) => entry.role === "user" && timelineIdentity(entry) === identity
       ? { ...entry, timelineSeq: progress.message_seq ?? entry.timelineSeq,
+          awaitingReportSource: entry.awaitingReportSource || awaitingReportSource,
           inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
       : entry)
     const content = action.content ?? progress.agent_report?.content
     if (!next.some((entry) => timelineIdentity(entry) === identity) && content != null) {
-      next.push({ id: identity, timelineUnitId: identity, role: "user", content,
+      next.push({ id: identity, timelineUnitId: identity, role: "user", content, awaitingReportSource: action.awaitingReportSource,
         timelineSeq: progress.message_seq, inputProgress: progress, deliveryStatus: "received" })
     }
     return sortTimeline(visibleTimelineEntries(next, queuedInputs))

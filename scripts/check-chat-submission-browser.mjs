@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
+import { createServer as createHttpServer } from "node:http"
 import { networkInterfaces } from "node:os"
 import { chromium } from "playwright-core"
 import { createServer } from "vite"
@@ -22,10 +23,13 @@ const server = await createServer({ root: process.cwd(), logLevel: "error", plug
     } else return next()
     streams.add(res); res.on("close", () => streams.delete(res))
   }) },
-}], server: { host: "0.0.0.0", port: 0, watch: null, hmr: false } })
+}], server: { middlewareMode: true, watch: null, hmr: false } })
+// Let the OS allocate the fixture port. Vite treats port 0 as its dev port,
+// where a developer's loopback server may already be accepting connections.
+const socket = createHttpServer(server.middlewares)
 let browser
 try {
-  await server.listen()
+  await new Promise((ready, reject) => socket.once("error", reject).listen(0, "0.0.0.0", ready))
   browser = await chromium.launch({ executablePath, headless: true })
   for (const scenario of ["insecure-new", "insecure-existing", "unsupported-browser", "workspace-reselect", "conversation-reselect", "create-failure", "cursor-failure", "old-eof", "old-error"]) {
     console.log(`submission ownership: ${scenario}`)
@@ -72,7 +76,7 @@ try {
     }
     try {
       const insecure = scenario.startsWith("insecure-")
-      await page.goto(`http://${insecure ? lanAddress : "127.0.0.1"}:${server.httpServer.address().port}/scripts/image-send-fixture.html`)
+      await page.goto(`http://${insecure ? lanAddress : "127.0.0.1"}:${socket.address().port}/scripts/image-send-fixture.html`)
       const composer = page.locator("textarea")
       await composer.waitFor()
       if (!["create-failure", "cursor-failure", "insecure-new"].includes(scenario)) {
@@ -147,5 +151,6 @@ try {
 } finally {
   await browser?.close()
   for (const stream of streams) stream.end()
+  await new Promise(done => socket.close(done))
   await server.close()
 }

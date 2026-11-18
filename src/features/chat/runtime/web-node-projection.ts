@@ -6,6 +6,7 @@ import type {
 } from "../chat-pane-state.ts"
 import { hasAgentPaneContent, isRenderablePaneBlock } from "../chat-pane-state.ts"
 import type { AssistantEntry, SubagentView } from "../gateway-chat-types.ts"
+import { reportSectionNodeId } from "../model/agent-report-turns"
 import {
   WEB_NODE_SCHEMA_VERSION,
   createDefaultWebNode,
@@ -66,11 +67,11 @@ type CachedProjection = {
 }
 
 export class WebNodeProjectionCache {
-  private readonly previousSections = new WeakMap<AssistantEntry, { canRespond: boolean; nodes: WebNodeView[] }>()
-  private readonly declaredSectionNodes = new WeakSet<WebNodeView>()
+  private readonly previousSections = new WeakMap<AssistantEntry, { first: boolean; canRespond: boolean; nodes: WebNodeView[] }>()
+  private readonly sectionDeclaration = new WeakMap<WebNodeView, boolean>()
 
   isDeclaredNode(pane: AgentPaneState, node: WebNodeView) {
-    return pane.blocks[node.nodeId]?.type === "plugin" || this.declaredSectionNodes.has(node)
+    return this.sectionDeclaration.get(node) ?? (pane.blocks[node.nodeId]?.type === "plugin")
   }
   private readonly cache = new Map<string, CachedProjection>()
   private artifactSignature = ""
@@ -181,20 +182,20 @@ export class WebNodeProjectionCache {
         nodeId: `report:${part.id}`, renderer: "agent-report", status: "settled",
         payload: part.report, fallback: { title: part.report.name },
       })]
-      if (index === answerIndex) return current
-      const cached = this.previousSections.get(part)
-      if (cached?.canRespond === options.canRespondToUserInput) return cached.nodes
-      const projected = new WebNodeProjectionCache().project(part.pane,
+      const cached = index === answerIndex ? undefined : this.previousSections.get(part)
+      if (cached?.canRespond === options.canRespondToUserInput && cached.first === (index === 0)) return cached.nodes
+      const projected = index === answerIndex ? current : new WebNodeProjectionCache().project(part.pane,
         { streaming: false, canRespondToUserInput: options.canRespondToUserInput },
         { order: part.subagentOrder, records: part.subagents })
       const nodes = projected.map(node => {
         // Tool IDs may be reused under different input anchors. Scope display
         // keys only; protocol IDs and active human need identities stay intact.
-        const scoped = { ...node, nodeId: `${part.timelineUnitId ?? part.id}/${node.nodeId}` }
-        if (part.pane.blocks[node.nodeId]?.type === "plugin") this.declaredSectionNodes.add(scoped)
+        const nodeId = reportSectionNodeId(part, index, node.nodeId)
+        const scoped = nodeId === node.nodeId ? node : { ...node, nodeId }
+        this.sectionDeclaration.set(scoped, part.pane.blocks[node.nodeId]?.type === "plugin")
         return scoped
       })
-      this.previousSections.set(part, { canRespond: options.canRespondToUserInput, nodes })
+      if (index !== answerIndex) this.previousSections.set(part, { first: index === 0, canRespond: options.canRespondToUserInput, nodes })
       return nodes
     })
   }

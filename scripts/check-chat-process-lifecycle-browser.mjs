@@ -23,6 +23,7 @@ try {
   browser = await chromium.launch({executablePath,headless:true})
   const page = await browser.newPage({viewport:{width:800,height:900}})
   const errors=[];page.on("pageerror",error=>errors.push(error.message))
+  const inputSources = new Map(), requestedSources = new Set()
   let status="streaming",resumeMode="none",terminalMessages=0,completionScenario=false
   const conversation = () => ({id:"refresh-conversation",title:"Process lifecycle",current_run_id:"refresh-run",current_run:{
     id:"refresh-run",status,execution_epoch:1,version:status === "streaming" ? 1 : 2,lifecycle_seq:status === "streaming" ? 0 : 5,
@@ -35,6 +36,11 @@ try {
     if (path.endsWith("/get")) body=conversation()
     if (path.endsWith("/list")) body={items:[conversation()]}
     if (path.endsWith("/observations/access")) body={allowed:false}
+    if (path.endsWith("/pending-inputs")) {
+      const ids = (new URL(route.request().url()).searchParams.get("message_ids") ?? "").split(",")
+      ids.forEach(id => requestedSources.add(id))
+      body.input_progress = ids.flatMap(id => inputSources.has(id) ? [inputSources.get(id)] : [])
+    }
     if (path.endsWith("/messages")) {
       if (status !== "streaming") { terminalMessages++;return route.fulfill({status:500,json:{error:{message:"TERMINAL_HISTORY_UNAVAILABLE"}}}) }
       const common={conversation_id:"refresh-conversation",created_at:"2026-10-21T00:00:00Z",updated_at:"2026-10-21T00:00:00Z"}
@@ -121,6 +127,14 @@ try {
   const first=section(1,1,"commentary"), last=section(2,2,"final_answer")
   frame("model.text.delta","Inspecting files",first)
   await page.getByText("Inspecting files",{exact:true}).waitFor()
+  const call = {tool_call_id:"inspect",tool_name:"workspace",full_arguments:'{"command":"list"}'}
+  frame("tool.call.completed","",{...first,...call})
+  frame("tool.result","README.md",{...first,...call,settlement_status:"succeeded"})
+  const tool = page.locator("[data-tool-call-id]").first()
+  await tool.click()
+  const openTool = await tool.elementHandle()
+  const focusedToolStillOpen = () => openTool.evaluate(el => el.isConnected && document.activeElement === el && el.getAttribute("aria-expanded") === "true")
+  assert.ok(await focusedToolStillOpen())
   const progress={conversation_id:"refresh-conversation",message_id:"report",message_seq:2,kind:"guided",
     phase:"accepted",run_id:"refresh-run",run_state:"streaming",run_version:1,execution_epoch:1,
     agent_report:{task_id:"external-task",name:"Codex",content:"Verified the working directory",delivery_epoch:1}}
@@ -129,11 +143,15 @@ try {
   assert.equal(await page.locator("[data-chat-entry-role=user]").count(),1)
   frame("model.text.delta","Directory inspected",last)
   await page.getByText("Directory inspected",{exact:true}).waitFor()
+  assert.ok(await focusedToolStillOpen(),"the open tool retains its DOM node and focus across both report and response")
+  await tool.evaluate(el => el.blur())
   status="completed"
-  frame("assistant.snapshot","Inspecting files",{...first,canonical_reconciliation:true,canonical_message_seq:3,transcript_segment_complete:true})
-  frame("assistant.snapshot","Directory inspected",{...last,canonical_reconciliation:true,canonical_message_seq:4,transcript_segment_complete:true})
+  frame("tool.call.completed","",{...first,...call,canonical_reconciliation:true,canonical_message_seq:3,
+    canonical_message:{content:"Inspecting files",tool_calls:[{id:"inspect",name:"workspace",input:{command:"list"}}]}})
+  frame("tool.result","README.md",{...first,...call,canonical_reconciliation:true,canonical_message_seq:4,transcript_segment_complete:true,settlement_status:"succeeded"})
+  frame("assistant.snapshot","Directory inspected",{...last,canonical_reconciliation:true,canonical_message_seq:5,transcript_segment_complete:true})
   publish({run_id:"refresh-run",seq:++seq,ts_ms:1,stream:"run",scope:"run",event:"run.completed",content:null,
-    metadata:{conversation_id:"refresh-conversation",execution_epoch:1,run_version:2,canonical_message_seq_end:4,canonical_reconcile_message_seq_end:4}})
+    metadata:{conversation_id:"refresh-conversation",execution_epoch:1,run_version:2,canonical_message_seq_end:5,canonical_reconcile_message_seq_end:5}})
   await page.waitForFunction(()=>document.querySelector("[data-chat-process-mode]")?.getAttribute("data-chat-process-mode")==="completed")
   assert.equal(await toggle.count(),1)
   assert.equal(await toggle.getAttribute("aria-expanded"),"false")
@@ -142,6 +160,23 @@ try {
   const report=page.locator("[data-agent-report=external-task]")
   await report.locator("summary").click()
   assert.equal(await report.locator("p").innerText(),"Verified the working directory")
+  assert.equal(await page.getByText("External agent report envelope",{exact:true}).count(),0)
+  // The server still retains both input IDs while neither appears in the HTTP tail.
+  status="streaming"
+  const reconnect = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/subscribe"))
+  await page.goto(url)
+  await reconnect
+  await page.getByText("Lifecycle task",{exact:true}).waitFor()
+  const legacy = {...progress}
+  delete legacy.agent_report
+  inputSources.set("report",progress)
+  inputSources.set("guide",{...progress,message_id:"guide",message_seq:7,agent_report:null})
+  frame("input.accepted","External agent report envelope",{replayed:true,input_progress:legacy})
+  frame("input.accepted","Please also check the tests",{replayed:true,input_progress:{...legacy,message_id:"guide",message_seq:7}})
+  await page.getByText("Please also check the tests",{exact:true}).waitFor()
+  await page.locator("[data-agent-report=external-task]").waitFor()
+  assert.ok(requestedSources.has("report") && requestedSources.has("guide"))
+  assert.equal(await page.locator("[data-chat-entry-role=user]").count(),2)
   assert.equal(await page.getByText("External agent report envelope",{exact:true}).count(),0)
   assert.deepEqual(errors,[])
   console.log("real Sidebar completes and collapses without reload; cancelled/failed/suspended processes stay visible without history")

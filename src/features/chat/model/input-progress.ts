@@ -1,7 +1,7 @@
 export type AgentReport = { task_id: string; name: string; content: string; delivery_epoch: number | null }
 
 export type InputProgress = {
-  agent_report?: AgentReport
+  agent_report?: AgentReport | null
   queued_in_timeline?: boolean
   input_request_id?: string
   automation_source?: { automation_id: string; occurrence_id: string; name?: string; summary?: string }
@@ -28,7 +28,8 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
     agent_report: report && typeof report.task_id === "string" && report.task_id.length > 0 &&
       typeof report.name === "string" && typeof report.content === "string"
       ? { task_id: report.task_id, name: report.name, content: report.content,
-          delivery_epoch: Number.isSafeInteger(report.delivery_epoch) ? report.delivery_epoch! : null } : undefined,
+          delivery_epoch: Number.isSafeInteger(report.delivery_epoch) ? report.delivery_epoch! : null }
+      : item.agent_report === null ? null : undefined,
     automation_source: automation && typeof automation.automation_id === "string" && typeof automation.occurrence_id === "string"
       ? { automation_id: automation.automation_id, occurrence_id: automation.occurrence_id,
           name: typeof automation.name === "string" ? automation.name : undefined,
@@ -68,7 +69,8 @@ export function mergeInputProgress(current: InputProgress | undefined, incoming:
   // Older durable events lack the immutable mailbox source. Keep the newer
   // receipt while enriching it from the same canonical message.
   const source = current.agent_report ? current : incoming
-  if (!source.agent_report) return selected
+  if (!source.agent_report) return selected.agent_report === undefined &&
+    (current.agent_report === null || incoming.agent_report === null) ? { ...selected, agent_report: null } : selected
   return { ...selected, agent_report: source.run_id === selected.run_id && source.kind === selected.kind
     ? source.agent_report : { ...source.agent_report, delivery_epoch: null } }
 }

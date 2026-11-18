@@ -1,4 +1,5 @@
 import type { AssistantEntry } from "../gateway-chat-types"
+import { reportSectionNodeId } from "./agent-report-turns"
 import type { WebNodeView } from "../web-node"
 import { DEFAULT_WEB_PLUGIN_ID } from "../web-node"
 import type { TextWebNodePayload, ToolWebNodePayload } from "../runtime/web-node-projection"
@@ -116,12 +117,18 @@ export function projectAssistantProcessLayout(
   activeNeedId?: string | null,
   allowConsolidation = true
 ): AssistantProcessLayout {
-  const finalIds = finalAssistantBlockIds(entry)
+  let answerIndex = (entry.reportTurn?.length ?? 1) - 1
+  while (answerIndex > 0 && entry.reportTurn?.[answerIndex].role !== "assistant") answerIndex--
+  const answer = entry.reportTurn?.[answerIndex]
+  const finalBlockIds = finalAssistantBlockIds(entry)
+  const finalIds = answerIndex > 0 && answer?.role === "assistant"
+    ? new Set([...finalBlockIds].map(id => reportSectionNodeId(answer, answerIndex, id))) : finalBlockIds
   const consolidated = allowConsolidation && finalIds.size > 0
   const scope = entry.timelineUnitId ?? `${entry.runId ?? "local"}:${entry.humanInputBoundarySeq ?? entry.id}`
   const groups: AssistantProcessGroup[] = []
   const membership = new Map<string, AssistantProcessGroup>()
-  const owners = blockOwners(entry)
+  const owners = entry.reportTurn ? new Map(entry.reportTurn.flatMap((part, index) => part.role === "assistant"
+    ? [...blockOwners(part)].map(([id, owner]) => [reportSectionNodeId(part, index, id), owner] as const) : [])) : blockOwners(entry)
   const occurrences = new Map<string, number>()
   const followingBody = new Set<string>()
   let bodyFollows = false

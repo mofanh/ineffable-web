@@ -8,6 +8,22 @@ export function isAgentReportInput(entry: ChatEntry): entry is ReportInput {
     (entry.timelineUnitId ?? entry.id) === `message:${entry.inputProgress.message_id}`
 }
 
+export function needsReportSource(entry: ChatEntry) {
+  return entry.role === "user" && entry.awaitingReportSource === true && entry.inputProgress?.agent_report === undefined
+}
+
+/** Only call for canonical history or Finalizer events. */
+export function canonicalReplyTo(metadata?: Record<string, unknown> | null) {
+  const id = metadata?.response_to_message_id
+  const seq = metadata?.response_to_message_seq
+  return typeof id === "string" && id.length > 0 && typeof seq === "number" && Number.isSafeInteger(seq)
+    ? { id, seq } : undefined
+}
+
+export function reportSectionNodeId(section: AssistantEntry, partIndex: number, nodeId: string) {
+  return partIndex === 0 ? nodeId : `${section.timelineUnitId ?? section.id}/${nodeId}`
+}
+
 function boundaryEpoch(entry: AssistantEntry, side: "first" | "last") {
   let epoch = entry.segmentIdentity?.execution_epoch
   for (const segment of Object.values(entry.segments ?? {})) {
@@ -20,8 +36,18 @@ function boundaryEpoch(entry: AssistantEntry, side: "first" | "last") {
 
 function followsReport(entry: AssistantEntry, input: ReportInput) {
   const progress = input.inputProgress
-  return entry.runId === progress.run_id && entry.timelineUnitId === `run:${entry.runId}:anchor:${progress.message_seq! + 1}` &&
-    (progress.kind !== "guided" || boundaryEpoch(entry, "first") === progress.agent_report.delivery_epoch)
+  if (entry.runId !== progress.run_id || entry.timelineUnitId !== `run:${entry.runId}:anchor:${progress.message_seq! + 1}`) return false
+  if (progress.kind !== "guided") return true
+  const first = boundaryEpoch(entry, "first")
+  const delivery = progress.agent_report.delivery_epoch
+  if (first === undefined || delivery === null || first < delivery) return false
+  if (first === delivery) return true
+  // A resumed worker can finish an input accepted before its current epoch.
+  // Only the Finalizer's exact input owner can bridge that boundary.
+  const segments = entry.segments ? Object.values(entry.segments) : [entry]
+  return segments.some(part => part.segmentIdentity?.execution_epoch === first &&
+    Number.isSafeInteger(part.canonicalMessageSeqEnd) && !part.canonicalDraft &&
+    part.canonicalReplyTo?.id === progress.message_id && part.canonicalReplyTo?.seq === progress.message_seq)
 }
 
 function continuesRun(input: ReportInput, previous?: AssistantEntry | ReportInput) {

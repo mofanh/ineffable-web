@@ -4,6 +4,7 @@ import type { AgentPaneState } from "@/features/chat/chat-pane-state"
 export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "error"
 
 export type UserEntry = {
+  awaitingReportSource?: boolean
   inputRequestId?: string
   images?: import("@/lib/api/images").ImageReference[]
   id: string
@@ -72,6 +73,7 @@ export type CapabilityExposureSummary = {
 }
 
 export type AssistantEntry = {
+  canonicalReplyTo?: { id: string; seq: number }
   reportTurn?: readonly (AssistantEntry | { role: "agent-report"; id: string; report: AgentReport })[]
   segmentIdentity?: import("./model/assistant-segments").TranscriptSegment
   segments?: Record<string, AssistantEntry>
