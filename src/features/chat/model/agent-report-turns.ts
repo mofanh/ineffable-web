@@ -1,4 +1,4 @@
-import type { AssistantEntry, ChatEntry, UserEntry } from "../gateway-chat-types"
+import { chatEntryIdentity, type AssistantEntry, type ChatEntry, type UserEntry } from "../gateway-chat-types"
 import type { AgentReport, InputProgress } from "./input-progress"
 
 type ReportInput = UserEntry & { inputProgress: InputProgress & { agent_report: AgentReport } }
@@ -85,7 +85,7 @@ export function projectAgentReportTurns(entries: ChatEntry[], interactingRows?: 
   for (const entry of entries) {
     // A late receipt may join two already visible rows. Keep the row a reader
     // is interacting with at its mounted position until focus/selection leaves.
-    const protectedRole = interactingRows?.get(entry.timelineUnitId ?? entry.id)
+    const protectedRole = interactingRows?.get(chatEntryIdentity(entry))
     if (protectedRole === "assistant") flush()
     if (protectedRole === "agent-report" && isAgentReportInput(entry)) {
       flush()

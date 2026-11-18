@@ -523,14 +523,23 @@ export function mapConversationMessagesToEntries(
   let pendingAssistantMessages: ConversationMessageRecord[] = []
   let pendingAssistantRunId: string | null = null
   let pendingAssistantTimelineUnitId: string | null = null
+  let pendingApprovals: ApprovalEntry[] = []
+  const seenApprovals = new Set<string>()
+
+  const appendApproval = (target: ChatEntry[], approval: ApprovalEntry, message: ConversationMessageRecord) => {
+    if (seenApprovals.has(approval.id)) return
+    seenApprovals.add(approval.id)
+    target.push({ ...approval, timelineSeq: message.timeline_seq })
+  }
 
   const flushAssistantMessages = () => {
     if (!pendingAssistantMessages.length) {
       return
     }
 
-    entries.push(buildAssistantEntryFromMessages(pendingAssistantMessages))
+    entries.push(buildAssistantEntryFromMessages(pendingAssistantMessages), ...pendingApprovals)
     pendingAssistantMessages = []
+    pendingApprovals = []
     pendingAssistantRunId = null
     pendingAssistantTimelineUnitId = null
   }
@@ -538,19 +547,6 @@ export function mapConversationMessagesToEntries(
   messages
     .filter(hasRenderableConversationMessageContent)
     .forEach((message) => {
-      const approvalEntry = approvalNeedFromMessage(message)
-      if (approvalEntry) {
-        flushAssistantMessages()
-        if (!entries.some((entry) => entry.id === approvalEntry.id)) {
-          entries.push({
-            ...approvalEntry,
-            timelineSeq: message.timeline_seq,
-            timelineUnitId: message.timeline_unit_id,
-          })
-        }
-        return
-      }
-
       if (message.role === "user" || message.message_type === "input") {
         flushAssistantMessages()
         entries.push({
@@ -564,6 +560,22 @@ export function mapConversationMessagesToEntries(
           timelineSeq: message.timeline_seq,
           timelineUnitId: message.timeline_unit_id,
         })
+        return
+      }
+
+      // The first settlement in an approval batch also carries the human need.
+      // Keep the complete batch in its reply and give the approval its own row.
+      const approvalEntry = approvalNeedFromMessage(message)
+      const carriesTool = message.message_type === "tool_call" ||
+        ((message.role === "tool" || message.message_type === "tool_result") &&
+          Boolean(message.metadata_json?.tool_call_id || message.metadata_json?.transcript_occurrence_id))
+      if (approvalEntry && !carriesTool) {
+        if (message.timeline_unit_id && message.timeline_unit_id === pendingAssistantTimelineUnitId) {
+          appendApproval(pendingApprovals, approvalEntry, message)
+        } else {
+          flushAssistantMessages()
+          appendApproval(entries, approvalEntry, message)
+        }
         return
       }
 
@@ -590,6 +602,7 @@ export function mapConversationMessagesToEntries(
         }
 
         pendingAssistantMessages.push(message)
+        if (approvalEntry) appendApproval(pendingApprovals, approvalEntry, message)
         pendingAssistantRunId = messageRunId
         pendingAssistantTimelineUnitId = messageTimelineUnitId
         return

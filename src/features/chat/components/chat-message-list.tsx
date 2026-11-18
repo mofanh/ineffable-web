@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { ChatEntry } from "@/features/chat/gateway-chat-types"
+import { chatEntryIdentity as entryKey, type ChatEntry } from "@/features/chat/gateway-chat-types"
 import {
   ListTreeIcon,
   InfoIcon,
@@ -408,7 +408,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   )
 })
 
-const entryKey = (entry: ChatEntry) => entry.role === "assistant" ? entry.timelineUnitId ?? entry.id : entry.id
 const estimateEntry = (entry: ChatEntry) => entry.role === "assistant" ? 320 : 88
 const ChatMessageRow = React.memo(function ChatMessageRow({
   entry, isLast, trialVerdict, compactingRunId, accessToken, onImageReference,

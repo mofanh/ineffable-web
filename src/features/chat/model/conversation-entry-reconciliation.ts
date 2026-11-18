@@ -3,7 +3,7 @@ import { mergeAssistantSegments } from "./assistant-segments"
 import { prependAssistantHistory } from "./chat-history.ts"
 import { mergeInputProgress, type InputProgress } from "./input-progress.ts"
 import { reconcileHumanInputAnswers } from "./human-input-timeline.ts"
-import type { AssistantEntry, ChatEntry } from "../gateway-chat-types.ts"
+import { chatEntryIdentity as timelineIdentity, type AssistantEntry, type ChatEntry } from "../gateway-chat-types.ts"
 
 /** Display projection of the run reducer's accepted fact, never a new verdict.
  * Compose at the read boundary, including lifecycle changes without new content. */
@@ -20,10 +20,6 @@ export function projectAcceptedRunStatus(entries: ChatEntry[], run: { id: string
 
 function isLocalAssistantEntry(entry: ChatEntry): entry is AssistantEntry {
   return entry.role === "assistant" && entry.id.startsWith("assistant-")
-}
-
-function timelineIdentity(entry: ChatEntry) {
-  return entry.timelineUnitId?.trim() || entry.id
 }
 
 function timelineSequence(entry: ChatEntry) {

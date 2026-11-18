@@ -68,6 +68,24 @@ assert.equal(Object.values(needEntry.pane.tools)[0].needId,"ask","next segment c
 assert.equal(mergeAssistantDeltaEvents(event(1,"model.text.delta","a"),event(2,"model.text.delta","b")),null)
 console.log("chat segment handoff checks passed")
 
+// A single need accounts for a batch of independently settled calls. Loading a
+// preceding segment at the same reply anchor preserves both the batch and card.
+const approvalBatch = record(190,"tool_call","Requesting approval",42,{
+  tool_calls:["a","b"].map(id=>({id,name:"read_file",input:{path:id}}))})
+const approvalResults = ["a","b"].map((id,index)=>({...record(190,"tool_result",`not started: ${id}`,43+index,{
+  tool_call_id:id,tool_name:"read_file",settlement_status:"not_started",
+  ...(index === 0 ? {blocking_need:{kind:"approval",need_id:"batch",payload:{action:"read"}}} : {}),
+}),id:`result-${id}`}))
+const approvalRows = mapConversationMessagesToEntries([approvalBatch,...approvalResults])
+const withEarlierSegment = reduceConversationTimeline(approvalRows,{type:"prepend-history",
+  entries:mapConversationMessagesToEntries([record(189,"output","Earlier step",41,{})])})
+for (const entries of [approvalRows,withEarlierSegment]) {
+  assert.deepEqual(entries.map(entry=>entry.role),["assistant","approval"])
+  assert.deepEqual(Object.values(entries[0].pane.tools).map(tool=>tool.output),["not started: a","not started: b"])
+  assert.equal(entries[1].needId,"batch")
+}
+assert.ok(withEarlierSegment[0].segments[segment(189).id])
+
 // Expanded production canonical calls repeat metadata, not the assistant body.
 const parallel = ["a","b"].map((id,index)=>({...record(200,"tool_call","",401,{
   canonical_message_seq:401,transcript_occurrence_id:id,tool_call_id:id,tool_name:"read_file",

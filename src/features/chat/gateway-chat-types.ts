@@ -105,3 +105,7 @@ export type AssistantEntry = {
 }
 
 export type ChatEntry = UserEntry | SystemEntry | ApprovalEntry | AssistantEntry
+
+export function chatEntryIdentity(entry: ChatEntry) {
+  return entry.role === "approval" ? entry.id : entry.timelineUnitId?.trim() || entry.id
+}
