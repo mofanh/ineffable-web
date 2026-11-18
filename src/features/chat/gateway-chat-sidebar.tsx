@@ -15,6 +15,7 @@ import { ConversationPageLoader } from "@/features/chat/model/conversation-page-
 import { useApiResource } from "@/lib/app/use-api-resource"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
+import { projectAgentReportTurns } from "@/features/chat/model/agent-report-turns"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
@@ -1503,16 +1504,17 @@ export function GatewayChatSidebar({
     ? JSON.stringify([currentConversationId, currentSessionId, sendViewRef.current.generation, selectedRuntime?.admission?.revision, missingTimelineInputs])
     : null
   const pendingTimelineReadRef = React.useRef<string | null>(null)
+  const displayTurns = React.useMemo(() => projectAgentReportTurns(visibleEntries), [visibleEntries])
   const renderedEntries = React.useMemo(
-    () => visibleEntries.slice(Math.max(0, visibleEntries.length - renderedEntryLimit)),
-    [renderedEntryLimit, visibleEntries]
+    () => displayTurns.slice(Math.max(0, displayTurns.length - renderedEntryLimit)),
+    [renderedEntryLimit, displayTurns]
   )
   const currentPlanTool = React.useMemo(
     () => latestPlanTool(conversationEntries),
     [conversationEntries]
   )
   const renderedEntryCount = renderedEntries.length
-  const hasHiddenLoadedEntries = renderedEntries.length < visibleEntries.length
+  const hasHiddenLoadedEntries = renderedEntries.length < displayTurns.length
   const hasOlderEntries = hasHiddenLoadedEntries || hasOlderMessages
 
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -1711,7 +1713,7 @@ export function GatewayChatSidebar({
 
     if (hasHiddenLoadedEntries) {
       setRenderedEntryLimit((current) =>
-        Math.min(current + RENDERED_ENTRY_INCREMENT, visibleEntries.length)
+        Math.min(current + RENDERED_ENTRY_INCREMENT, displayTurns.length)
       )
 
       if (olderLoadResetTimerRef.current != null) {
@@ -1789,7 +1791,7 @@ export function GatewayChatSidebar({
     olderMessagesCursor,
     observedWorkspaceChanges,
     reportChatError,
-    visibleEntries.length,
+    displayTurns.length,
     reduceCurrentTimeline,
   ])
 
@@ -2623,18 +2625,20 @@ export function GatewayChatSidebar({
       return
     }
     if (event.event === "input.accepted") {
-      const progress = parseInputProgress(objectValue(event.metadata)?.input_progress)
+      const receipt = objectValue(event.metadata?.input_progress)
+      const progress = parseInputProgress(receipt)
+      const needsSource = event.metadata?.replayed === true && receipt && !("agent_report" in receipt)
       if (progress && progress.conversation_id === identity.conversationId && progress.run_id === identity.runId) {
         if (progress.kind === "guided") {
           completeAssistantEntry()
           assistantEntryIdRef.current = null
         }
         setEntries((current) => reduceCurrentTimeline(current, {
-          type: "input-progress", progress, content: event.content ?? undefined,
+          type: "input-progress", progress, content: needsSource ? undefined : event.content ?? undefined,
         }))
       }
-      if (event.metadata?.replayed !== true) {
-        void syncLatestConversationMessagesPage(identity.conversationId).catch(() => {})
+      if (event.metadata?.replayed !== true || needsSource) {
+        void syncLatestConversationMessagesPage(identity.conversationId, null, "coalesce").catch(() => {})
       }
       return
     }

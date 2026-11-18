@@ -166,8 +166,9 @@ export function reduceConversationTimeline(
       ? { ...entry, timelineSeq: progress.message_seq ?? entry.timelineSeq,
           inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
       : entry)
-    if (!next.some((entry) => timelineIdentity(entry) === identity) && action.content != null) {
-      next.push({ id: identity, timelineUnitId: identity, role: "user", content: action.content,
+    const content = action.content ?? progress.agent_report?.content
+    if (!next.some((entry) => timelineIdentity(entry) === identity) && content != null) {
+      next.push({ id: identity, timelineUnitId: identity, role: "user", content,
         timelineSeq: progress.message_seq, inputProgress: progress, deliveryStatus: "received" })
     }
     return sortTimeline(visibleTimelineEntries(next, queuedInputs))

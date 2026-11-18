@@ -1,4 +1,4 @@
-import type { InputProgress } from "./model/input-progress"
+import type { AgentReport, InputProgress } from "./model/input-progress"
 import type { AgentPaneState } from "@/features/chat/chat-pane-state"
 
 export type StreamStatus = "idle" | "streaming" | "recovering" | "completed" | "error"
@@ -72,6 +72,7 @@ export type CapabilityExposureSummary = {
 }
 
 export type AssistantEntry = {
+  reportTurn?: readonly (AssistantEntry | { role: "agent-report"; id: string; report: AgentReport })[]
   segmentIdentity?: import("./model/assistant-segments").TranscriptSegment
   segments?: Record<string, AssistantEntry>
   canonicalDraft?: AssistantEntry

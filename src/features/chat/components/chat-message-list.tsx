@@ -40,6 +40,8 @@ import {
   XIcon,
 } from "lucide-react"
 import { WebNodeList } from "@/features/chat/components/agent-pane"
+import { AgentReportStep } from "./agent-report-step"
+import { isAgentReportInput } from "../model/agent-report-turns"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
 import { useChatScrollBoundary, type ChatScrollDirection } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
@@ -435,6 +437,11 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
             entry.status === "done" &&
             Boolean(answerText)
 
+          if (isAgentReportInput(entry)) {
+            return <div data-chat-row-key={entry.id} data-chat-entry-role="agent-report">
+              <AgentReportStep report={entry.inputProgress.agent_report} />
+            </div>
+          }
           if (entry.role === "user") {
             const fileDraft = splitFileReferences(entry.content)
             const progressLabel = inputProgressLabel(entry.inputProgress, entry.deliveryStatus)

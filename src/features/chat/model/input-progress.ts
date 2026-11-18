@@ -1,4 +1,7 @@
+export type AgentReport = { task_id: string; name: string; content: string; delivery_epoch: number | null }
+
 export type InputProgress = {
+  agent_report?: AgentReport
   queued_in_timeline?: boolean
   input_request_id?: string
   automation_source?: { automation_id: string; occurrence_id: string; name?: string; summary?: string }
@@ -20,7 +23,12 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
   if (typeof item.message_id !== "string" || typeof item.conversation_id !== "string" ||
       !["received", "queued", "resuming", "accepted", "cancelled"].includes(String(item.phase))) return undefined
   const automation = item.automation_source as Record<string, unknown> | null | undefined
+  const report = item.agent_report as Partial<AgentReport> | null | undefined
   return {
+    agent_report: report && typeof report.task_id === "string" && report.task_id.length > 0 &&
+      typeof report.name === "string" && typeof report.content === "string"
+      ? { task_id: report.task_id, name: report.name, content: report.content,
+          delivery_epoch: Number.isSafeInteger(report.delivery_epoch) ? report.delivery_epoch! : null } : undefined,
     automation_source: automation && typeof automation.automation_id === "string" && typeof automation.occurrence_id === "string"
       ? { automation_id: automation.automation_id, occurrence_id: automation.occurrence_id,
           name: typeof automation.name === "string" ? automation.name : undefined,
@@ -41,7 +49,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
   }
 }
 
-export function mergeInputProgress(current: InputProgress | undefined, incoming: InputProgress | undefined) {
+function selectInputProgress(current: InputProgress | undefined, incoming: InputProgress | undefined) {
   if (!incoming) return current
   if (current?.phase === "accepted" && ["queued", "cancelled"].includes(incoming.phase)) return current
   if (!current || incoming.run_id !== current.run_id) return incoming
@@ -51,6 +59,18 @@ export function mergeInputProgress(current: InputProgress | undefined, incoming:
     return { ...incoming, phase: "accepted" as const }
   }
   return incoming
+}
+
+export function mergeInputProgress(current: InputProgress | undefined, incoming: InputProgress | undefined) {
+  const selected = selectInputProgress(current, incoming)
+  if (!selected || selected.agent_report || !current || !incoming ||
+      current.message_id !== incoming.message_id || current.conversation_id !== incoming.conversation_id) return selected
+  // Older durable events lack the immutable mailbox source. Keep the newer
+  // receipt while enriching it from the same canonical message.
+  const source = current.agent_report ? current : incoming
+  if (!source.agent_report) return selected
+  return { ...selected, agent_report: source.run_id === selected.run_id && source.kind === selected.kind
+    ? source.agent_report : { ...source.agent_report, delivery_epoch: null } }
 }
 
 export function inputProgressLabel(progress: InputProgress | undefined, delivery?: "sending" | "received") {

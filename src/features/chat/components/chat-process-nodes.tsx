@@ -41,7 +41,7 @@ export function ChatProcessNodes({ entry, nodes, eligible, forceOpen, duration, 
     if (!group || isExpanded(group)) rows.push({ key: node.nodeId, node,
       // Only native process rows join the rail. Artifacts, plugins and final
       // answers retain their full-width content seat and original renderer.
-      branch: Boolean(group) || (["reasoning", "update", "tool"].includes(node.renderer) && eligible(node)),
+      branch: Boolean(group) || (["reasoning", "update", "tool", "agent-report"].includes(node.renderer) && eligible(node)),
     })
   }
   const pinned = focusedRow ? [...pinnedKeys, focusedRow] : pinnedKeys

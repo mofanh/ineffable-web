@@ -6,7 +6,7 @@ import type { TextWebNodePayload, ToolWebNodePayload } from "../runtime/web-node
 /** Presentation of known schemas only; unknown/plugin content remains visible. */
 export function isAssistantProcessNode(node: WebNodeView, activeNeedId?: string | null) {
   if (node.pluginId !== DEFAULT_WEB_PLUGIN_ID) return false
-  if (node.renderer === "reasoning" || node.renderer === "update") return true
+  if (node.renderer === "reasoning" || node.renderer === "update" || node.renderer === "agent-report") return true
   if (node.renderer === "text") {
     const payload = node.payload as Partial<TextWebNodePayload> | null
     return payload?.assistantPhase === "commentary" && !payload.images?.length
@@ -28,13 +28,19 @@ export function assistantAnswerText(entry: AssistantEntry) {
   }).join("\n\n").trim()
 }
 
-export function canAutoCollapseAssistantProcess(entry: AssistantEntry) {
-  if (entry.runStatus !== "completed" || entry.status !== "done") return false
+function hasCanonicalCoverage(entry: AssistantEntry) {
   // Every loaded live segment must have completed its canonical handoff. A
   // terminal run event, one canonical tail or transport EOF is insufficient.
   const segments = entry.segments ? Object.values(entry.segments) : [entry]
   return segments.length > 0 && segments.every(segment =>
-    Number.isSafeInteger(segment.canonicalMessageSeqEnd) && !segment.canonicalDraft) &&
+    Number.isSafeInteger(segment.canonicalMessageSeqEnd) && !segment.canonicalDraft)
+}
+
+export function canAutoCollapseAssistantProcess(entry: AssistantEntry) {
+  if (entry.runStatus !== "completed" || entry.status !== "done") return false
+  if (entry.reportTurn && (entry.reportTurn.at(-1)?.role !== "assistant" ||
+      !entry.reportTurn.every(part => part.role !== "assistant" || hasCanonicalCoverage(part)))) return false
+  return hasCanonicalCoverage(entry) &&
     Object.values(entry.pane.blocks).some(block => block.type === "text" && (block.images?.length || (block.assistantPhase !== "commentary" && block.content.trim())))
 }
 
@@ -95,6 +101,7 @@ function settledProcessNode(node: WebNodeView, activeNeedId?: string | null) {
     return typeof block?.content === "string"
   }
   if (node.renderer === "update") return typeof payload?.content === "string"
+  if (node.renderer === "agent-report") return node.status === "settled" && typeof payload?.content === "string"
   if (node.renderer !== "tool") return false
   const tool = payloadObject(payload?.tool)
   return tool?.status === "succeeded" && isAssistantProcessNode(node, activeNeedId)

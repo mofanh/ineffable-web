@@ -1,4 +1,6 @@
 import { ChatProcessNodes } from "./chat-process-nodes"
+import { AgentReportStep } from "./agent-report-step"
+import type { AgentReport } from "../model/input-progress"
 import { ChatRowWindow } from "./chat-row-window"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { InfoIcon } from "lucide-react"
@@ -1009,6 +1011,8 @@ registerDefaultWebNodeRenderer(
   ReasoningNodeRenderer
 )
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "update", UpdateNodeRenderer)
+registerDefaultWebNodeRenderer<AgentReport>(DEFAULT_WEB_NODE_REGISTRY, "agent-report",
+  ({ node }) => <AgentReportStep report={node.payload} />)
 registerDefaultWebNodeRenderer(DEFAULT_WEB_NODE_REGISTRY, "tool", ToolNodeRenderer)
 registerDefaultWebNodeRenderer(
   DEFAULT_WEB_NODE_REGISTRY,
@@ -1115,9 +1119,10 @@ export const WebNodeList = React.memo(function WebNodeList({
       projectionCache.project(
         pane,
         { streaming: isStreaming, canRespondToUserInput },
-        { order: subagentOrder, records: subagents }
+        { order: subagentOrder, records: subagents },
+        process?.entry.reportTurn
       ),
-    [canRespondToUserInput, isStreaming, pane, projectionCache, subagentOrder, subagents]
+    [canRespondToUserInput, isStreaming, pane, projectionCache, subagentOrder, subagents, process?.entry.reportTurn]
   )
   const context = React.useMemo(
     () => ({ prefersReducedMotion, onSubmitUserInput, activeHumanNeedId, accessToken, onImageReference }),
@@ -1136,7 +1141,7 @@ export const WebNodeList = React.memo(function WebNodeList({
     return (needId ?? protocolId) === activeHumanNeedId
   }).map(webNodeKey) : [], [activeHumanNeedId, nodes])
   const eligible = React.useCallback((node: (typeof nodes)[number]) =>
-    pane.blocks[node.nodeId]?.type !== "plugin" && DEFAULT_WEB_NODE_REGISTRY.resolve(node) !== null, [pane.blocks])
+    !projectionCache.isDeclaredNode(pane, node) && DEFAULT_WEB_NODE_REGISTRY.resolve(node) !== null, [pane, projectionCache])
   if (process) return <ChatProcessNodes entry={process.entry} nodes={nodes} eligible={eligible}
     forceOpen={process.forceOpen} duration={process.duration} pinnedKeys={pinnedKeys} activeNeedId={activeHumanNeedId}>
     {node => <WebNodeItem node={node} context={context} />}

@@ -5,7 +5,7 @@ import type {
   ToolCallView,
 } from "../chat-pane-state.ts"
 import { hasAgentPaneContent, isRenderablePaneBlock } from "../chat-pane-state.ts"
-import type { SubagentView } from "../gateway-chat-types.ts"
+import type { AssistantEntry, SubagentView } from "../gateway-chat-types.ts"
 import {
   WEB_NODE_SCHEMA_VERSION,
   createDefaultWebNode,
@@ -66,6 +66,12 @@ type CachedProjection = {
 }
 
 export class WebNodeProjectionCache {
+  private readonly previousSections = new WeakMap<AssistantEntry, { canRespond: boolean; nodes: WebNodeView[] }>()
+  private readonly declaredSectionNodes = new WeakSet<WebNodeView>()
+
+  isDeclaredNode(pane: AgentPaneState, node: WebNodeView) {
+    return pane.blocks[node.nodeId]?.type === "plugin" || this.declaredSectionNodes.has(node)
+  }
   private readonly cache = new Map<string, CachedProjection>()
   private artifactSignature = ""
   private artifactNode: WebNodeView<WorkspaceArtifactsWebNodePayload> | null = null
@@ -77,8 +83,9 @@ export class WebNodeProjectionCache {
   project(
     pane: AgentPaneState,
     options: ProjectPaneOptions,
-    subagents?: SubagentProjection
-  ) {
+    subagents?: SubagentProjection,
+    reportTurn?: AssistantEntry["reportTurn"]
+  ): WebNodeView[] {
     const visibleBlockIds = pane.blockOrder.filter((blockId) =>
       isRenderablePaneBlock(pane.blocks[blockId])
     )
@@ -161,11 +168,35 @@ export class WebNodeProjectionCache {
     for (const subagentId of this.subagentNodes.keys()) {
       if (!liveSubagentIds.has(subagentId)) this.subagentNodes.delete(subagentId)
     }
-    return [
+    const current = [
       ...nodes,
       ...(this.artifactNode ? [this.artifactNode] : []),
       ...projectedSubagents,
     ]
+    if (!reportTurn) return current
+    let answerIndex = reportTurn.length - 1
+    while (answerIndex >= 0 && reportTurn[answerIndex].role !== "assistant") answerIndex--
+    return reportTurn.flatMap((part, index) => {
+      if (part.role === "agent-report") return [createDefaultWebNode({
+        nodeId: `report:${part.id}`, renderer: "agent-report", status: "settled",
+        payload: part.report, fallback: { title: part.report.name },
+      })]
+      if (index === answerIndex) return current
+      const cached = this.previousSections.get(part)
+      if (cached?.canRespond === options.canRespondToUserInput) return cached.nodes
+      const projected = new WebNodeProjectionCache().project(part.pane,
+        { streaming: false, canRespondToUserInput: options.canRespondToUserInput },
+        { order: part.subagentOrder, records: part.subagents })
+      const nodes = projected.map(node => {
+        // Tool IDs may be reused under different input anchors. Scope display
+        // keys only; protocol IDs and active human need identities stay intact.
+        const scoped = { ...node, nodeId: `${part.timelineUnitId ?? part.id}/${node.nodeId}` }
+        if (part.pane.blocks[node.nodeId]?.type === "plugin") this.declaredSectionNodes.add(scoped)
+        return scoped
+      })
+      this.previousSections.set(part, { canRespond: options.canRespondToUserInput, nodes })
+      return nodes
+    })
   }
 }
 
