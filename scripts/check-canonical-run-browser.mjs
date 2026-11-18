@@ -43,7 +43,10 @@ try {
       body={messages:[message(id),...(mode === "second-approval" ? [
         {...message(id),id:"old-approval",run_id:"refresh-run",role:"assistant",message_type:"text",message_seq:2,content:"",metadata_json:{blocking_need:{...need(),need_id:"first-need",payload:{action:"FIRST_BATCH",operations:[{call_id:"reused"}]}}}},
         {...message(id),id:"old-receipt",run_id:"refresh-run",message_seq:3,content:"Approved",metadata_json:{human_resolution:{kind:"approval",need_id:"first-need",approved:true}}},
-      ] : []),...(mode === "history" ? [{...message(id),id:"old-approval",run_id:"refresh-run",role:"assistant",message_type:"text",message_seq:2,content:"",metadata_json:{blocking_need:need()}}] : [])],next_seq:0,page:{has_older:mode === "older",before:mode === "older" ? "older-cursor" : null}}
+      ] : []),...(mode === "history" ? [
+        {...message(id),id:"assistant-before-approval",run_id:"refresh-run",role:"assistant",message_type:"output",canonical_seq:2,timeline_seq:2,timeline_unit_id:"run:refresh-run:anchor:2",content:"Preparing the authorization request"},
+        {...message(id),id:"old-approval",run_id:"refresh-run",role:"tool",message_type:"tool_result",canonical_seq:3,timeline_seq:2,timeline_unit_id:"run:refresh-run:anchor:2",content:"",metadata_json:{blocking_need:need()}}
+      ] : [])],next_seq:0,page:{has_older:mode === "older",before:mode === "older" ? "older-cursor" : null}}
     }
     if(path.endsWith("/observations/access")) body={allowed:false}
     if(path.endsWith("/approvals/approve") || path.endsWith("/approvals/reject")) calls.push({path,payload:route.request().postDataJSON()})
@@ -74,6 +77,9 @@ try {
   }
   mode="history";status="completed";version=6;seq=50
   await page.goto(url);await page.getByText("FORMAL_BATCH",{exact:true}).waitFor()
+  await page.getByText("Preparing the authorization request",{exact:true}).waitFor()
+  const rowKeys = await page.locator("[data-chat-entry-role]").evaluateAll(rows=>rows.map(row=>row.dataset.chatRowKey))
+  assert.equal(new Set(rowKeys).size,rowKeys.length,"approval keeps its own row identity when it shares an assistant reply anchor")
   assert.equal(await page.getByRole("button",{name:"批准",exact:true}).isDisabled(),true,"historical approval is read-only")
   // Unfinished streaming with no live lease and automatic suspended work both stay observable/stoppable.
   for(const kind of ["non-live","automatic"]) {

@@ -15,7 +15,8 @@ import { ConversationPageLoader } from "@/features/chat/model/conversation-page-
 import { useApiResource } from "@/lib/app/use-api-resource"
 import type { ConversationTimelineAction, QueuedInputIdentity } from "@/features/chat/model/conversation-entry-reconciliation"
 import { parseInputProgress } from "@/features/chat/model/input-progress"
-import { isAgentReportInput, needsReportSource, projectAgentReportTurns } from "@/features/chat/model/agent-report-turns"
+import { isAgentReportInput, needsReportSource } from "@/features/chat/model/agent-report-turns"
+import { useAgentReportTurns } from "@/features/chat/components/chat-process"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
@@ -1485,7 +1486,8 @@ export function GatewayChatSidebar({
           return Boolean(entry.needId || entry.approvalId)
         }
 
-        return Boolean(entry.content.trim() || (entry.role === "user" && (entry.images?.length || isAgentReportInput(entry))))
+        return Boolean(entry.content.trim() || (entry.role === "user" &&
+          (entry.images?.length || entry.inputProgress?.phase === "accepted" || isAgentReportInput(entry))))
       }),
     [conversationEntries]
   )
@@ -1515,7 +1517,7 @@ export function GatewayChatSidebar({
     ? JSON.stringify([currentConversationId, currentSessionId, sendViewRef.current.generation, selectedRuntime?.admission?.revision, missingTimelineInputs])
     : null
   const pendingTimelineReadRef = React.useRef<string | null>(null)
-  const displayTurns = React.useMemo(() => projectAgentReportTurns(visibleEntries), [visibleEntries])
+  const displayTurns = useAgentReportTurns(visibleEntries, scrollViewportRef)
   const renderedEntries = React.useMemo(
     () => displayTurns.slice(Math.max(0, displayTurns.length - renderedEntryLimit)),
     [renderedEntryLimit, displayTurns]

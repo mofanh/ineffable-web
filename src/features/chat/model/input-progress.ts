@@ -1,7 +1,10 @@
+import { imageReferences, type ImageReference } from "@/lib/image-reference"
+
 export type AgentReport = { task_id: string; name: string; content: string; delivery_epoch: number | null }
 
 export type InputProgress = {
   agent_report?: AgentReport | null
+  images?: ImageReference[]
   queued_in_timeline?: boolean
   input_request_id?: string
   automation_source?: { automation_id: string; occurrence_id: string; name?: string; summary?: string }
@@ -25,6 +28,7 @@ export function parseInputProgress(value: unknown): InputProgress | undefined {
   const automation = item.automation_source as Record<string, unknown> | null | undefined
   const report = item.agent_report as Partial<AgentReport> | null | undefined
   return {
+    images: Array.isArray(item.images) ? imageReferences(item.images) : undefined,
     agent_report: report && typeof report.task_id === "string" && report.task_id.length > 0 &&
       typeof report.name === "string" && typeof report.content === "string"
       ? { task_id: report.task_id, name: report.name, content: report.content,

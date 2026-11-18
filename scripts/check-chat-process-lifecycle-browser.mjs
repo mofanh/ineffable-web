@@ -24,6 +24,7 @@ try {
   const page = await browser.newPage({viewport:{width:800,height:900}})
   const errors=[];page.on("pageerror",error=>errors.push(error.message))
   const inputSources = new Map(), requestedSources = new Set()
+  let lateSource
   let status="streaming",resumeMode="none",terminalMessages=0,completionScenario=false
   const conversation = () => ({id:"refresh-conversation",title:"Process lifecycle",current_run_id:"refresh-run",current_run:{
     id:"refresh-run",status,execution_epoch:1,version:status === "streaming" ? 1 : 2,lifecycle_seq:status === "streaming" ? 0 : 5,
@@ -36,9 +37,12 @@ try {
     if (path.endsWith("/get")) body=conversation()
     if (path.endsWith("/list")) body={items:[conversation()]}
     if (path.endsWith("/observations/access")) body={allowed:false}
+    if (path.endsWith("/image-preview")) return route.fulfill({contentType:"image/png",
+      body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aloAAAAASUVORK5CYII=","base64")})
     if (path.endsWith("/pending-inputs")) {
       const ids = (new URL(route.request().url()).searchParams.get("message_ids") ?? "").split(",")
       ids.forEach(id => requestedSources.add(id))
+      if (ids.includes("late-report") && lateSource) await lateSource
       body.input_progress = ids.flatMap(id => inputSources.has(id) ? [inputSources.get(id)] : [])
     }
     if (path.endsWith("/messages")) {
@@ -178,6 +182,40 @@ try {
   assert.ok(requestedSources.has("report") && requestedSources.has("guide"))
   assert.equal(await page.locator("[data-chat-entry-role=user]").count(),2)
   assert.equal(await page.getByText("External agent report envelope",{exact:true}).count(),0)
+  const imageId = "00000000-0000-0000-0000-000000000001"
+  inputSources.set("photo",{...progress,message_id:"photo",message_seq:8,agent_report:null,
+    images:[{workspace_id:imageId,object_id:imageId,version_id:imageId,mime_type:"image/png",width:1,height:1,size_bytes:68}]})
+  frame("model.text.delta","Before the photo",section(3,7,"commentary"))
+  await page.getByText("Before the photo",{exact:true}).waitFor()
+  frame("input.accepted","",{replayed:true,input_progress:{...legacy,message_id:"photo",message_seq:8}})
+  frame("input.accepted","Envelope",{input_progress:{...progress,message_id:"photo-report",message_seq:9}})
+  frame("model.text.delta","After the photo",section(4,9,"commentary"))
+  const photo = page.locator('[data-chat-row-key="message:photo"] img')
+  await photo.scrollIntoViewIfNeeded()
+  await photo.waitFor()
+  const answerRow = text => page.getByText(text,{exact:true}).locator("xpath=ancestor::*[@data-chat-entry-role='assistant'][1]")
+  assert.notEqual(await answerRow("Before the photo").getAttribute("data-chat-row-key"),
+    await answerRow("After the photo").getAttribute("data-chat-row-key"),"reports cannot merge across an image-only human input")
+
+  let releaseSource
+  lateSource = new Promise(resolve => { releaseSource = resolve })
+  inputSources.set("late-report",{...progress,message_id:"late-report",message_seq:11,
+    agent_report:{...progress.agent_report,task_id:"late-task"}})
+  frame("input.accepted","old envelope",{replayed:true,input_progress:{...legacy,message_id:"late-report",message_seq:11}})
+  const lateSection = section(5,11,"commentary"), lateCall = {...call,tool_call_id:"late-tool"}
+  frame("tool.call.completed","",{...lateSection,...lateCall})
+  frame("tool.result","Late tool output",{...lateSection,...lateCall,settlement_status:"succeeded"})
+  const suffixTool = page.locator('[data-tool-call-id$=":tool:late-tool"]')
+  await suffixTool.click()
+  const focusedSuffix = await suffixTool.elementHandle()
+  releaseSource()
+  await page.locator("[data-agent-report=late-task]").waitFor()
+  assert.ok(await focusedSuffix.evaluate(el=>el.isConnected && document.activeElement===el && el.getAttribute("aria-expanded")==="true"))
+  await suffixTool.evaluate(el=>el.blur())
+  await page.waitForFunction(() => {
+    const row = document.querySelector('[data-tool-call-id$=":tool:late-tool"]')?.closest("[data-chat-entry-role]")
+    return Boolean(row?.querySelector("[data-agent-report=late-task]"))
+  })
   assert.deepEqual(errors,[])
   console.log("real Sidebar completes and collapses without reload; cancelled/failed/suspended processes stay visible without history")
 } finally {

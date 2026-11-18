@@ -155,7 +155,8 @@ export function reduceConversationTimeline(
     const byMessage = new Map(facts.map(progress => [`message:${progress.message_id}`, progress]))
     const next = bindRequestMessages(current, facts).map(entry => {
       const progress = byMessage.get(timelineIdentity(entry))
-      return entry.role === "user" && progress ? { ...entry, inputProgress:mergeInputProgress(entry.inputProgress, progress), timelineSeq:progress.message_seq ?? entry.timelineSeq } : entry
+      return entry.role === "user" && progress ? { ...entry, images:entry.images?.length ? entry.images : progress.images,
+        inputProgress:mergeInputProgress(entry.inputProgress, progress), timelineSeq:progress.message_seq ?? entry.timelineSeq } : entry
     })
     return sortTimeline(visibleTimelineEntries(next, action.inputs))
   }
@@ -164,12 +165,13 @@ export function reduceConversationTimeline(
     const identity = `message:${progress.message_id}`
     const next = bindRequestMessages(current, [progress]).map((entry) => entry.role === "user" && timelineIdentity(entry) === identity
       ? { ...entry, timelineSeq: progress.message_seq ?? entry.timelineSeq,
+          images: entry.images?.length ? entry.images : progress.images,
           awaitingReportSource: entry.awaitingReportSource || awaitingReportSource,
           inputProgress: mergeInputProgress(entry.inputProgress, progress), deliveryStatus: "received" as const }
       : entry)
     const content = action.content ?? progress.agent_report?.content
-    if (!next.some((entry) => timelineIdentity(entry) === identity) && content != null) {
-      next.push({ id: identity, timelineUnitId: identity, role: "user", content, awaitingReportSource: action.awaitingReportSource,
+    if (!next.some((entry) => timelineIdentity(entry) === identity) && (content != null || progress.images?.length)) {
+      next.push({ id: identity, timelineUnitId: identity, role: "user", content: content ?? "", images: progress.images, awaitingReportSource: action.awaitingReportSource,
         timelineSeq: progress.message_seq, inputProgress: progress, deliveryStatus: "received" })
     }
     return sortTimeline(visibleTimelineEntries(next, queuedInputs))

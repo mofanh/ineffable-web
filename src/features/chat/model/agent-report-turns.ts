@@ -67,7 +67,7 @@ function continuesRun(input: ReportInput, previous?: AssistantEntry | ReportInpu
 
 /** Project already ordered timeline units for display only. Receipts keep their
  * canonical identities in the reducer, including while a transcript page is missing. */
-export function projectAgentReportTurns(entries: ChatEntry[]): ChatEntry[] {
+export function projectAgentReportTurns(entries: ChatEntry[], interactingRows?: ReadonlyMap<string, string>): ChatEntry[] {
   if (!entries.some(isAgentReportInput)) return entries
   const visible: ChatEntry[] = []
   let parts: (AssistantEntry | ReportInput)[] = []
@@ -83,6 +83,15 @@ export function projectAgentReportTurns(entries: ChatEntry[]): ChatEntry[] {
     answer = undefined
   }
   for (const entry of entries) {
+    // A late receipt may join two already visible rows. Keep the row a reader
+    // is interacting with at its mounted position until focus/selection leaves.
+    const protectedRole = interactingRows?.get(entry.timelineUnitId ?? entry.id)
+    if (protectedRole === "assistant") flush()
+    if (protectedRole === "agent-report" && isAgentReportInput(entry)) {
+      flush()
+      visible.push(entry)
+      continue
+    }
     const previous = parts.at(-1)
     if (isAgentReportInput(entry) && entry.inputProgress.phase === "accepted" &&
         entry.inputProgress.run_id && Number.isSafeInteger(entry.inputProgress.message_seq)) {

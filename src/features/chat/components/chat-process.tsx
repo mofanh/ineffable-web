@@ -3,6 +3,8 @@ import { ChevronRightIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import type { AssistantProcessGroup } from "../model/assistant-process"
+import { projectAgentReportTurns } from "../model/agent-report-turns"
+import type { ChatEntry } from "../gateway-chat-types"
 
 // A bounded UI preference store per mounted panel. No message bodies or business state.
 type DisclosureChoice = { expanded: boolean; autoCollapse: boolean }
@@ -19,6 +21,44 @@ function rememberChoice(choices: DisclosureChoices | null, identity: string, cho
 export function ChatProcessDisclosureProvider({ children }: { children: React.ReactNode }) {
   const [choices] = React.useState<DisclosureChoices>(() => new Map())
   return <DisclosureContext.Provider value={choices}>{children}</DisclosureContext.Provider>
+}
+
+export function useAgentReportTurns(entries: ChatEntry[], viewport: React.RefObject<HTMLDivElement | null>) {
+  const [interacting, setInteracting] = React.useState<ReadonlyMap<string, string>>(() => new Map())
+  React.useEffect(() => {
+    let mounted = true
+    const update = () => {
+      if (!mounted) return
+      const rows = new Map<string, string>()
+      const remember = (node: Node | null) => {
+        if (!node || !viewport.current?.contains(node)) return
+        const element = node instanceof Element ? node : node.parentElement
+        const row = element?.closest<HTMLElement>("[data-chat-entry-role][data-chat-row-key]")?.dataset
+        if (row?.chatRowKey && (row.chatEntryRole === "assistant" || row.chatEntryRole === "agent-report")) {
+          rows.set(row.chatRowKey, row.chatEntryRole)
+        }
+      }
+      remember(document.activeElement)
+      const selection = window.getSelection()
+      if (selection && !selection.isCollapsed) {
+        remember(selection.anchorNode)
+        remember(selection.focusNode)
+      }
+      setInteracting(previous => previous.size === rows.size && [...rows].every(([key, role]) => previous.get(key) === role) ? previous : rows)
+    }
+    const afterBlur = () => queueMicrotask(update)
+    document.addEventListener("focusin", update)
+    document.addEventListener("focusout", afterBlur)
+    document.addEventListener("selectionchange", update)
+    update()
+    return () => {
+      mounted = false
+      document.removeEventListener("focusin", update)
+      document.removeEventListener("focusout", afterBlur)
+      document.removeEventListener("selectionchange", update)
+    }
+  }, [viewport])
+  return React.useMemo(() => projectAgentReportTurns(entries, interacting), [entries, interacting])
 }
 
 function hasProcessInteraction(root: HTMLElement | null, protectToggle = false) {
