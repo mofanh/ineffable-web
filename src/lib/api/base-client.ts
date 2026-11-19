@@ -1,6 +1,5 @@
 import { ApiRequestError } from "@/lib/app/api-errors"
 import {
-  expireAuthSession,
   captureAuthSession,
   getLatestAccessToken,
   refreshAuthSession,
@@ -75,37 +74,8 @@ export async function parseApiRequestError(response: Response): Promise<ApiReque
   })
 }
 
-export function isAccessTokenExpiredError(error: unknown) {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : ""
-
-  return (
-    message.includes("ExpiredSignature") ||
-    message.toLowerCase().includes("invalid access token")
-  )
-}
-
 export function createApiError(message: string, status?: number) {
   return new ApiRequestError(message, { status })
-}
-
-async function responseHasExpiredAccessToken(response: Response) {
-  if (response.status === 401) {
-    return true
-  }
-  if (response.ok) {
-    return false
-  }
-
-  try {
-    return isAccessTokenExpiredError(await response.clone().text())
-  } catch {
-    return false
-  }
 }
 
 export async function requestApi(
@@ -145,25 +115,18 @@ export async function requestApi(
   const initialAccessToken = getLatestAccessToken(accessToken)
   const response = await performRequest(initialAccessToken)
   assertSession()
-  const expired = accessToken ? await responseHasExpiredAccessToken(response) : false
-  assertSession()
-  if (!expired) {
+  if (!accessToken || response.status !== 401) {
     return response
   }
 
-  assertSession()
-  const refreshedAccessToken = await refreshAuthSession(initialAccessToken)
-  assertSession()
+  const refreshedAccessToken = await refreshAuthSession(initialAccessToken, { reportTransientError: true }).finally(assertSession)
   if (!refreshedAccessToken) {
     return response
   }
 
   const retriedResponse = await performRequest(refreshedAccessToken)
-  const retryExpired = await responseHasExpiredAccessToken(retriedResponse)
   assertSession()
-  if (retryExpired) {
-    expireAuthSession()
-  }
+  // A resource response cannot revoke the session whose refresh just succeeded.
   return retriedResponse
 }
 

@@ -333,6 +333,7 @@ export function WorkspaceObjectEditorPage() {
   const { accessToken, currentUser, currentSessionId, refreshAppData } = useAuthSession()
   const captureScope = useActionScope(`${currentSessionId}:${workspaceId}:${objectId}`)
   const accessResource = useWorkspaceAccess(workspaceId)
+  const reloadAccess = accessResource.reload
   const { run: runLifecycle, pending: lifecyclePending } = useWorkspaceLifecycle()
   const access = accessResource.access
   const canWrite = access?.can_write === true
@@ -358,6 +359,7 @@ export function WorkspaceObjectEditorPage() {
   const contentLoadRequestRef = React.useRef(0)
   const previewRequestRef = React.useRef(0)
   const currentObjectRouteRef = React.useRef("")
+  const deletedObjectRouteRef = React.useRef<string | null>(null)
   currentObjectRouteRef.current = `${currentSessionId}:${workspaceId}:${objectId}`
 
   const workspace = access?.workspace
@@ -408,19 +410,21 @@ export function WorkspaceObjectEditorPage() {
 
   const reportActionError = React.useCallback((caught: unknown, fallbackMessage: string, title: string) => {
     const appError = normalizeAppError(caught, { fallbackMessage })
+    const message = appError.kind === "not_found" || appError.kind === "forbidden"
+      ? t("error.notFound") : appError.message
     if (appError.status === 401 || appError.status === 403 || appError.status === 404) {
       clearRestrictedContent()
       clearApiResourceCache(["workspace-access", currentSessionId, workspaceId])
       invalidateApiResourceCache(["workspace-access", currentSessionId, workspaceId])
       void refreshAppData({ fresh: true })
     }
-    setError(appError.message)
+    setError(message)
     notify.error({
       title,
-      description: appError.message,
+      description: message,
     })
-    return appError.message
-  }, [clearRestrictedContent, currentSessionId, refreshAppData, workspaceId])
+    return message
+  }, [clearRestrictedContent, currentSessionId, refreshAppData, t, workspaceId])
 
   const loadVersions = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) {
@@ -439,6 +443,7 @@ export function WorkspaceObjectEditorPage() {
   const openRemainingFile = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId) return
     const route = `${currentSessionId}:${workspaceId}:${objectId}`
+    deletedObjectRouteRef.current = route
     const requestId = ++contentLoadRequestRef.current
     setObject(null)
     setVersion(null)
@@ -515,13 +520,12 @@ export function WorkspaceObjectEditorPage() {
       if (!ownsRead()) {
         return
       }
-      if (normalizeAppError(loadError).kind === "not_found") {
-        if (revalidate && dirtyRef.current) {
-          setSaveState("conflict")
-          setError(t("workspace.feedback.conflict"))
-          return
-        }
-        await openRemainingFile()
+      const { kind } = normalizeAppError(loadError)
+      if (kind === "not_found" || kind === "forbidden") {
+        clearRestrictedContent()
+        setSaveState("idle")
+        setError(t("error.notFound"))
+        if (baselineVersionId) void reloadAccess()
         return
       }
       if (!revalidate) setObject(null)
@@ -536,12 +540,13 @@ export function WorkspaceObjectEditorPage() {
         setIsLoading(false)
       }
     }
-  }, [accessToken, currentSessionId, objectId, openRemainingFile, reportActionError, t, workspaceId])
+  }, [accessToken, clearRestrictedContent, currentSessionId, objectId, openRemainingFile, reloadAccess, reportActionError, t, workspaceId])
 
   React.useEffect(() => {
     if (loadedScopeRef.current === contentScope && dirtyRef.current) return
     if (loadedScopeRef.current !== contentScope) {
       loadedScopeRef.current = contentScope
+      deletedObjectRouteRef.current = null
       setObject(null); setVersion(null); setContent(""); setSavedContent(""); setVersions([])
       setCreateUncertain(false)
       setIsEditing(false); setIsHistoryOpen(false); setIsSaving(false); setIsPreviewLoading(false)
@@ -1219,6 +1224,9 @@ export function WorkspaceObjectEditorPage() {
         </div>
       </AppDialog>)
 
+  if (accessStatus === 403 || accessStatus === 404) {
+    return <div className="p-6">{navigationGuard}<EmptyState title={t("error.notFound")} />{isDirty && <Button variant="outline" onClick={() => downloadTextFile("draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button>}</div>
+  }
   if (!workspaceId || !access) {
     return <div className="p-6">{navigationGuard}<DataState state={accessResource.error ? "error" : accessResource.state} error={accessResource.error} onRetry={accessResource.reload}><span /></DataState>{isDirty && <Button variant="outline" onClick={() => downloadTextFile("draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button>}</div>
   }
@@ -1240,7 +1248,7 @@ export function WorkspaceObjectEditorPage() {
       {!object && isDirty && <Notice>{t("interaction.draftRetained")} <Button variant="outline" onClick={() => downloadTextFile("draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button></Notice>}
       {createUncertain && <Notice tone="warning">{t("interaction.uncertainCreate")}</Notice>}
       {accessResource.error && <Notice tone="warning">{t("interaction.refreshUnavailable")} <Button variant="link" onClick={() => void accessResource.reload()}>{t("common.retry")}</Button></Notice>}
-      {error ? (
+      {error && object ? (
         <div
           className={cn(
             "mx-2 rounded-lg border px-4 py-3 text-sm sm:mx-6",
@@ -1277,8 +1285,12 @@ export function WorkspaceObjectEditorPage() {
         ) : !object ? (
           <EmptyState
             className="m-6"
-            title={t("workspace.preview.selectFile")}
-            action={<Button variant="outline" onClick={async () => { if (!isDirty || await confirm({ title: t("interaction.unsavedTitle"), description: t("interaction.reloadDiscard"), confirmLabel: t("workspace.actions.reload") })) void loadContent() }}>{t("workspace.actions.reload")}</Button>}
+            title={error ?? t("workspace.preview.selectFile")}
+            action={<Button variant="outline" onClick={async () => {
+              if (isDirty && !(await confirm({ title: t("interaction.unsavedTitle"), description: t("interaction.reloadDiscard"), confirmLabel: t("workspace.actions.reload") }))) return
+              if (deletedObjectRouteRef.current === contentScope) void openRemainingFile()
+              else void loadContent()
+            }}>{t("workspace.actions.reload")}</Button>}
           />
         ) : isWorkspaceImage(object.mime_type) ? (
           <WorkspaceImagePreview key={`${accessToken}:${object.id}:${object.current_version_id}`} object={object} />

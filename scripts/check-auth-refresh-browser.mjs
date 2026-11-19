@@ -11,7 +11,7 @@ try {
   await server.listen()
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of [429, 503, 401, "session-lock"]) {
+  for (const scenario of [429, 503, 401, "session-lock", "resource-status", "refresh-outage"]) {
     const context = await browser.newContext()
     await context.addInitScript(accessToken => {
       localStorage.setItem("ineffable.auth.session_id", "a")
@@ -20,12 +20,12 @@ try {
       localStorage.setItem("ineffable.auth.refresh_expires_at", String(Date.now() + 7200000))
       localStorage.setItem("ineffable.auth.access_token", accessToken)
     }, token("a"))
-    let refreshCalls = 0, entered
+    let refreshCalls = 0, resourceReads = 0, entered
     const oldStarted = new Promise(resolve => { entered = resolve })
     const oldGate = new Promise(resolve => { releaseOld = resolve })
     await context.route("**/gateway/v1/**", async route => {
       const path = new URL(route.request().url()).pathname
-      const actor = route.request().headers().authorization === `Bearer ${token("a")}` ? "a" : "b"
+      const actor = route.request().headers().authorization === `Bearer ${token("b")}` ? "b" : "a"
       let status = 200, body = {}
       if (path.endsWith("auth/me")) body = { user: { id: actor }, workspaces: [] }
       else if (path.endsWith("conversations/list")) body = { conversations: [] }
@@ -33,9 +33,13 @@ try {
         refreshCalls++
         const old = route.request().postDataJSON().refresh_token === "ra"
         if (scenario === "session-lock" && old) { entered(); await oldGate }
-        status = scenario === "session-lock" || refreshCalls > 1 ? 200 : scenario
+        status = scenario === "refresh-outage" ? 503 : typeof scenario === "string" || refreshCalls > 1 ? 200 : scenario
         const id = old ? "a" : "b"
         body = status === 200 ? { tokens: { session_id: id, access_token: token(id, 2), refresh_token: `r${id}`, access_expires_at: Date.now() + 3600000, refresh_expires_at: Date.now() + 7200000 } } : { error: "fixture refresh rejection" }
+      } else if (path.endsWith("/versions")) {
+        resourceReads++
+        status = Number(new URL(route.request().url()).searchParams.get("status"))
+        body = { error: "invalid access token in a resource diagnostic" }
       }
       await route.fulfill({ status, json: body })
     })
@@ -43,7 +47,27 @@ try {
     await page.goto(`${origin}/scripts/auth-isolation-fixture.html`)
     await page.waitForFunction(() => window.session?.currentUser?.id === "a" && !window.session.isBootstrapping, null, { timeout: 3000 })
     await page.evaluate(async () => { window.authRuntime = await import("/src/lib/api/auth-session-runtime.ts") })
-    if (scenario === "session-lock") {
+    if (scenario === "resource-status" || scenario === "refresh-outage") {
+      const request = status => page.evaluate(async status => {
+        const { requestApi } = await import("/src/lib/api/base-client.ts")
+        try {
+          return (await requestApi(`/gateway/v1/workspace-objects/a/versions?status=${status}`, { accessToken: window.session.accessToken })).status
+        } catch (error) {
+          return error.status
+        }
+      }, status)
+      if (scenario === "resource-status") {
+        for (const status of [403, 404, 500]) assert.equal(await request(status), status)
+        assert.equal(refreshCalls, 0, "only the HTTP status can request a token refresh")
+        assert.equal(await request(401), 401)
+        assert.equal(resourceReads, 5, "retry an unauthorized request at most once")
+      } else {
+        assert.equal(await request(401), 503, "surface the actual refresh outage")
+        assert.equal(resourceReads, 1)
+      }
+      assert.equal(refreshCalls, 1)
+      assert.equal(await page.evaluate(() => window.session.status), "authenticated")
+    } else if (scenario === "session-lock") {
       const other = await context.newPage()
       await other.goto(`${origin}/scripts/auth-isolation-fixture.html`)
       await page.evaluate(() => { window.oldRefresh = window.authRuntime.refreshAuthSession(window.session.accessToken) })

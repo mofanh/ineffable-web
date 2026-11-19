@@ -11,7 +11,6 @@ import {
   createApiError,
   createIdempotencyKey,
   getApiBaseUrl,
-  isAccessTokenExpiredError,
   parseApiError,
   parseApiRequestError,
   requestApi,
@@ -21,7 +20,6 @@ import {
 export {
   createApiError,
   getApiBaseUrl,
-  isAccessTokenExpiredError,
 }
 
 export type AppUser = {

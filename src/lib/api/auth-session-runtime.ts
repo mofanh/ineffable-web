@@ -89,10 +89,6 @@ export function getCurrentAuthSessionId() {
   return adapter?.getSnapshot().sessionId ?? null
 }
 
-export function expireAuthSession() {
-  adapter?.onExpired()
-}
-
 export function getAccessTokenRefreshDelay(
   expiresAt: number | null | undefined,
   refreshAheadMs = 60_000,
@@ -105,7 +101,16 @@ export function getAccessTokenRefreshDelay(
   return Math.max(0, normalized - now - refreshAheadMs)
 }
 
-export async function refreshAuthSession(failedAccessToken?: string | null) {
+export function refreshAuthSession(
+  failedAccessToken?: string | null,
+  options?: { reportTransientError?: boolean },
+) {
+  const result = refreshCurrentSession(failedAccessToken)
+  // Background refresh can retry later; the waiting resource request needs the actual error.
+  return options?.reportTransientError ? result : result.catch(() => null)
+}
+
+async function refreshCurrentSession(failedAccessToken?: string | null) {
   const currentAdapter = adapter
   if (!currentAdapter) {
     return null
@@ -184,11 +189,11 @@ export async function refreshAuthSession(failedAccessToken?: string | null) {
       return refreshedAccessToken
     })
     .catch((error: unknown) => {
+      if (!isCurrentSession()) return null
       const shouldExpire =
         currentAdapter.shouldExpireOnRefreshError?.(error) ?? true
-      if (isCurrentSession() && shouldExpire) {
-        currentAdapter.onExpired()
-      }
+      if (!shouldExpire) throw error
+      currentAdapter.onExpired()
       return null
     })
     .finally(() => {

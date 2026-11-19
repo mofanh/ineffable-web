@@ -19,6 +19,7 @@ try {
   const space = () => ({ ...team, status: archived ? "archived" : "active", archived_at: archived ? "2026-09-29T00:00:00Z" : null })
   const file = id => ({ id, workspace_id: team.id, kind: "file", name: `${id}.txt`, path: `${id}.txt`, mime_type: "text/plain", current_version_id: `v-${id}` })
   await page.addInitScript(() => {
+    document.cookie = "sidebar_state=true; path=/"
     localStorage.setItem("ineffable.ui.language", "en-US")
     localStorage.setItem("ineffable.auth.access_token", "fixture-token")
     localStorage.setItem("ineffable.auth.session_id", "fixture-session")

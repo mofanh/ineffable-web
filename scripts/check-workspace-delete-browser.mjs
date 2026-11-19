@@ -9,17 +9,22 @@ let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "empty", "stale", "failure", "loading-folder"]) {
+  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "denied", "missing-space", "denied-space", "login-return", "empty", "stale", "failure", "loading-folder"]) {
+    const loginReturn = scenario === "login-return"
+    const unavailable = loginReturn || ["missing", "denied", "missing-space", "denied-space"].includes(scenario)
     const page = await browser.newPage()
     const errors = []
     page.on("pageerror", e => errors.push(e.message))
-    await page.addInitScript(() => {
+    await page.addInitScript(loginReturn => {
+      localStorage.setItem("ineffable.ui.language", "en-US")
+      if (loginReturn) return
       localStorage.setItem("ineffable.auth.access_token", "test-token")
       localStorage.setItem("ineffable.auth.session_id", "test-session")
       localStorage.setItem("ineffable.auth.access_expires_at", String(Date.now() / 1000 + 3600))
-    })
+    }, loginReturn)
+    let refreshes = 0
     let latestReads = 0
-    let deleted = scenario === "missing"
+    let deleted = unavailable
     let release
     let releaseContent
     const file = id => ({ id, workspace_id: "w", parent_id: "folder", kind: "file", name: `${id}.txt`, path: `notes/${id}.txt`, mime_type: "text/plain", updated_at: "2026-09-08T00:00:00Z", current_version_id: `v-${id}` })
@@ -27,9 +32,16 @@ try {
       const url = new URL(route.request().url())
       let body = {}
       let status = 200
-      if (url.pathname.endsWith("auth/me")) body = { user: { id: "actor", email: "actor@example.com", display_name: "Actor", role: "user", status: "active" }, workspaces: [{ id: "w", name: "Workspace", workspace_type: "personal" }] }
+      const user = { id: "actor", email: "actor@example.com", display_name: "Actor", role: "user", status: "active" }
+      if (url.pathname.endsWith("/auth/login")) body = { user, tokens: { session_id: "test-session", access_token: "test-token", refresh_token: "test-refresh", access_expires_at: Date.now() / 1000 + 3600 } }
+      else if (url.pathname.endsWith("/auth/refresh")) { refreshes++; status = 401 }
+      else if (url.pathname.endsWith("/auth/me")) body = { user, workspaces: [{ id: "w", name: "Workspace", workspace_type: "personal" }] }
       else if (url.pathname.includes("conversations/list")) body = { conversations: [] }
       else if (url.pathname.endsWith("/directory")) body = { objects: [], next_cursor: null }
+      else if (url.pathname.endsWith("/access") && (scenario.endsWith("-space") || loginReturn)) {
+        status = scenario === "denied-space" ? 403 : 404
+        body = { error: "private workspace detail" }
+      }
       else if (url.pathname.endsWith("/access")) body = { workspace: { id: "w", name: "Workspace", workspace_type: "personal", status: "active" }, membership: { role: "owner" }, can_write: true }
       else if (url.pathname.endsWith("latest-file")) {
         latestReads++
@@ -41,7 +53,7 @@ try {
       } else if (route.request().method() === "DELETE") { deleted = true; body = { object: file("a") } }
       else if (url.pathname.includes("workspace-objects/")) {
         const id = url.pathname.split("workspace-objects/")[1].split("/")[0]
-        if (id === "a" && deleted) { status = 404; body = { error: "object not found" } }
+        if (id === "a" && deleted) { status = scenario.startsWith("denied") ? 403 : 404; body = { error: "private object detail" } }
         else body = url.pathname.endsWith("versions") ? { object: file(id), versions: [] } : { object: file(id), content: `Content ${id.toUpperCase()}`, version: { id: `v-${id}`, version_no: 1 } }
       }
       if (scenario === "loading-folder" && url.pathname.endsWith("/a/content")) {
@@ -49,17 +61,40 @@ try {
       }
       await route.fulfill({ status, json: body })
     })
-    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/workspace-delete-fixture.html`)
+    const origin = `http://127.0.0.1:${server.httpServer.address().port}`
+    const oldLink = "/workspace/10000000-0000-4000-8000-000000000001/objects/20000000-0000-4000-8000-000000000001"
+    if (loginReturn) {
+      await page.goto(origin + oldLink)
+      await page.waitForURL(origin + "/login")
+      await page.locator('input[type="email"]').fill("actor@example.com")
+      await page.locator('input[autocomplete="current-password"]').fill("fixture-password")
+      await page.locator('button[type="submit"]').click()
+    } else {
+      await page.goto(origin + "/scripts/workspace-delete-fixture.html")
+    }
+    if (unavailable) {
+      await page.getByText("The requested resource was not found.", { exact: true }).waitFor()
+      if (loginReturn) assert.equal(page.url(), origin + oldLink)
+      else assert.equal(await page.getByTestId("route").textContent(), "/workspace/w/objects/a")
+      assert.equal(refreshes, 0)
+      assert.equal(await page.evaluate(() => localStorage.getItem("ineffable.auth.access_token")), "test-token")
+      assert.equal(latestReads, 0)
+      assert.equal(await page.getByText(/private (object|workspace) detail/).count(), 0)
+      assert.deepEqual(errors, [], scenario)
+      console.log(`PASS workspace link: ${scenario}`)
+      await page.close()
+      continue
+    }
     if (scenario === "loading-folder") {
       while (!releaseContent) await new Promise(resolve => setTimeout(resolve, 10))
       await page.evaluate(() => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: "folder", path: "notes", action: "delete" } })))
       releaseContent()
-    } else if (scenario !== "missing") await page.getByText("Content A", { exact: true }).waitFor()
+    } else await page.getByText("Content A", { exact: true }).waitFor()
     if (scenario === "editor") {
       await page.getByRole("button", { name: "File actions" }).click()
       await page.getByRole("menuitem", { name: "Delete file" }).click()
       await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click()
-    } else if (scenario !== "missing" && scenario !== "loading-folder") {
+    } else if (scenario !== "loading-folder") {
       await page.evaluate(({ scenario }) => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: scenario === "unrelated" ? "other" : scenario === "folder" ? "folder" : "a", path: scenario === "folder" ? "notes" : scenario === "unrelated" ? "notes/other.txt" : "notes/a.txt", action: "delete", source: "user" } })), { scenario })
     }
     if (scenario === "stale") {
@@ -86,11 +121,11 @@ try {
       assert.equal(latestReads, 0)
       assert.equal(await page.getByText("Content A", { exact: true }).count(), 1)
     } else await page.getByText("Content B", { exact: true }).waitFor()
-    if (["editor", "event", "folder", "missing"].includes(scenario)) {
+    if (["editor", "event", "folder"].includes(scenario)) {
       await page.getByRole("button", { name: "Back", exact: true }).click()
       assert.equal(await page.getByTestId("route").textContent(), "/workspace/w/objects/b", "replace must remove the deleted URL from history")
     }
-    assert.equal(await page.getByText("object not found", { exact: true }).count(), 0)
+    assert.equal(await page.getByText("private object detail", { exact: true }).count(), 0)
     assert.deepEqual(errors, [], scenario)
     console.log(`PASS workspace delete: ${scenario}`)
     await page.close()
