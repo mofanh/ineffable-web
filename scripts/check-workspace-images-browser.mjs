@@ -15,7 +15,7 @@ try {
   for (const lang of ["en", "zh"]) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 850 } })
     const errors = [], textReads = [], uploads = []
-    let hold = false, release
+    let hold = false, release, deniedRead
     page.on("pageerror", e => errors.push(e.message))
     await page.addInitScript(() => {
       localStorage.setItem("ineffable.auth.access_token", "fixture-token")
@@ -26,6 +26,7 @@ try {
     const object = (id) => ({ id: id === "image" ? objectId : "text", workspace_id: workspace, kind: "file", name: id === "image" ? "sample.png" : "note.txt", path: id === "image" ? "会话附件/2026-09/sample.png" : "note.txt", mime_type: id === "image" ? "image/png" : "text/plain", current_version_id: id === "image" ? versionId : "text-version", updated_at: "2026-09-17T00:00:00Z" })
     await page.route("**/gateway/v1/**", async route => {
       const path = new URL(route.request().url()).pathname
+      if (deniedRead && path.endsWith(deniedRead)) return route.fulfill({ status: 404, json: { error: "private image detail" } })
       let body = { items: [], profiles: [], environments: [], conversations: [], events: [], next_seq: 0 }
       if (path.endsWith("auth/me")) body = { user: { id: "actor", role: "user", status: "active" }, workspaces: [{ id: workspace, workspace_type: "personal", name: "Workspace" }], current_workspace_id: workspace }
       else if (path.endsWith("/access")) body = { workspace: { id: workspace, workspace_type: "personal", name: "Workspace", status: "active" }, membership: { role: "owner" }, can_write: true }
@@ -69,6 +70,18 @@ try {
     release(); await response
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
     assert.equal(await page.locator("main").getByRole("img").count(), 0, "late image cannot overwrite new selection")
+    hold = false
+    for (const endpoint of ["/image", "/image-preview", "/raw"]) {
+      deniedRead = endpoint
+      await page.getByRole("button", { name: "Open image", exact: true }).click()
+      if (endpoint === "/raw") await page.locator("main").getByRole("img", { name: preview }).click()
+      await page.locator("main").getByText(lang === "en" ? "The requested resource was not found." : "未找到请求的资源。", { exact: true }).waitFor()
+      assert.equal(await page.locator("main").getByRole("img").count(), 0)
+      assert.equal(await page.getByRole("dialog").count(), 0)
+      assert.equal(await page.getByText("private image detail", { exact: true }).count(), 0)
+      await page.getByRole("button", { name: "Open text", exact: true }).click()
+      await page.getByText("TEXT_CONTENT", { exact: true }).waitFor()
+    }
     assert.deepEqual(errors, [])
     await page.close(); console.log(`workspace image preview, reference and navigation passed (${lang})`)
   }

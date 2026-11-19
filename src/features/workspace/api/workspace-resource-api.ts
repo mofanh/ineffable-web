@@ -71,17 +71,8 @@ export function listWorkspaceDirectoryDeduped(accessToken: string, workspaceId: 
 export function isWorkspaceImage(mimeType?: string | null) {
   return Boolean(mimeType?.toLowerCase().startsWith("image/"))
 }
-const documentRequests = new Map<string, InFlightRequest<Awaited<ReturnType<typeof loadWorkspaceDocument>>>>()
-async function loadWorkspaceDocument(accessToken: string, workspaceId: string, objectId: string) {
-  const metadata = await listWorkspaceObjectVersions(accessToken, workspaceId, objectId)
-  if (isWorkspaceImage(metadata.object.mime_type)) {
-    return { object: metadata.object, version: metadata.versions.find(v => v.id === metadata.object.current_version_id) ?? null,
-      content: "", versions: metadata.versions }
-  }
-  const content = await getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId)
-  return { ...content, versions: metadata.versions }
-}
-export function getWorkspaceDocument(accessToken: string, workspaceId: string, objectId: string) {
-  return reuseInFlightRequest({ requests: documentRequests, key: `${workspaceId}:${objectId}`, accessToken,
-    load: () => loadWorkspaceDocument(accessToken, workspaceId, objectId) })
+const versionRequests = new Map<string, InFlightRequest<Awaited<ReturnType<typeof listWorkspaceObjectVersions>>>>()
+export function getWorkspaceDocumentMetadata(accessToken: string, workspaceId: string, objectId: string) {
+  return reuseInFlightRequest({ requests: versionRequests, key: `${workspaceId}:${objectId}`, accessToken,
+    load: () => listWorkspaceObjectVersions(accessToken, workspaceId, objectId) })
 }

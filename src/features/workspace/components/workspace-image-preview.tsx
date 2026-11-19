@@ -9,7 +9,7 @@ import { normalizeAppError } from "@/lib/app/api-errors"
 import { notify } from "@/lib/app/notifications"
 import { prepareImageReferenceTarget, requestImageReference } from "@/lib/image-reference-events"
 
-export function WorkspaceImagePreview({ object }: { object: WorkspaceObject }) {
+export function WorkspaceImagePreview({ object, onReadError }: { object: WorkspaceObject; onReadError: (cause: unknown) => void }) {
   const { t } = useTranslation()
   const { accessToken, currentSessionId } = useAuthSession()
   const { getConversationSelectionIdentity } = useConversationSession()
@@ -35,10 +35,12 @@ export function WorkspaceImagePreview({ object }: { object: WorkspaceObject }) {
       }
       setImage(reference)
     }).catch(cause => {
-      if (!cancelled) setError(normalizeAppError(cause, { fallbackMessage: t("images.loadFailed") }).message)
+      if (cancelled) return
+      onReadError(cause)
+      setError(normalizeAppError(cause, { fallbackMessage: t("images.loadFailed") }).message)
     })
     return () => { cancelled = true }
-  }, [accessToken, object.current_version_id, object.id, object.workspace_id, retry, t])
+  }, [accessToken, object.current_version_id, object.id, object.workspace_id, onReadError, retry, t])
   const addReference = async (reference: ImageReference) => {
     if (pendingReference.current) return
     const owner = getConversationSelectionIdentity()
@@ -62,7 +64,7 @@ export function WorkspaceImagePreview({ object }: { object: WorkspaceObject }) {
   }
   return <div className="mx-auto flex min-h-72 max-w-4xl flex-col items-center justify-center gap-3 px-4 py-8">
     {image ? <>
-      <ImageGallery images={[image]} accessToken={accessToken} onReference={addReference} />
+      <ImageGallery images={[image]} accessToken={accessToken} onReference={addReference} onReadError={onReadError} />
       <span className="text-xs text-muted-foreground">{image.width} × {image.height}</span>
       <Button variant="outline" size="sm" disabled={isPreparingReference} onClick={() => void addReference(image)}>{t("images.useReference")}</Button>
     </> : <div role="status" className="text-sm text-muted-foreground">

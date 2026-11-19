@@ -54,7 +54,8 @@ import {
   type WorkspaceObjectVersion,
 } from "@/features/workspace/api/workspace-api"
 import {
-  getWorkspaceDocument,
+  getWorkspaceDocumentMetadata,
+  getWorkspaceObjectContentDeduped,
   isWorkspaceImage,
   listWorkspaceDirectoryDeduped,
 } from "@/features/workspace/api/workspace-resource-api"
@@ -340,7 +341,8 @@ export function WorkspaceObjectEditorPage() {
   const [object, setObject] = React.useState<WorkspaceObject | null>(null)
   const [version, setVersion] = React.useState<WorkspaceObjectVersion | null>(null)
   const [content, setContent] = React.useState("")
-  const [savedContent, setSavedContent] = React.useState("")
+  const [savedBaseline, setSavedContent] = React.useState<string | null>("")
+  const savedContent = savedBaseline ?? ""
   const [isLoading, setIsLoading] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -363,7 +365,7 @@ export function WorkspaceObjectEditorPage() {
   currentObjectRouteRef.current = `${currentSessionId}:${workspaceId}:${objectId}`
 
   const workspace = access?.workspace
-  const isDirty = content !== savedContent
+  const isDirty = savedBaseline === null || content !== savedBaseline
   const dirtyRef = React.useRef(isDirty); dirtyRef.current = isDirty
   const currentVersionIdRef = React.useRef(version?.id); currentVersionIdRef.current = version?.id
   const clearRestrictedContent = React.useCallback(() => {
@@ -373,7 +375,8 @@ export function WorkspaceObjectEditorPage() {
     setIsHistoryOpen(false); setIsEditing(false)
     setIsLoading(false); setIsSaving(false); setIsPreviewLoading(false)
     if (!dirtyRef.current) setContent("")
-    setSavedContent("")
+    // A withdrawn baseline must retain even a deliberately empty local draft.
+    setSavedContent(dirtyRef.current ? null : "")
   }, [])
   const accessStatus = accessResource.error?.status
   React.useLayoutEffect(() => {
@@ -408,12 +411,27 @@ export function WorkspaceObjectEditorPage() {
         ? t("workspace.saveState.saved")
         : formatRelativeEditedAt(object?.updated_at, now)
 
-  const reportActionError = React.useCallback((caught: unknown, fallbackMessage: string, title: string) => {
+  const showUnavailableFile = React.useCallback((recheckAccess: boolean) => {
+    clearRestrictedContent()
+    setSaveState("idle")
+    setError(t("error.notFound"))
+    if (recheckAccess) void reloadAccess()
+  }, [clearRestrictedContent, reloadAccess, t])
+
+  const handleImageReadError = React.useCallback((cause: unknown) => {
+    const { status } = normalizeAppError(cause)
+    if (currentObjectRouteRef.current === contentScope && (status === 403 || status === 404)) {
+      showUnavailableFile(true)
+    }
+  }, [contentScope, showUnavailableFile])
+
+  const reportActionError = React.useCallback((caught: unknown, fallbackMessage: string, title: string, operation: "read" | "write" = "write") => {
     const appError = normalizeAppError(caught, { fallbackMessage })
-    const message = appError.kind === "not_found" || appError.kind === "forbidden"
-      ? t("error.notFound") : appError.message
+    const writeDenied = operation === "write" && appError.kind === "forbidden"
+    const message = writeDenied ? t("error.forbidden")
+      : appError.kind === "not_found" || appError.kind === "forbidden" ? t("error.notFound") : appError.message
     if (appError.status === 401 || appError.status === 403 || appError.status === 404) {
-      clearRestrictedContent()
+      if (!writeDenied) clearRestrictedContent()
       clearApiResourceCache(["workspace-access", currentSessionId, workspaceId])
       invalidateApiResourceCache(["workspace-access", currentSessionId, workspaceId])
       void refreshAppData({ fresh: true })
@@ -436,7 +454,7 @@ export function WorkspaceObjectEditorPage() {
       const response = await listWorkspaceObjectVersions(accessToken, workspaceId, objectId)
       if (isCurrent()) setVersions(response.versions)
     } catch (caught) {
-      if (isCurrent()) reportActionError(caught, t("workspace.feedback.loadFailed"), t("workspaceLifecycle.refreshFailed"))
+      if (isCurrent()) reportActionError(caught, t("workspace.feedback.loadFailed"), t("workspaceLifecycle.refreshFailed"), "read")
     }
   }, [accessToken, captureScope, objectId, reportActionError, t, workspaceId])
 
@@ -458,7 +476,7 @@ export function WorkspaceObjectEditorPage() {
       if (!isCurrent()) return
       navigate(next ? `/workspace/${workspaceId}/objects/${next.id}` : `/workspace/${workspaceId}/objects`, { replace: true })
     } catch (replacementError) {
-      if (isCurrent()) reportActionError(replacementError, t("workspace.feedback.loadFailed"), t("workspace.feedback.loadFailedTitle"))
+      if (isCurrent()) reportActionError(replacementError, t("workspace.feedback.loadFailed"), t("workspace.feedback.loadFailedTitle"), "read")
     } finally {
       if (isCurrent()) setIsLoading(false)
     }
@@ -484,18 +502,29 @@ export function WorkspaceObjectEditorPage() {
 
     // A parent deletion can arrive before the first response reveals this file's path.
     const deletions: WorkspaceObjectsChangedEvent["detail"][] = []
+    let metadataPath: string | undefined
+    const deletionCovers = (path?: string) => deletions.some(detail =>
+      detail.objectId === objectId || (detail.path && (path === detail.path || path?.startsWith(`${detail.path}/`))))
     const observeDeletion = (event: Event) => {
       const detail = (event as WorkspaceObjectsChangedEvent).detail
       if (detail?.workspaceId === workspaceId && detail.action === "delete" && !detail.revalidate) deletions.push(detail)
     }
     window.addEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
     try {
-      const contentResponse = await getWorkspaceDocument(accessToken, workspaceId, objectId)
+      const { object: entry, versions: fileVersions } = await getWorkspaceDocumentMetadata(accessToken, workspaceId, objectId)
+      if (!ownsRead()) return
+      metadataPath = entry.path
+      if (deletionCovers(metadataPath)) {
+        await openRemainingFile()
+        return
+      }
+      const contentResponse = isWorkspaceImage(entry.mime_type)
+        ? { object: entry, version: fileVersions.find(item => item.id === entry.current_version_id) ?? null, content: "" }
+        : await getWorkspaceObjectContentDeduped(accessToken, workspaceId, objectId)
       if (!ownsRead()) {
         return
       }
-      if (deletions.some(detail => detail.objectId === contentResponse.object.id ||
-        (detail.path && (contentResponse.object.path === detail.path || contentResponse.object.path.startsWith(`${detail.path}/`))))) {
+      if (deletionCovers(contentResponse.object.path)) {
         await openRemainingFile()
         return
       }
@@ -513,7 +542,7 @@ export function WorkspaceObjectEditorPage() {
       setVersion(contentResponse.version)
       setContent(contentResponse.content)
       setSavedContent(contentResponse.content)
-      setVersions(contentResponse.versions)
+      setVersions(fileVersions)
       setPreviewVersion(null)
       setPreviewContent(null)
     } catch (loadError) {
@@ -522,10 +551,8 @@ export function WorkspaceObjectEditorPage() {
       }
       const { kind } = normalizeAppError(loadError)
       if (kind === "not_found" || kind === "forbidden") {
-        clearRestrictedContent()
-        setSaveState("idle")
-        setError(t("error.notFound"))
-        if (baselineVersionId) void reloadAccess()
+        if (deletionCovers(metadataPath)) await openRemainingFile()
+        else showUnavailableFile(Boolean(baselineVersionId))
         return
       }
       if (!revalidate) setObject(null)
@@ -533,6 +560,7 @@ export function WorkspaceObjectEditorPage() {
         loadError,
         t("workspace.feedback.loadFailed"),
         t("workspace.feedback.loadFailedTitle"),
+        "read",
       )
     } finally {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, observeDeletion)
@@ -540,7 +568,7 @@ export function WorkspaceObjectEditorPage() {
         setIsLoading(false)
       }
     }
-  }, [accessToken, clearRestrictedContent, currentSessionId, objectId, openRemainingFile, reloadAccess, reportActionError, t, workspaceId])
+  }, [accessToken, currentSessionId, objectId, openRemainingFile, reportActionError, showUnavailableFile, t, workspaceId])
 
   React.useEffect(() => {
     if (loadedScopeRef.current === contentScope && dirtyRef.current) return
@@ -685,6 +713,7 @@ export function WorkspaceObjectEditorPage() {
           previewError,
           t("workspace.feedback.previewFailed"),
           t("workspace.feedback.previewFailedTitle"),
+          "read",
         )
       } finally {
         if (isCurrent() && request === previewRequestRef.current) setIsPreviewLoading(false)
@@ -751,7 +780,7 @@ export function WorkspaceObjectEditorPage() {
       } catch (restoreError) {
         if (!isCurrent()) return
         if (committed) {
-          reportActionError(restoreError, t("workspaceLifecycle.refreshFailed"), t("workspaceLifecycle.refreshFailed"))
+          reportActionError(restoreError, t("workspaceLifecycle.refreshFailed"), t("workspaceLifecycle.refreshFailed"), "read")
           return
         }
         const message = reportActionError(
@@ -1233,15 +1262,14 @@ export function WorkspaceObjectEditorPage() {
   if (!objectId) {
     return (
       <section className="space-y-4 px-4 py-6 sm:px-8">
-        {!canWrite && <Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>}
-        <WorkspaceDirectory workspaceId={workspaceId} />
+        <WorkspaceDirectory workspaceId={workspaceId} notice={!canWrite && <Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>} />
       </section>
     )
   }
 
   return (
     <section className="flex min-h-[calc(100svh-5rem)] flex-col overflow-hidden bg-background">
-      {!canWrite && <div className="p-4"><Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>
+      {!canWrite && object && <div className="p-4"><Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>
         {isDirty && <div className="mt-2"><p className="text-sm">{t("interaction.draftRetained")}</p><Button variant="outline" onClick={() => downloadTextFile(object?.name ?? "draft.txt", content, "text/plain")}>{t("interaction.exportDraft")}</Button></div>}
       </div>}
       {navigationGuard}
@@ -1293,7 +1321,7 @@ export function WorkspaceObjectEditorPage() {
             }}>{t("workspace.actions.reload")}</Button>}
           />
         ) : isWorkspaceImage(object.mime_type) ? (
-          <WorkspaceImagePreview key={`${accessToken}:${object.id}:${object.current_version_id}`} object={object} />
+          <WorkspaceImagePreview key={`${accessToken}:${object.id}:${object.current_version_id}`} object={object} onReadError={handleImageReadError} />
         ) : isEditing && canWrite ? (
           <React.Suspense
             fallback={

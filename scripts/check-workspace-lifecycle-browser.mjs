@@ -40,6 +40,7 @@ try {
     } else if (path === "/gateway/v1/workspaces/directory") body = { entries: !left && (url.searchParams.get("status") === "archived") === archived ? [{ workspace: space(), role }] : [] }
     else if (path.endsWith("/members")) body = { members: [{ id: "owner-row", user_id: "actor", role, status: "active" }, { id: "member-row", user_id: "next-owner", role: soleOwner ? "member" : "owner", status: "active" }] }
     else if (path.endsWith("/members/next-owner") && method === "PATCH") { soleOwner = false; body = { membership: { user_id: "next-owner", role: "owner" } } }
+    else if (path.endsWith("/directory") && url.searchParams.get("path") === "gone") return route.fulfill({ status: 404, json: { error: "private directory detail" } })
     else if (path.endsWith("/directory")) body = { objects: [file("a"), file("b")], next_cursor: null }
     else if (path.endsWith("/workspaces/create") && method === "POST") { created++; if (loseCreate) return route.abort("failed"); body = { workspace: team } }
     else if (path.endsWith("/invitations") && method === "POST") { invites++; body = { invitation: { id: "invited", email: "guest@example.com", role: "member", status: "pending" }, invite_url: "https://example.com/invite/one", email_error: "mail offline" } }
@@ -59,7 +60,10 @@ try {
     } else if (path.endsWith("/restore-version")) {
       left = revokeAfterRestore; body = { object: file("a"), version: { id: "v-restored", version_no: 3 } }
     } else if (path.includes("/workspace-objects/")) {
-      if (rejectSave && method !== "GET") { left = true; return route.fulfill({ status: 403, json: { error: "membership removed" } }) }
+      if (rejectSave && method !== "GET") {
+        left = role !== "viewer"
+        return route.fulfill({ status: 403, json: { error: "write refused" } })
+      }
       const id = path.split("/workspace-objects/")[1].split("/")[0]
       body = { object: file(id), version: { id: `v-${id}`, version_no: 1 }, versions: [{ id: `v-${id}`, version_no: 1 }, { id: "v-old", version_no: 0 }], content: `Content ${id.toUpperCase()}` }
     } else if (path.endsWith("/raw")) return route.fulfill({ contentType: "text/plain", body: "retained bytes" })
@@ -85,6 +89,12 @@ try {
   for (const path of ["/account", "/models", "/channels", "/agent-nodes"]) assert.ok(await page.locator(`main a[href="${path}"]`).count())
   siteRole = "admin"; await page.reload(); await page.locator('a[href="/system/users"]').waitFor()
   assert.equal(await sidebar().locator('a[href="/system/users"]').count(), 0); siteRole = "user"
+  role = "viewer"
+  await page.goto(`${origin}/workspace/${team.id}/objects?path=gone`)
+  await page.locator("main").getByText("The requested resource was not found.", { exact: true }).waitFor()
+  assert.ok(page.url().endsWith("?path=gone"))
+  assert.equal(await page.locator("main").getByText("private directory detail").count(), 0)
+  role = "owner"
   await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
   accessFailure = 503
   await page.evaluate(() => window.dispatchEvent(new Event("focus")))
@@ -97,7 +107,19 @@ try {
   await page.getByRole("button", { name: "Retry", exact: true }).click()
   await page.getByRole("button", { name: "Edit file", exact: true }).waitFor()
   await page.getByRole("button", { name: "Edit file", exact: true }).click()
-  await page.locator('.cm-content[contenteditable="true"]').fill("Retain my private draft")
+  await page.locator('.cm-content[contenteditable="true"]').fill("Draft after downgrade")
+  role = "viewer"
+  rejectSave = true
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await page.getByRole("button", { name: "Export draft", exact: true }).waitFor()
+  await page.locator("main").getByText("Content A", { exact: true }).waitFor()
+  assert.equal(await page.getByText("The requested resource was not found.", { exact: true }).count(), 0)
+  await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Discard changes", exact: true }).click()
+  role = "owner"; rejectSave = false
+  await openFile()
+  await page.getByRole("button", { name: "Edit file", exact: true }).click()
+  await page.locator('.cm-content[contenteditable="true"]').fill("")
   rejectSave = true
   const accessesBefore = accessRequests
   await page.getByRole("button", { name: "Save", exact: true }).click()
@@ -108,7 +130,11 @@ try {
   assert.equal(await page.locator("main").getByText("Content A", { exact: true }).count(), 0)
   const revokedDraft = page.waitForEvent("download")
   await page.getByRole("button", { name: "Export draft", exact: true }).click()
-  assert.ok((await revokedDraft).suggestedFilename())
+  const draft = await revokedDraft
+  assert.ok(draft.suggestedFilename())
+  let draftBytes = 0
+  for await (const chunk of await draft.createReadStream()) draftBytes += chunk.length
+  assert.equal(draftBytes, 0, "the user's empty draft is still exportable")
   await sidebar().getByRole("link", { name: "Settings", exact: true }).click()
   await page.getByRole("dialog").getByRole("button", { name: "Discard changes", exact: true }).click()
   rejectSave = false; left = false

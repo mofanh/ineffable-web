@@ -9,7 +9,7 @@ let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "denied", "missing-space", "denied-space", "login-return", "empty", "stale", "failure", "loading-folder"]) {
+  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "denied", "missing-space", "denied-space", "login-return", "empty", "stale", "failure", "loading-folder", "loading-folder-404", "loading-other-404"]) {
     const loginReturn = scenario === "login-return"
     const unavailable = loginReturn || ["missing", "denied", "missing-space", "denied-space"].includes(scenario)
     const page = await browser.newPage()
@@ -56,8 +56,9 @@ try {
         if (id === "a" && deleted) { status = scenario.startsWith("denied") ? 403 : 404; body = { error: "private object detail" } }
         else body = url.pathname.endsWith("versions") ? { object: file(id), versions: [] } : { object: file(id), content: `Content ${id.toUpperCase()}`, version: { id: `v-${id}`, version_no: 1 } }
       }
-      if (scenario === "loading-folder" && url.pathname.endsWith("/a/content")) {
+      if (scenario.startsWith("loading-") && url.pathname.endsWith("/a/content")) {
         await new Promise(resolve => { releaseContent = resolve })
+        if (scenario.endsWith("-404")) { status = 404; body = { error: "private object detail" } }
       }
       await route.fulfill({ status, json: body })
     })
@@ -85,16 +86,16 @@ try {
       await page.close()
       continue
     }
-    if (scenario === "loading-folder") {
+    if (scenario.startsWith("loading-")) {
       while (!releaseContent) await new Promise(resolve => setTimeout(resolve, 10))
-      await page.evaluate(() => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: "folder", path: "notes", action: "delete" } })))
+      await page.evaluate(path => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: "folder", path, action: "delete" } })), scenario === "loading-other-404" ? "other" : "notes")
       releaseContent()
     } else await page.getByText("Content A", { exact: true }).waitFor()
     if (scenario === "editor") {
       await page.getByRole("button", { name: "File actions" }).click()
       await page.getByRole("menuitem", { name: "Delete file" }).click()
       await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click()
-    } else if (scenario !== "loading-folder") {
+    } else if (!scenario.startsWith("loading-")) {
       await page.evaluate(({ scenario }) => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: scenario === "unrelated" ? "other" : scenario === "folder" ? "folder" : "a", path: scenario === "folder" ? "notes" : scenario === "unrelated" ? "notes/other.txt" : "notes/a.txt", action: "delete", source: "user" } })), { scenario })
     }
     if (scenario === "stale") {
@@ -117,6 +118,10 @@ try {
       await page.getByRole("button", { name: "Reload", exact: true }).click()
       await page.getByText("Content B", { exact: true }).waitFor()
       assert.equal(latestReads, 2)
+    } else if (scenario === "loading-other-404") {
+      await page.getByText("The requested resource was not found.", { exact: true }).waitFor()
+      assert.equal(await page.getByTestId("route").textContent(), "/workspace/w/objects/a")
+      assert.equal(latestReads, 0)
     } else if (scenario === "unrelated") {
       assert.equal(latestReads, 0)
       assert.equal(await page.getByText("Content A", { exact: true }).count(), 1)

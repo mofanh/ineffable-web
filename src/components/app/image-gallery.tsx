@@ -5,7 +5,8 @@ import { DownloadIcon, ExpandIcon, ShrinkIcon, FolderOpenIcon, ImagePlusIcon } f
 import { AppDialog, AppDialogFooter } from "@/components/app/app-dialog"
 import type { ImageReference } from "@/lib/image-reference"
 
-function ImageTile({ image, accessToken, onReference, compact, userMessage, multiple }: {
+function ImageTile({ image, accessToken, onReference, onReadError, compact, userMessage, multiple }: {
+  onReadError?: (cause: unknown) => void
   image: ImageReference; accessToken: string; compact?: boolean; userMessage?: boolean; multiple?: boolean; onReference?: (image: ImageReference) => void
 }) {
   const { t } = useTranslation()
@@ -36,8 +37,10 @@ function ImageTile({ image, accessToken, onReference, compact, userMessage, mult
         if (controller.signal.aborted) return
         url = URL.createObjectURL(blob)
         setResource({ identity, url })
-      } catch {
-        if (!controller.signal.aborted) setResource({ identity, error: true })
+      } catch (error) {
+        if (controller.signal.aborted) return
+        onReadError?.(error)
+        setResource({ identity, error: true })
       }
     }
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver((entries) => {
@@ -46,7 +49,7 @@ function ImageTile({ image, accessToken, onReference, compact, userMessage, mult
     if (observer && element.current) observer.observe(element.current)
     else void load()
     return () => { controller.abort(); observer?.disconnect(); if (url) URL.revokeObjectURL(url) }
-  }, [accessToken, image, identity, retry])
+  }, [accessToken, image, identity, onReadError, retry])
   const originalIdentity = `${identity}:${previewEpoch}`
   React.useEffect(() => {
     if (!open) return
@@ -60,10 +63,14 @@ function ImageTile({ image, accessToken, onReference, compact, userMessage, mult
         if (controller.signal.aborted) return
         url = URL.createObjectURL(blob)
         setOriginal({ identity: originalIdentity, url })
-      } catch { if (!controller.signal.aborted) setOriginal({ identity: originalIdentity, error: true }) }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        onReadError?.(error)
+        setOriginal({ identity: originalIdentity, error: true })
+      }
     })()
     return () => { controller.abort(); if (url) URL.revokeObjectURL(url) }
-  }, [open, accessToken, image, originalIdentity, retry])
+  }, [open, accessToken, image, originalIdentity, onReadError, retry])
   const full = original.identity === originalIdentity ? original : null
   const current = resource.identity === identity ? resource : null
   return <div ref={element} className="min-w-0 max-w-full space-y-1">
@@ -85,11 +92,12 @@ function ImageTile({ image, accessToken, onReference, compact, userMessage, mult
   </div>
 }
 
-export function ImageGallery({ images, accessToken, onReference, compact, userMessage }: {
+export function ImageGallery({ images, accessToken, onReference, onReadError, compact, userMessage }: {
+  onReadError?: (cause: unknown) => void
   images: ImageReference[]; compact?: boolean; userMessage?: boolean; accessToken?: string | null; onReference?: (image: ImageReference) => void
 }) {
   if (!accessToken || images.length === 0) return null
   return <div className={compact ? "flex max-w-full" : userMessage ? "flex max-w-full flex-wrap justify-end gap-2" : "my-2 flex max-w-full flex-wrap items-start gap-2"}>{images.map((image, index) =>
-    <ImageTile key={`${image.version_id}:${index}`} image={image} accessToken={accessToken} onReference={onReference} compact={compact} userMessage={userMessage} multiple={images.length > 1} />
+    <ImageTile key={`${image.version_id}:${index}`} image={image} accessToken={accessToken} onReference={onReference} onReadError={onReadError} compact={compact} userMessage={userMessage} multiple={images.length > 1} />
   )}</div>
 }
