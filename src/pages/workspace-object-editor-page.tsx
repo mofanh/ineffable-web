@@ -106,6 +106,13 @@ function getFileKind(object: WorkspaceObject | null) {
   return "text"
 }
 
+function changeTargetsFile(change: WorkspaceObjectsChangedEvent["detail"], objectId?: string, path?: string) {
+  if (!objectId) return false
+  if (change.objectId === objectId) return true
+  if (!change.path || !path) return false
+  return path === change.path || (change.action === "delete" && path.startsWith(`${change.path}/`))
+}
+
 function formatRelativeEditedAt(value: string | undefined, now: number) {
   if (!value) {
     return i18n.t("workspace.relativeTime.justNow")
@@ -332,7 +339,8 @@ export function WorkspaceObjectEditorPage() {
   const navigate = useNavigate()
   const { setHeaderContent } = useAppHeader()
   const { accessToken, currentUser, currentSessionId, refreshAppData } = useAuthSession()
-  const captureScope = useActionScope(`${currentSessionId}:${workspaceId}:${objectId}`)
+  const contentScope = `${currentSessionId}:${workspaceId}:${objectId}`
+  const captureScope = useActionScope(contentScope)
   const accessResource = useWorkspaceAccess(workspaceId)
   const reloadAccess = accessResource.reload
   const { run: runLifecycle, pending: lifecyclePending } = useWorkspaceLifecycle()
@@ -362,7 +370,9 @@ export function WorkspaceObjectEditorPage() {
   const previewRequestRef = React.useRef(0)
   const currentObjectRouteRef = React.useRef("")
   const deletedObjectRouteRef = React.useRef<string | null>(null)
-  currentObjectRouteRef.current = `${currentSessionId}:${workspaceId}:${objectId}`
+  // A confirmed deletion can arrive after metadata succeeded and the content read returned 404.
+  const verifiedPathRef = React.useRef<{ scope: string; path: string } | null>(null)
+  currentObjectRouteRef.current = contentScope
 
   const workspace = access?.workspace
   const isDirty = savedBaseline === null || content !== savedBaseline
@@ -381,12 +391,12 @@ export function WorkspaceObjectEditorPage() {
   const accessStatus = accessResource.error?.status
   React.useLayoutEffect(() => {
     if (accessStatus === 401 || accessStatus === 403 || accessStatus === 404) {
+      verifiedPathRef.current = null
       clearRestrictedContent()
       void refreshAppData({ fresh: true })
     }
   }, [accessStatus, clearRestrictedContent, refreshAppData])
   const loadedScopeRef = React.useRef("")
-  const contentScope = `${currentSessionId}:${workspaceId}:${objectId}`
   const blocker = useBlocker(({currentLocation, nextLocation}) => isDirty && currentLocation.pathname !== nextLocation.pathname)
   React.useEffect(() => {
     if (!isDirty) return
@@ -502,9 +512,7 @@ export function WorkspaceObjectEditorPage() {
 
     // A parent deletion can arrive before the first response reveals this file's path.
     const deletions: WorkspaceObjectsChangedEvent["detail"][] = []
-    let metadataPath: string | undefined
-    const deletionCovers = (path?: string) => deletions.some(detail =>
-      detail.objectId === objectId || (detail.path && (path === detail.path || path?.startsWith(`${detail.path}/`))))
+    const deletionCovers = (path?: string) => deletions.some(detail => changeTargetsFile(detail, objectId, path))
     const observeDeletion = (event: Event) => {
       const detail = (event as WorkspaceObjectsChangedEvent).detail
       if (detail?.workspaceId === workspaceId && detail.action === "delete" && !detail.revalidate) deletions.push(detail)
@@ -513,8 +521,8 @@ export function WorkspaceObjectEditorPage() {
     try {
       const { object: entry, versions: fileVersions } = await getWorkspaceDocumentMetadata(accessToken, workspaceId, objectId)
       if (!ownsRead()) return
-      metadataPath = entry.path
-      if (deletionCovers(metadataPath)) {
+      verifiedPathRef.current = { scope: route, path: entry.path }
+      if (deletionCovers(entry.path)) {
         await openRemainingFile()
         return
       }
@@ -524,6 +532,7 @@ export function WorkspaceObjectEditorPage() {
       if (!ownsRead()) {
         return
       }
+      verifiedPathRef.current = { scope: route, path: contentResponse.object.path }
       if (deletionCovers(contentResponse.object.path)) {
         await openRemainingFile()
         return
@@ -551,7 +560,7 @@ export function WorkspaceObjectEditorPage() {
       }
       const { kind } = normalizeAppError(loadError)
       if (kind === "not_found" || kind === "forbidden") {
-        if (deletionCovers(metadataPath)) await openRemainingFile()
+        if (deletionCovers(verifiedPathRef.current?.path)) await openRemainingFile()
         else showUnavailableFile(Boolean(baselineVersionId))
         return
       }
@@ -575,6 +584,7 @@ export function WorkspaceObjectEditorPage() {
     if (loadedScopeRef.current !== contentScope) {
       loadedScopeRef.current = contentScope
       deletedObjectRouteRef.current = null
+      verifiedPathRef.current = null
       setObject(null); setVersion(null); setContent(""); setSavedContent(""); setVersions([])
       setCreateUncertain(false)
       setIsEditing(false); setIsHistoryOpen(false); setIsSaving(false); setIsPreviewLoading(false)
@@ -594,7 +604,7 @@ export function WorkspaceObjectEditorPage() {
   React.useEffect(() => {
     const handleWorkspaceObjectsChanged = (event: Event) => {
       const detail = (event as WorkspaceObjectsChangedEvent).detail
-      if (!detail || detail.workspaceId !== workspaceId) {
+      if (!detail || detail.workspaceId !== workspaceId || currentObjectRouteRef.current !== contentScope) {
         return
       }
 
@@ -604,10 +614,9 @@ export function WorkspaceObjectEditorPage() {
         return
       }
 
-      const affectsCurrentObject =
-        detail.objectId === objectId || (Boolean(detail.path) && Boolean(object?.path) && detail.path === object?.path) ||
-        (detail.action === "delete" && Boolean(detail.path) && Boolean(object?.path.startsWith(`${detail.path}/`)))
-      if (!affectsCurrentObject) {
+      const verified = verifiedPathRef.current
+      const path = object?.id === objectId ? object?.path : undefined
+      if (!changeTargetsFile(detail, objectId, path ?? (verified?.scope === contentScope ? verified.path : undefined))) {
         return
       }
 
@@ -638,7 +647,7 @@ export function WorkspaceObjectEditorPage() {
     return () => {
       window.removeEventListener(WORKSPACE_OBJECTS_CHANGED_EVENT, handleWorkspaceObjectsChanged)
     }
-  }, [isDirty, loadContent, object?.path, objectId, openRemainingFile, t, version?.id, workspaceId])
+  }, [contentScope, isDirty, loadContent, object?.id, object?.path, objectId, openRemainingFile, t, version?.id, workspaceId])
 
   const saveContent = React.useCallback(async () => {
     if (!accessToken || !workspaceId || !objectId || !object || !version || !isDirty || !canWrite || isSaving) {

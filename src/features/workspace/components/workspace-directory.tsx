@@ -20,7 +20,7 @@ export function WorkspaceDirectory({ workspaceId, notice }: { workspaceId: strin
     return <EmptyState title={t("error.notFound")} />
   }
   return <div className="space-y-3">
-    {notice}
+    {resource.data && notice}
     <DataState state={resource.state} error={resource.error} onRetry={resource.reload} empty={resource.data?.objects.length === 0} emptyTitle={t("interaction.emptyDirectory")}>
       <div className="divide-y rounded-xl border">{resource.data?.objects.map(file => <Link key={file.id} to={file.kind === "folder" ? `?${new URLSearchParams({ path: file.path })}` : `/workspace/${workspaceId}/objects/${file.id}`} className="flex min-h-11 items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
         {file.kind === "folder" ? <Folder className="size-4 shrink-0" /> : <File className="size-4 shrink-0" />}<span className="min-w-0 break-words">{file.name}</span>

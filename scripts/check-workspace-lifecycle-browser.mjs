@@ -94,6 +94,7 @@ try {
   await page.locator("main").getByText("The requested resource was not found.", { exact: true }).waitFor()
   assert.ok(page.url().endsWith("?path=gone"))
   assert.equal(await page.locator("main").getByText("private directory detail").count(), 0)
+  assert.equal(await page.locator("main").getByText("You can view files in this space, but cannot edit them.").count(), 0)
   role = "owner"
   await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
   accessFailure = 503

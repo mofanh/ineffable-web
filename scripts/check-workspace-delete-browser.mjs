@@ -9,7 +9,7 @@ let browser
 try {
   await server.listen()
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "denied", "missing-space", "denied-space", "login-return", "empty", "stale", "failure", "loading-folder", "loading-folder-404", "loading-other-404"]) {
+  for (const scenario of ["editor", "event", "folder", "unrelated", "missing", "denied", "missing-space", "denied-space", "login-return", "empty", "stale", "failure", "loading-folder", "loading-folder-404", "loading-other-404", "loading-folder-response-first-404", "loading-other-response-first-404"]) {
     const loginReturn = scenario === "login-return"
     const unavailable = loginReturn || ["missing", "denied", "missing-space", "denied-space"].includes(scenario)
     const page = await browser.newPage()
@@ -42,7 +42,7 @@ try {
         status = scenario === "denied-space" ? 403 : 404
         body = { error: "private workspace detail" }
       }
-      else if (url.pathname.endsWith("/access")) body = { workspace: { id: "w", name: "Workspace", workspace_type: "personal", status: "active" }, membership: { role: "owner" }, can_write: true }
+      else if (url.pathname.endsWith("/access")) body = { workspace: { id: "w", name: "Workspace", workspace_type: "personal", status: "active" }, membership: { role: scenario === "missing" ? "viewer" : "owner" }, can_write: scenario !== "missing" }
       else if (url.pathname.endsWith("latest-file")) {
         latestReads++
         assert.equal(url.searchParams.get("excluded_id"), "a")
@@ -81,6 +81,7 @@ try {
       assert.equal(await page.evaluate(() => localStorage.getItem("ineffable.auth.access_token")), "test-token")
       assert.equal(latestReads, 0)
       assert.equal(await page.getByText(/private (object|workspace) detail/).count(), 0)
+      assert.equal(await page.getByText("You can view files in this space, but cannot edit them.").count(), 0)
       assert.deepEqual(errors, [], scenario)
       console.log(`PASS workspace link: ${scenario}`)
       await page.close()
@@ -88,8 +89,15 @@ try {
     }
     if (scenario.startsWith("loading-")) {
       while (!releaseContent) await new Promise(resolve => setTimeout(resolve, 10))
-      await page.evaluate(path => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: "folder", path, action: "delete" } })), scenario === "loading-other-404" ? "other" : "notes")
-      releaseContent()
+      const responseFirst = scenario.includes("response-first")
+      if (responseFirst) {
+        releaseContent()
+        await page.getByText("The requested resource was not found.", { exact: true }).waitFor()
+        assert.equal(latestReads, 0)
+      }
+      await page.evaluate(path => window.dispatchEvent(new CustomEvent("ineffable:workspace-objects-changed", { detail: { workspaceId: "w", objectId: "folder", path, action: "delete", source: "user" } })), scenario.startsWith("loading-other") ? "note" : "notes")
+      if (scenario === "loading-folder-404") await page.getByText("Content B", { exact: true }).waitFor()
+      if (!responseFirst) releaseContent()
     } else await page.getByText("Content A", { exact: true }).waitFor()
     if (scenario === "editor") {
       await page.getByRole("button", { name: "File actions" }).click()
@@ -118,7 +126,7 @@ try {
       await page.getByRole("button", { name: "Reload", exact: true }).click()
       await page.getByText("Content B", { exact: true }).waitFor()
       assert.equal(latestReads, 2)
-    } else if (scenario === "loading-other-404") {
+    } else if (scenario.startsWith("loading-other")) {
       await page.getByText("The requested resource was not found.", { exact: true }).waitFor()
       assert.equal(await page.getByTestId("route").textContent(), "/workspace/w/objects/a")
       assert.equal(latestReads, 0)
@@ -126,6 +134,7 @@ try {
       assert.equal(latestReads, 0)
       assert.equal(await page.getByText("Content A", { exact: true }).count(), 1)
     } else await page.getByText("Content B", { exact: true }).waitFor()
+    if (scenario.startsWith("loading-folder")) assert.equal(latestReads, 1)
     if (["editor", "event", "folder"].includes(scenario)) {
       await page.getByRole("button", { name: "Back", exact: true }).click()
       assert.equal(await page.getByTestId("route").textContent(), "/workspace/w/objects/b", "replace must remove the deleted URL from history")
