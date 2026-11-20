@@ -32,7 +32,7 @@ export const emptyModel: AdminModelProfilePayload = {
   display_name: "",
   endpoint_kind: "openai_compatible",
   upstream_model_name: "",
-  upstream_base_url: null,
+  upstream_base_url: "",
   upstream_api_key_ref: null,
   default_temperature: null,
   default_top_p: null,

@@ -81,6 +81,13 @@ import {
 
 type ModelStatusFilter = "active" | "enabled" | "disabled" | "archived" | "all";
 type ModelCapabilityFilter = "tool" | "reasoning" | "vision" | "json";
+function modelOutputLimit(model: AdminModelProfile): number | null {
+  const maximum = model.max_output_tokens;
+  const defaultLimit = model.default_max_tokens;
+  if (maximum == null) return defaultLimit ?? null;
+  return defaultLimit == null ? maximum : Math.min(defaultLimit, maximum);
+}
+
 type ModelSortKey =
   | "sort_order"
   | "name"
@@ -295,14 +302,14 @@ export function SystemModelManagementPage() {
       display_name: model.display_name,
       endpoint_kind: model.endpoint_kind,
       upstream_model_name: model.upstream_model_name,
-      upstream_base_url: model.upstream_base_url ?? null,
+      upstream_base_url: model.upstream_base_url ?? "",
       upstream_api_key_ref: model.upstream_api_key_ref ?? null,
       default_temperature: model.default_temperature ?? null,
       default_top_p: model.default_top_p ?? null,
       default_frequency_penalty: model.default_frequency_penalty ?? null,
       default_presence_penalty: model.default_presence_penalty ?? null,
       context_window_tokens: model.context_window_tokens ?? null,
-      max_output_tokens: model.max_output_tokens ?? model.default_max_tokens ?? null,
+      max_output_tokens: modelOutputLimit(model),
       supports_tool_calls: model.supports_tool_calls,
       supports_reasoning: model.supports_reasoning,
       supports_json_schema: model.supports_json_schema,
@@ -595,6 +602,7 @@ export function SystemModelManagementPage() {
               <DataTableBody>
                 {filteredModels.map((model) => {
                   const expanded = expandedModelIds.has(model.id);
+                  const outputLimit = modelOutputLimit(model);
                   return (
                     <React.Fragment key={model.id}>
                       <tr className="align-top hover:bg-muted/20">
@@ -666,9 +674,9 @@ export function SystemModelManagementPage() {
                                 {t("system.models.capabilities.visionShort")}
                               </CapabilityTag>
                             ) : null}
-                            {model.max_output_tokens ? (
+                            {outputLimit != null ? (
                               <CapabilityTag>
-                                max {model.max_output_tokens}
+                                max {outputLimit}
                               </CapabilityTag>
                             ) : null}
                           </div>
@@ -838,7 +846,7 @@ function ModelDetail({ model }: { model: AdminModelProfile }) {
       <DetailItem
         label={t("system.models.form.maxOutput")}
         value={
-          (model.max_output_tokens ?? model.default_max_tokens)?.toLocaleString(locale) ??
+          modelOutputLimit(model)?.toLocaleString(locale) ??
           t("system.models.defaultValue")
         }
       />
@@ -1044,7 +1052,7 @@ function ModelForm({
           <FormField label="Base URL">
             <FormControl><Input required type="url" placeholder="https://api.openai.com/v1"
               value={model.upstream_base_url ?? ""}
-              onChange={(event) => setField("upstream_base_url", textOrNull(event.target.value))} /></FormControl>
+              onChange={(event) => setField("upstream_base_url", event.target.value)} /></FormControl>
           </FormField>
           <FormField label={t("system.models.form.keyRef")}>
             <FormControl><Input value={model.upstream_api_key_ref ?? ""}

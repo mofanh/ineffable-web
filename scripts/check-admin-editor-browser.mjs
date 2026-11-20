@@ -26,7 +26,7 @@ try {
     if (scenario === "model-options") {
       Object.assign(models[0], emptyModel, {
         display_name: "Existing profile", upstream_model_name: "gpt-4o", upstream_base_url: "http://relay/v1",
-        upstream_api_key_ref: "existing-key", context_window_tokens: 32000, max_output_tokens: 8192,
+        upstream_api_key_ref: "existing-key", context_window_tokens: 32000, default_max_tokens: 256, max_output_tokens: 8192,
         default_temperature: 0.7, default_top_p: 1, default_presence_penalty: 0, default_frequency_penalty: 0,
       })
     }
@@ -56,6 +56,7 @@ try {
       else if (path.endsWith("conversations/list")) body = { conversations: [] }
       else if (scenario === "model-options" && write && /\/admin\/models(?:\/one)?$/.test(path)) {
         body = { profile: { ...payload, id: method === "POST" ? "created" : "one", display_name: payload.display_name || payload.upstream_model_name } }
+        if (method === "PUT") Object.assign(models[0], body.profile, { default_max_tokens: payload.max_output_tokens })
       }
       else if (path.endsWith("admin/models")) body = { profiles: models }
       else if (path.endsWith("capability-families")) body = { items: [] }
@@ -113,10 +114,18 @@ try {
         assert.ok(created[key] == null, `unexpected default ${key}`)
       }
 
-      await page.getByRole("row").filter({ hasText: "Existing profile" }).getByRole("button", { name: "Edit", exact: true }).click()
+      const edit = page.getByRole("row").filter({ hasText: "Existing profile" }).getByRole("button", { name: "Edit", exact: true })
+      await edit.click()
       await advanced.click()
-      assert.equal(await dialog.getByLabel("Max output tokens").inputValue(), "8192")
+      assert.equal(await dialog.getByLabel("Max output tokens").inputValue(), "256")
       assert.equal(await dialog.getByLabel("Temperature").inputValue(), "0.7")
+      await dialog.getByLabel("Temperature").fill("0.5")
+      await save.click()
+      await dialog.waitFor({ state: "hidden" })
+      assert.equal(writes.find(write => write.method === "PUT").payload.max_output_tokens, 256)
+
+      await edit.click()
+      await advanced.click()
       await dialog.getByLabel("Max output tokens").fill("0")
       await save.click()
       assert.equal(await dialog.getByLabel("Max output tokens").evaluate(el => el.validity.rangeUnderflow), true)
@@ -125,7 +134,7 @@ try {
       }
       await save.click()
       await dialog.waitFor({ state: "hidden" })
-      const updated = writes.find(write => write.method === "PUT").payload
+      const updated = writes.filter(write => write.method === "PUT").at(-1).payload
       assert.equal(updated.context_window_tokens, 32000)
       assert.equal(updated.upstream_api_key_ref, "existing-key")
       assert.equal(updated.display_name, "Existing profile")

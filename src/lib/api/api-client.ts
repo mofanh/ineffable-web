@@ -1485,8 +1485,8 @@ export type AdminUserUsageTimeseries = {
 
 export type AdminModelProfilePayload = Omit<
   AdminModelProfile,
-  "id" | "archived_at"
->
+  "id" | "archived_at" | "upstream_base_url"
+> & { upstream_base_url: string }
 
 export type AdminPlanPayload = Omit<AdminPlan, "id" | "archived_at">
 
@@ -1501,7 +1501,7 @@ export function listAdminModelProfiles(accessToken: string) {
 
 export function createAdminModelProfile(
   accessToken: string,
-  payload: Pick<AdminModelProfilePayload, "upstream_model_name"> & Partial<AdminModelProfilePayload>,
+  payload: Pick<AdminModelProfilePayload, "upstream_model_name" | "upstream_base_url"> & Partial<AdminModelProfilePayload>,
 ) {
   return requestApiJson<{ profile: AdminModelProfile }>(
     "/gateway/v1/admin/models",
