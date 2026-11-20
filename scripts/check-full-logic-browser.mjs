@@ -31,7 +31,7 @@ try {
  for(const section of ["models","secrets"]) for(const outcome of ["replacement","success","failure"]) {
   const page=await browser.newPage();page.on("pageerror",e=>console.error("pageerror",e.message));await setup(page);let release,entered, writes=0
   const gate=new Promise(resolve=>{release=resolve}), held=new Promise(resolve=>{entered=resolve})
-  const models=["a","b"].map(id=>({...emptyModel,id,display_name:`Item ${id}`,endpoint_kind:"openai_images",metadata_json:{image_generation:{enabled:true,quality:"medium",reservation_credits:1,max_calls_per_run:3}},archived_at:null}))
+  const models=["a","b"].map(id=>({...emptyModel,id,display_name:`Item ${id}`,upstream_model_name:`image-${id}`,upstream_base_url:"http://image-fixture/v1",endpoint_kind:"openai_images",metadata_json:{image_generation:{enabled:true,quality:"medium",reservation_credits:1,max_calls_per_run:3}},archived_at:null}))
   const secrets=["a","b"].map(id=>({secret_ref:`item-${id}`,status:"active",has_secret:true,metadata_json:{}}))
   await page.route("**/gateway/v1/**",async route=>{
    const path=new URL(route.request().url()).pathname, write=route.request().method()!=="GET"
@@ -46,6 +46,7 @@ try {
   const row=id=>page.getByRole("row",{includeHidden:true}).filter({hasText:section==="models"?`Item ${id}`:`item-${id}`}).first()
   await row("a").getByRole("button",{name:/edit/i}).click()
   const dialog=page.getByRole("dialog");await dialog.waitFor()
+  if(section==="models") await dialog.getByRole("button",{name:"Advanced settings"}).click()
   const labels=await dialog.locator("label[for]").evaluateAll(labels=>labels.map(label=>({text:label.textContent,id:label.htmlFor,exists:!!document.getElementById(label.htmlFor)})))
   assert.ok(labels.length>0&&labels.every(label=>label.exists),JSON.stringify(labels))
   await dialog.locator("form").evaluate(form=>{for(let i=0;i<2;i++)form.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))})
@@ -75,7 +76,7 @@ try {
   }
   await row("b").getByRole("button",{name:/edit/i,includeHidden:true}).evaluate(button=>button.click())
   release();await page.waitForResponse(response=>response.request().method()!=="GET")
-  const expected=section==="models"?"Item b":"item-b"
+  const expected=section==="models"?"image-b":"item-b"
   await page.waitForFunction(value=>[...document.querySelectorAll('[role="dialog"] input')].some(input=>input.value===value),expected)
   assert.equal(await dialog.isVisible(),true,"A save cannot close B's editor")
   assert.equal(await dialog.getByRole("button",{name:/save/i}).isEnabled(),true,"old finally cannot leave new editor busy")
