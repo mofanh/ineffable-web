@@ -1501,7 +1501,7 @@ export function listAdminModelProfiles(accessToken: string) {
 
 export function createAdminModelProfile(
   accessToken: string,
-  payload: AdminModelProfilePayload,
+  payload: Pick<AdminModelProfilePayload, "upstream_model_name"> & Partial<AdminModelProfilePayload>,
 ) {
   return requestApiJson<{ profile: AdminModelProfile }>(
     "/gateway/v1/admin/models",

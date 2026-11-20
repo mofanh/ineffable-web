@@ -8,9 +8,9 @@ const server = await createServer({ root: process.cwd(), logLevel: "error", serv
 let browser
 try {
   await server.listen()
-  const { emptyPlan } = await server.ssrLoadModule("/src/pages/system-management/shared.tsx")
+  const { emptyPlan, emptyModel } = await server.ssrLoadModule("/src/pages/system-management/shared.tsx")
   browser = await chromium.launch({ executablePath, headless: true })
-  for (const scenario of ["plan-cancel", "plan-save", "plan-partial", "plan-create-partial", "plan-load-failure", "plan-stale-load", "plan-session", "user-noop", "user-partial", "user-load-failure", "user-session", "user-unknown", "plan-create-unknown", "user-effective-plan"]) {
+  for (const scenario of ["model-options", "plan-cancel", "plan-save", "plan-partial", "plan-create-partial", "plan-load-failure", "plan-stale-load", "plan-session", "user-noop", "user-partial", "user-load-failure", "user-session", "user-unknown", "plan-create-unknown", "user-effective-plan"]) {
     const isUsers = scenario.startsWith("user")
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
     const errors = []
@@ -23,6 +23,13 @@ try {
     let plans = ["free", "pro"].map(id => ({ ...structuredClone(emptyPlan), id, name: id, display_name: id === "free" ? "Free" : "Pro", archived_at: null }))
     if (scenario === "user-effective-plan") plans.push({ ...plans[1], id: "disabled", enabled: false })
     const models = ["one", "two"].map(id => ({ id, display_name: `Model ${id}`, upstream_model_name: id, enabled: true, archived_at: null }))
+    if (scenario === "model-options") {
+      Object.assign(models[0], emptyModel, {
+        display_name: "Existing profile", upstream_model_name: "gpt-4o", upstream_base_url: "http://relay/v1",
+        upstream_api_key_ref: "existing-key", context_window_tokens: 32000, max_output_tokens: 8192,
+        default_temperature: 0.7, default_top_p: 1, default_presence_penalty: 0, default_frequency_penalty: 0,
+      })
+    }
     const user = { id: "user-1", email: "person@example.com", display_name: "Person", role: "user", status: "active", created_at: "2026-09-08T00:00:00Z" }
     let assignments = [{ id: "assignment", plan_id: "free", user_id: user.id, status: "active", effective_from: "2026-09-01T00:00:00Z" }]
     if (scenario === "user-effective-plan") assignments.push(
@@ -47,6 +54,9 @@ try {
       let body = {}
       if (path.endsWith("auth/me")) body = { user: { id: "admin", role: "admin", email: "admin@example.com", display_name: "Admin", status: "active" }, workspaces: [] }
       else if (path.endsWith("conversations/list")) body = { conversations: [] }
+      else if (scenario === "model-options" && write && /\/admin\/models(?:\/one)?$/.test(path)) {
+        body = { profile: { ...payload, id: method === "POST" ? "created" : "one", display_name: payload.display_name || payload.upstream_model_name } }
+      }
       else if (path.endsWith("admin/models")) body = { profiles: models }
       else if (path.endsWith("capability-families")) body = { items: [] }
       else if (path.endsWith("plans/insights")) body = { insights: [] }
@@ -84,6 +94,49 @@ try {
       } else if (path.includes("/usage")) body = { usage: [], points: [], totals: {} }
       await route.fulfill({ status, json: body })
     })
+    if (scenario === "model-options") {
+      await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/admin-editor-fixture.html?page=models`)
+      await page.getByRole("button", { name: "Add model", exact: true }).click()
+      const dialog = page.getByRole("dialog")
+      const advanced = dialog.getByRole("button", { name: "Advanced settings" })
+      const save = dialog.getByRole("button", { name: "Save model" })
+      assert.equal(await advanced.getAttribute("aria-expanded"), "false")
+      await dialog.getByLabel("Upstream model name").fill("gpt-6.1-sol")
+      await dialog.getByLabel("Base URL").fill("http://openai-relay:8080/v1")
+      await dialog.getByLabel(/Secret reference/).fill("openai-prod")
+      await save.click()
+      await dialog.waitFor({ state: "hidden" })
+      const created = writes.find(write => write.method === "POST" && write.path.endsWith("/admin/models")).payload
+      assert.equal(created.endpoint_kind, "openai_compatible")
+      assert.equal(created.upstream_api_key_ref, "openai-prod")
+      for (const key of ["max_output_tokens", "context_window_tokens", "default_max_tokens", "default_temperature", "default_top_p", "default_frequency_penalty", "default_presence_penalty"]) {
+        assert.ok(created[key] == null, `unexpected default ${key}`)
+      }
+
+      await page.getByRole("row").filter({ hasText: "Existing profile" }).getByRole("button", { name: "Edit", exact: true }).click()
+      await advanced.click()
+      assert.equal(await dialog.getByLabel("Max output tokens").inputValue(), "8192")
+      assert.equal(await dialog.getByLabel("Temperature").inputValue(), "0.7")
+      await dialog.getByLabel("Max output tokens").fill("0")
+      await save.click()
+      assert.equal(await dialog.getByLabel("Max output tokens").evaluate(el => el.validity.rangeUnderflow), true)
+      for (const label of ["Max output tokens", "Temperature", "Top P", "Presence penalty", "Frequency penalty"]) {
+        await dialog.getByLabel(label, { exact: true }).fill("")
+      }
+      await save.click()
+      await dialog.waitFor({ state: "hidden" })
+      const updated = writes.find(write => write.method === "PUT").payload
+      assert.equal(updated.context_window_tokens, 32000)
+      assert.equal(updated.upstream_api_key_ref, "existing-key")
+      assert.equal(updated.display_name, "Existing profile")
+      for (const key of ["max_output_tokens", "default_temperature", "default_top_p", "default_presence_penalty", "default_frequency_penalty"]) {
+        assert.equal(updated[key], null)
+      }
+      assert.deepEqual(errors, [])
+      await page.close()
+      console.log("PASS admin editor: model-options")
+      continue
+    }
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/admin-editor-fixture.html?page=${isUsers ? "users" : "plans"}`)
     const row = page.getByRole("row").filter({ hasText: isUsers ? "person@example.com" : "Free" }).first()
     await row.waitFor()

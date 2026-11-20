@@ -1259,7 +1259,7 @@ export const resources = {
           },
           rawKeyValidation:
             "模型密钥字段只能填写 secret_ref 或 env:NAME，不能填写原始 API Key",
-          outputValidation: "模型最大输出 tokens 必须填写，并且必须大于 0",
+          outputValidation: "填写的上下文长度和最大输出 tokens 必须是正整数",
           incomplete: "模型配置不完整",
           savedMessage: "模型已保存：{{name}}",
           saved: "模型已保存",
@@ -1319,21 +1319,14 @@ export const resources = {
           supported: "支持",
           unsupported: "不支持",
           form: {
-            basic: "基础信息",
-            basicDescription: "控制模型在管理端和套餐授权中的展示方式。",
+            advanced: "高级设置",
             displayName: "展示名",
-            upstream: "上游连接",
-            upstreamDescription:
-              "只保存上游连接信息和密钥引用，不保存明文 API key。",
             upstreamModel: "上游模型名",
             keyRef: "密钥引用（secret_ref 或 env:NAME）",
             keyPlaceholder: "例如 deepseek-default 或 env:DEEPSEEK_API_KEY",
-            limits: "上下文限制",
             context: "上下文长度",
             maxOutput: "最大输出 tokens",
-            capabilities: "能力开关",
             enable: "启用",
-            billing: "计费和排序",
             multiplier: "使用倍率",
             sort: "排序",
             cancel: "取消",
@@ -3234,7 +3227,7 @@ export const resources = {
           rawKeyValidation:
             "The model secret field only accepts secret_ref or env:NAME, not a raw API key.",
           outputValidation:
-            "Max output tokens is required and must be greater than 0.",
+            "Context length and max output tokens must be positive integers when set.",
           incomplete: "Model configuration incomplete",
           savedMessage: "Model saved: {{name}}",
           saved: "Model saved",
@@ -3296,23 +3289,15 @@ export const resources = {
           supported: "Supported",
           unsupported: "Unsupported",
           form: {
-            basic: "Basic information",
-            basicDescription:
-              "Controls how the model appears in administration and plan grants.",
+            advanced: "Advanced settings",
             displayName: "Display name",
-            upstream: "Upstream connection",
-            upstreamDescription:
-              "Stores connection details and a secret reference, never a raw API key.",
             upstreamModel: "Upstream model name",
             keyRef: "Secret reference (secret_ref or env:NAME)",
             keyPlaceholder:
               "For example deepseek-default or env:DEEPSEEK_API_KEY",
-            limits: "Context limits",
             context: "Context length",
             maxOutput: "Max output tokens",
-            capabilities: "Capability toggles",
             enable: "Enabled",
-            billing: "Billing and order",
             multiplier: "Usage multiplier",
             sort: "Sort order",
             cancel: "Cancel",

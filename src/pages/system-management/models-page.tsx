@@ -301,9 +301,8 @@ export function SystemModelManagementPage() {
       default_top_p: model.default_top_p ?? null,
       default_frequency_penalty: model.default_frequency_penalty ?? null,
       default_presence_penalty: model.default_presence_penalty ?? null,
-      default_max_tokens: model.default_max_tokens ?? null,
       context_window_tokens: model.context_window_tokens ?? null,
-      max_output_tokens: model.max_output_tokens ?? null,
+      max_output_tokens: model.max_output_tokens ?? model.default_max_tokens ?? null,
       supports_tool_calls: model.supports_tool_calls,
       supports_reasoning: model.supports_reasoning,
       supports_json_schema: model.supports_json_schema,
@@ -332,16 +331,12 @@ export function SystemModelManagementPage() {
       });
       return;
     }
-    if (
-      !editingModel.max_output_tokens ||
-      editingModel.max_output_tokens <= 0
-    ) {
-      const validationMessage = t("system.models.outputValidation");
-      setError(validationMessage);
-      notify.warning({
-        title: t("system.models.incomplete"),
-        description: validationMessage,
-      });
+    const invalidLimit = [editingModel.max_output_tokens, editingModel.context_window_tokens]
+      .some((value) => value != null && (!Number.isInteger(value) || value <= 0));
+    if (invalidLimit) {
+      const description = t("system.models.outputValidation");
+      setError(description);
+      notify.warning({ title: t("system.models.incomplete"), description });
       return;
     }
 
@@ -350,13 +345,9 @@ export function SystemModelManagementPage() {
     setState("saving");
     setError("");
     try {
-      const payload = {
-        ...editingModel,
-        default_max_tokens: editingModel.max_output_tokens,
-      };
       const result = editingModelId
-        ? await updateAdminModelProfile(accessToken, editingModelId, payload)
-        : await createAdminModelProfile(accessToken, payload);
+        ? await updateAdminModelProfile(accessToken, editingModelId, editingModel)
+        : await createAdminModelProfile(accessToken, editingModel);
       if (!isCurrent()) return;
       modelResource.setData((current) => ({
         profiles: [
@@ -845,10 +836,10 @@ function ModelDetail({ model }: { model: AdminModelProfile }) {
         }
       />
       <DetailItem
-        label="Default max tokens"
+        label={t("system.models.form.maxOutput")}
         value={
-          model.default_max_tokens?.toLocaleString(locale) ??
-          t("system.models.unconfigured")
+          (model.max_output_tokens ?? model.default_max_tokens)?.toLocaleString(locale) ??
+          t("system.models.defaultValue")
         }
       />
       <DetailItem label="Sort order" value={String(model.sort_order)} />
@@ -1039,217 +1030,78 @@ function ModelForm({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
 }) {
   const { t } = useTranslation();
+  function setField<K extends keyof AdminModelProfilePayload>(key: K, value: AdminModelProfilePayload[K]) {
+    onChange((current) => current ? { ...current, [key]: value } : current);
+  }
   return (
-    <form
-      id="admin-model-form"
-      onSubmit={(event) => void onSubmit(event)}
-    >
+    <form id="admin-model-form" onSubmit={(event) => void onSubmit(event)}>
       <fieldset disabled={disabled} className="min-w-0 space-y-4">
-      <AppDisclosureSection
-        title={t("system.models.form.basic")}
-        description={t("system.models.form.basicDescription")}
-      >
-        <AppFieldGrid>
-          <FormField label={t("system.models.form.displayName")}>
-            <FormControl><Input
-              value={model.display_name}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? { ...current, display_name: event.target.value }
-                    : current,
-                )
-              }
-            /></FormControl>
-          </FormField>
-          <FormField label="Endpoint">
-            <FormControl><Input
-              value={model.endpoint_kind}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? { ...current, endpoint_kind: event.target.value }
-                    : current,
-                )
-              }
-            /></FormControl>
-          </FormField>
-        </AppFieldGrid>
-      </AppDisclosureSection>
-
-      <AppDisclosureSection
-        title={t("system.models.form.upstream")}
-        description={t("system.models.form.upstreamDescription")}
-      >
         <AppFieldGrid>
           <FormField label={t("system.models.form.upstreamModel")}>
-            <FormControl><Input
-              value={model.upstream_model_name}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? { ...current, upstream_model_name: event.target.value }
-                    : current,
-                )
-              }
-            /></FormControl>
+            <FormControl><Input required value={model.upstream_model_name}
+              onChange={(event) => setField("upstream_model_name", event.target.value)} /></FormControl>
           </FormField>
           <FormField label="Base URL">
-            <FormControl><Input
+            <FormControl><Input required type="url" placeholder="https://api.openai.com/v1"
               value={model.upstream_base_url ?? ""}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        upstream_base_url: textOrNull(event.target.value),
-                      }
-                    : current,
-                )
-              }
-            /></FormControl>
+              onChange={(event) => setField("upstream_base_url", textOrNull(event.target.value))} /></FormControl>
           </FormField>
           <FormField label={t("system.models.form.keyRef")}>
-            <FormControl><Input
-              value={model.upstream_api_key_ref ?? ""}
+            <FormControl><Input value={model.upstream_api_key_ref ?? ""}
               placeholder={t("system.models.form.keyPlaceholder")}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        upstream_api_key_ref: textOrNull(event.target.value),
-                      }
-                    : current,
-                )
-              }
-            /></FormControl>
+              onChange={(event) => setField("upstream_api_key_ref", textOrNull(event.target.value))} /></FormControl>
           </FormField>
         </AppFieldGrid>
-      </AppDisclosureSection>
-
-      <AppDisclosureSection title={t("system.models.form.limits")}>
-        <AppFieldGrid>
-          <FormField label={t("system.models.form.context")}>
-            <FormControl><Input
-              type="number"
-              value={model.context_window_tokens ?? ""}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        context_window_tokens: numberOrNull(event.target.value),
-                      }
-                    : current,
-                )
-              }
-            /></FormControl>
-          </FormField>
-          <FormField label={t("system.models.form.maxOutput")}>
-            <FormControl><Input
-              type="number"
-              min={1}
-              value={model.max_output_tokens ?? ""}
-              onChange={(event) => {
-                const value = numberOrNull(event.target.value);
-                onChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        max_output_tokens: value,
-                        default_max_tokens: value,
-                      }
-                    : current,
-                );
-              }}
-            /></FormControl>
-          </FormField>
-        </AppFieldGrid>
-      </AppDisclosureSection>
-
-      <ImageModelFields model={model} disabled={disabled} onChange={onChange} />
-      <AppDisclosureSection title={t("system.models.form.capabilities")}>
-        <AppFieldGrid columns={4}>
-          <ToggleField
-            disabled={disabled}
-            label={t("system.models.form.enable")}
-            checked={model.enabled}
-            onCheckedChange={(checked) =>
-              onChange((current) =>
-                current ? { ...current, enabled: checked } : current,
-              )
-            }
-          />
-          <ToggleField
-            disabled={disabled}
-            label="Tool"
-            checked={model.supports_tool_calls}
-            onCheckedChange={(checked) =>
-              onChange((current) =>
-                current
-                  ? { ...current, supports_tool_calls: checked }
-                  : current,
-              )
-            }
-          />
-          <ToggleField
-            disabled={disabled}
-            label="Reasoning"
-            checked={model.supports_reasoning}
-            onCheckedChange={(checked) =>
-              onChange((current) =>
-                current ? { ...current, supports_reasoning: checked } : current,
-              )
-            }
-          />
-          <ToggleField
-            disabled={disabled}
-            label="Vision"
-            checked={model.supports_vision}
-            onCheckedChange={(checked) =>
-              onChange((current) =>
-                current ? { ...current, supports_vision: checked } : current,
-              )
-            }
-          />
-        </AppFieldGrid>
-      </AppDisclosureSection>
-
-      <AppDisclosureSection title={t("system.models.form.billing")}>
-        <AppFieldGrid>
-          <FormField label={t("system.models.form.multiplier")}>
-            <FormControl><Input
-              type="number"
-              step="0.01"
-              value={model.usage_multiplier}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? {
-                        ...current,
-                        usage_multiplier: Number(event.target.value),
-                      }
-                    : current,
-                )
-              }
-            /></FormControl>
-          </FormField>
-          <FormField label={t("system.models.form.sort")}>
-            <FormControl><Input
-              type="number"
-              value={model.sort_order}
-              onChange={(event) =>
-                onChange((current) =>
-                  current
-                    ? { ...current, sort_order: Number(event.target.value) }
-                    : current,
-                )
-              }
-            /></FormControl>
-          </FormField>
-        </AppFieldGrid>
-      </AppDisclosureSection>
+        <AppDisclosureSection defaultOpen={false} title={t("system.models.form.advanced")}>
+          <div className="space-y-4">
+            <AppFieldGrid>
+              <FormField label={t("system.models.form.displayName")}>
+                <FormControl><Input value={model.display_name} placeholder={model.upstream_model_name}
+                  onChange={(event) => setField("display_name", event.target.value)} /></FormControl>
+              </FormField>
+              <FormField label="Endpoint">
+                <FormControl><Input value={model.endpoint_kind}
+                  onChange={(event) => setField("endpoint_kind", event.target.value)} /></FormControl>
+              </FormField>
+              {([
+                ["context_window_tokens", t("system.models.form.context"), 1],
+                ["max_output_tokens", t("system.models.form.maxOutput"), 1],
+                ["default_temperature", "Temperature", "any"],
+                ["default_top_p", "Top P", "any"],
+                ["default_frequency_penalty", "Frequency penalty", "any"],
+                ["default_presence_penalty", "Presence penalty", "any"],
+              ] as const).map(([key, label, step]) => (
+                <FormField key={key} label={label}>
+                  <FormControl><Input type="number" step={step} min={step === 1 ? 1 : undefined}
+                    placeholder={t("system.models.defaultValue")} value={model[key] ?? ""}
+                    onChange={(event) => setField(key, numberOrNull(event.target.value))} /></FormControl>
+                </FormField>
+              ))}
+            </AppFieldGrid>
+            <AppFieldGrid columns={4}>
+              {([
+                ["enabled", t("system.models.form.enable")],
+                ["supports_tool_calls", "Tool"],
+                ["supports_reasoning", "Reasoning"],
+                ["supports_vision", "Vision"],
+              ] as const).map(([key, label]) => (
+                <ToggleField key={key} disabled={disabled} label={label} checked={model[key]}
+                  onCheckedChange={(checked) => setField(key, checked)} />
+              ))}
+            </AppFieldGrid>
+            <ImageModelFields model={model} disabled={disabled} onChange={onChange} />
+            <AppFieldGrid>
+              <FormField label={t("system.models.form.multiplier")}>
+                <FormControl><Input type="number" step="0.01" min={0} value={model.usage_multiplier}
+                  onChange={(event) => setField("usage_multiplier", numberOrNull(event.target.value) ?? 1)} /></FormControl>
+              </FormField>
+              <FormField label={t("system.models.form.sort")}>
+                <FormControl><Input type="number" value={model.sort_order}
+                  onChange={(event) => setField("sort_order", Number(event.target.value))} /></FormControl>
+              </FormField>
+            </AppFieldGrid>
+          </div>
+        </AppDisclosureSection>
       </fieldset>
     </form>
   );
