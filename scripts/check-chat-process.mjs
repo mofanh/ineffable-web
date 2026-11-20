@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history.ts"
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector.ts"
-import { canAutoCollapseAssistantProcess, assistantAnswerText, isAssistantProcessNode } from "../src/features/chat/model/assistant-process.ts"
+import { canAutoCollapseAssistantProcess, assistantAnswerText, projectAssistantProcessLayout } from "../src/features/chat/model/assistant-process.ts"
 import { WebNodeProjectionCache } from "../src/features/chat/runtime/web-node-projection.ts"
 import { projectAcceptedRunStatus } from "../src/features/chat/model/conversation-entry-reconciliation.ts"
 import { ChatRuntimeStore } from "../src/features/chat/runtime/chat-runtime-store.ts"
@@ -20,7 +20,8 @@ assert.equal(assistantAnswerText(history), "body-2\n\nbody-3\n\nbody-4")
 assert.equal(canAutoCollapseAssistantProcess(history), true)
 const cache = new WebNodeProjectionCache()
 const nodes = cache.project(history.pane,{streaming:false,canRespondToUserInput:false})
-assert.deepEqual(nodes.filter(node => !isAssistantProcessNode(node)).map(node => node.payload.content),["body-2","body-3","body-4"])
+const layout = projectAssistantProcessLayout(history,nodes,()=>true)
+assert.deepEqual(nodes.filter(node => !layout.membership.has(node.nodeId)).map(node => node.payload.content),["body-1","body-2","body-3","body-4"],"all prose stays visible when the trailing answer has no confirmed phase")
 
 for (const status of [undefined,"failed","cancelled","awaiting_human","suspended","streaming"]) {
   const entry = mapConversationMessagesToEntries(messages.map(message => ({...message,run_status:status}))).find(entry => entry.role === "assistant")
@@ -48,13 +49,6 @@ for (const phaseFirst of [true,false]) {
   assert.equal(canAutoCollapseAssistantProcess({...live,status:"done"}),true)
   assert.equal(Object.values(live.pane.blocks).filter(block=>block.type === "text").length,2)
 }
-const node = (renderer,payload) => ({pluginId:"ineffable.web.default",renderer,payload})
-for (const status of ["failed","cancelled","waiting"]) assert.equal(isAssistantProcessNode(node("tool",{tool:{status}})),false)
-assert.equal(isAssistantProcessNode(node("tool",{tool:{status:"succeeded",images:[{}]}})),false)
-assert.equal(isAssistantProcessNode(node("tool",{tool:{status:"succeeded",settlementStatus:"outcome_unknown"}})),false)
-assert.equal(isAssistantProcessNode(node("tool",{tool:{status:"succeeded",operation:{status:"save_pending"}}})),false)
-assert.equal(isAssistantProcessNode(node("text",{assistantPhase:"commentary",images:[{}]})),false)
-assert.equal(isAssistantProcessNode(node("future",{})),false)
 for (const status of ["cancelled","failed","suspended"]) {
   const store = new ChatRuntimeStore()
   store.dispatch("conversation",{type:"run-snapshot",run:{id:"process-run",status:"streaming",version:1,execution_epoch:1,lifecycle_seq:1}})

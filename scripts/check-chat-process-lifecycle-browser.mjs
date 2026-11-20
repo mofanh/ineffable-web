@@ -131,9 +131,11 @@ try {
   const first=section(1,1,"commentary"), last=section(2,2,"final_answer")
   frame("model.text.delta","Inspecting files",first)
   await page.getByText("Inspecting files",{exact:true}).waitFor()
-  const call = {tool_call_id:"inspect",tool_name:"workspace",full_arguments:'{"command":"list"}'}
+  const command = {command:"sleep 25; echo done"}
+  const call = {tool_call_id:"inspect",tool_name:"exec_command",full_arguments:JSON.stringify(command)}
+  const commandError = "Sandbox command timed out"
   frame("tool.call.completed","",{...first,...call})
-  frame("tool.result","README.md",{...first,...call,settlement_status:"succeeded"})
+  frame("tool.result",commandError,{...first,...call,settlement_status:"failed"})
   const tool = page.locator("[data-tool-call-id]").first()
   await tool.click()
   const openTool = await tool.elementHandle()
@@ -151,8 +153,8 @@ try {
   await tool.evaluate(el => el.blur())
   status="completed"
   frame("tool.call.completed","",{...first,...call,canonical_reconciliation:true,canonical_message_seq:3,
-    canonical_message:{content:"Inspecting files",tool_calls:[{id:"inspect",name:"workspace",input:{command:"list"}}]}})
-  frame("tool.result","README.md",{...first,...call,canonical_reconciliation:true,canonical_message_seq:4,transcript_segment_complete:true,settlement_status:"succeeded"})
+    canonical_message:{content:"Inspecting files",tool_calls:[{id:call.tool_call_id,name:call.tool_name,input:command}]}})
+  frame("tool.result",commandError,{...first,...call,canonical_reconciliation:true,canonical_message_seq:4,transcript_segment_complete:true,settlement_status:"failed"})
   frame("assistant.snapshot","Directory inspected",{...last,canonical_reconciliation:true,canonical_message_seq:5,transcript_segment_complete:true})
   publish({run_id:"refresh-run",seq:++seq,ts_ms:1,stream:"run",scope:"run",event:"run.completed",content:null,
     metadata:{conversation_id:"refresh-conversation",execution_epoch:1,run_version:2,canonical_message_seq_end:5,canonical_reconcile_message_seq_end:5}})
@@ -160,7 +162,9 @@ try {
   assert.equal(await toggle.count(),1)
   assert.equal(await toggle.getAttribute("aria-expanded"),"false")
   assert.equal(await page.getByText("Directory inspected",{exact:true}).count(),1)
+  assert.equal(await page.locator("[data-tool-call-id]").count(),0,"the completed reply folds a prior tool error with the child report")
   await toggle.click()
+  assert.equal(await tool.getAttribute("data-tool-status"),"failed","the original failed call returns on expansion")
   const report=page.locator("[data-agent-report=external-task]")
   await report.locator("summary").click()
   assert.equal(await report.locator("p").innerText(),"Verified the working directory")

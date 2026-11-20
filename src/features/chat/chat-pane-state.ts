@@ -109,13 +109,16 @@ function getMetadataBoolean(
   return typeof value === "boolean" ? value : null
 }
 
-function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
-  const metadataStatus =
-    getMetadataValue(event.metadata, "settlement_status") ||
-    getMetadataValue(event.metadata, "status") ||
-    getMetadataValue(event.metadata, "tool_status") ||
-    getMetadataValue(event.metadata, "result_status")
-  const normalizedStatus = metadataStatus.toLowerCase()
+function toolSettlementStatus(metadata: GatewayChatStreamEvent["metadata"]) {
+  return (
+    getMetadataValue(metadata, "settlement_status") ||
+    getMetadataValue(metadata, "status") ||
+    getMetadataValue(metadata, "tool_status") ||
+    getMetadataValue(metadata, "result_status")
+  ).toLowerCase()
+}
+
+function toolCallStatus(normalizedStatus: string, success: boolean | null): ToolCallStatus {
   if (normalizedStatus === "waiting" || normalizedStatus === "awaiting_human") {
     return "waiting"
   }
@@ -141,7 +144,6 @@ function statusFromToolResult(event: GatewayChatStreamEvent): ToolCallStatus {
     return "succeeded"
   }
 
-  const success = getMetadataBoolean(event.metadata, "success")
   if (success === true) {
     return "succeeded"
   }
@@ -699,8 +701,9 @@ export function buildToolView(
     nextTool.input =
       getMetadataValue(event.metadata, "full_arguments") || nextTool.input || event.content || ""
   } else if (event.event === "tool.result") {
-    nextTool.status = statusFromToolResult(event)
-    nextTool.settlementStatus = getMetadataValue(event.metadata, "settlement_status") || existing.settlementStatus
+    const settlementStatus = toolSettlementStatus(event.metadata)
+    nextTool.status = toolCallStatus(settlementStatus, getMetadataBoolean(event.metadata, "success"))
+    nextTool.settlementStatus = settlementStatus || existing.settlementStatus
     const operation = event.metadata?.tool_operation
     if (operation && typeof operation === "object" && !Array.isArray(operation)) {
       const value = operation as Record<string, unknown>

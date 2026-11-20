@@ -4,23 +4,6 @@ import type { WebNodeView } from "../web-node"
 import { DEFAULT_WEB_PLUGIN_ID } from "../web-node"
 import type { TextWebNodePayload, ToolWebNodePayload } from "../runtime/web-node-projection"
 
-/** Presentation of known schemas only; unknown/plugin content remains visible. */
-export function isAssistantProcessNode(node: WebNodeView, activeNeedId?: string | null) {
-  if (node.pluginId !== DEFAULT_WEB_PLUGIN_ID) return false
-  if (node.renderer === "reasoning" || node.renderer === "update" || node.renderer === "agent-report") return true
-  if (node.renderer === "text") {
-    const payload = node.payload as Partial<TextWebNodePayload> | null
-    return payload?.assistantPhase === "commentary" && !payload.images?.length
-  }
-  if (node.renderer === "tool") {
-    const tool = (node.payload as Partial<ToolWebNodePayload> | null)?.tool
-    if (!tool || !["pending", "running", "succeeded"].includes(tool.status) || tool.images?.length ||
-        tool.operation?.status === "save_pending" || tool.settlementStatus === "outcome_unknown") return false
-    return !activeNeedId || (tool.needId ?? tool.protocolId) !== activeNeedId
-  }
-  return false
-}
-
 export function assistantAnswerText(entry: AssistantEntry) {
   const finalIds = finalAssistantBlockIds(entry)
   return entry.pane.blockOrder.flatMap(id => {
@@ -94,8 +77,21 @@ function textPayload(node: WebNodeView) {
   return typeof payload?.content === "string" ? payload as TextWebNodePayload : null
 }
 
-function settledProcessNode(node: WebNodeView, activeNeedId?: string | null) {
-  if (node.pluginId !== DEFAULT_WEB_PLUGIN_ID) return false
+function belongsToProcess(node: WebNodeView, finalAnswerIds: ReadonlySet<string>, activeNeedId?: string | null) {
+  if (node.pluginId !== DEFAULT_WEB_PLUGIN_ID || node.status === "waiting") return false
+  if (node.renderer === "tool") {
+    const tool = (node.payload as Partial<ToolWebNodePayload> | null)?.tool
+    if (!tool || tool.images?.length || tool.operation?.status === "save_pending" || tool.settlementStatus === "outcome_unknown") return false
+    if (activeNeedId && (tool.needId ?? tool.protocolId) === activeNeedId) return false
+    // A failed attempt stays visible during execution and joins the process once the answer is confirmed.
+    return tool.status === "succeeded" ||
+      (finalAnswerIds.size > 0 && (tool.status === "failed" || tool.status === "cancelled"))
+  }
+  if (node.status === "failed" || node.status === "cancelled") return false
+  if (node.renderer === "text") {
+    const text = textPayload(node)
+    return finalAnswerIds.size > 0 && text !== null && !text.images?.length && !finalAnswerIds.has(node.nodeId)
+  }
   const payload = payloadObject(node.payload)
   if (node.renderer === "reasoning") {
     const block = payloadObject(payload?.block)
@@ -103,9 +99,7 @@ function settledProcessNode(node: WebNodeView, activeNeedId?: string | null) {
   }
   if (node.renderer === "update") return typeof payload?.content === "string"
   if (node.renderer === "agent-report") return node.status === "settled" && typeof payload?.content === "string"
-  if (node.renderer !== "tool") return false
-  const tool = payloadObject(payload?.tool)
-  return tool?.status === "succeeded" && isAssistantProcessNode(node, activeNeedId)
+  return false
 }
 
 /** Pure presentation over the existing ordered nodes. Payloads, lifecycle and
@@ -120,10 +114,10 @@ export function projectAssistantProcessLayout(
   let answerIndex = (entry.reportTurn?.length ?? 1) - 1
   while (answerIndex > 0 && entry.reportTurn?.[answerIndex].role !== "assistant") answerIndex--
   const answer = entry.reportTurn?.[answerIndex]
-  const finalBlockIds = finalAssistantBlockIds(entry)
+  const finalBlockIds = allowConsolidation ? finalAssistantBlockIds(entry) : new Set<string>()
   const finalIds = answerIndex > 0 && answer?.role === "assistant"
     ? new Set([...finalBlockIds].map(id => reportSectionNodeId(answer, answerIndex, id))) : finalBlockIds
-  const consolidated = allowConsolidation && finalIds.size > 0
+  const consolidated = finalIds.size > 0
   const scope = entry.timelineUnitId ?? `${entry.runId ?? "local"}:${entry.humanInputBoundarySeq ?? entry.id}`
   const groups: AssistantProcessGroup[] = []
   const membership = new Map<string, AssistantProcessGroup>()
@@ -155,10 +149,7 @@ export function projectAssistantProcessLayout(
     pending = []
   }
   for (const node of nodes) {
-    const text = textPayload(node)
-    const isProcess = !["waiting", "failed", "cancelled"].includes(node.status) && eligible(node) && (settledProcessNode(node, activeNeedId) ||
-      (consolidated && text && !text.images?.length && !finalIds.has(node.nodeId)))
-    if (isProcess) pending.push(node)
+    if (eligible(node) && belongsToProcess(node, finalIds, activeNeedId)) pending.push(node)
     else if (!consolidated) flush()
   }
   flush()

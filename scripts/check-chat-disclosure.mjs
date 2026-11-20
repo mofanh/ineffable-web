@@ -54,16 +54,35 @@ assert.equal(finalAssistantBlockIds({...history,runStatus:"failed"}).size,0)
 const otherScope={...history,timelineUnitId:"run:run:anchor:99"}
 assert.notEqual(layout(otherScope).groups[0].id,layout(history).groups[0].id,"human response/input boundaries remain separate")
 
+const toolNode = (id,status,extra={}) => ({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"tool",nodeId:id,status,payload:{tool:{status,...extra}},fallback:{title:"tool"}})
+const settled = [toolNode("first-command","failed"),toolNode("second-command","cancelled")]
+for (const entry of [live,uncovered,unknown,{...history,runStatus:"failed"},{...history,runStatus:"cancelled"}]) {
+  const projected = projectAssistantProcessLayout(entry,[...settled,...nodes(entry)],()=>true)
+  for (const node of settled) assert.equal(projected.membership.has(node.nodeId),false,"failed and cancelled calls remain visible before a confirmed successful answer")
+}
 const pinned=[
- ...["pending","running","waiting","failed","cancelled"].map((status,i)=>({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"tool",nodeId:`active-${i}`,status,payload:{tool:{status}},fallback:{title:"tool"}})),
- ...[{status:"succeeded",settlementStatus:"outcome_unknown"},{status:"succeeded",operation:{status:"save_pending"}},{status:"succeeded",images:[{}]}].map((tool,i)=>({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"tool",nodeId:`unsafe-${i}`,status:"settled",payload:{tool},fallback:{title:"tool"}})),
+ ...["pending","running","waiting"].map(status=>toolNode(status,status)),
+ ...["succeeded","failed","cancelled"].flatMap(status=>[
+   toolNode(`unknown-${status}`,status,{settlementStatus:"outcome_unknown"}),
+   toolNode(`unsaved-${status}`,status,{operation:{status:"save_pending"}}),
+   toolNode(`image-${status}`,status,{images:[{}]}),
+   toolNode(`need-${status}`,status,{needId:"open-need"}),
+ ]),
  {schemaVersion:1,pluginId:"ineffable.web.default",renderer:"reasoning",nodeId:"malformed",status:"settled",payload:null,fallback:{title:"invalid"}},
  ...["failed","cancelled","waiting"].map(status=>({schemaVersion:1,pluginId:"ineffable.web.default",renderer:"reasoning",nodeId:`reasoning-${status}`,status,payload:{block:{content:"attention"}},fallback:{title:"attention"}})),
  {schemaVersion:1,pluginId:"custom",renderer:"tool",nodeId:"plugin",status:"settled",payload:{},fallback:{title:"unknown"}},
+ {schemaVersion:1,pluginId:"ineffable.web.default",renderer:"future",nodeId:"future",status:"settled",payload:{},fallback:{title:"unknown"}},
  {schemaVersion:1,pluginId:"ineffable.web.default",renderer:"text",nodeId:"image",status:"settled",payload:{content:"picture",images:[{}]},fallback:{title:"picture"}},
 ]
-const guarded=projectAssistantProcessLayout(history,[...pinned,...nodes(history)],()=>true)
+const guarded=projectAssistantProcessLayout(history,[...settled,...pinned,...nodes(history)],()=>true,"open-need")
 for(const node of pinned) assert.equal(guarded.membership.has(node.nodeId),false,`${node.nodeId} remains visible`)
+assert.equal(guarded.groups.length,1)
+assert.deepEqual([...guarded.groups[0].nodeIds].slice(0,2),["first-command","second-command"],"completed disclosure contains both settled calls in order")
+for (const key of ["settlement_status","status","tool_status","result_status"]) {
+  const result = projectConversationOutputEvent(undefined,event(1,"tool.result","",{tool_name:"exec_command",tool_call_id:"uncertain",[key]:"outcome_unknown"}),"run")
+  const row = nodes(result).find(node=>node.renderer==="tool")
+  assert.equal(projectAssistantProcessLayout(history,[row,...nodes(history)],()=>true).membership.has(row.nodeId),false,`an unknown result from ${key} stays visible`)
+}
 assert.equal(projectAssistantProcessLayout(history,nodes(history),()=>false).membership.size,0,"unresolved/fallback renderers cannot be hidden")
 let declared = projectConversationOutputEvent(undefined,event(1,"model.reasoning.delta","CURRENT THINKING"),"run")
 const nativeLayout = entry => projectAssistantProcessLayout(entry,nodes(entry),node=>entry.pane.blocks[node.nodeId]?.type!=="plugin")
