@@ -1,9 +1,9 @@
 import assert from "node:assert/strict"
-import { existsSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { chromium } from "playwright-core"
-import { createServer, preview } from "vite"
+import { build, createServer, preview } from "vite"
 import { installShellFixture, apiRequests, countPath, waitForShell, measureToggle, workspace, imageId, image } from "./shell-performance-fixture.mjs"
 
 const production = process.argv.includes("--production")
@@ -14,9 +14,10 @@ const instrumented = new Map([
   ["src/features/workspace/app-sidebar.tsx", [/export function AppSidebar\([^\n]*\) \{/, "navigation"]],
   ["src/features/chat/gateway-chat-sidebar.tsx", ["}: GatewayChatSidebarProps) {", "chat"]],
 ])
-const server = production
-  ? await preview({ preview: { host: "127.0.0.1", port: 0 } })
-  : await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0, watch: null, hmr: false }, plugins: [{ name: "shell-measure", enforce: "pre", transform(source, id) {
+const measurementPlugin = {
+  name: "shell-measure",
+  enforce: "pre",
+  transform(source, id) {
     const path = id.split("?")[0].slice(process.cwd().length + 1)
     let code = source
     const counter = instrumented.get(path)
@@ -35,8 +36,17 @@ const server = production
     if (path === "src/features/auth/app-session.tsx") code = code.replace("<AuthSessionContext.Provider value={authValue}>", "<AuthSessionContext.Provider value={authValue}>{(window.__shellSelectConversation = selectConversation, window.__shellSelection = getConversationSelectionIdentity, window.__shellRefreshConversations = refreshConversationList, null)}")
     if (path === "src/features/chat/gateway-chat-sidebar.tsx") code = code.replace("onStartNewChat={startNewChat}", "onStartNewChat={(window.__shellStartNewChat = startNewChat)}")
     return { code, map: null }
-  } }] })
-const results = { mode: production ? "production" : "development", scenarios: [] }
+  },
+}
+// Previewing the ordinary dist would leave all counters at their fixture-initial
+// zero. Measure a separately built production bundle with the SAME owner probes;
+// never overwrite the ordinary build used by the other production gates.
+const measurementOutDir = production ? mkdtempSync(join(tmpdir(), "ineffable-shell-measure-")) : null
+if (production) await build({ root: process.cwd(), logLevel: "error", plugins: [measurementPlugin], build: { outDir: measurementOutDir, emptyOutDir: false } })
+const server = production
+  ? await preview({ build: { outDir: measurementOutDir }, preview: { host: "127.0.0.1", port: 0 } })
+  : await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0, watch: null, hmr: false }, plugins: [measurementPlugin] })
+const results = { mode: production ? "production" : "development", instrumented: true, measurementOutDir, scenarios: [] }
 const output = process.env.INEFFABLE_SHELL_BENCHMARK_OUTPUT || join(tmpdir(), `ineffable-shell-${results.mode}.json`)
 let browser
 try {
@@ -69,8 +79,10 @@ try {
       })
       assert.ok(chatSettled, "chat initialization settles before measuring left toggles")
     }
+    const initialRenders = await page.evaluate(() => ({ ...window.__shellRenders }))
+    for (const owner of ["shell", "navigation", "chat"]) assert.ok(initialRenders[owner] > 0, `${results.mode}: ${owner} probe records real initial renders`)
     const initialApi = apiRequests(fixture.requests)
-    const scenario = { open, requests: fixture.requests.length, api: initialApi.map(r => r.path), toggles: [] }
+    const scenario = { open, initialRenders, requests: fixture.requests.length, api: initialApi.map(r => r.path), toggles: [] }
     results.scenarios.push(scenario)
     for (let i = 0; i < 4; i++) {
       const before = apiRequests(fixture.requests).length
@@ -81,9 +93,9 @@ try {
     }
     writeFileSync(output, JSON.stringify(results, null, 2))
     for (const sample of scenario.toggles) {
+      assert.equal(sample.renders.navigation, 0, "left animation does not render the workspace tree owner")
       if (!production) {
         assert.ok(sample.renders.shell <= 4, `no per-frame shell renders: ${JSON.stringify(sample.renders)}`)
-        assert.equal(sample.renders.navigation, 0, "left animation does not render the workspace tree owner")
         assert.ok(sample.renders.chat <= 2, "one shared sidebar context transition, never per-frame chat renders")
         assert.equal(sample.focusReturnReads, 0, "ordinary toggles do not measure focus-return targets")
       }
@@ -115,7 +127,7 @@ try {
     await page.waitForLoadState("networkidle")
     assert.deepEqual(apiRequests(fixture.requests).slice(beforeReopen), [], "focus/hide do not reload business data or stop execution")
     await page.setViewportSize({ width: 767, height: 900 })
-    await page.locator('[data-slot="sidebar-trigger"]').click()
+    await page.locator('[data-slot="sidebar-trigger"]:visible').click()
     await page.locator('[data-side="left"][data-compact="true"]').waitFor()
     await page.keyboard.press("Escape")
     await page.locator('[data-side="left"][data-compact="true"]').waitFor({ state: "hidden" })
@@ -193,6 +205,10 @@ try {
         }, image)
         assert.deepEqual(accepted, [false, false], "a stale mounted receiver cannot accept into either draft")
         await attachments.waitFor({ state: "hidden" })
+        const resource = page.locator('[data-slot="resource-workbench"]')
+        await resource.waitFor({ state: "hidden" })
+        await page.locator('[data-slot="workbench-conversation-header"]').getByRole("button", { name: "Workspace", exact: true }).click()
+        await resource.waitFor({ state: "visible" })
         await reference.click()
         await attachments.waitFor()
         await attachments.click()

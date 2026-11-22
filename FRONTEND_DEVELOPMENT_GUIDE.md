@@ -150,8 +150,10 @@ App Shell
 - 资源标题保留完整 breadcrumb 投影及祖先 path 链接，不以最后一级 label 替代目录导航。拥挤工具条优先换行，breadcrumb 保留合理 flex basis，不能在 dirty editor 的默认分屏中被挤为零宽；回归须验证祖先可见面积及实际点击触发现有未保存导航保护，不能只数 DOM 链接。工作区生命周期门禁覆盖父目录跳转、权限失效、归档/恢复和未保存编辑保护。
 - `check:workbench-layout` 在开发和 production 下验证视口边界、单实例、草稿、路由、导航搜索/选择/新建及主题；`check:shell-performance` 保留导航开合预算与图片引用在延迟加载、换会话、换身份、源卸载和超时下的 fencing 回归。
 - `check:automation-runtime` 验证窄资源列，`check:toast` 验证中央会话及紧凑导航模态层的通知可操作性；管理端 editor/mobile fixture 禁用 watcher/HMR，避免源文件编辑触发页面刷新干扰行为断言。
-- `npm run check:conversation-workbench` 串行执行本工作台确定性门禁（含 production artifacts 和受影响的认证/工作区检查），避免多个浏览器门禁争抢帧预算。
-- 本地 HTTP fixture 不代替真实后端/provider、生产部署、移动设备软键盘及后台长任务的端到端人工验收。
+- `npm run check:conversation-workbench` 串行执行本工作台确定性门禁（含 production artifacts 和受影响的认证/工作区检查），避免多个浏览器门禁争抢帧预算。开发与 production 的导航性能都要求无关 AppSidebar render 为零，不能降低预算换绿灯。两种模式必须使用相同真实 owner 探针，并在计时前确认 shell/navigation/chat 初始计数全部大于零，不能把 fixture 初始化的零当成生产测量。生产性能检查独立构建带探针的 production bundle 至临时目录，不覆盖其它生产布局门禁使用的常规构建；报告记录插桩标识、产物目录及初始计数。
+- 源码架构门禁约束函数/分支所有权时优先解析语法，不以两段代码相隔的字符数作为业务合同；仍保留 target/scope、异步身份与 ACK 边界断言，并用删除真实调用的负对照证明门禁有效。例如首发迭代交接在 accepted、cursor prime failure、admission failure 各自 body 内对账；已 ACK 后的观察错误不能撤销接纳。这类源码检查不替代浏览器或运行时行为验证。
+- DSH 参考固定在 0.2.2-rc.5 / 2e39e70496aa02986ca6a820c5d497e816b69d7e；发行时保留 [第三方 notice](<public/third-party-notices.txt>) 的来源清单与完整 MIT。保留 Ineffable 品牌、Inter/Lucide、模型/环境/管理页和 Workspace 对象版本语义，不引入 Host 插件/本地终端/工作目录会话分组，不添加 DSH 的 accelerated delivery 或未经 modal/IME/identity fencing 验证的双 Escape Stop。显式停止仍走原命令。
+- 本地 HTTP fixture 不代替真实 Gateway/PostgreSQL/provider、生产部署、真实移动设备触控/软键盘、Safari/Firefox 及后台长任务的端到端人工验收。本地截图也不是 DSH 已连接 GUI 的同尺寸像素对照；没有独立实机证据时，只能声称源码支撑的结构适配，不声称完整产品或逐像素等价。
 
 ## 4. 网关接口规范（前端必读）
 

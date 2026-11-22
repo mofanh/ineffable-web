@@ -86,7 +86,7 @@ try {
       // docked navigation rail. Neither presentation may steal the draft.
       if (mobile) {
         const drawer = page.locator('[data-compact="true"][role="dialog"]')
-        await page.locator('[data-slot="sidebar-trigger"]').click()
+        await page.locator('[data-slot="sidebar-trigger"]:visible').click()
         if (width < 768) await drawer.waitFor()
         else {
           assert.equal(await drawer.count(), 0, "medium touch viewport expands a dock, not a modal drawer")
@@ -99,7 +99,7 @@ try {
         if (width < 768) {
           await page.keyboard.press("Escape")
           await drawer.waitFor({ state: "hidden" })
-        } else await page.locator('[data-slot="sidebar-trigger"]').click()
+        } else await page.locator('[data-slot="sidebar-trigger"]:visible').click()
       }
       await composer.fill("Still editable after toast and drawer")
       assert.deepEqual(fixture.errors, [])

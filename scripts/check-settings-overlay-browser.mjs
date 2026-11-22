@@ -139,8 +139,11 @@ try {
     await page.waitForURL(`${origin}/chat`)
     assert.ok(await composerIdentity.evaluate(node => node.isConnected && node.value === "KEEP_SETTINGS_COMPOSER"), "global page return keeps the exact composer")
     // A mobile drawer is dismissed before mounting settings; close goes to Shell.
+    await page.locator('[data-slot="chat-workbench"]').waitFor({ state: "visible" })
     await page.setViewportSize({ width: 390, height: 900 })
-    await page.locator('[data-slot="sidebar-trigger"]').click()
+    // The retained closed navigation also owns a hidden brand trigger. Resolve
+    // the unique visible Shell control, never an arbitrary DOM-order match.
+    await page.locator('[data-slot="sidebar-trigger"]:visible').click()
     await page.locator('[data-compact="true"]').getByRole("button", { name: labels.settings, exact: true }).click()
     await overlay.waitFor()
     await page.locator('[data-compact="true"]').waitFor({ state: "hidden" })
