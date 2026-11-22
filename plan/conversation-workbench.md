@@ -29,6 +29,15 @@
 - 会话标题/操作仍由唯一 GatewayChatSidebar 持有，经稳定 portal 呈现到壳层槽位；不移动 runtime、textarea、滚动区、编辑器或 Outlet。宽窄屏与全局/资源页面不得丢失导航及返回会话入口，保持 navigation render=0。
 - 必须新增双列标题同轴、无重复顶部栏、长标题/320px、抽屉、资源返回会话、标题菜单键盘与脏编辑器/草稿精确 DOM 保留回归；更新中英明暗截图。
 
+## 1.3 新建会话默认收起资源（用户截图追加）
+
+- 顶栏与侧栏的新建会话入口统一：开始新草稿后只展示会话，默认收起右侧资源，不继承上次文件的 open 状态；已是新草稿时再次点击同样生效。
+- 收起只改 Shell 呈现，不导航、卸载或清空 dirty editor，不隐式 Stop、不预创建持久化 conversation。资源按钮或 Workspace 根仍能显式重新打开；窄屏关闭 drawer 并返回会话。
+- 回归覆盖两种新建入口、1440/390px、中英明暗、精确 composer/editor DOM、未保存正文及零写请求。
+- 集中独立源审（final-layout-audit，dc4083a..625393e，干净 detached worktree）无 P0/P1，确认 P2-1：已隐藏的同路径 Workspace 根重新选择仍被 pathname 偏好压制；主线程浏览器独立复现 resourceVisible=false。修复将显隐/紧凑聊天归属已提交 navigation key，每次成功导航记录新 owner，覆盖同根重选、query-only、前进/返回；不在可取消的 Link 点击时提前显露，不重挂 Outlet。新建合同与此整改合并做定向复核。
+- 首次新增回归在旧实现上准确复现：侧栏新建后资源仍 visible，5s waitFor(hidden) 失败。修复后首次复跑先通过该断言，但顶部新建测试遇到与默认标题同名的 locator strict-mode 冲突；已改按 aria-label 定位实际操作按钮，不放宽资源隐藏断言。另纠正测试 input owner 假设：既有 startNewChat 每次递增 newDraftGeneration/inputIdentity，显式新建本来就应重置 textarea；精确 composer DOM 断言限于当前草稿的布局/资源开合，新建后仍断言只有一个 composer，脏文件 editor 则始终要求原节点与正文保留。
+- 整改定向验证已通过：`tsc -b`、lint、开发版布局矩阵、新增 Workspace owner/viewer 同路径重选/紧凑返回/query-only/history POP，以及 production build 与生产版布局完整矩阵。生产矩阵额外验证新建关闭后返回桌面仍关闭、脏导航被取消时不能提前显露。历史测试显式等待上一目标 owner 真正提交后再 POP，避免将尚未提交的 React transition 当作已到达页面。仍待定向独立复核与最终完整串行门禁。
+
 ## 2. 代码结论与迁移策略
 
 ### 2.1 不是换技术栈，也不是直接搬整个 DSH

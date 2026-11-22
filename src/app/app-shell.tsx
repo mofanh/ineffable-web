@@ -25,16 +25,21 @@ import { useWorkbenchLayout } from "@/app/shell/use-workbench-layout"
 import { WorkbenchResizeHandle } from "@/app/shell/workbench-resize-handle"
 import { SettingsOverlayProvider } from "@/app/shell/settings-overlay-context"
 
-type WorkbenchView = { path: string; open: boolean; focused: boolean }
+type WorkbenchView = { navigationKey: string; open: boolean; focused: boolean }
 
 const NavigationSidebar = memo(AppSidebar)
 
 export function AppShell() {
   const compact = useIsCompactLayout()
   const viewport = useVisualViewport(compact)
-  const { pathname } = useLocation()
-  const [view, setView] = useState<WorkbenchView>({ path: pathname, open: true, focused: false })
-  const resourceOpen = getRouteKind(pathname) === "resource" && (view.path !== pathname || view.open)
+  const { pathname, key: navigationKey } = useLocation()
+  const [view, setView] = useState<WorkbenchView>({ navigationKey, open: true, focused: false })
+  // Only committed navigation reveals a target, including same-URL selection and
+  // history POP. Record each new owner so returning to an old key cannot revive hide.
+  if (view.navigationKey !== navigationKey) {
+    setView({ navigationKey, open: true, focused: false })
+  }
+  const resourceOpen = getRouteKind(pathname) === "resource" && (view.navigationKey !== navigationKey || view.open)
   const layout = useWorkbenchLayout(resourceOpen ? pathname : null)
   const drawer = layout.width < DRAWER_BREAKPOINT
   const expanded = layout.open
@@ -52,7 +57,7 @@ export function AppShell() {
 
 function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnType<typeof useWorkbenchLayout>; columns: ReturnType<typeof computeWorkbenchColumns>; view: WorkbenchView; setView: Dispatch<SetStateAction<WorkbenchView>> }) {
   const { t } = useTranslation()
-  const { pathname } = useLocation()
+  const { pathname, key: navigationKey } = useLocation()
   const navigate = useNavigate()
   const kind = getRouteKind(pathname)
   const { setOpenCompact, open: navigationExpanded } = useSidebar()
@@ -72,31 +77,43 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
   // A new deep link opens its resource; hiding/focusing keeps the Outlet mounted.
   const hasResource = kind === "resource"
   const global = kind === "global"
-  const resourceOpen = hasResource && (view.path !== pathname || view.open)
+  const resourceOpen = hasResource && (view.navigationKey !== navigationKey || view.open)
   const compact = columns.right === 0
-  const resourceFocused = resourceOpen && (compact || (view.path === pathname && view.focused))
+  const resourceFocused = resourceOpen && (compact || (view.navigationKey === navigationKey && view.focused))
   // Preserve the interacted surface and its portals when side-by-side space disappears.
   const [compactChat, setCompactChat] = useState<string | null>(null)
-  const showResource = global || (resourceOpen && (!compact || compactChat !== pathname))
+  const [compactNavigationKey, setCompactNavigationKey] = useState(navigationKey)
+  if (compactNavigationKey !== navigationKey) {
+    setCompactNavigationKey(navigationKey)
+    setCompactChat(null)
+  }
+  const showResource = global || (resourceOpen && (!compact || compactChat !== navigationKey))
   const showChat = !global && (!showResource || !resourceFocused)
 
   const revealChat = useCallback(() => {
     if (global) navigate(defaultPath)
     else {
-      setView({ path: pathname, open: true, focused: false })
-      setCompactChat(pathname)
+      setView({ navigationKey, open: true, focused: false })
+      setCompactChat(navigationKey)
     }
     if (drawer) setOpenCompact(false)
-  }, [pathname, global, navigate, drawer, setOpenCompact, setView])
+  }, [navigationKey, global, navigate, drawer, setOpenCompact, setView])
 
   useEffect(() => {
     window.addEventListener("ineffable:right-sidebar:open", revealChat)
     return () => window.removeEventListener("ineffable:right-sidebar:open", revealChat)
   }, [revealChat])
 
+  const revealNewChat = useCallback(() => {
+    revealChat()
+    // Starting a draft is an explicit chat-only view, not a navigation away
+    // from the mounted resource (which may still contain an unsaved editor).
+    setView({ navigationKey, open: false, focused: false })
+  }, [navigationKey, revealChat, setView])
+
   function openResource() {
     setCompactChat(null)
-    setView({ path: pathname, open: true, focused: false })
+    setView({ navigationKey, open: true, focused: false })
   }
 
   return (
@@ -106,7 +123,7 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
       <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
         <div className="relative flex min-h-0 min-w-0 flex-1">
           {/* This position never changes across routes or panel/viewport changes. */}
-          <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" onPointerDownCapture={() => setCompactChat(pathname)} onFocusCapture={() => setCompactChat(pathname)} className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
+          <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" onPointerDownCapture={() => setCompactChat(navigationKey)} onFocusCapture={() => setCompactChat(navigationKey)} className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
             <header data-slot="workbench-conversation-header" className="flex h-12 shrink-0 items-center gap-1 border-b pr-3 pl-5">
               {drawer ? <SidebarTrigger aria-label={t("shell.sidebar.toggle")} title={t("shell.sidebar.toggle")} /> : null}
               <div ref={setHeaderTarget} data-slot="conversation-header-content" className="flex min-w-0 flex-1 items-center" />
@@ -120,7 +137,7 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
                 </Button>
               ) : null}
             </header>
-            <ChatWorkbench headerTarget={headerTarget} navigationActionsTarget={navigationActionsTarget} navigationTarget={navigationTarget} onReveal={revealChat} />
+            <ChatWorkbench headerTarget={headerTarget} navigationActionsTarget={navigationActionsTarget} navigationTarget={navigationTarget} onReveal={revealChat} onNewChat={revealNewChat} />
           </section>
           <section aria-label={t("workbench.resources")} data-slot="resource-workbench" onPointerDownCapture={() => setCompactChat(null)} onFocusCapture={() => setCompactChat(null)} className={cn(
             "relative min-h-0 min-w-0 flex-col overflow-hidden bg-background",
@@ -150,10 +167,10 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
                 )}
               </div>
               {headerContent?.trailing}
-              {hasResource && !compact ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: true, focused: !resourceFocused })} aria-label={t(resourceFocused ? "workbench.split" : "workbench.focus")} title={t(resourceFocused ? "workbench.split" : "workbench.focus")}>
+              {hasResource && !compact ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ navigationKey, open: true, focused: !resourceFocused })} aria-label={t(resourceFocused ? "workbench.split" : "workbench.focus")} title={t(resourceFocused ? "workbench.split" : "workbench.focus")}>
                 {resourceFocused ? <Minimize2Icon /> : <Maximize2Icon />}
               </Button> : null}
-              {hasResource ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: false, focused: false })} aria-label={t("workbench.closeResource")} title={t("workbench.closeResource")}><XIcon /></Button> : null}
+              {hasResource ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ navigationKey, open: false, focused: false })} aria-label={t("workbench.closeResource")} title={t("workbench.closeResource")}><XIcon /></Button> : null}
             </header>
             <div className="min-h-0 min-w-0 flex-1 overflow-auto">
               <Suspense fallback={<RouteLoading />}><Outlet /></Suspense>

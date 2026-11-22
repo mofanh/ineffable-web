@@ -295,6 +295,7 @@ type GatewayChatSidebarProps = {
   navigationActionsTarget?: HTMLElement | null
   navigationTarget?: HTMLElement | null
   onReveal?: () => void
+  onNewChat?: () => void
   isFullScreen: boolean
   onFullScreenChange: (isFullScreen: boolean) => void
 }
@@ -341,6 +342,7 @@ export function GatewayChatSidebar({
   navigationTarget,
   navigationActionsTarget,
   onReveal,
+  onNewChat,
   isFullScreen,
   onFullScreenChange,
 }: GatewayChatSidebarProps) {
@@ -3290,6 +3292,7 @@ export function GatewayChatSidebar({
     runtimeControllerRef.current.disconnectAll()
     updateStreamStatus("idle")
     clearConversation()
+    onNewChat?.()
   }
 
   async function handleStop() {
@@ -4183,7 +4186,7 @@ export function GatewayChatSidebar({
           selectedConversationId={currentConversationId}
           conversations={headerConversations}
           onSelectConversation={(id) => { selectConversationTarget(id); onReveal?.() }}
-          onStartNewChat={() => { startNewChat(); onReveal?.() }}
+          onStartNewChat={startNewChat}
           onRefreshConversations={handleRefreshConversationList}
         />,
         navigationTarget,

@@ -10,6 +10,7 @@ type ChatWorkbenchProps = {
   navigationActionsTarget: HTMLElement | null
   navigationTarget: HTMLElement | null
   onReveal: () => void
+  onNewChat: () => void
 }
 
 const ignoreFullScreenChange = () => {}

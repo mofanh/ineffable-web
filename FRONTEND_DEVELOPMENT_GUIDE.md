@@ -136,7 +136,8 @@ App Shell
 #### 3.6.3 组件职责与状态边界
 
 - AppShell 只拥有路由种类、几何、显示/专注、设置层与导航容器，不持有 run 或会话副本。ChatWorkbench 和 RoutedSurface/Outlet 保持稳定 DOM 兄弟，不通过 key/portal 重挂编辑器。
-- ChatWorkbench 延迟加载 GatewayChatSidebar；会话导航通过 portal 放入 AppSidebar。导航只过滤和展示，选择/新建/刷新调用既有受控命令。
+- ChatWorkbench 延迟加载 GatewayChatSidebar；会话导航通过 portal 放入 AppSidebar。导航只过滤和展示，选择/新建/刷新调用既有受控命令。顶部与侧栏的新建命令额外通知 Shell 进入纯聊天面，即使已经是空草稿也关闭资源；不导航、卸载、清空脏编辑器或停止后台执行。不要用 conversationId=null 的 effect 关闭资源，空草稿下用户仍能主动打开文件。
+- 资源显隐/专注和紧凑聊天选择归属当前已提交 navigation key，成功导航后记录新 owner；同路径重选、仅 query 变化、前进/后退均能重新显露目标。不得在可被 dirty guard 取消的 Link onClick 提前变更显示，也不能用 Outlet key 强制重挂。
 - AppSidebar 仅拥有轻量工作区根和管理入口，/chat 不请求 directory。WorkspaceFilesNavigator 是原文件树的唯一业务 owner，随 CRUD、权限、复制引用、分页与事件刷新迁到 Workspace 资源根；?path/?cursor 继续进入既有分页目录，文件深链继续进入同一编辑器。导航 presentation context 只由叶子订阅，保持开合时 AppSidebar 零无关 render。资源根从已授权 access.workspace 获取元数据，不以仅含活跃空间的导航快照排除归档深链；异步操作在关键 await 后检查 route/session/unmount scope。加载 effect 每个 lifetime 都要有有效观察者，不用 loaded-key 锁存阻止 StrictMode 重启后的替代观察者。
 - Gateway runtime、canonical timeline reducer、run store 和 renderer registry 继续独占聊天投影。不得按布局建立额外订阅、全会话详情 N+1 或第二个 composer。
 - 选中会话与执行所有权不同。导航、隐藏、专注和窗口变化不能隐式 Stop；会话身份变化仍使用原 generation/session fence。

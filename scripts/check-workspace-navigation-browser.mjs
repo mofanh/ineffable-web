@@ -58,6 +58,46 @@ try {
     const tree = page.locator('[data-slot="workspace-files-navigation"]')
     const source = tree.getByRole("button", { name: "Source.md", exact: true })
     await source.waitFor()
+    if (mode !== "archived") {
+      const resource = page.locator('[data-slot="resource-workbench"]')
+      async function selectRoot() {
+        if (!await root.isVisible()) await page.locator('[data-slot="sidebar-trigger"]:visible').click()
+        await root.click()
+        await resource.waitFor({ state: "visible" })
+      }
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 })
+        await resource.getByRole("button", { name: "Hide resource", exact: true }).click()
+        await resource.waitFor({ state: "hidden" })
+        await selectRoot()
+        if (width === 390) {
+          await resource.getByRole("button", { name: "Conversations", exact: true }).click()
+          await resource.waitFor({ state: "hidden" })
+          await selectRoot()
+        }
+      }
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await resource.getByRole("button", { name: "Hide resource", exact: true }).click()
+      await page.locator('[data-slot="sidebar-header"] a[href="/chat"]').click()
+      await tree.waitFor({ state: "detached" })
+      await page.goBack()
+      await source.waitFor({ state: "visible" })
+      await resource.getByRole("button", { name: "Hide resource", exact: true }).click()
+      await page.evaluate(async path => {
+        const { router } = await import("/src/routes/router.tsx")
+        await router.navigate(path)
+      }, `/workspace/${workspace}/objects?path=notes`)
+      await tree.waitFor({ state: "detached" })
+      await resource.waitFor({ state: "visible" })
+      await resource.getByRole("button", { name: "Hide resource", exact: true }).click()
+      await page.goBack()
+      await source.waitFor({ state: "visible" })
+      await page.goForward()
+      await tree.waitFor({ state: "detached" })
+      await resource.waitFor({ state: "visible" })
+      await page.goBack()
+      await source.waitFor({ state: "visible" })
+    }
     await page.screenshot({ path: join(output, `${mode}-workspace-root.png`) })
     assert.equal(fixture.requests.filter(request => request.path.includes(team) && request.path.endsWith("/directory")).length, 0, "resource only loads the selected root")
     await tree.getByRole("button", { name: "Actions for Source.md", exact: true }).click()

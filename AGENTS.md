@@ -446,6 +446,10 @@ const confirmed = await confirm({
   会话只保留一条 48px 顶栏，与资源标题同轴，不叠跨列工具栏或伪造轨迹页签；标题/操作
   由唯一 runtime portal 到稳定 Shell 槽位，不移动滚动/composer owner。长标题截断保留 title，
   专注资源/全局页提供返回会话，小屏保留抽屉入口；布局切换验证精确 DOM 与操作可达。
+  顶部和侧栏新建会话统一回调到 Shell，默认收起资源并返回会话（即使已是新草稿）；
+  只隐藏同一资源/编辑器，不导航、卸载、清空未保存正文或隐式 Stop，资源入口仍可显式重开。
+  资源显隐/专注与紧凑聊天偏好按已提交 navigation key 归属，每次成功导航重置当前 owner；
+  同根重选、仅 query 变化和历史 POP 均显露目标，不能只比较 pathname 或在 Link onClick 提前显露。
 - 消息/输入卡共用扣除相同 scrollbar/gutter 的可用宽 A：B=clamp(680,columnWidth*.64,880)，
   M=min(B,A-64)，C=M+32（最大 912）。窄屏仍保持实际 32px 宽差、同一中心轴，不能分别夹取成等宽。
   聊天 scroll/window owner 唯一；sticky composer 与消息共用原滚动区，阅读历史不因 delta/resize 拉尾。
