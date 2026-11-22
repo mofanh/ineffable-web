@@ -1,4 +1,8 @@
-import { Suspense, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, Suspense, memo, useCallback, useEffect, useMemo, useState } from "react"
+import type { TFunction } from "i18next"
+import type { Workspace } from "@/features/workspace/api/workspace-api"
+import type { BreadcrumbEntry } from "@/routes/navigation"
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { FolderOpenIcon, Maximize2Icon, Minimize2Icon, MessageSquareTextIcon, XIcon } from "lucide-react"
@@ -34,8 +38,12 @@ function WorkbenchContent() {
   const { pathname } = useLocation()
   const compact = useIsCompactLayout()
   const { setOpenCompact } = useSidebar()
-  const { currentWorkspace } = useWorkspaceSession()
+  const { currentWorkspace, workspaces } = useWorkspaceSession()
   const { headerContent } = useAppHeader()
+  const breadcrumbs = headerContent?.breadcrumbs
+    ?? getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces, t)
+    ?? getRouteMeta(pathname)?.breadcrumbs
+    ?? []
   const [navigationTarget, setNavigationTarget] = useState<HTMLDivElement | null>(null)
   const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" />, [])
   // Panel preferences are local view state, never conversation/run ownership.
@@ -46,6 +54,8 @@ function WorkbenchContent() {
   const resourceFocused = resourceOpen && (view.path !== pathname
     ? compact || !pathname.startsWith("/workspace/")
     : view.focused || compact)
+  // Preserve the interacted surface across the breakpoint, including its portals.
+  // A different resource route still opens that resource before any interaction.
   const [compactChat, setCompactChat] = useState<string | null>(null)
   const showResource = resourceOpen && (!compact || compactChat !== pathname)
   const showChat = !showResource || !resourceFocused
@@ -89,17 +99,32 @@ function WorkbenchContent() {
         </header>
         <main className="flex min-h-0 min-w-0 flex-1">
           {/* This position never changes across routes or panel/viewport changes. */}
-          <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
+          <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" onPointerDownCapture={() => setCompactChat(pathname)} onFocusCapture={() => setCompactChat(pathname)} className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
             <ChatWorkbench navigationTarget={navigationTarget} onReveal={revealChat} />
           </section>
-          <section aria-label={t("workbench.resources")} data-slot="resource-workbench" className={cn(
+          <section aria-label={t("workbench.resources")} data-slot="resource-workbench" onPointerDownCapture={() => setCompactChat(null)} onFocusCapture={() => setCompactChat(null)} className={cn(
             "min-h-0 min-w-0 flex-col overflow-hidden bg-background",
             showResource ? "flex" : "hidden",
             showChat ? "w-[44%] min-w-96 border-l" : "flex-1",
           )}>
             <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1">
               <div className="min-w-0 flex-1 truncate text-sm font-medium">
-                {headerContent?.leading ?? headerContent?.breadcrumbs?.at(-1)?.label ?? getRouteMeta(pathname)?.title}
+                {headerContent?.leading ?? (
+                  <Breadcrumb className="min-w-0 overflow-hidden">
+                    <BreadcrumbList className="flex-nowrap">
+                      {breadcrumbs.map((crumb, index) => (
+                        <Fragment key={`${crumb.label}-${index}`}>
+                          <BreadcrumbItem className="min-w-0 shrink">
+                            {index < breadcrumbs.length - 1 && crumb.path ? (
+                              <BreadcrumbLink asChild><Link className="truncate" title={crumb.label} to={crumb.path}>{crumb.label}</Link></BreadcrumbLink>
+                            ) : <BreadcrumbPage className="truncate" title={crumb.label}>{crumb.label}</BreadcrumbPage>}
+                          </BreadcrumbItem>
+                          {index < breadcrumbs.length - 1 ? <BreadcrumbSeparator /> : null}
+                        </Fragment>
+                      ))}
+                    </BreadcrumbList>
+                  </Breadcrumb>
+                )}
               </div>
               {headerContent?.trailing}
               {!compact ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: true, focused: !resourceFocused })} aria-label={t(resourceFocused ? "workbench.split" : "workbench.focus")} title={t(resourceFocused ? "workbench.split" : "workbench.focus")}>
@@ -115,4 +140,35 @@ function WorkbenchContent() {
       </SidebarInset>
     </>
   )
+}
+
+// Retain workspace-specific context when a page does not supply its own crumbs.
+function getWorkspaceBreadcrumbs(
+  pathname: string,
+  currentWorkspace: Workspace | null,
+  workspaces: Workspace[],
+  t: TFunction,
+): BreadcrumbEntry[] | null {
+  if (pathname === "/team-spaces/archived") {
+    return [{ label: t("shell.breadcrumbs.teamSpaces") }, { label: t("workspaceLifecycle.archived") }]
+  }
+  if (pathname === "/team-spaces/new") {
+    return [{ label: t("shell.breadcrumbs.teamSpaces") }, { label: t("shell.breadcrumbs.createSpace") }]
+  }
+  if (pathname === "/notifications") return [{ label: t("shell.breadcrumbs.invitations") }]
+  const membersMatch = pathname.match(/^\/team-spaces\/([^/]+)\/members$/)
+  if (membersMatch) {
+    const workspaceId = decodeURIComponent(membersMatch[1])
+    const workspace = workspaces.find(candidate => candidate.id === workspaceId)
+      ?? (currentWorkspace?.id === workspaceId ? currentWorkspace : null)
+    return [
+      { label: t("shell.breadcrumbs.teamSpaces") },
+      { label: workspace?.name || t("shell.breadcrumbs.teamSpaces"), path: `/team-spaces/${workspaceId}/members` },
+      { label: t("shell.breadcrumbs.members") },
+    ]
+  }
+  if (pathname.startsWith("/workspace-invitations/")) {
+    return [{ label: t("shell.breadcrumbs.teamSpaces") }, { label: t("shell.breadcrumbs.invitationConfirm") }]
+  }
+  return null
 }

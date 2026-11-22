@@ -13,6 +13,7 @@ const checks = [
   ["check:composer-settings"], ["check:admin-mobile"], ["check:admin-editor"],
   ["check:automation-runtime"], ["check:toast"],
   ["check:file-references"], ["check:workspace-rule"],
+  ["check:workspace-delete"], ["check:workspace-lifecycle"],
 ]
 for (const [name, ...args] of checks) {
   console.log(`\n=== ${name} ${args.join(" ")} ===`)

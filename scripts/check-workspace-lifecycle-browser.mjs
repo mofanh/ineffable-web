@@ -3,7 +3,7 @@ import { existsSync } from "node:fs"
 import { chromium } from "playwright-core"
 import { createServer } from "vite"
 const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
-const server = await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0 } })
+const server = await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0, watch: null, hmr: false } })
 let browser
 try {
   await server.listen(); browser = await chromium.launch({ executablePath, headless: true })
@@ -173,7 +173,8 @@ try {
   assert.equal(await page.getByRole("button", { name: "Up one level", exact: true }).count(), 0)
   assert.equal(await page.getByRole("heading", { name: team.name, exact: true }).count(), 0)
   await openFile(); await page.getByText("Content A", { exact: true }).waitFor()
-  await page.evaluate(() => { window.__editorBeforeRefresh = document.querySelector("main") })
+  await page.evaluate(() => { window.__resourceBeforeRefresh = document.querySelector('[data-slot="resource-workbench"] > div') })
+  assert.equal(await page.evaluate(() => Boolean(window.__resourceBeforeRefresh)), true, "capture the routed resource host, not the new outer main; permission reload may replace the page loading branch")
   await openAction("Archive space")
   await page.getByRole("alertdialog").getByRole("button", { name: "Cancel", exact: true }).click()
   assert.deepEqual(actions, [])
@@ -183,7 +184,7 @@ try {
   await page.getByRole("menuitem", { name: "Restore space", exact: true }).waitFor()
   assert.ok(page.url().endsWith(`/workspace/${team.id}/objects/a`))
   assert.equal(await page.getByRole("button", { name: "Edit file", exact: true }).count(), 0)
-  assert.equal(await page.evaluate(() => window.__editorBeforeRefresh === document.querySelector("main")), true)
+  assert.equal(await page.evaluate(() => window.__resourceBeforeRefresh.isConnected && window.__resourceBeforeRefresh === document.querySelector('[data-slot="resource-workbench"] > div')), true)
   await page.getByText("You are the last owner. Restore the space before managing ownership.", { exact: true }).waitFor()
   denied = true
   await openAction("Restore space")
@@ -229,18 +230,18 @@ try {
   archived = false
   await page.goto(`${origin}/team-spaces/new`)
   await page.locator("#team-workspace-name").fill("Team lifecycle")
-  await page.locator('main button[type="submit"]').click()
+  await page.locator('[data-slot="resource-workbench"] button[type="submit"]').click()
   await page.waitForURL(`${origin}/team-spaces/${team.id}/members`)
   assert.equal(created, 1)
   await page.locator('main input[type="email"]').fill("guest@example.com")
-  await page.locator('main form button').click()
+  await page.getByRole("button", { name: "Send invitation", exact: true }).click()
   await page.getByText("The invitation was created, but the email was not delivered. You can share the invitation link below.", { exact: true }).waitFor()
   assert.equal(invites, 1); assert.equal(created, 1)
   loseCreate = true
   await page.goto(`${origin}/team-spaces/new`)
   await page.locator("#team-workspace-name").fill("Uncertain create")
-  await page.locator('main button[type="submit"]').click()
-  await page.waitForFunction(() => document.querySelector('main button[type="submit"]')?.disabled)
+  await page.locator('[data-slot="resource-workbench"] button[type="submit"]').click()
+  await page.waitForFunction(() => document.querySelector('[data-slot="resource-workbench"] button[type="submit"]')?.disabled)
   await page.getByText("The submission result is unknown. Check the list before creating again.", { exact: true }).waitFor()
   assert.equal(created, 2)
   for (const width of [320, 390, 768, 1200]) {

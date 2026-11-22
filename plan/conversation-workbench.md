@@ -30,4 +30,10 @@
 ## 进度
 - 阶段一实现完成：默认 /chat、单实例中央聊天、既有 runtime 投影左栏、持久资源 Outlet、桌面分屏/专注和窄屏切换；删除闲置右栏缩放与壳组件。i18n、lint、build、响应式结构及会话架构/路由/runtime/store/auth-session 已通过。
 - 阶段二完成：开发/production 布局与性能、中英文实际明暗主题、导航搜索/选择、新草稿、编辑保留、图片引用六类 readiness/身份隔离、通知/自动化、管理端、输入设置 portal、认证入口 16 场景与 hydration 6 场景、文件引用/规则已通过。管理端 fixture 禁用开发 HMR，避免工作目录编辑使浏览器测试意外刷新。新增串行 `check:conversation-workbench` 供审计后确定性复跑；真实后端/provider 与移动软键盘仍为人工边界。
-- 下一步：本任务阶段提交后进行独立只读全量审计。用户已有改动不纳入提交；审计只检查本任务提交范围。
+- 全量独立只读审计完成（dc4083a → f069193）：P0=0/P1=0/P2=2。原串行门禁通过，但额外 workspace-lifecycle 在 breadcrumb 缺失处失败，因此审计判定 BLOCK，不以原聚合全绿掩盖功能回归。
+- WB-01/P2：资源 header 丢失祖先目录链接。整改恢复完整 breadcrumb renderer、工作区 fallback 与 leading/trailing；既有生命周期检查继续断言 sub→notes 的真实导航。
+- WB-02/P2：1440 分屏打开运行设置后缩到390，隐藏 chat owner 但其 portal 仍覆盖资源。整改跨断点保留最近交互 pane，新增 EN/ZH×theme 开发/production 的资源分屏+settings resize 用例，不卸载 composer 或改变运行状态。
+- 门禁补强：聚合追加 workspace-delete/lifecycle；旧 main submit/form selector 限定到资源语义，生命周期 fixture 禁用 watcher/HMR，并将旧 main identity 断言限定到资源内容宿主（权限刷新仍允许既有页面 loading branch 切换）；布局切换的真实 editor/textarea identity 则由工作台布局门禁单独覆盖。
+- 整改局部回归通过：workspace-lifecycle；check:workbench-layout 开发/production（EN/ZH×light/dark）。缩屏回归等待资源隐藏这一断点提交事实，而非桌面已可见的 composer，继续断言所属 chat 与 settings dialog 可见。
+- 用户补充设计方向：以 DSH 前端为主要视觉/交互参照。只读参考 DSH 的 sidebar、ConversationRoot、InputBar、ChatView 源码；借鉴低噪音导航、平整主画布、居中共享阅读轴和输入卡片层级，不移植 DSH runtime/插件协议/品牌素材，不重做工具投影。
+- 当前：先提交 WB-01/WB-02 修复，再在原分支集中收敛 shell/会话导航/输入表面视觉，复跑受影响浏览器检查；完成后由全新只读 auditor 定向复核发现、增量差异与受影响生产链，再跑最终确定性 CI。用户已有改动不纳入提交；不合并、不推送。
