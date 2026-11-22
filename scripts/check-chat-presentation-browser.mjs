@@ -24,6 +24,8 @@ try {
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/chat-presentation-fixture.html`)
   const footer = page.locator("[data-assistant-answer-footer]")
   await footer.waitFor()
+  const typography = await page.locator(".chat-markdown").filter({ hasText: "整理完成" }).evaluate(node => ({ font: getComputedStyle(node).fontSize, line: getComputedStyle(node).lineHeight }))
+  assert.deepEqual(typography, { font: "14px", line: "24px" }, "assistant uses the shared 14/24 reading baseline")
   for (const width of [320,390,768,1280]) {
     await page.setViewportSize({width,height:900})
     const layout = await footer.evaluate(node => ({width:node.clientWidth,scrollWidth:node.scrollWidth,body:document.documentElement.scrollWidth,viewport:innerWidth}))

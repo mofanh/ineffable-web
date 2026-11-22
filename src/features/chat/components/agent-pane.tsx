@@ -437,11 +437,12 @@ const AgentTextBlock = React.memo(function AgentTextBlock({
   streaming: boolean
 }) {
   return (
-    <div className="text-[15px] leading-8 text-foreground">
+    // DSH AssistantMarkdown.module.css: 14/24 body; renderer/projector unchanged.
+    <div className="text-sm leading-6 text-foreground">
       <MarkdownContent
         content={content}
         streaming={streaming}
-        className={cn(MARKDOWN_BASE_CLASS, "text-[15px] leading-8")}
+        className={cn(MARKDOWN_BASE_CLASS, "text-sm leading-6")}
       />
     </div>
   )

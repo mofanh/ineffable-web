@@ -2,6 +2,7 @@ import * as React from "react"
 import { createRoot } from "react-dom/client"
 import { TooltipProvider } from "../src/components/ui/tooltip"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list"
+import { ChatScrollBody } from "../src/features/chat/components/chat-scroll-body"
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector"
 import { mapConversationMessagesToEntries } from "../src/features/chat/model/chat-history"
 import type { ChatEntry } from "../src/features/chat/gateway-chat-types"
@@ -23,6 +24,14 @@ function Fixture(){
   const [history,setHistory]=React.useState(false)
   const [reference,setReference]=React.useState("")
   const ref=React.useRef<HTMLDivElement>(null)
-  return <div className="flex h-screen flex-col"><button onClick={()=>{setNativeMode(true);setHistory(false)}}>Native live image</button><button onClick={()=>{setNativeMode(true);setHistory(true)}}>Native history image</button><output data-reference>{reference}</output><ChatMessageList onImageReference={image=>setReference(image.version_id)} entries={nativeMode ? [{...(history?nativeHistory:nativeLive),id:"native"}] : entries} accessToken="fixture-token" hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null} isAwaitingResponse={false} isLoadingInitial={false} showScrollToBottom={false} scrollViewportRef={ref} onViewportScroll={()=>{}} onLoadOlderConversationMessagesPage={()=>{}} onScrollToBottomClick={()=>{}} onStreamingContentProgress={()=>{}} onApproveApproval={()=>{}} onRejectApproval={()=>{}} activeHumanRunId={null} onSubmitUserInput={async()=>{}} isFullScreen /></div>
+  return <div className="flex h-screen flex-col"><button onClick={()=>{setNativeMode(true);setHistory(false)}}>Native live image</button><button onClick={()=>{setNativeMode(true);setHistory(true)}}>Native history image</button><output data-reference>{reference}</output><div className="chat-conversation flex h-full min-h-0 flex-1 flex-col">
+      <ChatScrollBody empty={false} composer={null} scrollViewportRef={ref}
+        hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
+        showScrollToBottom={false} onViewportScroll={() => {}} onViewportScrollIntent={() => {}}
+        onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
+        onStreamingContentProgress={() => {}}>
+        <ChatMessageList onImageReference={image=>setReference(image.version_id)} entries={nativeMode ? [{...(history?nativeHistory:nativeLive),id:"native"}] : entries} accessToken="fixture-token" hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null} isAwaitingResponse={false} isLoadingInitial={false} onStreamingContentProgress={()=>{}} onApproveApproval={()=>{}} onRejectApproval={()=>{}} activeHumanRunId={null} onSubmitUserInput={async()=>{}} />
+      </ChatScrollBody>
+    </div></div>
 }
 createRoot(document.getElementById("root")!).render(<TooltipProvider><Fixture /></TooltipProvider>)

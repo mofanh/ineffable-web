@@ -55,7 +55,7 @@ ${md}`, {}, unit)];
 }
 async function assertLayout(page) {
   const layout = await page.evaluate(() => {
-    const scroller = document.querySelector("[data-chat-scroll-content]")?.parentElement;
+    const scroller = document.querySelector("[data-chat-scroll-content]")?.closest("[data-chat-scroll-region]");
     const composer = document.querySelector("textarea");
     const rect = composer?.getBoundingClientRect();
     return { viewportHeight: innerHeight, scrollerClientHeight: scroller?.clientHeight, scrollerScrollHeight: scroller?.scrollHeight, bodyScrollHeight: document.body.scrollHeight, composerRect: rect ? { top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height } : null };
@@ -164,7 +164,7 @@ try {
     while (loaded < size) {
       const expected = Math.min(size, loaded + 40);
       await page.evaluate(() => {
-        const el = document.querySelector("[data-chat-scroll-content]")?.parentElement;
+        const el = document.querySelector("[data-chat-scroll-content]")?.closest("[data-chat-scroll-region]");
         if (!el) throw Error("no scroll viewport");
         // Pagination is user-driven. A layout/virtualizer scroll correction
         // alone must not interrupt tail following and fetch more history.

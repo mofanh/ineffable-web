@@ -97,7 +97,8 @@ try {
         background: getComputedStyle(header).backgroundColor,
       }
     })
-    assert.equal(layout.viewportTop, layout.headerTop, "history must extend beneath the floating header")
+    assert.equal(layout.headerBottom - layout.headerTop, 76, "active conversation keeps the DSH 76px normal-flow header")
+    assert.equal(layout.viewportTop, layout.headerBottom, "shared reading scrollport starts after the normal-flow header")
     assert.ok(layout.contentTop >= layout.headerBottom, "initial content must clear the header")
     assert.equal(layout.blur, "none", "focus mode must not blur history underneath its header")
     assert.equal(layout.background, "rgba(0, 0, 0, 0)", "focus mode header must be transparent")

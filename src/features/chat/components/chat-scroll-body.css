@@ -1,0 +1,58 @@
+/* Adapted geometry: DeepSeek Harness 0.2.2-rc.5 (2e39e70496aa02986ca6a820c5d497e816b69d7e)
+ * packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css,
+ * HeroShell.module.css and InputBar.module.css. Copyright (c) 2026 DeepSeek, MIT.
+ * Adapted for Ineffable's existing scroll owner and semantic tokens; see the
+ * distributed third-party-notices.txt for the complete license. */
+.chat-conversation {
+  container-type: inline-size;
+}
+.chat-scroll-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+}
+.chat-reading-message {
+  flex: 0 0 auto;
+  width: min(clamp(680px, 64cqw, 880px), calc(100% - 64px));
+  margin-inline: auto;
+  padding-top: 12px;
+  padding-bottom: 16px;
+}
+.chat-composer-seat {
+  position: sticky;
+  bottom: 0;
+  z-index: 9;
+  flex: none;
+  margin-top: auto;
+  padding-top: 36px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  overflow-anchor: none;
+  background: linear-gradient(180deg, transparent 0px, var(--background) 36px);
+}
+.chat-reading-composer {
+  width: min(calc(clamp(680px, 64cqw, 880px) + 32px), calc(100% - 32px));
+  margin-inline: auto;
+}
+.chat-scroll-body[data-empty="true"] {
+  justify-content: center;
+}
+.chat-scroll-body[data-empty="true"] .chat-composer-seat {
+  position: relative;
+  margin-top: 0;
+  padding-top: 16px;
+}
+.chat-scroll-latest {
+  position: absolute;
+  inset-inline: 0;
+  top: 20px;
+  display: flex;
+  justify-content: center;
+  transform: translateY(-100%);
+  pointer-events: none;
+  z-index: 8;
+}

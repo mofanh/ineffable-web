@@ -19,6 +19,7 @@
     "check:composer-catalog": "node scripts/check-composer-catalog-browser.mjs",
     "check:composer-settings": "node --experimental-strip-types scripts/check-composer-settings-browser.mjs",
     "check:chat-stream-layout": "node scripts/check-chat-stream-layout-browser.mjs",
+    "check:chat-reading": "node scripts/check-chat-reading-browser.mjs",
     "check:model-failure": "node --experimental-strip-types scripts/check-model-failure-presentation.mjs",
     "check:capability-catalog": "tsx scripts/check-capability-catalog-selection.mjs",
     "check:capability-save": "node scripts/check-capability-save-browser.mjs",

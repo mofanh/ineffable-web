@@ -31,7 +31,20 @@ async function sample(page, name) {
     const resource = document.querySelector('[data-slot="resource-workbench"]')
     return { viewport: innerWidth, left: main.getBoundingClientRect().left, chat: chat.getBoundingClientRect().width, resource: resource.getBoundingClientRect().width, horizontalOverflow: document.documentElement.scrollWidth > innerWidth }
   })
-  samples.push({ name, ...geometry })
+  const reading = await page.locator('[data-slot="chat-workbench"]').evaluate(root => {
+    const viewport = root.querySelector('div[data-chat-scroll-region]')
+    const message = root.querySelector('[data-chat-reading-message]')
+    const card = root.querySelector('[data-slot="input-group"]')
+    if (!viewport || !message || !card) return null
+    const m = message.getBoundingClientRect(), c = card.getBoundingClientRect()
+    return { available: viewport.clientWidth, message: m.width, composer: c.width, centerDifference: Math.abs(m.x + m.width / 2 - c.x - c.width / 2), base: Math.max(680, Math.min(880, root.getBoundingClientRect().width * .64)) }
+  })
+  if (geometry.chat > 0) check(Boolean(reading), `${name}: one shared scrollport exists even for the empty conversation`)
+  if (geometry.chat > 0 && reading) {
+    check(Math.abs(reading.message - Math.min(reading.base, reading.available - 64)) <= 1, `${name}: message follows scrollbar-adjusted reading axis`)
+    check(Math.abs(reading.composer - reading.message - 32) <= 1 && reading.centerDifference <= 1, `${name}: composer is exactly 32px wider on the same center`)
+  }
+  samples.push({ name, ...geometry, reading })
   return geometry
 }
 try {

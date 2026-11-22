@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client"
 
 import { WebNodeList } from "../src/features/chat/components/agent-pane"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list"
+import { ChatScrollBody } from "../src/features/chat/components/chat-scroll-body"
 import { ChatSidebarHeader } from "../src/features/chat/components/chat-sidebar-header"
 import { reduceConversationTimeline } from "../src/features/chat/model/conversation-entry-reconciliation"
 import "../src/index.css"
@@ -311,6 +312,12 @@ function Fixture() {
           onFullScreenChange={() => {}}
           onCollapseSidebar={() => {}}
         />
+        <div className="chat-conversation flex h-full min-h-0 flex-1 flex-col">
+      <ChatScrollBody empty={false} composer={null} scrollViewportRef={terminalViewportRef}
+        hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
+        showScrollToBottom={false} onViewportScroll={() => {}} onViewportScrollIntent={() => {}}
+        onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
+        onStreamingContentProgress={() => {}}>
         <ChatMessageList
           entries={terminalEntries}
           hasOlderEntries={false}
@@ -318,18 +325,14 @@ function Fixture() {
           olderEntriesError={null}
           isAwaitingResponse={false}
           isLoadingInitial={false}
-          showScrollToBottom={false}
-          scrollViewportRef={terminalViewportRef}
-          onViewportScroll={() => {}}
-          onLoadOlderConversationMessagesPage={() => {}}
-          onScrollToBottomClick={() => {}}
           onStreamingContentProgress={() => {}}
           onApproveApproval={() => {}}
           onRejectApproval={() => {}}
           activeHumanRunId={null}
           onSubmitUserInput={async () => {}}
-          isFullScreen
         />
+      </ChatScrollBody>
+    </div>
       </div>
     </div>
   )

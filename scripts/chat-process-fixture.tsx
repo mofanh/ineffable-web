@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router-dom"
 import { TooltipProvider } from "../src/components/ui/tooltip"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list"
+import { ChatScrollBody } from "../src/features/chat/components/chat-scroll-body"
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector"
 import type { AssistantEntry } from "../src/features/chat/gateway-chat-types"
 import type { GatewayChatStreamEvent } from "../src/lib/api/chat/gateway-events"
@@ -102,12 +103,19 @@ function Fixture() {
       <button onClick={()=>document.documentElement.classList.toggle("dark")}>theme</button>
     </div>
     <div className="min-h-0 flex-1">
-      <ChatMessageList entries={[entry]} hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
-        isAwaitingResponse={status==="streaming"} isLoadingInitial={false} showScrollToBottom={false} scrollViewportRef={viewport}
-        onViewportScroll={()=>{}} onLoadOlderConversationMessagesPage={()=>{}} onScrollToBottomClick={()=>{}} onStreamingContentProgress={()=>{}}
+      <div className="chat-conversation flex h-full min-h-0 flex-1 flex-col">
+      <ChatScrollBody empty={false} composer={null} scrollViewportRef={viewport}
+        hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
+        showScrollToBottom={false} onViewportScroll={() => {}} onViewportScrollIntent={() => {}}
+        onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
+        onStreamingContentProgress={() => {}}>
+        <ChatMessageList entries={[entry]} hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
+        isAwaitingResponse={status==="streaming"} isLoadingInitial={false} onStreamingContentProgress={()=>{}}
         onApproveApproval={()=>{}} onRejectApproval={()=>{}} activeHumanRunId={status==="awaiting_human"?"process-run":null}
         activeHumanNeedId={status==="awaiting_human"?"fixture-need":null} activeHumanNeedKind={status==="awaiting_human"?"user_input":null}
-        onSubmitUserInput={async()=>{}} isFullScreen />
+        onSubmitUserInput={async()=>{}} />
+      </ChatScrollBody>
+    </div>
     </div>
   </div>
 }

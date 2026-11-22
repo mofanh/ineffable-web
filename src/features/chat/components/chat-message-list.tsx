@@ -20,7 +20,6 @@ import {
   ListTreeIcon,
   InfoIcon,
   ListCollapseIcon,
-  ArrowDownIcon,
   CircleAlertIcon,
   CircleHelpIcon,
   PauseIcon,
@@ -43,7 +42,6 @@ import { WebNodeList } from "@/features/chat/components/agent-pane"
 import { AgentReportStep } from "./agent-report-step"
 import { isAgentReportInput, needsReportSource } from "../model/agent-report-turns"
 import type { AgentUserInputResponse } from "@/features/chat/components/agent-tool-renderers"
-import { useChatScrollBoundary, type ChatScrollDirection } from "@/features/chat/components/chat-scroll-boundary"
 import { cn } from "@/lib/utils"
 
 const EMPTY_DISPLAY_NAMES: Record<string, string> = {}
@@ -105,13 +103,7 @@ type ChatMessageListProps = {
   olderEntriesError: string | null
   isAwaitingResponse: boolean
   isLoadingInitial: boolean
-  showScrollToBottom: boolean
-  scrollViewportRef: React.RefObject<HTMLDivElement | null>
-  /** True while following the tail; layout corrections must not load history. */
-  onViewportScroll: () => boolean | void
-  onViewportScrollIntent?: (direction: ChatScrollDirection) => void
   onLoadOlderConversationMessagesPage: () => void
-  onScrollToBottomClick: () => void
   onStreamingContentProgress: () => void
   onApproveApproval: (entryId: string) => void
   onRejectApproval: (entryId: string) => void
@@ -119,7 +111,6 @@ type ChatMessageListProps = {
   activeHumanNeedId?: string | null
   activeHumanNeedKind?: string | null
   onSubmitUserInput: (response: AgentUserInputResponse) => Promise<void>
-  isFullScreen: boolean
   trialVerdict?: {
     entryId: string
     busyAction: "accept" | "rollback" | null
@@ -228,12 +219,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   olderEntriesError,
   isAwaitingResponse,
   isLoadingInitial,
-  showScrollToBottom,
-  scrollViewportRef,
-  onViewportScroll,
-  onViewportScrollIntent,
   onLoadOlderConversationMessagesPage,
-  onScrollToBottomClick,
   onStreamingContentProgress,
   onApproveApproval,
   onRejectApproval,
@@ -241,11 +227,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   activeHumanNeedId,
   activeHumanNeedKind,
   onSubmitUserInput,
-  isFullScreen,
   trialVerdict,
   onInspectRun,
 }: ChatMessageListProps) {
-  const scrollBoundaryRef = useChatScrollBoundary(scrollViewportRef, onViewportScrollIntent)
   const { t } = useTranslation()
   const prefersReducedMotion = usePrefersReducedMotion()
   const messageContentRef = React.useRef<HTMLDivElement | null>(null)
@@ -285,7 +269,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
   if (!hasEntries && isLoadingInitial) {
     return (
-      <div className="mx-auto flex h-full w-full max-w-[760px] flex-col gap-7 px-5 pt-[calc(var(--chat-header-height,0px)+0.5rem)] pb-8 md:px-8" role="status">
+      <div className="flex w-full flex-col gap-7 pb-8" role="status">
         <span className="sr-only">{t("chat.gateway.syncingHistory")}</span>
         {["w-2/5", "w-full", "w-4/5", "w-full"].map((width, index) => (
           <div key={index} className="space-y-3" aria-hidden="true">
@@ -299,44 +283,15 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
   if (!hasEntries && !showThinkingPlaceholder) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <p className="text-xl font-medium tracking-tight text-foreground/85">{t("chat.messages.startTitle")}</p>
+      <div className="flex flex-col items-center justify-center py-4 text-center">
+        <p className="text-[26px] leading-8 font-medium tracking-tight text-foreground/85">Ineffable</p>
       </div>
     )
   }
 
   return (
-    <div className="relative h-full">
-      <div
-        ref={scrollBoundaryRef}
-        data-chat-scroll-region
-        style={{ overflowAnchor: "none" }}
-        onScroll={(event) => {
-          const followingTail = onViewportScroll() === true
-          if (
-            !followingTail &&
-            hasOlderEntries &&
-            !isLoadingOlderEntries &&
-            !olderEntriesError &&
-            event.currentTarget.scrollTop < 96
-          ) {
-            onLoadOlderConversationMessagesPage()
-          }
-        }}
-        className={cn(
-          "h-full min-h-0 overflow-y-auto overscroll-contain pt-[calc(var(--chat-header-height,0px)+0.5rem)] pb-4 scroll-pt-[calc(var(--chat-header-height,0px)+0.5rem)]",
-          isFullScreen ? "px-5 md:px-8" : "px-3"
-        )}
-      >
-        <div
-          ref={messageContentRef}
-          data-chat-scroll-content
-          data-chat-entry-count={entries.length}
-          className={cn(
-            "mx-auto flex min-h-full w-full flex-col gap-7",
-            isFullScreen && "max-w-[760px]"
-          )}
-        >
+    <div ref={messageContentRef} data-chat-scroll-content data-chat-entry-count={entries.length}
+      className="flex w-full flex-col gap-7">
         {hasOlderEntries ? (
           <div className="flex justify-center">
             <Button
@@ -374,28 +329,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         </ChatRowWindow>
         </ChatProcessDisclosureProvider>
         {showThinkingPlaceholder ? <ThinkingPlaceholder compacting={Boolean(compactingRunId)} /> : null}
-        </div>
-      </div>
-
-      {showScrollToBottom ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                size="icon-lg"
-                variant="outline"
-                aria-label={t("chat.messages.latest")}
-                className="pointer-events-auto rounded-full bg-background text-muted-foreground shadow-sm hover:text-foreground dark:bg-background"
-                onClick={onScrollToBottomClick}
-              >
-                <ArrowDownIcon aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>{t("chat.messages.latest")}</TooltipContent>
-          </Tooltip>
-        </div>
-      ) : null}
     </div>
   )
 })

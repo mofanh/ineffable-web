@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { MemoryRouter } from "react-router-dom"
 import { TooltipProvider } from "../src/components/ui/tooltip"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list"
+import { ChatScrollBody } from "../src/features/chat/components/chat-scroll-body"
 import { createAssistantEntry } from "../src/features/chat/model/chat-history"
 import { applyTextDeltaToPane } from "../src/features/chat/chat-pane-state"
 import { parseInputProgress } from "../src/features/chat/model/input-progress"
@@ -30,12 +31,19 @@ function Fixture() {
   const viewport = React.useRef<HTMLDivElement>(null)
   return <div style={{height:"100vh"}} className="flex min-w-0 flex-col">
     <button onClick={() => void i18n.changeLanguage("en-US")}>English</button>
-    <ChatMessageList entries={entries} modelDisplayNames={{"fixture-model":"Model with a very long display name for mobile"}}
+    <div className="chat-conversation flex h-full min-h-0 flex-1 flex-col">
+      <ChatScrollBody empty={false} composer={null} scrollViewportRef={viewport}
+        hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
+        showScrollToBottom={false} onViewportScroll={() => {}} onViewportScrollIntent={() => {}}
+        onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
+        onStreamingContentProgress={() => {}}>
+        <ChatMessageList entries={entries} modelDisplayNames={{"fixture-model":"Model with a very long display name for mobile"}}
       hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null} isAwaitingResponse={false}
-      isLoadingInitial={false} showScrollToBottom={false} scrollViewportRef={viewport}
-      onViewportScroll={() => {}} onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
+      isLoadingInitial={false}
       onStreamingContentProgress={() => {}} onApproveApproval={() => {}} onRejectApproval={() => {}}
-      activeHumanRunId={null} onSubmitUserInput={async () => {}} isFullScreen />
+      activeHumanRunId={null} onSubmitUserInput={async () => {}} />
+      </ChatScrollBody>
+    </div>
   </div>
 }
 createRoot(document.getElementById("root")!).render(<MemoryRouter><TooltipProvider><Fixture /></TooltipProvider></MemoryRouter>)

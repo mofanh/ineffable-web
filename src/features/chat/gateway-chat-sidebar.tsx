@@ -40,6 +40,7 @@ import {
   type PreInputQueueItem,
 } from "@/features/chat/components/chat-composer"
 import { ChatMessageList } from "@/features/chat/components/chat-message-list"
+import { ChatScrollBody } from "@/features/chat/components/chat-scroll-body"
 import { ChatSidebarHeader, ConversationNavigation } from "@/features/chat/components/chat-sidebar-header"
 import {
   createEmptySubagent,
@@ -359,6 +360,7 @@ export function GatewayChatSidebar({
   const attachmentWorkspace = workspaces.find(space => space.workspace_type === "personal") ?? null
 
   const [newDraftGeneration, setNewDraftGeneration] = React.useState(0)
+  const [composerDomHandoff, setComposerDomHandoff] = React.useState<{ conversationId: string; identity: string } | null>(null)
   const submissionLifecycleRef = React.useRef(0)
   const runtimePreferenceRevisionRef = React.useRef(0)
   React.useLayoutEffect(() => {
@@ -3626,6 +3628,9 @@ export function GatewayChatSidebar({
         // The hook captures the submitted draft object, never the newer draft.
         imageDraft.moveTo(`${submissionOwner.session}:${targetConversationId}:${submissionOwner.workspace}`)
         if (isCurrentSubmission()) {
+          // Preserve only this still-owned draft's DOM during canonical creation.
+          // Menus keep the actual conversation scope; other selections still rekey.
+          setComposerDomHandoff({ conversationId: targetConversationId, identity: `new:${newDraftGeneration}` })
           skipNextConversationSyncRef.current = targetConversationId
           clearConversation()
           setIsSubmittingInput(true)
@@ -4103,6 +4108,8 @@ export function GatewayChatSidebar({
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (
+      event.defaultPrevented ||
+      event.repeat ||
       event.key !== "Enter" ||
       event.shiftKey ||
       event.nativeEvent.isComposing
@@ -4165,7 +4172,7 @@ export function GatewayChatSidebar({
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
+    <div className="chat-conversation relative flex min-h-0 flex-1 flex-col">
       {navigationTarget ? createPortal(
         <ConversationNavigation
           selectedConversationId={currentConversationId}
@@ -4178,6 +4185,7 @@ export function GatewayChatSidebar({
       ) : null}
       <ChatSidebarHeader
         workbench={workbench}
+        empty={renderedEntries.length === 0 && !isAwaitingVisibleResponse && !isLoadingMessages}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}
@@ -4192,139 +4200,153 @@ export function GatewayChatSidebar({
       />
 
       <SidebarContent className={workbench ? "overflow-hidden bg-background" : "overflow-hidden bg-sidebar/50"}>
-        <ChatMessageList
-          key={currentConversationId ?? "draft"}
-          rowWindowRef={rowWindowRef}
-          onOpenConversation={selectConversationTarget}
-          compactingRunId={compactingRunId}
-          accessToken={accessToken}
-          onImageReference={imageDraft.addReference}
-          onInspectRun={canInspectRun ? (runId) => {
-            if (currentConversationId) setInspectedRun({ conversationId: currentConversationId, runId })
-          } : undefined}
-          entries={renderedEntries}
-          modelDisplayNames={modelDisplayNames}
-          sandboxDisplayNames={sandboxDisplayNames}
-          hasOlderEntries={hasOlderEntries}
-          isLoadingOlderEntries={isLoadingOlderEntries}
-          olderEntriesError={olderMessagesError}
-          isAwaitingResponse={isAwaitingVisibleResponse}
-          isLoadingInitial={
-            isLoadingMessages && displayedConversationId === currentConversationId
-          }
-          showScrollToBottom={showScrollToBottom}
+        <ChatScrollBody
+          empty={renderedEntries.length === 0 && !isAwaitingVisibleResponse && !isLoadingMessages}
           scrollViewportRef={scrollViewportRef}
           onViewportScroll={handleViewportScroll}
           onViewportScrollIntent={handleViewportScrollIntent}
+          hasOlderEntries={hasOlderEntries}
+          isLoadingOlderEntries={isLoadingOlderEntries}
+          olderEntriesError={olderMessagesError}
           onLoadOlderConversationMessagesPage={loadOlderConversationMessagesPage}
+          showScrollToBottom={showScrollToBottom}
           onScrollToBottomClick={handleScrollToBottomClick}
           onStreamingContentProgress={handleStreamingContentProgress}
-          onApproveApproval={handleApproveApproval}
-          onRejectApproval={handleRejectApproval}
-          activeHumanRunId={selectedPendingUserInput?.runId ?? selectedPendingApproval?.runId ?? null}
-          activeHumanNeedId={selectedPendingUserInput?.needId ?? selectedPendingApproval?.needId ?? null}
-          activeHumanNeedKind={selectedPendingApproval ? "approval" : selectedPendingUserInput ? "user_input" : null}
-          onSubmitUserInput={handleSubmitUserInput}
-          isFullScreen={isFullScreen}
-          trialVerdict={
-            trialAnswer
-              ? {
-                  entryId: trialAnswer.id,
-                  busyAction: trialVerdictBusy,
-                  canAccept: canAcceptTrial,
-                  canRollback: canRollbackTrial,
-                  onAccept: () => void resolveInlineTrial("accept"),
-                  onRollback: () => void resolveInlineTrial("rollback"),
+          composer={
+            <>
+              <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
+
+              <ChatComposer
+                attachedImages={imageDraft.images}
+                imageCount={imageDraft.items.length}
+                imagesReady={imageDraft.ready}
+                onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}
+                imageActions={accessToken && attachmentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${attachmentWorkspace.id}`} accessToken={accessToken} workspaceId={attachmentWorkspace.id} disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onSelect={imageDraft.addReference} renderTrigger={(open) => <ImageAttachmentActions disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onFiles={imageDraft.addFiles} onWorkspace={open} />} /> : <ImageAttachmentActions disabled onFiles={imageDraft.addFiles} />}
+                imageAttachments={<ImageAttachments items={imageDraft.items} accessToken={accessToken} onRemove={id => {
+                  const image = imageDraft.items.find(item => item.id === id)?.image
+                  if (image) setComposer(removeImageFileReference(composer, image))
+                  imageDraft.remove(id)
+                }} onRetry={(item) => { void imageDraft.retry(item) }} />}
+                isFullScreen={isFullScreen}
+                composer={composer}
+                isSending={isSending}
+                canStop={canStop}
+                isSubmittingInput={isSubmittingInput}
+                canPromoteToGuided={
+                  selectedConversation?.current_run?.accepts_guided_input === true
                 }
-              : null
+                canResumePreInputQueue={canResumePreInputQueue}
+                pendingQueueHoldReason={pendingQueueHoldReason}
+                blockedPreInputErrorCode={blockedPreInputErrorCode}
+                pendingQueueAction={pendingQueueAction}
+                preInputQueue={displayedPreInputQueue}
+                accessToken={accessToken}
+                workspaces={workspaces}
+                currentWorkspaceId={attachmentWorkspace?.id}
+                fileReferenceScope={currentConversationId ?? "new"}
+                inputIdentity={composerDomHandoff?.conversationId === currentConversationId
+                  ? composerDomHandoff.identity
+                  : currentConversationId ?? `new:${newDraftGeneration}`}
+                modelOptions={modelOptions}
+                isModelCatalogLoaded={isModelCatalogLoaded}
+                isModelCatalogLoading={modelCatalog.isLoading || modelCatalog.isRefreshing}
+                modelCatalogError={modelCatalog.error ? i18n.t("chat.composer.modelCatalogFailed") : null}
+                onModelCatalogRefresh={() => { void modelCatalog.reload() }}
+                isSandboxCatalogLoaded={isSandboxCatalogLoaded}
+                sandboxCatalogError={sandboxCatalog.error ? i18n.t("chat.composer.sandboxCatalogFailed") : null}
+                selectedModelProfileId={selectedModelProfileId}
+                sandboxOptions={sandboxOptions}
+                isRefreshingSandboxOptions={isRefreshingSandboxOptions}
+                selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
+                capabilityExposureSelection={capabilityExposureSelection}
+                capabilityExposurePolicy={capabilityExposurePolicy}
+                capabilityExposureDraftStatus={capabilityExposureDraftStatus}
+                capabilityCatalog={capabilityCatalog}
+                capabilityCatalogStatus={capabilityCatalogStatus}
+                onCapabilityCatalogRefresh={() =>
+                  setCapabilityCatalogRevision((revision) => revision + 1)
+                }
+                agentIterationRequested={agentIterationRequested}
+                agentIterationMode={agentEvolution?.effective_mode ?? "disabled"}
+                isAgentIterationLoading={isAgentIterationLoading}
+                agentIterationUnavailableReason={agentEvolution?.unavailable_reason}
+                onComposerChange={setComposer}
+                onComposerKeyDown={handleComposerKeyDown}
+                onModelProfileChange={handleModelProfileChange}
+                onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
+                onSandboxOptionsRefresh={() => {
+                  void refreshSandboxOptions()
+                }}
+                onCapabilityExposureChange={handleCapabilityExposureChange}
+                onCapabilityExposureDraftRefresh={refreshCapabilityExposureDraft}
+                onAgentIterationChange={(requested) => {
+                  void handleAgentIterationChange(requested)
+                }}
+                onSend={() => {
+                  void handleSend()
+                }}
+                onStop={() => {
+                  void handleStop()
+                }}
+                onPromoteToGuided={handlePromoteToGuided}
+                onDeleteFromQueue={handleDeleteFromQueue}
+                onResumePreInputQueue={() => {
+                  void handleResumePreInputQueue()
+                }}
+                onClearPreInputQueue={() => {
+                  void handleClearPreInputQueue()
+                }}
+              />
+            </>
           }
-        />
+        >
+          <ChatMessageList
+            key={currentConversationId ?? "draft"}
+            rowWindowRef={rowWindowRef}
+            onOpenConversation={selectConversationTarget}
+            compactingRunId={compactingRunId}
+            accessToken={accessToken}
+            onImageReference={imageDraft.addReference}
+            onInspectRun={canInspectRun ? (runId) => {
+              if (currentConversationId) setInspectedRun({ conversationId: currentConversationId, runId })
+            } : undefined}
+            entries={renderedEntries}
+            modelDisplayNames={modelDisplayNames}
+            sandboxDisplayNames={sandboxDisplayNames}
+            hasOlderEntries={hasOlderEntries}
+            isLoadingOlderEntries={isLoadingOlderEntries}
+            olderEntriesError={olderMessagesError}
+            isAwaitingResponse={isAwaitingVisibleResponse}
+            isLoadingInitial={
+              isLoadingMessages && displayedConversationId === currentConversationId
+            }
+            onLoadOlderConversationMessagesPage={loadOlderConversationMessagesPage}
+            onStreamingContentProgress={handleStreamingContentProgress}
+            onApproveApproval={handleApproveApproval}
+            onRejectApproval={handleRejectApproval}
+            activeHumanRunId={selectedPendingUserInput?.runId ?? selectedPendingApproval?.runId ?? null}
+            activeHumanNeedId={selectedPendingUserInput?.needId ?? selectedPendingApproval?.needId ?? null}
+            activeHumanNeedKind={selectedPendingApproval ? "approval" : selectedPendingUserInput ? "user_input" : null}
+            onSubmitUserInput={handleSubmitUserInput}
+            trialVerdict={
+              trialAnswer
+                ? {
+                    entryId: trialAnswer.id,
+                    busyAction: trialVerdictBusy,
+                    canAccept: canAcceptTrial,
+                    canRollback: canRollbackTrial,
+                    onAccept: () => void resolveInlineTrial("accept"),
+                    onRollback: () => void resolveInlineTrial("rollback"),
+                  }
+                : null
+            }
+          />
+        </ChatScrollBody>
       </SidebarContent>
 
       {accessToken && inspectedRun && inspectedRun.conversationId === currentConversationId && canInspectRun && (
         <RunObservationPanel accessToken={accessToken} conversationId={inspectedRun.conversationId} runId={inspectedRun.runId} onClose={() => setInspectedRun(null)} />
       )}
-
-      <AgentPlanPanel tool={currentPlanTool} isFullScreen={isFullScreen} />
-
-      <ChatComposer
-        attachedImages={imageDraft.images}
-        imageCount={imageDraft.items.length}
-        imagesReady={imageDraft.ready}
-        onImageFiles={imageDraft.enabled ? imageDraft.addFiles : undefined}
-        imageActions={accessToken && attachmentWorkspace ? <WorkspaceImagePicker key={`${accessToken}:${currentConversationId}:${attachmentWorkspace.id}`} accessToken={accessToken} workspaceId={attachmentWorkspace.id} disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onSelect={imageDraft.addReference} renderTrigger={(open) => <ImageAttachmentActions disabled={!imageDraft.enabled || imageDraft.items.length >= 4} onFiles={imageDraft.addFiles} onWorkspace={open} />} /> : <ImageAttachmentActions disabled onFiles={imageDraft.addFiles} />}
-        imageAttachments={<ImageAttachments items={imageDraft.items} accessToken={accessToken} onRemove={id => {
-          const image = imageDraft.items.find(item => item.id === id)?.image
-          if (image) setComposer(removeImageFileReference(composer, image))
-          imageDraft.remove(id)
-        }} onRetry={(item) => { void imageDraft.retry(item) }} />}
-        isFullScreen={isFullScreen}
-        composer={composer}
-        isSending={isSending}
-        canStop={canStop}
-        isSubmittingInput={isSubmittingInput}
-        canPromoteToGuided={
-          selectedConversation?.current_run?.accepts_guided_input === true
-        }
-        canResumePreInputQueue={canResumePreInputQueue}
-        pendingQueueHoldReason={pendingQueueHoldReason}
-        blockedPreInputErrorCode={blockedPreInputErrorCode}
-        pendingQueueAction={pendingQueueAction}
-        preInputQueue={displayedPreInputQueue}
-        accessToken={accessToken}
-        workspaces={workspaces}
-        currentWorkspaceId={attachmentWorkspace?.id}
-        fileReferenceScope={currentConversationId ?? "new"}
-        modelOptions={modelOptions}
-        isModelCatalogLoaded={isModelCatalogLoaded}
-        isModelCatalogLoading={modelCatalog.isLoading || modelCatalog.isRefreshing}
-        modelCatalogError={modelCatalog.error ? i18n.t("chat.composer.modelCatalogFailed") : null}
-        onModelCatalogRefresh={() => { void modelCatalog.reload() }}
-        isSandboxCatalogLoaded={isSandboxCatalogLoaded}
-        sandboxCatalogError={sandboxCatalog.error ? i18n.t("chat.composer.sandboxCatalogFailed") : null}
-        selectedModelProfileId={selectedModelProfileId}
-        sandboxOptions={sandboxOptions}
-        isRefreshingSandboxOptions={isRefreshingSandboxOptions}
-        selectedSandboxEnvironmentId={selectedSandboxEnvironmentId}
-        capabilityExposureSelection={capabilityExposureSelection}
-        capabilityExposurePolicy={capabilityExposurePolicy}
-        capabilityExposureDraftStatus={capabilityExposureDraftStatus}
-        capabilityCatalog={capabilityCatalog}
-        capabilityCatalogStatus={capabilityCatalogStatus}
-        onCapabilityCatalogRefresh={() =>
-          setCapabilityCatalogRevision((revision) => revision + 1)
-        }
-        agentIterationRequested={agentIterationRequested}
-        agentIterationMode={agentEvolution?.effective_mode ?? "disabled"}
-        isAgentIterationLoading={isAgentIterationLoading}
-        agentIterationUnavailableReason={agentEvolution?.unavailable_reason}
-        onComposerChange={setComposer}
-        onComposerKeyDown={handleComposerKeyDown}
-        onModelProfileChange={handleModelProfileChange}
-        onSandboxEnvironmentChange={handleSandboxEnvironmentChange}
-        onSandboxOptionsRefresh={() => {
-          void refreshSandboxOptions()
-        }}
-        onCapabilityExposureChange={handleCapabilityExposureChange}
-        onCapabilityExposureDraftRefresh={refreshCapabilityExposureDraft}
-        onAgentIterationChange={(requested) => {
-          void handleAgentIterationChange(requested)
-        }}
-        onSend={() => {
-          void handleSend()
-        }}
-        onStop={() => {
-          void handleStop()
-        }}
-        onPromoteToGuided={handlePromoteToGuided}
-        onDeleteFromQueue={handleDeleteFromQueue}
-        onResumePreInputQueue={() => {
-          void handleResumePreInputQueue()
-        }}
-        onClearPreInputQueue={() => {
-          void handleClearPreInputQueue()
-        }}
-      />
     </div>
   )
 }

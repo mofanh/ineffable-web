@@ -16,10 +16,18 @@ Implemented adaptation inventory:
      adapted for Ineffable's independent 768px drawer / 1024px auto-rail,
      stable routed resource focus, and session-only preferred pixel widths.
 
-Pending adaptation inventory (not yet included):
 - P2: packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css,
-      HeroShell.module.css, InputBar.module.css;
-      packages/client/ui-chat/src/client/chat/ChatView.module.css
+      HeroShell.module.css, InputBar.module.css
+  -> src/features/chat/components/chat-scroll-body.css, chat-scroll-body.tsx,
+     chat-message-list.tsx, chat-sidebar-header.tsx, chat-composer.tsx:
+     shared reading axis, persistent empty/active composer seat, 36px fade,
+     header and input geometry, adapted to existing scroll and input commands.
+- P2: packages/client/ui-chat/src/client/chat/AssistantMarkdown.module.css
+  -> src/features/chat/components/agent-pane.tsx: 14px/24px answer baseline only;
+     existing Markdown projector, parser, Shiki and bounded code blocks retained.
+
+Pending adaptation inventory (not yet included):
+- P3: packages/client/ui-chat/src/client/chat/ChatView.module.css (process flow density)
 - P4: packages/client/ui-settings-general/src/client/SettingsRoot.module.css
 
 MIT License

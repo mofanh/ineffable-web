@@ -2,6 +2,7 @@ import * as React from "react"
 import { createRoot } from "react-dom/client"
 import { TooltipProvider } from "../src/components/ui/tooltip"
 import { ChatMessageList } from "../src/features/chat/components/chat-message-list"
+import { ChatScrollBody } from "../src/features/chat/components/chat-scroll-body"
 import type { ChatRowWindowHandle } from "../src/features/chat/components/chat-row-window"
 import { mapConversationMessagesToEntries, createAssistantEntry, prependAssistantHistory } from "../src/features/chat/model/chat-history"
 import { projectConversationOutputEvent } from "../src/features/chat/runtime/conversation-event-projector"
@@ -55,13 +56,19 @@ function Fixture() {
     } })
   }, [])
   return <div style={{ height: 700, width: 850 }} data-human-node-count={entries.find(entry => entry.role === "assistant")?.pane.blockOrder.length}>
-    <ChatMessageList entries={entries} rowWindowRef={windowRef} hasOlderEntries={false} isLoadingOlderEntries={false}
-      olderEntriesError={null} isAwaitingResponse={false} isLoadingInitial={false} showScrollToBottom={false}
-      scrollViewportRef={viewport} onViewportScroll={noop} onLoadOlderConversationMessagesPage={noop}
-      onScrollToBottomClick={noop} onStreamingContentProgress={noop} onApproveApproval={noop} onRejectApproval={noop}
+    <div className="chat-conversation flex h-full min-h-0 flex-1 flex-col">
+      <ChatScrollBody empty={false} composer={null} scrollViewportRef={viewport}
+        hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null}
+        showScrollToBottom={false} onViewportScroll={() => {}} onViewportScrollIntent={() => {}}
+        onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
+        onStreamingContentProgress={() => {}}>
+        <ChatMessageList entries={entries} rowWindowRef={windowRef} hasOlderEntries={false} isLoadingOlderEntries={false}
+      olderEntriesError={null} isAwaitingResponse={false} isLoadingInitial={false} onStreamingContentProgress={noop} onApproveApproval={noop} onRejectApproval={noop}
       activeHumanRunId={human ? "human-run" : null} activeHumanNeedId={human ? "need" : null}
       activeHumanNeedKind={human ? "user_input" : null}
-      onSubmitUserInput={async (response) => { submitted.current = response }} isFullScreen />
+      onSubmitUserInput={async (response) => { submitted.current = response }} />
+      </ChatScrollBody>
+    </div>
   </div>
 }
 createRoot(document.getElementById("root")!).render(<TooltipProvider><Fixture /></TooltipProvider>)

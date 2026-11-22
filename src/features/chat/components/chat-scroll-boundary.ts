@@ -38,6 +38,13 @@ function containChatWheel(event: WheelEvent, onScrollIntent?: (direction: ChatSc
     return
   }
 
+  // Unmarked native inputs share the conversation seat: consume their own
+  // overflow first, then let the browser chain at the edge into this scrollport.
+  // Marked tool regions keep their independent containment listener.
+  if (scrollRegion === boundary && nestedCanScroll(target, boundary, event.deltaY < 0 ? "up" : "down")) {
+    event.stopPropagation()
+    return
+  }
   const maxScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight
   const canScrollInDirection =
     (event.deltaY < 0 && scrollRegion.scrollTop > 0) ||

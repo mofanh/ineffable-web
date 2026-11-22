@@ -30,6 +30,7 @@ import {
 
 type ChatSidebarHeaderProps = {
   workbench?: boolean
+  empty?: boolean
   bindStatus: string
   selectedConversationId: string | null
   selectedConversationTitle: string
@@ -185,6 +186,7 @@ export function ConversationNavigation({
 
 export function ChatSidebarHeader({
   workbench = false,
+  empty = false,
   bindStatus,
   selectedConversationId,
   selectedConversationTitle,
@@ -234,10 +236,11 @@ export function ChatSidebarHeader({
   )
   return (
     <SidebarHeader className={cn(
-      "absolute inset-x-0 top-0 z-20 gap-0 p-0",
+      "relative z-20 shrink-0 gap-0 pt-[10px] pr-7 pb-0 pl-5",
+      empty ? "min-h-10" : "min-h-[76px]",
       isFullScreen ? "bg-transparent" : "bg-sidebar/80 backdrop-blur-md"
     )}>
-      <div className="flex h-11 shrink-0 items-center gap-2.5 pr-3 pl-5">
+      <div className="flex min-h-8 shrink-0 items-center gap-2.5">
         <DropdownMenu open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
             <button

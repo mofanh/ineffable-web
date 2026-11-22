@@ -13,7 +13,6 @@ import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/app"
-import { useChatScrollBoundary } from "@/features/chat/components/chat-scroll-boundary"
 import {
   ComposerSingleSelect,
   type ComposerSingleSelectOption,
@@ -82,6 +81,8 @@ type ChatComposerProps = {
   pendingQueueAction: "idle" | "resuming" | "clearing"
   preInputQueue: PreInputQueueItem[]
   fileReferenceScope?: string
+  /** Presentation identity; only the owning draft-to-conversation handoff preserves it. */
+  inputIdentity?: string
   accessToken?: string | null
   workspaces?: { id: string; name: string }[]
   currentWorkspaceId?: string
@@ -124,7 +125,6 @@ type ChatComposerProps = {
 
 export function ChatComposer({
   attachedImages = [], imageActions, imageAttachments, imageCount = 0, imagesReady = true, onImageFiles,
-  isFullScreen,
   composer,
   isSending,
   canStop = isSending,
@@ -135,7 +135,7 @@ export function ChatComposer({
   blockedPreInputErrorCode,
   pendingQueueAction,
   preInputQueue,
-  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope,
+  accessToken, workspaces = [], currentWorkspaceId, fileReferenceScope, inputIdentity,
   modelOptions,
   isModelCatalogLoaded,
   isModelCatalogLoading,
@@ -173,7 +173,6 @@ export function ChatComposer({
   onClearPreInputQueue,
   inputDisabledReason,
 }: ChatComposerProps) {
-  const scrollBoundaryRef = useChatScrollBoundary<HTMLDivElement>()
   const { t } = useTranslation()
   const [menuScope, setMenuScope] = React.useState<string | null>(null)
   const scope = `${accessToken}:${fileReferenceScope}:${currentWorkspaceId}`
@@ -270,7 +269,8 @@ export function ChatComposer({
     addReferences([reference], draft.text.slice(0, trigger.start) + draft.text.slice(trigger.end), trigger.start)
   }
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (event.defaultPrevented || composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+    if (event.key === "Enter" && event.repeat) { event.preventDefault(); return }
     if (showFileMenu) {
       if (event.key === "Escape") { event.preventDefault(); setMenuScope(null); return }
       if (menuRef.current?.keyDown(event)) { event.preventDefault(); return }
@@ -300,10 +300,7 @@ export function ChatComposer({
 
   return (
     <SidebarFooter
-      className={cn(
-        "@container/chat-composer w-full px-2 pt-0 pb-[calc(0.5rem+env(safe-area-inset-bottom))]",
-        isFullScreen && "mx-auto max-w-[780px] px-5 md:px-2"
-      )}
+      className="@container/chat-composer w-full p-0"
     >
       {delivery ? <Notice tone="warning" className="mb-2">{t(delivery.key, { count: delivery.count })}</Notice> : null}
       {queuedItems.length > 0 ? (
@@ -425,14 +422,12 @@ export function ChatComposer({
 
         <InputGroup
           className="h-auto overflow-hidden rounded-2xl border border-border/60 bg-muted/35 shadow-sm transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-md dark:bg-muted/50"
-          ref={scrollBoundaryRef}
         >
           {imageCount > 0 ? <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0">{imageAttachments}</InputGroupAddon> : null}
           {visibleFileReferences.length > 0 && <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0"><WorkspaceFileTags accessToken={accessToken} references={visibleFileReferences} onRemove={editable ? uri => onComposerChange(joinFileReferences(draft.text, draft.references.filter(ref => referenceUri(ref) !== uri))) : undefined} /></InputGroupAddon>}
           <InputGroupTextarea
-            key={scope}
+            key={`${accessToken}:${inputIdentity ?? fileReferenceScope}:${currentWorkspaceId}`}
             ref={textareaRef}
-            data-chat-scroll-region
             aria-label={t("chat.composer.messageLabel")}
             placeholder={t("chat.composer.placeholder")}
             rows={2}
@@ -445,7 +440,7 @@ export function ChatComposer({
             onKeyDown={handleComposerKeyDown}
             readOnly={isSubmittingInput || Boolean(inputDisabledReason)}
             aria-busy={isSubmittingInput}
-            className="min-h-14 max-h-32 overflow-y-auto overscroll-contain border-0 bg-transparent px-4 py-3 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0"
+            className="min-h-14 max-h-[min(336px,40dvh)] overflow-y-auto border-0 bg-transparent px-4 py-3 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0"
           />
           <InputGroupAddon
             align="block-end"
