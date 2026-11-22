@@ -38,7 +38,9 @@ try {
     assert.equal(Math.round((await resource.boundingBox()).width), 300)
     for (const width of [1440, 1024, 390, 320, 1440]) {
       await page.setViewportSize({ width, height: 900 })
-      if (width < 1024) await page.getByRole("button", { name: language === "zh-CN" ? "工作区" : "Workspace", exact: true }).click()
+      // The editor/separator was the last interacted surface. Crossing a
+      // breakpoint must retain that resource, not require a hidden chat-header
+      // Workspace button (nor silently switch the active pane to chat).
       await resource.waitFor({ state: "visible" })
       for (const name of [labels.save, labels.discard]) {
         const button = resource.getByRole("button", { name, exact: true })
