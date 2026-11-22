@@ -170,7 +170,8 @@ try {
         window.dispatchEvent(new StorageEvent("storage", { key: "ineffable.auth.access_token" }))
       })
       if (scenario === "unmount") {
-        await page.getByRole("link", { name: "Settings", exact: true }).click()
+        await page.getByRole("button", { name: "Settings", exact: true }).click()
+        await page.locator('[data-slot="settings-overlay"] a[href="/channels"]').click()
         await reference.waitFor({ state: "hidden" })
       }
       if (scenario === "timeout") {

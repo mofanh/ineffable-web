@@ -129,7 +129,7 @@ App Shell
 4. 视觉参照 DSH 的低噪音会话界面：柔和导航底色、平整主画布、共轴居中的消息/输入卡片、轻边框与有限阴影；保持 Ineffable 品牌和现有组件，不引入 DSH 插件或运行时依赖。会话列表与工作区树各自滚动，长资源树不能把会话搜索/新建挤出视口。
 5. 不读取旧右栏 open/width 偏好决定会话可用性，不保留另一套 Agent mode。
 6. 消息与输入卡共用扣除同一 gutter 的可用宽 A，B=clamp(680,columnWidth*.64,880)，M=min(B,A−64)，C=M+32≤912；窄屏也保持实际 32px 宽差与同轴。sticky composer 在原会话滚动 owner 内，不另造跟随状态机。
-7. 设置桌面最大 800×800、导航 188、圆角 28、四周至少 24；小于 768 全屏/横导航。普通打开不变地址，直链 /settings 协调同一层并以 /chat 关闭；实际业务导航仍受 dirty guard 约束。通用页复用原外观/语言 providers，不复制账户整页到 modal。
+7. 设置桌面最大 800×800、导航 188、圆角 28、四周至少 24；小于 768 全屏/横导航。普通打开不变地址/历史，直链 /settings 协调同一层并以 replace /chat 显式关闭；实际业务导航仍受 dirty guard 约束，只有 location 真正提交才卸掉设置，取消不得丢失 modal 或 exact editor。通用页唯一复用原外观/语言 providers，不复制账户整页到 modal；抽屉先关闭再打开设置，关闭回稳定 Shell 按钮，内层 Select 先消费 Escape。check:settings-overlay 覆盖 EN/ZH、明暗、双断点/短视口、焦点、权限、脏导航与历史；旧 /settings 子路由重定向继续保留原目标。
 8. check:workbench-layout 在开发和 --production 下验证单实例、草稿、路由/专注/宽度切换、EN/ZH 与 light/dark；双断点覆盖 767/768/1023/1024。真实后端/provider 和真实移动端软键盘仍需人工验收。
 
 #### 3.6.3 组件职责与状态边界

@@ -1,3 +1,4 @@
+import { SettingsOverlayProvider } from "../src/app/shell/settings-overlay-context"
 import { AppSidebar } from "../src/features/workspace/app-sidebar"
 import { AppToaster } from "../src/components/app/app-toaster"
 import { createRoot } from "react-dom/client"
@@ -24,6 +25,6 @@ function Harness() {
 }
 await i18n.changeLanguage(new URLSearchParams(location.search).get("lang") || "en")
 const router = createMemoryRouter([{path: "*", element:
-  <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><Harness /><AppToaster /></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
+  <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><SettingsOverlayProvider><Harness /><AppToaster /></SettingsOverlayProvider></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
 }], { initialEntries: [`/workspace/${workspace}/objects/image`] })
 createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />)

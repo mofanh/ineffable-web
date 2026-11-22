@@ -23,6 +23,7 @@ import { defaultPath, getRouteKind, getRouteMeta } from "@/routes/navigation"
 import { AUTO_RAIL_BREAKPOINT, DRAWER_BREAKPOINT, CENTER_MIN, SIDEBAR_MIN, SIDEBAR_MAX, RIGHT_MIN, RIGHT_MAX_RATIO, computeWorkbenchColumns } from "@/app/shell/workbench-layout"
 import { useWorkbenchLayout } from "@/app/shell/use-workbench-layout"
 import { WorkbenchResizeHandle } from "@/app/shell/workbench-resize-handle"
+import { SettingsOverlayProvider } from "@/app/shell/settings-overlay-context"
 
 type WorkbenchView = { path: string; open: boolean; focused: boolean }
 
@@ -40,9 +41,11 @@ export function AppShell() {
   const columns = computeWorkbenchColumns(layout.width, expanded, layout.sidebar, layout.right, resourceOpen)
   return (
     <AppHeaderProvider>
+      <SettingsOverlayProvider>
       <SidebarProvider compact={drawer} independentCompact open={expanded} onOpenChange={layout.setOpen} persistCookie={false} className="relative h-svh min-h-0 overflow-hidden" style={{ "--sidebar-width": `${drawer ? layout.sidebar : columns.sidebar}px`, "--sidebar-width-icon": "56px", "--sidebar-duration": "0ms", ...(compact && viewport ? { height: viewport.height, transform: `translateY(${viewport.offsetTop}px)` } : {}) } as CSSProperties}>
         <WorkbenchContent layout={layout} columns={columns} view={view} setView={setView} />
       </SidebarProvider>
+      </SettingsOverlayProvider>
     </AppHeaderProvider>
   )
 }
@@ -65,7 +68,7 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
   // Panel preferences are local view state, never conversation/run ownership.
   // A new deep link opens its resource; hiding/focusing keeps the Outlet mounted.
   const hasResource = kind === "resource"
-  const global = kind === "global" || kind === "settings"
+  const global = kind === "global"
   const resourceOpen = hasResource && (view.path !== pathname || view.open)
   const compact = columns.right === 0
   const resourceFocused = resourceOpen && (compact || (view.path === pathname && view.focused))

@@ -4,7 +4,7 @@ export const resources = {
       workbench: { conversations: "会话", resources: "工作区", focus: "专注资源", split: "返回会话与资源", closeResource: "隐藏资源", resizeNavigation: "调整导航宽度", resizeResource: "调整资源宽度", empty: "还没有会话" },
       interaction: {
         suspendedSpace: "空间已停用，请联系管理员处理。", ownerChanged: "空间所有者已变化，请刷新后重试。", spaceQuota: "恢复后将超出空间数量额度，请先调整其他空间或套餐。", credentialUnknown: "轮换结果尚未确认，旧凭据可能已失效。一次性凭据无法找回；确认影响后，可再次显式轮换。",
-        settings: "设置", account: "账号与偏好", models: "模型与能力", connections: "连接与渠道", advanced: "高级",
+        settings: "设置", general: "通用", account: "账号与偏好", models: "模型与能力", connections: "连接与渠道", advanced: "高级",
         createTeamHint: "先创建空间，随后在成员管理中邀请团队成员。", uncertainCreate: "暂时无法确认是否已提交。请先返回列表核对，避免重复创建。",
         inviteCreated: "邀请已创建", emailFailed: "邀请已创建，但邮件未送达。可以复制下方邀请链接发送给对方。", detailsFailed: "部分详情暂未加载，成员信息仍可查看。",
         grantOwner: "授予所有者权限？", grantOwnerHint: "对方将获得空间的完整管理权限。你仍保留所有者身份，之后可自行退出。",
@@ -1940,7 +1940,7 @@ export const resources = {
       workbench: { conversations: "Conversations", resources: "Workspace", focus: "Focus resource", split: "Show conversation and resource", closeResource: "Hide resource", resizeNavigation: "Resize navigation", resizeResource: "Resize resource", empty: "No conversations yet" },
       interaction: {
         suspendedSpace: "This space is suspended. Contact an administrator.", ownerChanged: "The workspace owner changed. Refresh before retrying.", spaceQuota: "Restoring would exceed the workspace limit. Review other spaces or your plan first.", credentialUnknown: "The rotation result is unconfirmed; the old credential may be invalid. A one-time credential cannot be recovered. Review the impact before explicitly rotating again.",
-        settings: "Settings", account: "Account and preferences", models: "Models and capabilities", connections: "Connections and channels", advanced: "Advanced",
+        settings: "Settings", general: "General", account: "Account and preferences", models: "Models and capabilities", connections: "Connections and channels", advanced: "Advanced",
         createTeamHint: "Create the space first, then invite your team from member management.", uncertainCreate: "The submission result is unknown. Check the list before creating again.",
         inviteCreated: "Invitation created", emailFailed: "The invitation was created, but the email was not delivered. You can share the invitation link below.", detailsFailed: "Some details could not load. Member information is still available.",
         grantOwner: "Grant owner access?", grantOwnerHint: "This member will have full control of the space. You remain an owner and can leave afterward.",

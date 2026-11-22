@@ -224,7 +224,12 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
   - 资源树横向滚动根因是水平 Separator 的 variant `width:100%` 加左右 margin；改为同 specificity 的 `data-horizontal:w-auto`，并新增 tree.scrollWidth 断言，非 overflow-hidden 遮盖。
   - 过程 4/12/16 几何、rail 连续/RTL、折叠保护、reading 主题矩阵、结构/旧布局/虚拟化通过。最终审批 presentation/canonical、资源工具条、过程和 production 结构门禁补跑全部通过；i18n（1841 keys）、零警告 lint、含更新 notice 的 production build、diff --check 通过。一次 canonical Chrome 启动 180s 超时发生在页面断言之前；检查无残留测试进程后串行重跑成功，未修改断言或掩盖失败。
   - 既有 chat web runtime/integration、过程生命周期、人工回答反馈、tool action、generic/sandbox canonical approval 与异步观察、Workspace lifecycle 通过；权限/dirty 保护和业务写入口未迁移。
-- P4–P5 待执行；尚无最终验收或最终 CI 结论，不合并、不推送。
+- P4 完成：单一 Shell settings overlay，800/188/28 与 <768 全屏/横导航，General 唯一复用 theme/i18n providers；旧主题/语言菜单已删除。普通入口不变 pathname/history，`/settings` 只作同层深链，显式关闭 replace `/chat`；原子路由别名保留旧重定向目标。权限导航与业务页 owner 不变，dirty blocker 取消保留设置和 exact editor，接受后才关闭。
+  - 开发态四组 EN/ZH × 明暗、断点 1440/1024/768/767/390/320、短桌面、焦点/Select-first Escape/backdrop、抽屉交接、管理员正/反例、刷新及 Back/Forward、无写入/Stop 已通过；Workspace lifecycle 与 chat runtime architecture、production 结构通过。新增开发/production 设置矩阵、系统 resolved theme 跟随、production/dev Shell performance、图片引用六类 fencing、Workspace image/recovery、chunk recovery 也已串行通过。
+  - 两次回归暴露并已处理：移动抽屉退出动画期间 DOM 短暂保留，等待改为真正 hidden 且焦点返回稳定 Shell 入口；资源树 owner 新订阅 sidebar context 导致 4 次额外 render，将订阅下沉到独立设置按钮，保留原性能零重渲染断言，开发/production 复验通过。Radix 关闭后的 autofocus 本来异步执行，焦点断言等待实际目标恢复，不以 portal hidden 代替焦点完成。旧 lifecycle/performance 脚本的 Settings 链接场景改为真实设置按钮 → 受保护业务 Link，不把设置开合误作导航。
+  - 管理/交互补跑：admin mobile、15 个 admin editor 场景、automation、channels、toast 通过。自动化旧测试仍假设 global 管理页可进聊天分屏，已改为验证独立全局面板并保留 600px 窄容器的搜索/操作检查；toast 区分 <768 抽屉与 768–1023 触屏横向 dock，保留层级、实际点击和 exact draft 检查。最终串行聚合已补齐结构/设置 dev+production、展示/输入/队列/滚动与状态门禁，待 P5 审计后执行。
+  - 开发截图 `ineffable-settings-overlay` 已实际抽检 ZH 深色管理员桌面和 EN 浅色 320px；production 截图 `ineffable-settings-overlay-production` 已实际抽检同两例及 ZH 深色 320px。均为 mock HTTP 的真实 Shell，不是 provider 或 DSH 实机证据。
+- P5 尚待集中独立只读审计、主 Agent 修复、定向复核与最终串行 CI；尚无最终验收结论，不合并、不推送。
 - 参考图缺口：当前只有 DSH 源码可读，没有已连接 GUI 的浏览器控制工具。遵循参考安装的验证限制，不从 shell 新开浏览器访问 DSH/profile。后续本项目 Chrome fixture 截图是 Ineffable 测试证据，不冒充 DSH 实机对照。
 - 键盘核查：DSH `shortcuts/src/index.ts` 的双 Esc 默认为 500ms（Host volatile，1–2147483646）；`stop-shortcut.ts` 在菜单/modal/审批/terminal/IME/repeat/defaultPrevented 或身份/region 变化时重置。Ineffable 文件菜单先消费 Esc、Radix 分层关闭；现有输入无双 Esc。P2 仅在同 session/conversation/run/epoch/generation/region 和冲突门禁齐全时启用 500ms，否则保留显式停止按钮并记录差异；不引入 Host 配置。
 

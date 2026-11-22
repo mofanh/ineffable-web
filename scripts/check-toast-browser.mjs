@@ -82,17 +82,24 @@ try {
       assert.equal(await composer.isVisible(), true, "toast does not hide the central conversation")
       await composer.click()
       assert.equal(await composer.inputValue(), "Keep chat open and this draft intact")
-      // Navigation still uses a modal drawer on compact screens. Toast actions
-      // must remain above that modal without stealing the composer draft.
+      // Portrait uses a modal drawer; landscape touch at 768–1023 uses a
+      // docked navigation rail. Neither presentation may steal the draft.
       if (mobile) {
+        const drawer = page.locator('[data-compact="true"][role="dialog"]')
         await page.locator('[data-slot="sidebar-trigger"]').click()
-        await page.locator('[data-compact="true"][role="dialog"]').waitFor()
+        if (width < 768) await drawer.waitFor()
+        else {
+          assert.equal(await drawer.count(), 0, "medium touch viewport expands a dock, not a modal drawer")
+          assert.ok(await page.locator('[data-slot="sidebar"]').first().evaluate(element => element.getBoundingClientRect().width >= 264))
+        }
         await notify("Above navigation", true)
         await measure("Above navigation")
         await toast("Above navigation").locator('[data-slot="toast-action"]').tap()
         await toast("Above navigation").waitFor({ state: "detached" })
-        await page.keyboard.press("Escape")
-        await page.locator('[data-compact="true"][role="dialog"]').waitFor({ state: "hidden" })
+        if (width < 768) {
+          await page.keyboard.press("Escape")
+          await drawer.waitFor({ state: "hidden" })
+        } else await page.locator('[data-slot="sidebar-trigger"]').click()
       }
       await composer.fill("Still editable after toast and drawer")
       assert.deepEqual(fixture.errors, [])

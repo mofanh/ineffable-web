@@ -31,8 +31,11 @@ Implemented adaptation inventory:
      4px process / 12px response / 16px disclosure clearance, kept inside the
      existing measured row window; Ineffable renderer identities and commands retained.
 
-Pending adaptation inventory (not yet included):
 - P4: packages/client/ui-settings-general/src/client/SettingsRoot.module.css
+  -> src/app/shell/settings-overlay.css, settings-overlay.tsx:
+     single Shell modal, 800px panel / 188px navigation / 28px radius,
+     24px desktop margins and sub-768px fullscreen horizontal navigation.
+     Radix focus/dismissal, Ineffable auth/router and theme/i18n providers retained.
 
 MIT License
 

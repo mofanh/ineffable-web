@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client"
 import { createMemoryRouter, RouterProvider, Routes, Route, useNavigate } from "react-router-dom"
 import { AppSessionProvider, useAppSession } from "../src/features/auth/app-session"
+import { SettingsOverlayProvider } from "../src/app/shell/settings-overlay-context"
 import { AppSidebar } from "../src/features/workspace/app-sidebar"
 import { WorkspaceObjectEditorPage } from "../src/pages/workspace-object-editor-page"
 import { GatewayChatSidebar } from "../src/features/chat/gateway-chat-sidebar"
@@ -27,6 +28,6 @@ function Harness() {
     </TooltipProvider></SidebarProvider></>
 }
 const router = createMemoryRouter([{ path: "*", element:
-  <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><Harness /></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
+  <AppSessionProvider><AppHeaderProvider><AppConfirmProvider><SettingsOverlayProvider><Harness /></SettingsOverlayProvider></AppConfirmProvider></AppHeaderProvider></AppSessionProvider>
 }], { initialEntries: ["/workspace/00000000-0000-0000-0000-000000000001/objects/file"] })
 createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />)

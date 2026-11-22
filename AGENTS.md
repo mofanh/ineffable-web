@@ -457,6 +457,12 @@ const confirmed = await confirm({
   禁用发送不能降低整组控件透明度；嵌套弹层继续遵守 Sheet 模态焦点与逐层 Escape。
   Sidebar 切换桌面、抽屉或全屏呈现时关闭临时子弹层，保留同一 Composer 与业务草稿，
   防止旧 Portal 跨父模态层存活而失去焦点或可访问性。
+- 设置只有一个 Shell-owned Radix overlay；普通入口不导航、不触发 dirty guard，
+  `/settings` 直链/刷新复用同一层，显式关闭 replace 到 `/chat`。业务 Link 必须等既有
+  blocker 放行、location 真正提交才关闭；取消仍保留设置层和精确脏编辑器。General
+  唯一承载原主题/语言 providers；账户/模型/渠道/管理仍走原路由与权限。抽屉先关闭再打开
+  设置，关闭焦点归还稳定 Shell 入口；Select 的 Escape 先关内层。变更须跑
+  check:settings-overlay、Workspace lifecycle、结构和图片引用 fencing 回归。
 - 修改共享指标页或壳层后运行 check:workbench-layout 的开发/生产版本，以及
   check:admin-mobile、check:admin-editor、check:automation-runtime、check:toast；
   页面视觉另验中英文、明暗、320/390px 和桌面，生产截图使用实际构建字体。

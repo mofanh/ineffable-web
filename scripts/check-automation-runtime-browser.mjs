@@ -168,14 +168,13 @@ try {
   await editorPage.close()
   // Exercise actual mobile page contents, including translated actions and long
   // unbroken identifiers; an outer card clipping overflow is not sufficient.
-  for (const language of ["en-US", "zh-CN"]) for (const width of [320, 390, 1440]) {
+  for (const language of ["en-US", "zh-CN"]) for (const width of [320, 390, 600, 1440]) {
     const mobile = await browser.newPage({ viewport: { width, height: 844 }, locale: language })
     const docked = width >= 1024
     const mobileFixture = await installShellFixture(mobile, docked, { leftOpen: false })
-    await mobile.addInitScript(({ language, docked }) => {
+    await mobile.addInitScript(language => {
       localStorage.setItem("ineffable.ui.language", language)
-      if (docked) localStorage.setItem("ineffable.ui.right-sidebar.width", "944")
-    }, { language, docked })
+    }, language)
     const longName = "WorkspaceAutomationWithLongUnbrokenName".repeat(3)
     await mobile.route("**/gateway/v1/automations", route => {
       assert.equal(route.request().method(), "GET", "mobile layout checks must not mutate automation data")
@@ -189,12 +188,14 @@ try {
     await item.getByText(longName, { exact: true }).waitFor()
     await mobile.waitForLoadState("networkidle")
     await mobile.evaluate(() => document.fonts.ready)
+    assert.equal(await mobile.locator('[data-slot="chat-workbench"]').isVisible(), false, "global automation route hides, but retains, conversation")
+    assert.equal(await mobile.getByRole("button", { name: language === "zh-CN" ? "返回会话与资源" : "Show conversation and resource", exact: true }).count(), 0, "global pages do not expose contextual split controls")
     if (docked) {
-      assert.equal(await mobile.locator('[data-slot="chat-workbench"]').isVisible(), false, "management deep link focuses resource")
-      await mobile.getByRole("button", { name: language === "zh-CN" ? "返回会话与资源" : "Show conversation and resource", exact: true }).click()
-      const resourceWidth = await mobile.locator('[data-slot="resource-workbench"]').evaluate(element => element.getBoundingClientRect().width)
-      assert.ok(resourceWidth > 380 && resourceWidth < 650, "automation exercises the constrained contextual resource panel")
-      assert.equal(await mobile.locator('[data-slot="card-header"] input').isVisible(), false, "narrow resources keep search out of title row")
+      const pageWidth = await mobile.locator('[data-slot="resource-workbench"]').evaluate(element => element.getBoundingClientRect().width)
+      assert.ok(pageWidth > 1000, "desktop automation uses the global content surface, not a narrow contextual panel")
+    }
+    if (width === 600) {
+      assert.equal(await mobile.locator('[data-slot="card-header"] input').isVisible(), false, "narrow global pages keep search out of title row")
       assert.equal(await mobile.locator('[data-slot="card-content"] input').isVisible(), true, "search remains available below title")
     }
     assert.equal(await item.locator('[data-slot="automation-run"]').count(), 2, "both run records remain available")

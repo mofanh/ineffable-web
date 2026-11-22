@@ -1,7 +1,6 @@
 import { useWorkspaceLifecycle } from "./hooks/use-workspace-lifecycle"
 import { useActionScope } from "@/lib/app/use-action-scope"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { LanguageMenu } from "@/components/language-menu"
+import { SidebarSettingsButton } from "./components/sidebar-settings-button"
 import { referenceMarkdown } from "@/lib/workspace-file-reference"
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu"
 
@@ -40,7 +39,6 @@ import {
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { useWorkspaceAccess } from "@/features/workspace/hooks/use-workspace-access"
-import { SettingsIcon } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { IneffableLogo } from "@/components/ineffable-logo"
@@ -563,9 +561,6 @@ function WorkspaceAccountSwitcher({
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <ThemeToggle compact={isCompact} />
-        <LanguageMenu compact={isCompact} />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link
@@ -1356,7 +1351,7 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
         </div>
       </SidebarContent>
       <SidebarFooter className="gap-2">
-        <SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild tooltip={t("interaction.settings")} isActive={location.pathname === "/settings"}><Link to="/settings"><SettingsIcon /><span>{t("interaction.settings")}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
+        <SidebarSettingsButton />
         <SidebarSeparator className="mx-0" />
         <SidebarMenu>
           <SidebarMenuItem>
