@@ -434,6 +434,9 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
               entry.status === "approving" || entry.status === "rejecting"
             const isResolved =
               entry.status === "approved" || entry.status === "rejected"
+            const approvalTitle = entry.status === "approved"
+              ? "chat.messages.approvedContinuing"
+              : entry.status === "rejected" ? "chat.messages.rejected" : "chat.messages.approvalWaiting"
 
             return (
               <div
@@ -442,21 +445,17 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                 data-chat-entry-role="approval"
                 className="flex justify-start gap-3"
               >
-                <Avatar className="mt-1 size-8 border border-amber-200 bg-amber-50">
-                  <AvatarFallback className="bg-amber-50 text-amber-700">
-                    <ShieldAlertIcon className="size-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="max-w-[92%] min-w-0 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-950">
+                <div className="min-w-0 flex-1 rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-foreground">
                   <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-amber-800">
-                      {t("chat.messages.approvalWaiting")}
+                    <p className={cn("flex items-center gap-2 text-xs font-medium", isResolved ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400")}>
+                      <ShieldAlertIcon aria-hidden="true" className="size-4 shrink-0" />
+                      {t(approvalTitle)}
                     </p>
                     <p className="whitespace-pre-wrap break-words leading-6">
                       {entry.action}
                     </p>
                     {entry.executionSessionId ? (
-                      <p className="break-all font-mono text-[11px] text-amber-800/80">
+                      <p className="break-all font-mono text-[11px] text-muted-foreground">
                         session {entry.executionSessionId}
                       </p>
                     ) : null}
@@ -469,7 +468,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                     <Button
                       type="button"
                       size="sm"
-                      className="h-8 rounded-md bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
+                      className="h-8 rounded-md px-3 text-xs"
                       disabled={isBusy || isResolved || !canRespond}
                       onClick={() => onApproveApproval(entry.id)}
                     >
@@ -484,7 +483,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-md border-amber-300 px-3 text-xs text-amber-900 hover:bg-amber-100"
+                      className="h-8 rounded-md px-3 text-xs"
                       disabled={isBusy || isResolved || !canRespond}
                       onClick={() => onRejectApproval(entry.id)}
                     >
@@ -495,16 +494,6 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                       )}
                       {t("chat.messages.reject")}
                     </Button>
-                    {entry.status === "approved" ? (
-                      <span className="text-xs text-emerald-700">
-                        {t("chat.messages.approvedContinuing")}
-                      </span>
-                    ) : null}
-                    {entry.status === "rejected" ? (
-                      <span className="text-xs text-amber-800">
-                        {t("chat.messages.rejected")}
-                      </span>
-                    ) : null}
                   </div>
                 </div>
               </div>

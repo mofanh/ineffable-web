@@ -1074,10 +1074,11 @@ export function WorkspaceObjectEditorPage() {
     setHeaderContent({
       breadcrumbs: breadcrumbParts,
       trailing: object && access && !isLoading ? (
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div data-workspace-resource-actions className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
           <span
+            title={statusLabel}
             className={cn(
-              "hidden text-xs xl:inline",
+              "max-w-36 truncate text-xs",
               isDirty || saveState === "conflict" ? "text-amber-600" : "text-muted-foreground"
             )}
           >
@@ -1124,6 +1125,7 @@ export function WorkspaceObjectEditorPage() {
                 }}
                 disabled={isSaving}
               >
+                <RotateCcwIcon />
                 <span className="hidden xl:inline">
                   {t("workspace.actions.discard")}
                 </span>

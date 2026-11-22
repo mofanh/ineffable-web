@@ -38,7 +38,7 @@ function statusTone(status: ToolCallStatus) {
     case "waiting":
       return "text-amber-700 dark:text-amber-400"
     case "succeeded":
-      return "text-emerald-700 dark:text-emerald-400"
+      return "text-muted-foreground"
     case "failed":
       return "text-destructive"
     case "cancelled":
@@ -122,7 +122,7 @@ export function ToolCallShell({
           type="button"
           data-tool-call-id={tool.id}
           data-tool-status={tool.status}
-          className="group flex min-h-8 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 text-left text-[13px] text-foreground/70 select-none transition-colors hover:text-foreground/90 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
+          className="group flex min-h-7 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 text-left text-[13px] text-foreground/70 select-none transition-colors hover:text-foreground/90 focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         >
           <span className="order-1 inline-flex min-w-0 flex-1 items-center gap-1.5">
             {icon ?? <WrenchIcon className="size-3.5 flex-none" />}

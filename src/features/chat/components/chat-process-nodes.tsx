@@ -54,15 +54,21 @@ export function ChatProcessNodes({ entry, nodes, eligible, forceOpen, duration, 
     }}
     onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocusedRow(null) }}>
     <div id={controls}>
-      <ChatRowWindow nested items={rows} getKey={rowKey} estimateSize={estimateRow} gap={12} pinnedKeys={pinned}>
+      <ChatRowWindow nested items={rows} getKey={rowKey} estimateSize={estimateRow} gap={4} pinnedKeys={pinned}>
         {(row, index) => {
           const previous = rows[index - 1]
           const next = rows[index + 1]
           const branch = "node" in row && row.branch
           const before = Boolean(previous && ("group" in previous || previous.branch))
           const after = Boolean(next && "node" in next && next.branch)
+          // DSH ChatView density: process 4px, response 12px, disclosure 16px.
+          // Keep extra clearance inside the measured row, not in unmeasured
+          // margins or a second layout/window owner.
+          const clearance = !previous ? 4 : "group" in row || "group" in previous ? 16
+            : branch && previous.branch ? 4 : 12
           return (
             <div className="chat-process-tree-row"
+              style={{ "--chat-flow-leading": `${clearance - 4}px` } as React.CSSProperties}
               data-chat-tree-role={"group" in row ? "process" : branch
                 ? ["text", "update"].includes(row.node.renderer) ? "prose" : "branch"
                 : "content"}

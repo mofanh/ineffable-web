@@ -166,6 +166,17 @@ try {
     })
   })
   assert.ok(gaps.length>0&&gaps.every(gap=>Math.abs(gap)<0.5),"neighboring rails meet without gaps or doubled translucent spans")
+  const density = await pane.evaluate(root => {
+    const rows = [...root.querySelectorAll('[data-chat-tree-role]')]
+    return rows.slice(1).map((row, index) => {
+      const previous = rows[index]
+      const roles = [previous.dataset.chatTreeRole, row.dataset.chatTreeRole]
+      const expected = roles.includes('process') ? 16 : roles.includes('content') ? 12 : 4
+      return { expected, actual: row.firstElementChild.getBoundingClientRect().top - previous.getBoundingClientRect().bottom }
+    })
+  })
+  assert.deepEqual([...new Set(density.map(gap => gap.expected))].sort((a,b)=>a-b), [4,12,16])
+  assert.ok(density.every(gap => Math.abs(gap.actual - gap.expected) < 0.5), JSON.stringify(density))
   await page.evaluate(()=>document.documentElement.dir='rtl')
   assert.ok(await leaf.evaluate(n=>parseFloat(getComputedStyle(n,'::after').borderBottomRightRadius)>0),"curves follow logical direction")
   await page.evaluate(()=>document.documentElement.dir='ltr')

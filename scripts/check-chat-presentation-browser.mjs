@@ -15,6 +15,8 @@ try {
   await page.addInitScript(() => {
     window.notifications = []
     window.clipboardWrites = []
+    window.approvalActions = []
+    window.addEventListener("fixture:approval", event => window.approvalActions.push(event.detail))
     window.addEventListener("ineffable:app-notification", event => window.notifications.push(event.detail))
     Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async text => {
       if (window.rejectCopy) throw new Error("permission denied")
@@ -69,6 +71,34 @@ try {
   await page.reload()
   await page.locator("details[data-automation-instruction]").waitFor()
   assert.equal(await page.locator("details[data-automation-instruction] p").isVisible(),false)
+  // Same legacy approval renderer; presentation must not change its need/run/kind fence.
+  for (const language of ["en-US", "zh-CN"]) for (const dark of [false, true]) {
+    await page.setViewportSize({width:320,height:900})
+    for (const [status, scope] of [["pending", "active"], ["error", "active"], ["approving", "active"], ["rejecting", "active"], ["approved", "active"], ["rejected", "active"], ["pending", "run"], ["pending", "need"], ["pending", "kind"]]) {
+      await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/scripts/chat-presentation-fixture.html?approval=${status}&scope=${scope}`)
+      const card = page.locator('[data-chat-entry-role="approval"]')
+      await card.waitFor()
+      const labels = await page.evaluate(async ({language, dark}) => {
+        const {i18n} = await import('/src/lib/i18n/i18n.ts')
+        await i18n.changeLanguage(language)
+        document.documentElement.classList.toggle('dark', dark)
+        await document.fonts.ready
+        return Object.fromEntries(['approve','reject','approvalWaiting'].map(key=>[key,i18n.t(`chat.messages.${key}`)]))
+      }, {language,dark})
+      const enabled = scope === 'active' && ['pending','error'].includes(status)
+      for (const action of ['approve','reject']) {
+        const button = card.getByRole('button',{name:labels[action],exact:true})
+        assert.equal(await button.isEnabled(), enabled, `${status}/${scope}: ${action}`)
+        if (enabled) {
+          await button.click()
+          assert.deepEqual((await page.evaluate(()=>window.approvalActions)).at(-1), {action,id:'approval-entry'})
+        }
+      }
+      if (['approved','rejected'].includes(status)) assert.ok(!(await card.locator('p').first().innerText()).includes(labels.approvalWaiting), 'resolved approval never says it is waiting')
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth + 1), `${status}/${scope}: narrow card must wrap action/session`)
+      if(status==='error') assert.ok(await card.getByText('Explicit approval failure',{exact:true}).isVisible())
+    }
+  }
   assert.deepEqual(errors,[])
   console.log("chat presentation browser checks passed")
 } finally { await browser?.close(); await server.close() }

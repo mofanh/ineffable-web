@@ -26,8 +26,12 @@ Implemented adaptation inventory:
   -> src/features/chat/components/agent-pane.tsx: 14px/24px answer baseline only;
      existing Markdown projector, parser, Shiki and bounded code blocks retained.
 
+- P3: packages/client/ui-chat/src/client/chat/ChatView.module.css
+  -> src/features/chat/components/chat-process-nodes.tsx, chat-process-tree.css:
+     4px process / 12px response / 16px disclosure clearance, kept inside the
+     existing measured row window; Ineffable renderer identities and commands retained.
+
 Pending adaptation inventory (not yet included):
-- P3: packages/client/ui-chat/src/client/chat/ChatView.module.css (process flow density)
 - P4: packages/client/ui-settings-general/src/client/SettingsRoot.module.css
 
 MIT License

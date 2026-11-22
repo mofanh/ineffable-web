@@ -47,6 +47,7 @@ try {
     const input = page.locator("textarea")
     await input.waitFor()
     await page.evaluate(() => document.fonts.ready)
+    await page.locator('[data-slot="workspace-navigation"]').getByText("File 0.md", { exact: true }).first().waitFor()
     const pickerLabels = await page.evaluate(async () => {
       const { i18n } = await import("/src/lib/i18n/i18n.ts")
       return { model: i18n.t("chat.composer.modelPickerLabel"), sandbox: i18n.t("chat.composer.sandboxPickerLabel") }
@@ -67,6 +68,10 @@ try {
         assert.equal(sent, null, "IME and repeat keys never submit")
       }
       const geometry = await page.evaluate(() => {
+        const tree = document.querySelector('[data-slot="workspace-navigation"]')
+        if (innerWidth >= 1024 && tree.scrollWidth > tree.clientWidth + 1) {
+          throw new Error(`Workspace tree horizontal overflow: ${tree.scrollWidth}/${tree.clientWidth}; ` + Array.from(tree.querySelectorAll("*")).filter(node => node.getBoundingClientRect().right > tree.getBoundingClientRect().left + tree.clientWidth + 1).map(node => `${node.tagName}.${node.className}`).slice(0, 8).join("; "))
+        }
         const viewport = document.querySelector("div[data-chat-scroll-region]")
         const message = document.querySelector("[data-chat-reading-message]").getBoundingClientRect()
         const group = document.querySelector('[data-slot="input-group"]')

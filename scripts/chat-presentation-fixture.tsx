@@ -7,7 +7,7 @@ import { ChatScrollBody } from "../src/features/chat/components/chat-scroll-body
 import { createAssistantEntry } from "../src/features/chat/model/chat-history"
 import { applyTextDeltaToPane } from "../src/features/chat/chat-pane-state"
 import { parseInputProgress } from "../src/features/chat/model/input-progress"
-import type { ChatEntry } from "../src/features/chat/gateway-chat-types"
+import type { ApprovalEntry, ChatEntry } from "../src/features/chat/gateway-chat-types"
 import { i18n } from "../src/lib/i18n/i18n"
 import "../src/index.css"
 
@@ -27,6 +27,16 @@ const entries: ChatEntry[] = [
   assistant,
   { id: "message:ordinary", role: "user", content: instructions },
 ]
+const params = new URLSearchParams(location.search)
+const approvalMode = params.has("approval")
+const approval: ApprovalEntry = {
+  id: "approval-entry", role: "approval", needId: "approval-need", runId: "approval-run",
+  action: "Review this sensitive action.\n" + "long-command-".repeat(25),
+  executionSessionId: "session-".repeat(30),
+  status: (params.get("approval") || "pending") as ApprovalEntry["status"],
+  error: params.get("approval") === "error" ? "Explicit approval failure" : null,
+}
+const recordApproval = (action: string, id: string) => window.dispatchEvent(new CustomEvent("fixture:approval", { detail: { action, id } }))
 function Fixture() {
   const viewport = React.useRef<HTMLDivElement>(null)
   return <div style={{height:"100vh"}} className="flex min-w-0 flex-col">
@@ -37,11 +47,13 @@ function Fixture() {
         showScrollToBottom={false} onViewportScroll={() => {}} onViewportScrollIntent={() => {}}
         onLoadOlderConversationMessagesPage={() => {}} onScrollToBottomClick={() => {}}
         onStreamingContentProgress={() => {}}>
-        <ChatMessageList entries={entries} modelDisplayNames={{"fixture-model":"Model with a very long display name for mobile"}}
+        <ChatMessageList entries={approvalMode ? [approval] : entries} modelDisplayNames={{"fixture-model":"Model with a very long display name for mobile"}}
       hasOlderEntries={false} isLoadingOlderEntries={false} olderEntriesError={null} isAwaitingResponse={false}
       isLoadingInitial={false}
-      onStreamingContentProgress={() => {}} onApproveApproval={() => {}} onRejectApproval={() => {}}
-      activeHumanRunId={null} onSubmitUserInput={async () => {}} />
+      onStreamingContentProgress={() => {}} onApproveApproval={id => recordApproval("approve", id)} onRejectApproval={id => recordApproval("reject", id)}
+      activeHumanRunId={approvalMode && params.get("scope") !== "run" ? "approval-run" : null}
+      activeHumanNeedId={params.get("scope") !== "need" ? "approval-need" : "other-need"}
+      activeHumanNeedKind={params.get("scope") !== "kind" ? "approval" : "user_input"} onSubmitUserInput={async () => {}} />
       </ChatScrollBody>
     </div>
   </div>

@@ -177,7 +177,7 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
 
 - 对照同尺寸图逐项核对 sidebar/rail、头部、阅读轴、composer、资源面板、设置壳的坐标/密度/字体/token；明确标出 Ineffable 品牌、资源树、模型/环境、管理页等保留差异。
 - 固定几何值误差目标 ≤2 CSS px，居中轴偏差 ≤2px；消息/输入卡同时测实际内容矩形，在窄列及大列断言 32px 宽差和同一中心轴，覆盖 scrollbar/gutter 出现/消失，防止两者各自限宽后等宽或横漂。内容相关换行不按跨系统字体逐像素硬判。颜色/字号/圆角/间距由锁定 token 验，不以全图相似百分比掩盖结构错位。
-- 无法获得 DSH 当前 GUI DOM/截图时，只能交付源码支撑的结构基线，不能声称已完成像素对照；本轮尚未生成或检查新目标截图。
+- 无法获得 DSH 当前 GUI DOM/截图时，只能交付源码支撑的结构基线，不能声称已完成像素对照。P1/P2 已生成并抽检 mock Shell 截图；当前 active 图只含首条用户输入与待处理回执，不冒充真实 provider 已完成输出。最终 P5 另列同尺寸对照、完成态工具/答复和设置证据。
 - 实际截图必须等字体、编辑器、模态关闭动画和主题就绪；记录实际显示尺寸/主题，不拿 skeleton 或遮罩覆盖截图充数。
 
 ### 6.2 行为与安全门禁
@@ -218,8 +218,13 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
   - 长历史 simple/mixed × 1,000/10,000 有界窗口通过；10,000 simple/mixed 展开约 12.6/16.6s，挂载 19/11，输入 p95 约 15–16ms。原生 wheel 的输入内部滚动→边界向历史交接、触摸/键盘跟随、SSE 结束接管与 classic/overlay 边界测试通过。
   - 视觉证据为临时目录 `ineffable-chat-reading`；已实际检查 dark/ZH 桌面与 320px、light/EN 首条用户消息图。它们是 mock Gateway 的真实 Shell 截图，非真实 provider 完成图、非 DSH GUI 对照。新增 `check:chat-reading` 可复现。
   - 明确保留差异：Shell 的 48px 会话/Workspace 导航条继续独立于 40/76px 会话头，服务 Ineffable 全局页/资源返回，不伪称逐像素一致；字体/语义主题/代码渲染资产仍属 Ineffable。双 Esc 未启用：保留原有显式 Stop，不在尚无统一 modal/menu/approval/terminal fencing 的条件下添加误停风险。DSH ChatView 的过程行密度归 P3。
-  - P3 补充检查：classic scrollbar 桌面图发现资源树内层横向滚动；检查其实际可用宽度与 sidebar flex/min-width，不以隐藏整个页面 overflow 掩盖。
-- P3–P5 待执行；尚无最终验收或最终 CI 结论，不合并、不推送。
+- P3 已完成（阶段检查点，非整体验收）：沿用同一 renderer registry、ChatRowWindow 和 measured row，以行内 padding 实现过程 4px／正文 12px／分组 16px；分支 rail 随 clearance 正确接续。ToolCallShell 的成功态降为中性、保留失败/等待/运行语义和展开权限；人工问题 renderer 的等待强制展开与 agent report 原生 details 已符合目标，未复制第二套状态机。
+  - 旧审批卡改为中性卡片与紧凑主/次按钮，pending/error 保留原 need/run/kind 围栏与 entry.id 回调，busy/resolved 禁用不变；已结算标题不再错误显示“等待审批”。中英×明暗、320px、6 状态及 need/run/kind 不匹配通过。
+  - 资源工具条允许换行，脏状态始终显示，窄列丢弃按钮补上可见图标。新 `check:resource-toolbar` 在 classic scrollbar、300px 面板、1440/1024/390/320/1440 与四组语言/主题下验证保存/丢弃可见可操作、exact editor/draft、无隐式 Gateway 写操作。目录/版本/保存/授权路径不变。
+  - 资源树横向滚动根因是水平 Separator 的 variant `width:100%` 加左右 margin；改为同 specificity 的 `data-horizontal:w-auto`，并新增 tree.scrollWidth 断言，非 overflow-hidden 遮盖。
+  - 过程 4/12/16 几何、rail 连续/RTL、折叠保护、reading 主题矩阵、结构/旧布局/虚拟化通过。最终审批 presentation/canonical、资源工具条、过程和 production 结构门禁补跑全部通过；i18n（1841 keys）、零警告 lint、含更新 notice 的 production build、diff --check 通过。一次 canonical Chrome 启动 180s 超时发生在页面断言之前；检查无残留测试进程后串行重跑成功，未修改断言或掩盖失败。
+  - 既有 chat web runtime/integration、过程生命周期、人工回答反馈、tool action、generic/sandbox canonical approval 与异步观察、Workspace lifecycle 通过；权限/dirty 保护和业务写入口未迁移。
+- P4–P5 待执行；尚无最终验收或最终 CI 结论，不合并、不推送。
 - 参考图缺口：当前只有 DSH 源码可读，没有已连接 GUI 的浏览器控制工具。遵循参考安装的验证限制，不从 shell 新开浏览器访问 DSH/profile。后续本项目 Chrome fixture 截图是 Ineffable 测试证据，不冒充 DSH 实机对照。
 - 键盘核查：DSH `shortcuts/src/index.ts` 的双 Esc 默认为 500ms（Host volatile，1–2147483646）；`stop-shortcut.ts` 在菜单/modal/审批/terminal/IME/repeat/defaultPrevented 或身份/region 变化时重置。Ineffable 文件菜单先消费 Esc、Radix 分层关闭；现有输入无双 Esc。P2 仅在同 session/conversation/run/epoch/generation/region 和冲突门禁齐全时启用 500ms，否则保留显式停止按钮并记录差异；不引入 Host 配置。
 
@@ -228,7 +233,7 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
 | 上游文件 | 目标与处理 | 依赖闭包/许可 |
 | --- | --- | --- |
 | `ui-layout/src/client/columns.ts` | P1 `src/app/shell/workbench-layout.ts` 几何常量与求解，适配响应式 focus/rail | 纯 TypeScript；MIT，保留 DeepSeek 版权及原始 SHA |
-| `ui-conversation/src/client/skeleton/{ConversationRoot,HeroShell,InputBar}.module.css`、`ui-chat/src/client/chat/ChatView.module.css` | P2 以本项目语义 token 适配阅读轴、sticky composer、空态 | 不引入 Cordis/controller/Lexical；MIT，具体改编位置随阶段记录 |
+| `ui-conversation/src/client/skeleton/{ConversationRoot,HeroShell,InputBar}.module.css`；`ui-chat/src/client/chat/{AssistantMarkdown,ChatView}.module.css` | P2 适配阅读轴、sticky composer、空态、14/24 正文；P3 适配 4/12/16 执行流密度 | 不引入 Cordis/controller/Lexical；MIT，具体改编位置随阶段记录 |
 | `ui-settings-general/src/client/SettingsRoot.module.css` | P4 适配 800/188/28 设置几何 | React/Radix 继续用既有依赖；MIT；不复制 Host settings schema |
 | 品牌/字体/图标 | 保留 Ineffable 标识、既有 Inter 与 Lucide；不复制 DSH 品牌资产/Montserrat | 无新增依赖；既有第三方许可不由 DSH MIT 替代 |
 
