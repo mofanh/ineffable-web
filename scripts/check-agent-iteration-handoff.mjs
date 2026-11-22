@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
+import ts from "typescript"
 
 import { agentNodeManagementTargetKey } from "../src/features/chat/model/agent-node-management.ts"
 
@@ -48,20 +49,63 @@ assert.match(
   /\.catch\(\(caught\) => \{[\s\S]{0,180}pendingAgentIterationHandoffsRef\.current\.get\(targetKey\) !== handoff[\s\S]{0,120}pendingAgentIterationHandoffsRef\.current\.delete\(targetKey\)/,
   "failed reconciliation must release its own pending handoff even after navigation"
 )
-assert.match(
-  sidebar,
-  /const acceptSubmission[\s\S]{0,900}reconcileAgentIterationHandoff\(/,
-  "accepted and queued first sends must reconcile the handoff"
-)
-assert.match(
-  sidebar,
-  /catch \(primeError\)[\s\S]{0,500}reconcileAgentIterationHandoff\(/,
-  "cursor priming failure must reconcile the handoff"
-)
-assert.match(
-  sidebar,
-  /catch \(streamError\)[\s\S]{0,220}if \(!accepted\)[\s\S]{0,220}reconcileAgentIterationHandoff\(/,
-  "a send failure before acceptance must reconcile the handoff"
-)
+// Check actual function/catch ownership, not a character budget that changes
+// when unrelated capability reconciliation is inserted before the handoff.
+function descendants(node, predicate) {
+  const result = []
+  function visit(child) {
+    if (predicate(child)) result.push(child)
+    ts.forEachChild(child, visit)
+  }
+  visit(node)
+  return result
+}
+
+function checkSubmissionHandoffs(source) {
+  const file = ts.createSourceFile("sidebar.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  assert.equal(file.parseDiagnostics.length, 0, "handoff source must parse")
+  function unique(predicate, message) {
+    const matches = descendants(file, predicate)
+    assert.equal(matches.length, 1, message)
+    return matches[0]
+  }
+  function handoff(block, message) {
+    // Require the call directly in this body, not a comment, sibling callback,
+    // nested function or unreachable conditional branch elsewhere in the file.
+    const calls = block.statements.filter(statement => ts.isExpressionStatement(statement) &&
+      ts.isCallExpression(statement.expression) &&
+      statement.expression.expression.getText(file) === "reconcileAgentIterationHandoff")
+    assert.equal(calls.length, 1, message)
+    const call = calls[0].expression
+    assert.deepEqual(call.arguments.map(argument => argument.getText(file)),
+      ["targetConversationId", "submissionAgentEvolutionWorkspaceId"], message)
+    return calls[0]
+  }
+  const accepted = unique(node => ts.isVariableDeclaration(node) && node.name.getText(file) === "acceptSubmission",
+    "first-send acceptance must have a unique callback")
+  assert.ok(accepted.initializer && ts.isArrowFunction(accepted.initializer) && ts.isBlock(accepted.initializer.body))
+  const acceptedCall = handoff(accepted.initializer.body, "accepted and queued first sends must reconcile the handoff")
+  const prime = unique(node => ts.isCatchClause(node) && node.variableDeclaration?.name.getText(file) === "primeError",
+    "cursor priming must have a unique failure handler")
+  const primeCall = handoff(prime.block, "cursor priming failure must reconcile the handoff")
+  const send = unique(node => ts.isCatchClause(node) && node.variableDeclaration?.name.getText(file) === "sendError" &&
+    descendants(node.parent.tryBlock, child => ts.isCallExpression(child) && child.expression.getText(file) === "streamConversationSend").length === 1,
+  "input admission must have a unique failure handler")
+  const sendCall = handoff(send.block, "a send failure before acceptance must reconcile the handoff")
+  const guard = send.block.statements[0]
+  assert.ok(ts.isIfStatement(guard) && guard.expression.getText(file) === "accepted" &&
+    ts.isReturnStatement(guard.thenStatement) && guard.thenStatement.expression?.kind === ts.SyntaxKind.TrueKeyword,
+  "an observation error after admission must return success before failure reconciliation")
+  assert.ok(sendCall.getStart(file) > guard.end)
+  return [acceptedCall, primeCall, sendCall, guard].map(node => [node.getStart(file), node.end])
+}
+
+const protectedRanges = checkSubmissionHandoffs(sidebar)
+// Negative controls: removing any real call or the post-ACK guard must fail,
+// even though other calls and the helper remain in the same source file.
+for (const [start, end] of protectedRanges) {
+  assert.throws(() => checkSubmissionHandoffs(sidebar.slice(0, start) + sidebar.slice(end)),
+    { code: "ERR_ASSERTION" }, "missing handoff or post-ACK guard must be detected")
+}
 
 console.log("agent iteration first-send handoff checks passed")

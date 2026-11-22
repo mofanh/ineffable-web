@@ -36,7 +36,8 @@
 - 回归覆盖两种新建入口、1440/390px、中英明暗、精确 composer/editor DOM、未保存正文及零写请求。
 - 集中独立源审（final-layout-audit，dc4083a..625393e，干净 detached worktree）无 P0/P1，确认 P2-1：已隐藏的同路径 Workspace 根重新选择仍被 pathname 偏好压制；主线程浏览器独立复现 resourceVisible=false。修复将显隐/紧凑聊天归属已提交 navigation key，每次成功导航记录新 owner，覆盖同根重选、query-only、前进/返回；不在可取消的 Link 点击时提前显露，不重挂 Outlet。新建合同与此整改合并做定向复核。
 - 首次新增回归在旧实现上准确复现：侧栏新建后资源仍 visible，5s waitFor(hidden) 失败。修复后首次复跑先通过该断言，但顶部新建测试遇到与默认标题同名的 locator strict-mode 冲突；已改按 aria-label 定位实际操作按钮，不放宽资源隐藏断言。另纠正测试 input owner 假设：既有 startNewChat 每次递增 newDraftGeneration/inputIdentity，显式新建本来就应重置 textarea；精确 composer DOM 断言限于当前草稿的布局/资源开合，新建后仍断言只有一个 composer，脏文件 editor 则始终要求原节点与正文保留。
-- 整改定向验证已通过：`tsc -b`、lint、开发版布局矩阵、新增 Workspace owner/viewer 同路径重选/紧凑返回/query-only/history POP，以及 production build 与生产版布局完整矩阵。生产矩阵额外验证新建关闭后返回桌面仍关闭、脏导航被取消时不能提前显露。历史测试显式等待上一目标 owner 真正提交后再 POP，避免将尚未提交的 React transition 当作已到达页面。仍待定向独立复核与最终完整串行门禁。
+- 整改定向验证已通过：`tsc -b`、lint、开发版布局矩阵、新增 Workspace owner/viewer 同路径重选/紧凑返回/query-only/history POP，以及 production build 与生产版布局完整矩阵。生产矩阵额外验证新建关闭后返回桌面仍关闭、脏导航被取消时不能提前显露。历史测试显式等待上一目标 owner 真正提交后再 POP，避免将尚未提交的 React transition 当作已到达页面。定向独立复核 draft-resource-review 在干净 da953b0 checkout 结论 PASS，P0/P1/P2/P3 均为 0，原 P2-1 关闭；最终完整串行门禁进行中。
+- 最终串行首次执行在既有 `check:agent-iteration-handoff` 停止：旧源码正则把 accepted callback 的 handoff 限制在 900 字符内，且要求已经不存在的 `catch(streamError)/if(!accepted)` 结构。git blame 确认中间 capability 回滚基线与当前 ACK/sendError 逻辑均早于本轮；不为过期测试改动产品发送链。门禁改为 TypeScript AST 精确检查 accepted、cursor prime failure、admission failure 各自 body 内的带正确 target/scope handoff，并要求已 ACK 的观察错误先返回成功；逐一删除三个真实调用的负对照必须失败。保持其它既有身份/并发断言。此测试维护仍需独立定向复核和完整 CI 重跑，不将首次失败记为通过。
 
 ## 2. 代码结论与迁移策略
 
