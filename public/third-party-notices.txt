@@ -1,0 +1,40 @@
+Ineffable — third-party source notices
+
+DeepSeek Harness
+Version: 0.2.2-rc.5
+Reference source commit: 2e39e70496aa02986ca6a820c5d497e816b69d7e
+Reference checkout remote: https://github.com/mofanh/deepseek-harness
+
+The workbench redesign derives presentation geometry and interaction structure
+from the following upstream source families. Actual adaptation locations are
+recorded with the implementation stages in source comments and this notice.
+No Cordis runtime, Host services, DSH branding, or DSH font assets are included.
+
+Planned adaptation inventory (P0; update as each stage lands):
+- P1: packages/client/ui-layout/src/client/columns.ts
+- P2: packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css,
+      HeroShell.module.css, InputBar.module.css;
+      packages/client/ui-chat/src/client/chat/ChatView.module.css
+- P4: packages/client/ui-settings-general/src/client/SettingsRoot.module.css
+
+MIT License
+
+Copyright (c) 2026 DeepSeek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -425,14 +425,23 @@ const confirmed = await confirm({
 
 ## 工作台布局与页面密度
 
-- 默认 /chat 展示中央会话，左导航默认打开并保留用户后续选择；旧右栏 open/width 偏好
-  不决定聊天可用性。桌面文件资源位于旁侧，管理页默认专注资源；小于 1024px 时只显示
-  会话或资源之一。资源 Outlet 和聊天均保持挂载；跨断点保留最近交互面及其 portal 归属。
-  资源 header 保留完整祖先 breadcrumb 链接和页面 leading/trailing 操作。
-  关闭的 offcanvas 内容须退出 Tab 顺序和可访问树；焦点仍在内部时归还可见入口，
-  不干扰已经移到外部的焦点。导航动画尊重 reduced-motion，不依赖 transitionend 才完成关闭。
-  关闭的临时弹层保持稳定回调与 Radix 子树；Tooltip 只订阅实际可见 icon 模式，
-  避免开合时让整个文件树的关闭菜单与提示重复渲染。呈现变化仍须在同一次渲染关闭已打开弹层。
+- 默认 /chat 展示中央会话；获准的 DSH 结构迁移采用 280px 左栏（拖拽 264–420px）、
+  56px rail；小于 1024px 自动 rail，小于 768px 才是 modal drawer。导航呈现与内容可并排
+  是两个维度，不能共用一个 compact boolean。右列默认 45% 视口、最小 300px、最大 70%，
+  先缩/退出右列再侵占中央 400px 保留区；不足时同一资源进入专注面。
+  拖拽偏好仅当前登录 session 存活，刷新重置；resize 计算夹取不回写偏好。
+- 路由显式区分 conversation/global/resource/settings；全局业务页中央显示，文件在右列或
+  专注面，设置由唯一 Shell overlay 拥有。ChatWorkbench 与唯一 RoutedSurface/Outlet 稳定
+  兄弟挂载，不按位置换父树、加 layout key 或复制 Outlet。布局切换保留精确 DOM 与草稿；
+  真正换路由仍经未保存保护，不承诺任意页面 keepalive。跨断点保留最近交互面及 portal owner。
+  资源 header 保留完整祖先 breadcrumb 和 leading/trailing；拥挤时换行，不将链接挤成零宽。
+- 消息/输入卡共用扣除相同 scrollbar/gutter 的可用宽 A：B=clamp(680,columnWidth*.64,880)，
+  M=min(B,A-64)，C=M+32（最大 912）。窄屏仍保持实际 32px 宽差、同一中心轴，不能分别夹取成等宽。
+  聊天 scroll/window owner 唯一；sticky composer 与消息共用原滚动区，阅读历史不因 delta/resize 拉尾。
+- 关闭导航内容须退出 Tab 顺序和可访问树；rail 可见操作仍可聚焦。焦点仍在已隐藏内容时归还
+  可见入口，不干扰已经移到外部的焦点。导航动画尊重 reduced-motion，不依赖 transitionend。
+  关闭的临时弹层保持稳定回调与 Radix 子树；Tooltip 只订阅实际可见 icon 模式，避免开合时
+  完整文件树重复渲染；呈现变化仍须在同次渲染关闭临时弹层，不丢业务草稿。
 - 指标、模型卡片和列表搜索区按自身命名容器宽度排版，不按视口猜测中栏空间。
   几何检查使用既有节点的稳定 data-slot，保留实际中栏、占位、动画和列数断言。
 - 功能页复用 AppMetricPage 的单一标题和必要说明，不新增重复英文眉题或常驻操作教程。
@@ -441,7 +450,7 @@ const confirmed = await confirm({
   空间不足时按内容换行，不能让较长的译文状态把名称挤成零宽。
   任务元数据、运行记录和操作也需按内容收缩与换行；同时检查卡片、内部标题区的 scrollWidth
   和状态/按钮边界，不能依靠外层 overflow-hidden 掩盖溢出。
-- Composer 的附件、模型、Sandbox、设置和发送保持单行；左侧控件按内容宽度紧凑排列，
+- Composer 工具条按 DSH 密度分区；常规单行，确有窄容器空间不足时按容器断点换行，保留发送可达；
   仅发送操作靠右，空间不足时名称单行省略并保留完整 title。Sandbox 直接展示，
   能力和迭代选项放入具名设置入口并复用原状态和回调；窄容器设置可仅展示图标与可访问名称。
   同级槽位使用各自的 key 命名空间，不能与附件等外部传入节点的会话 key 冲突。
@@ -670,8 +679,11 @@ message identity 展示用户输入，历史慢返回不能吞掉已接收的气
 
 ## 工作台入口与交互连续性
 
-- 左栏只保留自动任务、活跃空间树、设置与账号。渠道、模型、Agent Node 和系统管理复用设置里的
-  原页面；团队生命周期属于团队菜单和目录。外观、语言保留在账号菜单，不在设置重复。
+- 左栏按品牌/新会话、全局入口、会话浏览、可折叠活跃空间树、设置/账号组织。渠道、模型、
+  Agent Node、系统管理与账户保留原中央业务页和深链；团队生命周期属于团队菜单和目录。
+  外观/语言在唯一 Shell 设置层的通用页管理（P4 迁移），复用原 providers，账号菜单只给入口，
+  不同时保留两套控件。普通设置开合不改 pathname/history；直链 /settings 协调同一层，关闭
+  fallback /chat。从设置进入实际业务页须经原 dirty guard，取消保持 editor 与设置上下文。
 - 位置导航只由顶部面包屑承担。资源页通过 AppHeaderContext 提供实际空间/路径，复用 Shell 的
   Breadcrumb renderer；正文不再复制空间标题、目录路径或“上一级”。操作归入原对象菜单。
 - 普通聊天不选择或绑定单一 Workspace，Agent 的文件操作由真实 actor 的当前成员权限裁决。

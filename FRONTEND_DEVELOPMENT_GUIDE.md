@@ -104,8 +104,8 @@
 
 1. 左栏优先展示会话搜索、新建和既有 runtime 状态，保留工作区树、管理导航与账户入口。
 2. 中央会话承载 transcript、执行过程与 composer；导航 portal 复用唯一 Gateway runtime 的 guarded selection/new/refresh 回调，不建立第二份状态或订阅。
-3. 文件深链 `/workspace/:workspaceId/objects/:objectId?` 打开旁侧资源，管理路由默认专注资源。切换会话不隐式停止后台 run。
-4. 同一认证 session 内聊天始终在同一位置挂载；资源 Outlet 隐藏或专注切换也不卸载，保留聊天草稿、附件与未保存文件编辑。
+3. 文件深链 `/workspace/:workspaceId/objects/:objectId?` 打开旁侧资源；管理、Automation、账户等 global 路由在中央显示，settings 由 Shell 唯一 overlay 协调。切换会话不隐式停止后台 run。
+4. 同一认证 session 内聊天始终在同一位置挂载；资源 Outlet 在布局隐藏或专注切换时不卸载，保留聊天草稿、附件与未保存文件编辑；实际换路由经 dirty guard 后可替换页面，不建立任意跨路由 keepalive。
 
 结构：
 
@@ -117,21 +117,24 @@ App Shell
 |- Central Conversation (persistent)
 |  |- Transcript / Execution / Composer
 |- Contextual Resource (persistent Outlet)
-   |- File editor / Management routes
+   |- RoutedSurface: right/focused file editor OR central global pages
+|- SettingsRoot (one Shell-owned overlay)
 ```
 
 #### 3.6.2 布局规格
 
 1. 视口高度使用 svh；紧凑布局跟随 visualViewport 高度与偏移，保证软键盘下输入区可见。
-2. 桌面左栏沿用 256px 可折叠导航；资源约占内容区 44%，可专注资源或隐藏；会话使用剩余宽度。
-3. 小于 1024px 时会话与资源互斥显示，导航使用抽屉；选择会话时关闭抽屉并显露同一聊天实例。跨断点保留最近交互的会话/资源面，确保设置等 portal 不悬在已隐藏的所属面板之外；新资源路由仍先展示目标资源。
+2. 左栏默认 280px、拖拽 264–420px、折叠 56px rail；右列初始 45% 视口、最小 300px、最大 70%。保护中央 400px，右列先让步；不足并排时同一资源进入专注面。宽度偏好仅当前登录 session，刷新重置；计算夹取不污染拖拽偏好。
+3. 小于 1024px 导航自动 rail，可手动展开；小于 768px 才使用 modal drawer。导航 presentation 与内容几何分开求解；资源因不足并排而专注时可切回同一聊天实例；选择会话时关闭 drawer。跨断点保留最近交互的会话/资源面，确保设置等 portal 不悬在已隐藏的所属面板之外；新资源路由仍先展示目标资源。
 4. 视觉参照 DSH 的低噪音会话界面：柔和导航底色、平整主画布、共轴居中的消息/输入卡片、轻边框与有限阴影；保持 Ineffable 品牌和现有组件，不引入 DSH 插件或运行时依赖。会话列表与工作区树各自滚动，长资源树不能把会话搜索/新建挤出视口。
 5. 不读取旧右栏 open/width 偏好决定会话可用性，不保留另一套 Agent mode。
-6. check:workbench-layout 在开发和 --production 下验证单实例、草稿、路由/专注/宽度切换、EN/ZH 与 light/dark。真实后端/provider 和真实移动端软键盘仍需人工验收。
+6. 消息与输入卡共用扣除同一 gutter 的可用宽 A，B=clamp(680,columnWidth*.64,880)，M=min(B,A−64)，C=M+32≤912；窄屏也保持实际 32px 宽差与同轴。sticky composer 在原会话滚动 owner 内，不另造跟随状态机。
+7. 设置桌面最大 800×800、导航 188、圆角 28、四周至少 24；小于 768 全屏/横导航。普通打开不变地址，直链 /settings 协调同一层并以 /chat 关闭；实际业务导航仍受 dirty guard 约束。通用页复用原外观/语言 providers，不复制账户整页到 modal。
+8. check:workbench-layout 在开发和 --production 下验证单实例、草稿、路由/专注/宽度切换、EN/ZH 与 light/dark；双断点覆盖 767/768/1023/1024。真实后端/provider 和真实移动端软键盘仍需人工验收。
 
 #### 3.6.3 组件职责与状态边界
 
-- AppShell 只拥有路由资源的显示/专注和导航容器，不持有 run 或会话副本。
+- AppShell 只拥有路由种类、几何、显示/专注、设置层与导航容器，不持有 run 或会话副本。ChatWorkbench 和 RoutedSurface/Outlet 保持稳定 DOM 兄弟，不通过 key/portal 重挂编辑器。
 - ChatWorkbench 延迟加载 GatewayChatSidebar；会话导航通过 portal 放入 AppSidebar。导航只过滤和展示，选择/新建/刷新调用既有受控命令。
 - AppSidebar 继续拥有唯一工作区树与管理入口；文件、自动化、设置和系统管理继续使用既有路由组件。
 - Gateway runtime、canonical timeline reducer、run store 和 renderer registry 继续独占聊天投影。不得按布局建立额外订阅、全会话详情 N+1 或第二个 composer。
