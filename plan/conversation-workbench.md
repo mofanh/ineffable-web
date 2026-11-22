@@ -200,7 +200,7 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
 
 ## 7. 许可证、依赖与实施前待核实项
 
-- [DSH 根 LICENSE](</Users/bojingli/self/project/dev/deepseek-harness/LICENSE#L1-L21>) 为 MIT，允许改编代码但要求保留版权和许可。每个实际复制/实质改编文件记录 upstream 路径、版本/SHA、修改说明，并在本产品发行物中保留 notice；建议新增 `THIRD_PARTY_NOTICES.md`，不是只在计划口头注明。
+- [DSH 根 LICENSE](</Users/bojingli/self/project/dev/deepseek-harness/LICENSE#L1-L21>) 为 MIT，允许改编代码但要求保留版权和许可。每个实际复制/实质改编文件记录 upstream 路径、版本/SHA、修改说明，并在本产品发行物中保留 notice；已采用 [发行 notice](</Users/bojingli/self/project/dev/Ineffable-web/public/third-party-notices.txt>)，由 Vite public 原样发布，不是只在计划口头注明。
 - [DSH 基础字体栈](</Users/bojingli/self/project/dev/deepseek-harness/packages/client/ui-theme/src/styles/base.css#L6-L23>) 是系统正文/代码字体，Montserrat 是品牌字体；[brand-font.css](</Users/bojingli/self/project/dev/deepseek-harness/packages/client/ui-theme/src/styles/brand-font.css#L1-L24>) 单列 OFL。默认保留 Ineffable 标志，不拷 DSH 鱼标/品牌字体资产；如引入任何字体/图标/上游生成 token，逐项核对其版权与再分发条件，MIT 根许可不自动覆盖第三方资产。
 - 优先现有依赖；不为取一个按钮引入整套 DSH primitives/Cordis。拷纯函数/样式还是按原 primitives 重写，以依赖闭包/维护成本决定；复制量大时保留完整许可并逐项清单，不拿“参考”规避义务。
 - 真实后端能力差距：DSH 的宿主终端、插件/设置服务、工作目录 Session 分组和特定工具 diff 不是已证明的一对一能力。默认不新增；若用户要求这些能力也等价，需要另立后端合同，不阻塞已有会话/文件主体验但必须明示差异。
@@ -212,7 +212,8 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
 ## 8. 当前实施进度与剩余证据
 
 - P0 已完成：用户授权已激活；原目录/分支与已有改动已核对，长期合同已同步。新增真实浏览器结构门禁 `scripts/check-workbench-structure-browser.mjs`，旧实现得到预期 7 项红灯：280px、56px、1024/1023/768/1440 rail 与全局页返回会话路由；草稿/exact DOM、抽屉 Escape/focus、窄屏无横向溢出通过。先纠正 fixture 的 model-card 必填数据与动画稳定等待，最终红灯来自目标差距而非测试异常。证据位于系统临时目录 `ineffable-workbench-structure-development/metrics.json` 与 desktop-rail.png。基线 breadcrumb 非零命中区、dirty 导航取消与 portal owner 测试保留；既有 dialog-hidden 一行等待不纳入本阶段提交。i18n 检查（1839 keys）、lint（零错误/警告）、production build、diff --check 通过；Vite 既有 images 静态/动态导入提示不计作新增 ESLint 警告。完整 MIT 和拟复用清单已加入 `public/third-party-notices.txt`，随静态发行物分发。
-- P1–P5 待执行；当前没有新目标的产品完成或最终 CI 结论，不合并、不推送。
+- P1 已完成：唯一布局 controller/纯函数求解，280px 导航与 56px rail、264–420px pointer/键盘 resize、768/1024 断点和按账号隔离的导航展开偏好；宽度仅当前登录内存保存，临时收窄不回写偏好。768px 手动展开将 420px 偏好临时压为 368px，确保中心 400px，回宽恢复。资源优先退让、全局页居中、单一 ChatWorkbench/Outlet 与 drawer 精确 DOM/focus 保持通过。修正性能脚本的旧几何/全局页假设，SPA 就绪等待改为目录数据实际呈现，没有屏蔽合法权限/目录请求。i18n（1841 keys）、零警告 lint、production build、responsive solver 全宽穷举、结构开发/production、旧布局 production、性能开发/production 和 diff --check 通过；开发性能包含六种图片引用 reconcile/成功/选择/会话/卸载/超时用例。证据为系统临时目录下 `ineffable-workbench-structure-development` 与 `ineffable-workbench-structure-production`。本阶段不纳入用户原有 Dockerfile、design 与 dirty-dialog 等待改动。
+- P2–P5 待执行；尚无最终验收或最终 CI 结论，不合并、不推送。
 - 参考图缺口：当前只有 DSH 源码可读，没有已连接 GUI 的浏览器控制工具。遵循参考安装的验证限制，不从 shell 新开浏览器访问 DSH/profile。后续本项目 Chrome fixture 截图是 Ineffable 测试证据，不冒充 DSH 实机对照。
 - 键盘核查：DSH `shortcuts/src/index.ts` 的双 Esc 默认为 500ms（Host volatile，1–2147483646）；`stop-shortcut.ts` 在菜单/modal/审批/terminal/IME/repeat/defaultPrevented 或身份/region 变化时重置。Ineffable 文件菜单先消费 Esc、Radix 分层关闭；现有输入无双 Esc。P2 仅在同 session/conversation/run/epoch/generation/region 和冲突门禁齐全时启用 500ms，否则保留显式停止按钮并记录差异；不引入 Host 配置。
 

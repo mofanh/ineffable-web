@@ -160,16 +160,16 @@ export function ConversationNavigation({
   const [query, setQuery] = React.useState("")
   const filtered = conversations.filter(item => item.title.toLowerCase().includes(query.trim().toLowerCase()))
   return (
-    <nav aria-label={t("workbench.conversations")} className="flex min-h-0 flex-col gap-1 border-b border-sidebar-border/60 px-3 py-2">
-      <div className="flex items-center gap-1">
-        <Button variant="ghost" className="min-w-0 flex-1 justify-start" onClick={onStartNewChat}><PlusIcon />{t("chat.header.newChat")}</Button>
-        <HeaderActionButton title={t("chat.header.refresh")} onClick={onRefreshConversations}><RefreshCcwIcon className="size-4" /></HeaderActionButton>
+    <nav aria-label={t("workbench.conversations")} className="flex min-h-0 flex-col gap-1 border-b border-sidebar-border/60 px-3 py-2 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:px-2">
+      <div className="flex items-center gap-1 group-data-[collapsible=icon]:justify-center">
+        <Button variant="ghost" aria-label={t("chat.header.newChat")} title={t("chat.header.newChat")} className="min-w-0 flex-1 justify-start group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0" onClick={onStartNewChat}><PlusIcon /><span className="group-data-[collapsible=icon]:hidden">{t("chat.header.newChat")}</span></Button>
+        <span className="group-data-[collapsible=icon]:hidden"><HeaderActionButton title={t("chat.header.refresh")} onClick={onRefreshConversations}><RefreshCcwIcon className="size-4" /></HeaderActionButton></span>
       </div>
-      <div className="relative my-1 shrink-0">
+      <div className="relative my-1 shrink-0 group-data-[collapsible=icon]:hidden">
         <SearchIcon aria-hidden="true" className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
         <Input aria-label={t("chat.header.search")} placeholder={t("chat.header.search")} value={query} onChange={event => setQuery(event.target.value)} className="h-9 rounded-lg border-transparent bg-sidebar-accent/40 pl-8 shadow-none focus-visible:border-ring" />
       </div>
-      <div className="min-h-0 overflow-y-auto overscroll-contain">
+      <div className="min-h-0 overflow-y-auto overscroll-contain group-data-[collapsible=icon]:hidden">
         {groupConversations(filtered).map(group => <div key={group.label}>
           <div className="px-2 pb-1 pt-3 text-[11px] font-medium text-muted-foreground">{group.label}</div>
           {group.items.map(item => <button key={item.id} type="button" aria-current={item.id === selectedConversationId ? "true" : undefined} onClick={() => onSelectConversation(item.id)} className={cn("flex min-h-9 w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent focus-visible:outline-ring", item.id === selectedConversationId && "bg-sidebar-accent font-medium text-sidebar-foreground")}>

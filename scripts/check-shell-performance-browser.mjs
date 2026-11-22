@@ -10,7 +10,7 @@ const production = process.argv.includes("--production")
 const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
 assert.ok(executablePath, "Chrome is required")
 const instrumented = new Map([
-  ["src/app/app-shell.tsx", ["function WorkbenchContent() {", "shell"]],
+  ["src/app/app-shell.tsx", [/function WorkbenchContent\([^\n]*\) \{/, "shell"]],
   ["src/features/workspace/app-sidebar.tsx", ["export function AppSidebar({ children, ...props }: React.ComponentProps<typeof Sidebar>) {", "navigation"]],
   ["src/features/chat/gateway-chat-sidebar.tsx", ["}: GatewayChatSidebarProps) {", "chat"]],
 ])
@@ -20,7 +20,11 @@ const server = production
     const path = id.split("?")[0].slice(process.cwd().length + 1)
     let code = source
     const counter = instrumented.get(path)
-    if (counter) code = code.replace(counter[0], `${counter[0]}\nwindow.__shellRenders.${counter[1]}++;`)
+    if (counter) {
+      const marker = typeof counter[0] === "string" ? counter[0] : code.match(counter[0])?.[0]
+      assert.ok(marker && code.includes(marker), `instrument real ${counter[1]} owner`)
+      code = code.replace(marker, `${marker}\nwindow.__shellRenders.${counter[1]}++;`)
+    }
     if (path === "src/components/ui/sidebar.tsx") {
       const geometryRead = "const rect = element.getBoundingClientRect()"
       assert.ok(code.includes(geometryRead), "instrument Sidebar focus-return geometry")
@@ -73,7 +77,7 @@ try {
       const sample = await measureToggle(page)
       scenario.toggles.push(sample)
       assert.equal(apiRequests(fixture.requests).length, before, "left toggle does not reload data")
-      assert.ok(Math.abs(sample.gap - (i % 2 ? 256 : 0)) < 1, "the original layout animation settles")
+      assert.ok(Math.abs(sample.gap - (i % 2 ? 280 : 56)) < 1, "navigation toggles between the approved 280px panel and 56px rail")
     }
     writeFileSync(output, JSON.stringify(results, null, 2))
     for (const sample of scenario.toggles) {
@@ -95,6 +99,11 @@ try {
     await composer.waitFor()
     await composer.fill("KEEP_SIDEBAR_DRAFT")
     await page.waitForLoadState("networkidle")
+    await page.getByRole("link", { name: "Workspace", exact: true }).click()
+    // A retained SPA document can already be networkidle before its lazy route
+    // mounts. Wait for the directory's data-dependent UI, not that old state.
+    await page.locator('[data-slot="resource-workbench"]').getByRole("link", { name: "File 0.md", exact: true }).waitFor()
+    await page.waitForLoadState("networkidle")
     const beforeReopen = apiRequests(fixture.requests).length
     const chat = page.locator('[data-slot="chat-workbench"]')
     const node = await composer.elementHandle()
@@ -104,8 +113,8 @@ try {
     assert.equal(await composer.inputValue(), "KEEP_SIDEBAR_DRAFT")
     assert.equal(await node.evaluate(el => el.isConnected), true)
     await page.waitForLoadState("networkidle")
-    assert.equal(apiRequests(fixture.requests).length, beforeReopen, "focus/hide do not reload business data or stop execution")
-    await page.setViewportSize({ width: 900, height: 900 })
+    assert.deepEqual(apiRequests(fixture.requests).slice(beforeReopen), [], "focus/hide do not reload business data or stop execution")
+    await page.setViewportSize({ width: 767, height: 900 })
     await page.locator('[data-slot="sidebar-trigger"]').click()
     await page.locator('[data-side="left"][data-compact="true"]').waitFor()
     await page.keyboard.press("Escape")

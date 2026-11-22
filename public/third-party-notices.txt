@@ -10,8 +10,13 @@ from the following upstream source families. Actual adaptation locations are
 recorded with the implementation stages in source comments and this notice.
 No Cordis runtime, Host services, DSH branding, or DSH font assets are included.
 
-Planned adaptation inventory (P0; update as each stage lands):
+Implemented adaptation inventory:
 - P1: packages/client/ui-layout/src/client/columns.ts
+  -> src/app/shell/workbench-layout.ts: geometry constants and column solver,
+     adapted for Ineffable's independent 768px drawer / 1024px auto-rail,
+     stable routed resource focus, and session-only preferred pixel widths.
+
+Pending adaptation inventory (not yet included):
 - P2: packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css,
       HeroShell.module.css, InputBar.module.css;
       packages/client/ui-chat/src/client/chat/ChatView.module.css

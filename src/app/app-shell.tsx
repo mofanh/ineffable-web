@@ -1,9 +1,10 @@
 import { Fragment, Suspense, memo, useCallback, useEffect, useMemo, useState } from "react"
+import type { CSSProperties, Dispatch, SetStateAction } from "react"
 import type { TFunction } from "i18next"
 import type { Workspace } from "@/features/workspace/api/workspace-api"
 import type { BreadcrumbEntry } from "@/routes/navigation"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-import { Link, Outlet, useLocation } from "react-router-dom"
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { FolderOpenIcon, Maximize2Icon, Minimize2Icon, MessageSquareTextIcon, XIcon } from "lucide-react"
 
@@ -17,27 +18,42 @@ import { useWorkspaceSession } from "@/features/auth/app-session"
 import { useIsCompactLayout } from "@/hooks/use-compact-layout"
 import { useVisualViewport } from "@/hooks/use-visual-viewport"
 import { cn } from "@/lib/utils"
-import { defaultPath, getRouteMeta } from "@/routes/navigation"
+import { defaultPath, getRouteKind, getRouteMeta } from "@/routes/navigation"
+
+import { AUTO_RAIL_BREAKPOINT, DRAWER_BREAKPOINT, CENTER_MIN, SIDEBAR_MIN, SIDEBAR_MAX, RIGHT_MIN, RIGHT_MAX_RATIO, computeWorkbenchColumns } from "@/app/shell/workbench-layout"
+import { useWorkbenchLayout } from "@/app/shell/use-workbench-layout"
+import { WorkbenchResizeHandle } from "@/app/shell/workbench-resize-handle"
+
+type WorkbenchView = { path: string; open: boolean; focused: boolean }
 
 const NavigationSidebar = memo(AppSidebar)
 
 export function AppShell() {
   const compact = useIsCompactLayout()
   const viewport = useVisualViewport(compact)
+  const layout = useWorkbenchLayout()
+  const { pathname } = useLocation()
+  const drawer = layout.width < DRAWER_BREAKPOINT
+  const [view, setView] = useState<WorkbenchView>({ path: pathname, open: true, focused: false })
+  const resourceOpen = getRouteKind(pathname) === "resource" && (view.path !== pathname || view.open)
+  const expanded = layout.open && !(layout.width < AUTO_RAIL_BREAKPOINT && resourceOpen)
+  const columns = computeWorkbenchColumns(layout.width, expanded, layout.sidebar, layout.right, resourceOpen)
   return (
     <AppHeaderProvider>
-      <SidebarProvider defaultOpen className="h-svh min-h-0 overflow-hidden" style={compact && viewport ? { height: viewport.height, transform: `translateY(${viewport.offsetTop}px)` } : undefined}>
-        <WorkbenchContent />
+      <SidebarProvider compact={drawer} independentCompact open={expanded} onOpenChange={layout.setOpen} persistCookie={false} className="relative h-svh min-h-0 overflow-hidden" style={{ "--sidebar-width": `${drawer ? layout.sidebar : columns.sidebar}px`, "--sidebar-width-icon": "56px", "--sidebar-duration": "0ms", ...(compact && viewport ? { height: viewport.height, transform: `translateY(${viewport.offsetTop}px)` } : {}) } as CSSProperties}>
+        <WorkbenchContent layout={layout} columns={columns} view={view} setView={setView} />
       </SidebarProvider>
     </AppHeaderProvider>
   )
 }
 
-function WorkbenchContent() {
+function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnType<typeof useWorkbenchLayout>; columns: ReturnType<typeof computeWorkbenchColumns>; view: WorkbenchView; setView: Dispatch<SetStateAction<WorkbenchView>> }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const compact = useIsCompactLayout()
-  const { setOpenCompact } = useSidebar()
+  const navigate = useNavigate()
+  const kind = getRouteKind(pathname)
+  const { setOpenCompact, open: navigationExpanded } = useSidebar()
+  const drawer = layout.width < DRAWER_BREAKPOINT
   const { currentWorkspace, workspaces } = useWorkspaceSession()
   const { headerContent } = useAppHeader()
   const breadcrumbs = headerContent?.breadcrumbs
@@ -45,26 +61,27 @@ function WorkbenchContent() {
     ?? getRouteMeta(pathname)?.breadcrumbs
     ?? []
   const [navigationTarget, setNavigationTarget] = useState<HTMLDivElement | null>(null)
-  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" className="flex max-h-1/2 min-h-0 shrink-0 flex-col" />, [])
+  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:flex-none" />, [])
   // Panel preferences are local view state, never conversation/run ownership.
   // A new deep link opens its resource; hiding/focusing keeps the Outlet mounted.
-  const [view, setView] = useState({ path: pathname, open: true, focused: !pathname.startsWith("/workspace/") })
-  const hasResource = pathname !== defaultPath
+  const hasResource = kind === "resource"
+  const global = kind === "global" || kind === "settings"
   const resourceOpen = hasResource && (view.path !== pathname || view.open)
-  const resourceFocused = resourceOpen && (view.path !== pathname
-    ? compact || !pathname.startsWith("/workspace/")
-    : view.focused || compact)
-  // Preserve the interacted surface across the breakpoint, including its portals.
-  // A different resource route still opens that resource before any interaction.
+  const compact = columns.right === 0
+  const resourceFocused = resourceOpen && (compact || (view.path === pathname && view.focused))
+  // Preserve the interacted surface and its portals when side-by-side space disappears.
   const [compactChat, setCompactChat] = useState<string | null>(null)
-  const showResource = resourceOpen && (!compact || compactChat !== pathname)
-  const showChat = !showResource || !resourceFocused
+  const showResource = global || (resourceOpen && (!compact || compactChat !== pathname))
+  const showChat = !global && (!showResource || !resourceFocused)
 
   const revealChat = useCallback(() => {
-    setView({ path: pathname, open: true, focused: false })
-    setCompactChat(pathname)
-    if (compact) setOpenCompact(false)
-  }, [pathname, compact, setOpenCompact])
+    if (global) navigate(defaultPath)
+    else {
+      setView({ path: pathname, open: true, focused: false })
+      setCompactChat(pathname)
+    }
+    if (drawer) setOpenCompact(false)
+  }, [pathname, global, navigate, drawer, setOpenCompact, setView])
 
   useEffect(() => {
     window.addEventListener("ineffable:right-sidebar:open", revealChat)
@@ -78,7 +95,8 @@ function WorkbenchContent() {
 
   return (
     <>
-      <NavigationSidebar>{conversationSlot}</NavigationSidebar>
+      <NavigationSidebar collapsible="icon">{conversationSlot}</NavigationSidebar>
+      {!drawer && navigationExpanded ? <WorkbenchResizeHandle label={t("workbench.resizeNavigation")} value={columns.sidebar} min={SIDEBAR_MIN} max={Math.min(SIDEBAR_MAX, layout.width - CENTER_MIN)} onPreview={sidebar => layout.updatePreview({ sidebar })} onChange={sidebar => layout.update({ sidebar })} className="left-(--sidebar-width) -translate-x-1/2" /> : null}
       <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
           <SidebarTrigger aria-label={t("shell.sidebar.toggle")} title={t("shell.sidebar.toggle")} />
@@ -97,16 +115,17 @@ function WorkbenchContent() {
             ) : null}
           </div>
         </header>
-        <main className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1">
           {/* This position never changes across routes or panel/viewport changes. */}
           <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" onPointerDownCapture={() => setCompactChat(pathname)} onFocusCapture={() => setCompactChat(pathname)} className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
             <ChatWorkbench navigationTarget={navigationTarget} onReveal={revealChat} />
           </section>
           <section aria-label={t("workbench.resources")} data-slot="resource-workbench" onPointerDownCapture={() => setCompactChat(null)} onFocusCapture={() => setCompactChat(null)} className={cn(
-            "min-h-0 min-w-0 flex-col overflow-hidden bg-background",
+            "relative min-h-0 min-w-0 flex-col overflow-hidden bg-background",
             showResource ? "flex" : "hidden",
-            showChat ? "w-[44%] min-w-96 border-l" : "flex-1",
-          )}>
+            showChat ? "shrink-0 border-l" : "flex-1",
+          )} style={showChat && showResource ? { width: columns.right } : undefined}>
+            {showChat && showResource ? <WorkbenchResizeHandle label={t("workbench.resizeResource")} value={columns.right} min={RIGHT_MIN} max={Math.min(layout.width * RIGHT_MAX_RATIO, layout.width - columns.sidebar - CENTER_MIN)} direction={-1} onPreview={right => layout.updatePreview({ right })} onChange={right => layout.update({ right })} className="left-0" /> : null}
             <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1">
               <div className="min-w-0 flex-1 basis-48 truncate text-sm font-medium">
                 {headerContent?.leading ?? (
@@ -127,16 +146,16 @@ function WorkbenchContent() {
                 )}
               </div>
               {headerContent?.trailing}
-              {!compact ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: true, focused: !resourceFocused })} aria-label={t(resourceFocused ? "workbench.split" : "workbench.focus")} title={t(resourceFocused ? "workbench.split" : "workbench.focus")}>
+              {hasResource && !compact ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: true, focused: !resourceFocused })} aria-label={t(resourceFocused ? "workbench.split" : "workbench.focus")} title={t(resourceFocused ? "workbench.split" : "workbench.focus")}>
                 {resourceFocused ? <Minimize2Icon /> : <Maximize2Icon />}
               </Button> : null}
-              <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: false, focused: false })} aria-label={t("workbench.closeResource")} title={t("workbench.closeResource")}><XIcon /></Button>
+              {hasResource ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: false, focused: false })} aria-label={t("workbench.closeResource")} title={t("workbench.closeResource")}><XIcon /></Button> : null}
             </header>
-            <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+            <div className="min-h-0 min-w-0 flex-1 overflow-auto">
               <Suspense fallback={<RouteLoading />}><Outlet /></Suspense>
             </div>
           </section>
-        </main>
+        </div>
       </SidebarInset>
     </>
   )

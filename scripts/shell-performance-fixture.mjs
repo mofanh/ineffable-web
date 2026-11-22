@@ -12,7 +12,10 @@ export async function installShellFixture(page, open, { leftOpen = true } = {}) 
   page.on("request", request => requests.push({ path: new URL(request.url()).pathname, method: request.method(), auth: request.headers().authorization }))
   page.on("pageerror", error => errors.push(error.message))
   await page.addInitScript(({ open, leftOpen }) => {
-    if (typeof leftOpen === "boolean") document.cookie = `sidebar_state=${leftOpen}; path=/`
+    if (typeof leftOpen === "boolean") {
+      document.cookie = `sidebar_state=${leftOpen}; path=/`
+      localStorage.setItem("ineffable.ui.navigation.user.open", String(leftOpen))
+    }
     window.__shellRenders = { shell: 0, navigation: 0, chat: 0 }
     window.__shellFocusReturnReads = 0
     window.__shellLongTasks = []

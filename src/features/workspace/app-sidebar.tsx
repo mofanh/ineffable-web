@@ -367,6 +367,8 @@ function AutomationNav({
             <SidebarMenuButton
               type="button"
               size="lg"
+              className="group-data-[collapsible=icon]:justify-center"
+              aria-label={t("sidebar.navigation.automation")}
               isActive={location.pathname === "/automation"}
               tooltip={t("sidebar.navigation.automation")}
               onClick={() => {
@@ -376,7 +378,7 @@ function AutomationNav({
               }}
             >
               <ZapIcon className="text-sidebar-foreground/70" />
-              <span>{t("sidebar.navigation.automation")}</span>
+              <span className="group-data-[collapsible=icon]:hidden">{t("sidebar.navigation.automation")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -1291,8 +1293,9 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
               asChild
               tooltip={`Ineffable · ${getLogoName(logoVariant)}`}
             >
-              <Link to={defaultPath} className="flex w-full justify-start">
-                <IneffableLogo variant={logoVariant} className="h-8 w-auto max-w-[132px]" />
+              <Link to={defaultPath} aria-label="Ineffable" className="flex w-full justify-start group-data-[collapsible=icon]:justify-center">
+                <span aria-hidden="true" className="hidden font-semibold group-data-[collapsible=icon]:inline">I</span>
+                <IneffableLogo variant={logoVariant} className="h-8 w-auto max-w-[132px] group-data-[collapsible=icon]:hidden" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -1300,8 +1303,8 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
       </SidebarHeader>
       <SidebarContent className="gap-0 overflow-hidden px-0">
         {children}
-        <div data-slot="workspace-navigation" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <AutomationNav onSelectEntry={setSelectedEntryId} />
+        <div data-slot="workspace-navigation" className="max-h-[40%] min-h-0 shrink-0 overflow-y-auto overscroll-contain group-data-[collapsible=icon]:hidden">
         <SidebarSeparator />
         <SpaceSection
           title={t("sidebar.sections.team")}
@@ -1353,7 +1356,7 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
         </div>
       </SidebarContent>
       <SidebarFooter className="gap-2">
-        <SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild isActive={location.pathname === "/settings"}><Link to="/settings"><SettingsIcon /><span>{t("interaction.settings")}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
+        <SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild tooltip={t("interaction.settings")} isActive={location.pathname === "/settings"}><Link to="/settings"><SettingsIcon /><span>{t("interaction.settings")}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
         <SidebarSeparator className="mx-0" />
         <SidebarMenu>
           <SidebarMenuItem>

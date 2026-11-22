@@ -70,6 +70,7 @@ function SidebarProvider({
   keyboardShortcut = true,
   triggerRef: triggerRefProp,
   compact,
+  independentCompact = false,
   className,
   style,
   children,
@@ -82,6 +83,7 @@ function SidebarProvider({
   keyboardShortcut?: boolean
   triggerRef?: React.RefObject<HTMLButtonElement | null>
   compact?: boolean
+  independentCompact?: boolean
 }) {
   const viewportIsCompact = useIsCompactLayout()
   const isCompact = compact ?? viewportIsCompact
@@ -112,18 +114,18 @@ function SidebarProvider({
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(openCompact) : value
       setOpenCompactState(openState)
-      setOpen(openState)
+      if (!independentCompact) setOpen(openState)
     },
-    [openCompact, setOpen]
+    [openCompact, setOpen, independentCompact]
   )
 
   React.useEffect(() => {
-    if (!isCompact || openProp === undefined) {
+    if (independentCompact || !isCompact || openProp === undefined) {
       return
     }
 
     setOpenCompactState(open)
-  }, [isCompact, open, openProp])
+  }, [isCompact, open, openProp, independentCompact])
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
@@ -136,13 +138,13 @@ function SidebarProvider({
       return
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
-        (event.metaKey || event.ctrlKey)
-      ) {
-        event.preventDefault()
-        toggleSidebar()
-      }
+      if (event.key !== SIDEBAR_KEYBOARD_SHORTCUT || !(event.metaKey || event.ctrlKey)) return
+      const target = event.target
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.shiftKey ||
+        (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select, [role="textbox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'))) ||
+        Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"], [role="menu"], [role="listbox"]')).some(element => element.getClientRects().length > 0)) return
+      event.preventDefault()
+      toggleSidebar()
     }
 
     window.addEventListener("keydown", handleKeyDown)
@@ -258,7 +260,7 @@ function Sidebar({
   const presentation = collapsible === "none"
     ? "static"
     : isCompact ? (openCompact ? "modal" : "hidden")
-    : (state === "expanded" ? "docked" : "hidden")
+    : (state === "expanded" || collapsible === "icon" ? "docked" : "hidden")
   // One React subtree survives moves between docked and modal presentation.
   // Captured events include nested React portals belonging to this sidebar.
   const content = contentHost && createPortal(
@@ -380,7 +382,7 @@ function Sidebar({
     {content}
     <div
       className={cn(
-        "group peer text-sidebar-foreground hidden lg:block",
+        "group peer text-sidebar-foreground block",
         side === "right" && "transition-[--sidebar-reveal] duration-200 ease-linear motion-reduce:transition-none"
       )}
       style={side === "right" ? { "--sidebar-reveal": state === "collapsed" && collapsible === "offcanvas" ? 0 : 1 } as React.CSSProperties : undefined}
@@ -394,7 +396,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-[var(--sidebar-width-gap,var(--sidebar-width))] bg-transparent duration-200 ease-linear",
+          "relative w-[var(--sidebar-width-gap,var(--sidebar-width))] bg-transparent duration-[var(--sidebar-duration,200ms)] ease-linear motion-reduce:transition-none",
           // One inherited progress animates the right pane and its reservation.
           // Width/viewport/fullscreen changes still commit without interpolation.
           side === "left"
@@ -410,7 +412,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) duration-200 ease-linear lg:flex",
+          "fixed inset-y-0 z-10 flex h-svh w-(--sidebar-width) duration-[var(--sidebar-duration,200ms)] ease-linear motion-reduce:transition-none",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] transition-[left,right,width]"
             : "right-[calc(var(--sidebar-width)*(var(--sidebar-reveal)_-_1))] transition-none",
@@ -635,7 +637,7 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-0", className)}
+      className={cn("flex w-full min-w-0 flex-col gap-0 group-data-[collapsible=icon]:items-center", className)}
       {...props}
     />
   )
