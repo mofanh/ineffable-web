@@ -4,11 +4,13 @@
 
 `npm run dev` 保持 HTTP 启动。通过局域网 HTTP 地址访问时，若浏览器缺少发送所需的安全上下文功能，点击发送会显示统一 toast，提示使用 HTTPS；本机可通过 localhost 访问。检查失败时保留草稿，不创建会话或进入发送中状态。
 
-当前前端已切换为「仅 Gateway Chat 生效」模式：
+当前前端采用会话优先工作台：
 
-- 控制台各页面保留路由与静态说明。
-- 唯一在线后端交互能力是右侧栏 Chat。
-- Chat 通过 Gateway HTTP + SSE + Poll 接口实现。
+- 默认 `/chat` 展示中央会话；左侧提供会话搜索、新建、运行状态与工作区导航。
+- 文件深链打开旁侧资源，保留编辑、版本与工作区管理；窄屏在会话/资源之间切换，不卸载聊天和当前资源宿主。
+- 会话选择只改变查看对象，不隐式停止后台运行；聊天继续复用 Gateway 的唯一 runtime、reducer 和 store。
+- 视觉参考 DSH 的低噪音导航与平整主画布，保留 Ineffable 品牌，不依赖 DSH 运行时。
+- 布局与状态边界见 [工作台开发规范](FRONTEND_DEVELOPMENT_GUIDE.md#36-会话优先工作台)。本地串行门禁：`npm run check:conversation-workbench`；mock HTTP 浏览器结果不能替代真实后端/provider 或移动设备验收。
 
 ## 当前生效的数据链路
 
@@ -35,8 +37,9 @@ VITE_GATEWAY_API_BASE_URL=http://localhost:8080
 
 ## 目录说明（layers）
 
-- 视图组件：`src/components/right-sidebar/chat/`
-- Gateway Chat API：`src/lib/api/chat/gateway-api.ts`
+- 工作台壳层与路由：`src/app/`
+- 会话视图、runtime 与投影：`src/features/chat/`
+- 工作区树与导航：`src/features/workspace/`
 
 ## 已下线能力说明
 

@@ -40,4 +40,8 @@
 - 用户补充设计方向：以 DSH 前端为主要视觉/交互参照。只读参考 DSH 的 sidebar、ConversationRoot、InputBar、ChatView 源码；借鉴低噪音导航、平整主画布、居中共享阅读轴和输入卡片层级，不移植 DSH runtime/插件协议/品牌素材，不重做工具投影。
 - WB-01/WB-02 修复已提交 37454d1；DSH 参照视觉已实施：平整主画布、低噪音会话列表、独立的资源树滚动区域、轻量输入卡片、简洁空态，仍复用原 runtime/编辑器/组件。浏览器 fixture 增加 30 条历史会话，100 文件树滚动后继续断言会话搜索留在可见视口。
 - 本轮 lint/i18n/build、responsive-layout、workbench-layout 开发/production、shell-performance 开发/production 均通过（含原有六类图片引用隔离）。已读取 production 中文深色首页、英文浅色分屏及390px设置截图；分屏截图时机改为 editor ready 后，最终门禁重新生成。
-- 当前：视觉阶段提交后由全新只读 auditor 定向复核发现、增量差异与受影响生产链，再跑最终确定性 CI。用户已有改动不纳入提交；不合并、不推送。
+- 首次定向独立复核（f069193 → c287f1b）：WB-02 closed；DSH 增量无额外问题；WB-01 仍有 P2 残余：1440 默认分屏 dirty editor 的 trailing 工具条将已恢复的祖先链接挤为零宽，目录无拥挤工具栏的旧回归不足覆盖。复核的 lifecycle、开发/production 布局矩阵、架构、responsive 与额外 production 320px/双向 owner/exact DOM identity 探针通过，但结论仍为 BLOCK。
+- 主 Agent 补上 production dirty editor 导航面积与祖先真实点击/取消导航/保留草稿用例，确认旧产物在“dirty split-editor ancestor has a visible clickable area”断言处红灯；将 breadcrumb 的 flex basis 设为 12rem，空间不足时让 trailing 自然换行，不牺牲导航可用性，也不重建 editor/composer。
+- 文档对齐：README 与 AGENTS 移除被中央默认会话替代的旧右栏默认关闭/首次打开才挂载/宽度占位规则，保留未变的权限、identity、图片握手和性能不变量。
+- 残余整改局部门禁通过：git diff --check、lint、build、workbench-layout 开发/production（EN/ZH×light/dark，含 dirty split-editor 祖先可见面积、真实点击/取消保护与草稿保留）、workspace-lifecycle；旧 production 产物红灯、新产物全矩阵绿灯。
+- 当前：提交残余整改后做全新独立定向复核，再跑最终确定性 CI。用户已有改动不纳入提交；不合并、不推送。

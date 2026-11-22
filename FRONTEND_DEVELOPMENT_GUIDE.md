@@ -142,7 +142,7 @@ App Shell
 
 - EN/ZH 文案使用同构 i18n key；light/dark 沿用现有语义主题变量。浏览器 fixture 使用主题提供者的 `theme` 存储键，并断言实际根节点主题。
 - 显示资源、隐藏资源、专注资源和返回会话均有明确可访问名称。会话/编辑器不应为了布局动效重新挂载；紧凑导航沿用既有 Sheet 的焦点恢复与 Escape 行为。
-- 资源标题保留完整 breadcrumb 投影及祖先 path 链接，不以最后一级 label 替代目录导航；工作区生命周期门禁覆盖父目录跳转、权限失效、归档/恢复和未保存编辑保护。
+- 资源标题保留完整 breadcrumb 投影及祖先 path 链接，不以最后一级 label 替代目录导航。拥挤工具条优先换行，breadcrumb 保留合理 flex basis，不能在 dirty editor 的默认分屏中被挤为零宽；回归须验证祖先可见面积及实际点击触发现有未保存导航保护，不能只数 DOM 链接。工作区生命周期门禁覆盖父目录跳转、权限失效、归档/恢复和未保存编辑保护。
 - `check:workbench-layout` 在开发和 production 下验证视口边界、单实例、草稿、路由、导航搜索/选择/新建及主题；`check:shell-performance` 保留导航开合预算与图片引用在延迟加载、换会话、换身份、源卸载和超时下的 fencing 回归。
 - `check:automation-runtime` 验证窄资源列，`check:toast` 验证中央会话及紧凑导航模态层的通知可操作性；管理端 editor/mobile fixture 禁用 watcher/HMR，避免源文件编辑触发页面刷新干扰行为断言。
 - `npm run check:conversation-workbench` 串行执行本工作台确定性门禁（含 production artifacts 和受影响的认证/工作区检查），避免多个浏览器门禁争抢帧预算。

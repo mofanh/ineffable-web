@@ -108,7 +108,7 @@ function WorkbenchContent() {
             showChat ? "w-[44%] min-w-96 border-l" : "flex-1",
           )}>
             <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1">
-              <div className="min-w-0 flex-1 truncate text-sm font-medium">
+              <div className="min-w-0 flex-1 basis-48 truncate text-sm font-medium">
                 {headerContent?.leading ?? (
                   <Breadcrumb className="min-w-0 overflow-hidden">
                     <BreadcrumbList className="flex-nowrap">

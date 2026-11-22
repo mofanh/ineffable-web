@@ -36,7 +36,7 @@ try {
     const resource = page.locator('[data-slot="resource-workbench"]')
     const nav = page.getByRole("navigation", { name: zh ? "会话" : "Conversations", exact: true })
     const composer = chat.locator("textarea").first()
-    const textObject = { id: `${workspace}-99`, workspace_id: workspace, kind: "file", name: "File 99.md", path: "File 99.md", mime_type: "text/markdown", current_version_id: "text-version" }
+    const textObject = { id: `${workspace}-99`, workspace_id: workspace, kind: "file", name: "File 99.md", path: "notes/File 99.md", mime_type: "text/markdown", current_version_id: "text-version" }
     await page.route("**/gateway/v1/**/versions", route => route.fulfill({ json: { object: textObject, versions: [{ id: "text-version", version_no: 1 }] } }))
     await page.route("**/gateway/v1/**/content*", route => route.fulfill({ json: { object: textObject, version: { id: "text-version", version_no: 1 }, content: "WORKSPACE_DRAFT" } }))
     await page.goto(`${url}/chat`)
@@ -66,6 +66,22 @@ try {
     const editor = resource.locator('.cm-content[contenteditable="true"]').first()
     await editor.waitFor()
     await editor.fill("UNSAVED_WORKSPACE_DRAFT")
+    // DOM presence alone missed zero-width ancestor links beside a dirty editor toolbar.
+    const ancestors = resource.locator('nav[aria-label="breadcrumb"] a')
+    assert.equal(await ancestors.count(), 2, "workspace and notes ancestors remain available")
+    for (const ancestor of await ancestors.all()) {
+      assert.ok(await ancestor.evaluate(link => {
+        const rect = link.getBoundingClientRect(), clip = link.closest("nav").getBoundingClientRect()
+        return Math.min(rect.right, clip.right) - Math.max(rect.left, clip.left) >= 12 && rect.height >= 16
+      }), "dirty split-editor ancestor has a visible clickable area")
+    }
+    const dirtyUrl = page.url()
+    await ancestors.filter({ hasText: /^notes$/ }).click()
+    const dirtyDialog = page.getByRole("dialog")
+    await dirtyDialog.waitFor()
+    await dirtyDialog.getByRole("button", { name: zh ? "取消" : "Cancel", exact: true }).click()
+    assert.equal(page.url(), dirtyUrl, "ancestor navigation uses the existing unsaved-changes guard")
+    assert.ok((await editor.textContent()).includes("UNSAVED_WORKSPACE_DRAFT"))
     await page.screenshot({ path: join(output, `${language}-${dark ? "dark" : "light"}-split.png`) })
     const editorIdentity = await editor.elementHandle()
     await chat.getByRole("button", { name: zh ? "运行设置" : "Run settings", exact: true }).click()
