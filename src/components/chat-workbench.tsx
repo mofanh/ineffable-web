@@ -1,29 +1,19 @@
+import { memo } from "react"
 import { useTranslation } from "react-i18next"
-import { Sidebar } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { createDeferredModule } from "@/lib/app/deferred-module"
 
 const chatModule = createDeferredModule(() => import("@/features/chat/gateway-chat-sidebar"))
 
-type RightSidebarProps = {
-  isFullScreen: boolean
-  onFullScreenChange: (isFullScreen: boolean) => void
-  mountChat: boolean
+type ChatWorkbenchProps = {
+  navigationTarget: HTMLElement | null
+  onReveal: () => void
 }
 
-export function RightSidebar({
-  isFullScreen,
-  onFullScreenChange,
-  mountChat,
-}: RightSidebarProps) {
-  return (
-    <Sidebar side="right" variant="inset" compactMode="full" className="p-0">
-      {mountChat ? <ChatContent isFullScreen={isFullScreen} onFullScreenChange={onFullScreenChange} /> : null}
-    </Sidebar>
-  )
-}
+const ignoreFullScreenChange = () => {}
 
-function ChatContent(props: Omit<RightSidebarProps, "mountChat">) {
+// Keep the deferred runtime at one stable tree position for the entire auth session.
+export const ChatWorkbench = memo(function ChatWorkbench(props: ChatWorkbenchProps) {
   const { t } = useTranslation()
   const module = chatModule.useModule()
   if (!module) {
@@ -37,5 +27,5 @@ function ChatContent(props: Omit<RightSidebarProps, "mountChat">) {
     )
   }
   const GatewayChatSidebar = module.GatewayChatSidebar
-  return <GatewayChatSidebar {...props} />
-}
+  return <GatewayChatSidebar {...props} workbench isFullScreen onFullScreenChange={ignoreFullScreenChange} />
+})

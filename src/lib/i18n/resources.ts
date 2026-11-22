@@ -1,6 +1,7 @@
 export const resources = {
   "zh-CN": {
     translation: {
+      workbench: { conversations: "会话", resources: "工作区", focus: "专注资源", split: "返回会话与资源", closeResource: "隐藏资源", empty: "还没有会话" },
       interaction: {
         suspendedSpace: "空间已停用，请联系管理员处理。", ownerChanged: "空间所有者已变化，请刷新后重试。", spaceQuota: "恢复后将超出空间数量额度，请先调整其他空间或套餐。", credentialUnknown: "轮换结果尚未确认，旧凭据可能已失效。一次性凭据无法找回；确认影响后，可再次显式轮换。",
         settings: "设置", account: "账号与偏好", models: "模型与能力", connections: "连接与渠道", advanced: "高级",
@@ -1936,6 +1937,7 @@ export const resources = {
   },
   "en-US": {
     translation: {
+      workbench: { conversations: "Conversations", resources: "Workspace", focus: "Focus resource", split: "Show conversation and resource", closeResource: "Hide resource", empty: "No conversations yet" },
       interaction: {
         suspendedSpace: "This space is suspended. Contact an administrator.", ownerChanged: "The workspace owner changed. Refresh before retrying.", spaceQuota: "Restoring would exceed the workspace limit. Review other spaces or your plan first.", credentialUnknown: "The rotation result is unconfirmed; the old credential may be invalid. A one-time credential cannot be recovered. Review the impact before explicitly rotating again.",
         settings: "Settings", account: "Account and preferences", models: "Models and capabilities", connections: "Connections and channels", advanced: "Advanced",

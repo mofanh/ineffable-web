@@ -20,6 +20,7 @@ import { useAgentReportTurns } from "@/features/chat/components/chat-process"
 import { matchesConversationOperation } from "@/features/chat/model/conversation-operation-identity"
 import { bindAssistantToHumanBoundary } from "@/features/chat/model/human-input-timeline"
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -39,7 +40,7 @@ import {
   type PreInputQueueItem,
 } from "@/features/chat/components/chat-composer"
 import { ChatMessageList } from "@/features/chat/components/chat-message-list"
-import { ChatSidebarHeader } from "@/features/chat/components/chat-sidebar-header"
+import { ChatSidebarHeader, ConversationNavigation } from "@/features/chat/components/chat-sidebar-header"
 import {
   createEmptySubagent,
   createMessageId,
@@ -288,6 +289,9 @@ function findToolInEntries(entries: ChatEntry[], toolId: string, runId: string) 
 }
 
 type GatewayChatSidebarProps = {
+  workbench?: boolean
+  navigationTarget?: HTMLElement | null
+  onReveal?: () => void
   isFullScreen: boolean
   onFullScreenChange: (isFullScreen: boolean) => void
 }
@@ -329,6 +333,9 @@ function mergeAssistantVisualUpdate(
 }
 
 export function GatewayChatSidebar({
+  workbench = false,
+  navigationTarget,
+  onReveal,
   isFullScreen,
   onFullScreenChange,
 }: GatewayChatSidebarProps) {
@@ -380,7 +387,8 @@ export function GatewayChatSidebar({
           request.detail.version !== imageReferenceSelectionVersion || !ownsSelection()) return
       imageDraft.addReference(request.detail.image)
       request.preventDefault()
-      setOpen(true)
+      if (onReveal) onReveal()
+      else setOpen(true)
     }
     const probe = (event: Event) => { if (ownsSelection()) event.preventDefault() }
     window.addEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
@@ -390,7 +398,7 @@ export function GatewayChatSidebar({
       window.removeEventListener(IMAGE_REFERENCE_REQUEST, acceptReference)
       window.removeEventListener(IMAGE_REFERENCE_TARGET_PROBE, probe)
     }
-  }, [currentSessionId, getConversationSelectionIdentity, imageReferenceSelectionVersion, imageDraft, setOpen])
+  }, [currentSessionId, getConversationSelectionIdentity, imageReferenceSelectionVersion, imageDraft, setOpen, onReveal])
   const [composer, setComposer] = React.useState("")
   const [entries, setEntries] = React.useState<ChatEntry[]>([])
   const [streamStatus, setStreamStatus] = React.useState<StreamStatus>("idle")
@@ -4158,7 +4166,18 @@ export function GatewayChatSidebar({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col [--chat-header-height:2.75rem]">
+      {navigationTarget ? createPortal(
+        <ConversationNavigation
+          selectedConversationId={currentConversationId}
+          conversations={headerConversations}
+          onSelectConversation={(id) => { selectConversationTarget(id); onReveal?.() }}
+          onStartNewChat={() => { startNewChat(); onReveal?.() }}
+          onRefreshConversations={handleRefreshConversationList}
+        />,
+        navigationTarget,
+      ) : null}
       <ChatSidebarHeader
+        workbench={workbench}
         bindStatus={bindStatus}
         selectedConversationTitle={selectedConversationTitle}
         selectedConversationId={currentConversationId}

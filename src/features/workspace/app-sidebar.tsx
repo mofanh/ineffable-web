@@ -586,7 +586,7 @@ function WorkspaceAccountSwitcher({
   )
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ children, ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const logoVariant = useLogoVariant({ mode: "rotate" })
   const { accessToken, currentSessionId, currentUser, logout } = useAuthSession()
@@ -1299,6 +1299,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="px-0">
+        {children}
         <AutomationNav onSelectEntry={setSelectedEntryId} />
         <SidebarSeparator />
         <SpaceSection

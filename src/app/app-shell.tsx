@@ -1,345 +1,118 @@
+import { Suspense, memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Link, Outlet, useLocation } from "react-router-dom"
+import { useTranslation } from "react-i18next"
+import { FolderOpenIcon, Maximize2Icon, Minimize2Icon, MessageSquareTextIcon, XIcon } from "lucide-react"
+
 import { AppSidebar } from "@/features/workspace/app-sidebar"
+import { ChatWorkbench } from "@/components/chat-workbench"
 import { RouteLoading } from "@/components/app/route-loading"
 import { Button } from "@/components/ui/button"
-import { RightSidebar as ChatSidebar } from "@/components/right-sidebar"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
-import {
-  RIGHT_SIDEBAR_DEFAULT_WIDTH,
-  RIGHT_SIDEBAR_MIN_WIDTH,
-  THREE_COLUMN_MIN_WIDTH,
-  useRightSidebarResize,
-} from "@/app/shell/use-right-sidebar-resize"
+import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { AppHeaderProvider, useAppHeader } from "@/app/shell/app-header-context"
 import { useWorkspaceSession } from "@/features/auth/app-session"
 import { useIsCompactLayout } from "@/hooks/use-compact-layout"
-import type { Workspace } from "@/features/workspace/api/workspace-api"
+import { useVisualViewport } from "@/hooks/use-visual-viewport"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteMeta } from "@/routes/navigation"
-import type { BreadcrumbEntry } from "@/routes/navigation"
-import { Fragment, Suspense, memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Link, Outlet, useLocation } from "react-router-dom"
-import type { CSSProperties } from "react"
-import { PanelRightIcon } from "lucide-react"
-import { useTranslation } from "react-i18next"
-import type { TFunction } from "i18next"
 
 const NavigationSidebar = memo(AppSidebar)
-const RightSidebar = memo(ChatSidebar)
 
 export function AppShell() {
+  const compact = useIsCompactLayout()
+  const viewport = useVisualViewport(compact)
   return (
     <AppHeaderProvider>
-      <AppShellContent />
+      <SidebarProvider defaultOpen className="h-svh min-h-0 overflow-hidden" style={compact && viewport ? { height: viewport.height, transform: `translateY(${viewport.offsetTop}px)` } : undefined}>
+        <WorkbenchContent />
+      </SidebarProvider>
     </AppHeaderProvider>
   )
 }
 
-function AppShellContent() {
+function WorkbenchContent() {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const { currentWorkspace, workspaces } = useWorkspaceSession()
-  const isCompactLayout = useIsCompactLayout()
-  const [leftSidebarRight, setLeftSidebarRight] = useState(0)
-  const rightSidebarTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const [isRightSidebarFullScreen, setIsRightSidebarFullScreen] = useState(false)
-  const routeMeta = getRouteMeta(pathname) ?? getRouteMeta(defaultPath)
-  const breadcrumbs =
-    getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces, t) ??
-    routeMeta?.breadcrumbs ??
-    [{ label: t("shell.routes.automation") }]
+  const compact = useIsCompactLayout()
+  const { setOpenCompact } = useSidebar()
+  const { currentWorkspace } = useWorkspaceSession()
   const { headerContent } = useAppHeader()
-  const {
-    isRightSidebarOpen,
-    rightSidebarWidth,
-    rightSidebarMaxWidth,
-    rightSidebarReservedWidth,
-    viewportWidth,
-    setIsRightSidebarOpen,
-    setRightSidebarWidth,
-    startRightSidebarResize,
-    handleRightSidebarResizeKeyDown,
-  } = useRightSidebarResize(leftSidebarRight)
-  const [isRightSidebarPresent, setIsRightSidebarPresent] = useState(isRightSidebarOpen)
-  const isLeftSidebarCompact = isCompactLayout ||
-    ((isRightSidebarOpen || isRightSidebarPresent) && viewportWidth < THREE_COLUMN_MIN_WIDTH)
-  const [hasOpenedChat, setHasOpenedChat] = useState(isRightSidebarOpen)
+  const [navigationTarget, setNavigationTarget] = useState<HTMLDivElement | null>(null)
+  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" />, [])
+  // Panel preferences are local view state, never conversation/run ownership.
+  // A new deep link opens its resource; hiding/focusing keeps the Outlet mounted.
+  const [view, setView] = useState({ path: pathname, open: true, focused: !pathname.startsWith("/workspace/") })
+  const hasResource = pathname !== defaultPath
+  const resourceOpen = hasResource && (view.path !== pathname || view.open)
+  const resourceFocused = resourceOpen && (view.path !== pathname
+    ? compact || !pathname.startsWith("/workspace/")
+    : view.focused || compact)
+  const [compactChat, setCompactChat] = useState<string | null>(null)
+  const showResource = resourceOpen && (!compact || compactChat !== pathname)
+  const showChat = !showResource || !resourceFocused
 
-  const handleLeftSidebarOpenChange = useCallback((open: boolean) => {
-    // Reserve the expanded navigation before its CSS animation starts. Release
-    // that budget only when the existing observer publishes the settled gap;
-    // restoring chat width while navigation is still closing would squeeze main.
-    if (!open || isLeftSidebarCompact) return
-    const container = document.querySelector<HTMLElement>(
-      '[data-slot="sidebar"][data-side="left"] [data-slot="sidebar-container"]'
-    )
-    setLeftSidebarRight(Math.round(container?.getBoundingClientRect().width ?? 0))
-  }, [isLeftSidebarCompact])
+  const revealChat = useCallback(() => {
+    setView({ path: pathname, open: true, focused: false })
+    setCompactChat(pathname)
+    if (compact) setOpenCompact(false)
+  }, [pathname, compact, setOpenCompact])
 
   useEffect(() => {
-    if (isRightSidebarOpen) setHasOpenedChat(true)
-  }, [isRightSidebarOpen])
+    window.addEventListener("ineffable:right-sidebar:open", revealChat)
+    return () => window.removeEventListener("ineffable:right-sidebar:open", revealChat)
+  }, [revealChat])
 
-  const setRightSidebarOpen = setIsRightSidebarOpen
-
-  useLayoutEffect(() => {
-    if (isRightSidebarOpen) {
-      setIsRightSidebarPresent(true)
-      return
-    }
-    const sidebar = document.querySelector<HTMLElement>('[data-slot="sidebar"][data-side="right"].peer')
-    function finishClose() {
-      if (sidebar?.isConnected && getComputedStyle(sidebar).getPropertyValue("--sidebar-reveal").trim() !== "0") return
-      // Keep the narrow-layout navigation in its drawer until chat has left;
-      // fullscreen also keeps its width throughout the closing slide.
-      setIsRightSidebarPresent(false)
-      setIsRightSidebarFullScreen(false)
-    }
-    finishClose()
-    sidebar?.addEventListener("transitionend", finishClose)
-    sidebar?.addEventListener("transitioncancel", finishClose)
-    return () => {
-      sidebar?.removeEventListener("transitionend", finishClose)
-      sidebar?.removeEventListener("transitioncancel", finishClose)
-    }
-  }, [isRightSidebarOpen, isCompactLayout])
-
-  useLayoutEffect(() => {
-    const leftSidebarGap = document.querySelector<HTMLElement>(
-      '[data-slot="sidebar"][data-side="left"] [data-slot="sidebar-gap"]'
-    )
-
-    function updateLeftSidebarRight() {
-      // CSS owns the intermediate widths; only publish the settled boundary.
-      if (leftSidebarGap?.getAnimations().some(animation => animation.playState === "running")) return
-      const nextRight = leftSidebarGap?.getBoundingClientRect().right ?? 0
-      setLeftSidebarRight(Math.max(0, Math.round(nextRight)))
-    }
-
-    updateLeftSidebarRight()
-
-    const resizeObserver =
-      leftSidebarGap && "ResizeObserver" in window
-        ? new ResizeObserver(updateLeftSidebarRight)
-        : null
-    if (leftSidebarGap) {
-      resizeObserver?.observe(leftSidebarGap)
-    }
-    leftSidebarGap?.addEventListener("transitionend", updateLeftSidebarRight)
-    leftSidebarGap?.addEventListener("transitioncancel", updateLeftSidebarRight)
-    window.addEventListener("resize", updateLeftSidebarRight)
-
-    return () => {
-      resizeObserver?.disconnect()
-      leftSidebarGap?.removeEventListener("transitionend", updateLeftSidebarRight)
-      leftSidebarGap?.removeEventListener("transitioncancel", updateLeftSidebarRight)
-      window.removeEventListener("resize", updateLeftSidebarRight)
-    }
-  }, [isLeftSidebarCompact])
-
-  useEffect(() => {
-    function handleOpenRightSidebar() {
-      setRightSidebarOpen(true)
-    }
-
-    window.addEventListener("ineffable:right-sidebar:open", handleOpenRightSidebar)
-    return () => {
-      window.removeEventListener("ineffable:right-sidebar:open", handleOpenRightSidebar)
-    }
-  }, [setRightSidebarOpen])
-
-  const rightSidebarCssWidth = isRightSidebarFullScreen
-    ? "100vw"
-    : `${rightSidebarWidth}px`
-  const rightSidebarGapWidth = isRightSidebarFullScreen
-    ? "0px"
-    : `${rightSidebarReservedWidth}px`
+  function openResource() {
+    setCompactChat(null)
+    setView({ path: pathname, open: true, focused: false })
+  }
 
   return (
-    <div className="relative flex min-h-svh w-full bg-sidebar">
-      <SidebarProvider
-        defaultOpen={false}
-        compact={isLeftSidebarCompact}
-        onOpenChange={handleLeftSidebarOpenChange}
-        className="min-w-0"
-      >
-        <NavigationSidebar />
-        <SidebarInset>
-          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 bg-background px-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <SidebarTrigger
-                className="-ml-1"
-                aria-label={t("shell.sidebar.toggle")}
-                title={t("shell.sidebar.toggle")}
-              />
-              <Separator
-                orientation="vertical"
-                className="mr-2 data-[orientation=vertical]:h-4"
-              />
-              {headerContent?.leading ? (
-                headerContent.leading
-              ) : (
-                <Breadcrumb className="min-w-0 overflow-hidden">
-                  <BreadcrumbList className="flex-nowrap">
-                    {(headerContent?.breadcrumbs ?? breadcrumbs).map((crumb, index, items) => {
-                      const isLast = index === items.length - 1
-
-                      return (
-                        <Fragment key={`${crumb.label}-${index}`}>
-                          <BreadcrumbItem className="min-w-0 shrink">
-                            {isLast ? (
-                              <BreadcrumbPage className="truncate" title={crumb.label}>{crumb.label}</BreadcrumbPage>
-                            ) : crumb.path ? (
-                              <BreadcrumbLink asChild>
-                                <Link className="truncate" title={crumb.label} to={crumb.path}>{crumb.label}</Link>
-                              </BreadcrumbLink>
-                            ) : (
-                              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                            )}
-                          </BreadcrumbItem>
-                          {!isLast ? <BreadcrumbSeparator /> : null}
-                        </Fragment>
-                      )
-                    })}
-                  </BreadcrumbList>
-                </Breadcrumb>
-              )}
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              {headerContent?.trailing}
-              <Button
-                ref={rightSidebarTriggerRef}
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setRightSidebarOpen((open) => !open)}
-                aria-label={
-                  isRightSidebarOpen
-                    ? t("shell.assistant.close")
-                    : t("shell.assistant.open")
-                }
-                title={
-                  isRightSidebarOpen
-                    ? t("shell.assistant.close")
-                    : t("shell.assistant.open")
-                }
-              >
-                <PanelRightIcon />
+    <>
+      <NavigationSidebar>{conversationSlot}</NavigationSidebar>
+      <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
+          <SidebarTrigger aria-label={t("shell.sidebar.toggle")} title={t("shell.sidebar.toggle")} />
+          <Button variant="ghost" size="sm" onClick={revealChat} aria-pressed={showChat}>
+            <MessageSquareTextIcon />{t("workbench.conversations")}
+          </Button>
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            {hasResource ? (
+              <Button variant="ghost" size="sm" onClick={openResource} aria-pressed={showResource} className="min-w-0">
+                <FolderOpenIcon /><span className="truncate">{t("workbench.resources")}</span>
               </Button>
+            ) : currentWorkspace ? (
+              <Button variant="ghost" size="sm" asChild className="min-w-0">
+                <Link to={`/workspace/${currentWorkspace.id}/objects`}><FolderOpenIcon /><span className="truncate">{t("workbench.resources")}</span></Link>
+              </Button>
+            ) : null}
+          </div>
+        </header>
+        <div className="flex min-h-0 min-w-0 flex-1">
+          {/* This position never changes across routes or panel/viewport changes. */}
+          <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
+            <ChatWorkbench navigationTarget={navigationTarget} onReveal={revealChat} />
+          </section>
+          <section aria-label={t("workbench.resources")} data-slot="resource-workbench" className={cn(
+            "min-h-0 min-w-0 flex-col overflow-hidden bg-background",
+            showResource ? "flex" : "hidden",
+            showChat ? "w-[44%] min-w-96 border-l" : "flex-1",
+          )}>
+            <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1">
+              <div className="min-w-0 flex-1 truncate text-sm font-medium">
+                {headerContent?.leading ?? headerContent?.breadcrumbs?.at(-1)?.label ?? getRouteMeta(pathname)?.title}
+              </div>
+              {headerContent?.trailing}
+              {!compact ? <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: true, focused: !resourceFocused })} aria-label={t(resourceFocused ? "workbench.split" : "workbench.focus")} title={t(resourceFocused ? "workbench.split" : "workbench.focus")}>
+                {resourceFocused ? <Minimize2Icon /> : <Maximize2Icon />}
+              </Button> : null}
+              <Button variant="ghost" size="icon-sm" onClick={() => setView({ path: pathname, open: false, focused: false })} aria-label={t("workbench.closeResource")} title={t("workbench.closeResource")}><XIcon /></Button>
+            </header>
+            <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+              <Suspense fallback={<RouteLoading />}><Outlet /></Suspense>
             </div>
-          </header>
-
-          <main className="min-w-0 flex-1 p-4 pt-0">
-            <Suspense fallback={<RouteLoading className="pt-4" />}>
-              <Outlet />
-            </Suspense>
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label={t("shell.assistant.resize")}
-        tabIndex={isRightSidebarOpen && !isRightSidebarFullScreen ? 0 : -1}
-        aria-valuemin={RIGHT_SIDEBAR_MIN_WIDTH}
-        aria-valuemax={Math.round(rightSidebarMaxWidth)}
-        aria-valuenow={Math.round(rightSidebarWidth)}
-        onPointerDown={startRightSidebarResize}
-        onKeyDown={handleRightSidebarResizeKeyDown}
-        onDoubleClick={() => setRightSidebarWidth(RIGHT_SIDEBAR_DEFAULT_WIDTH)}
-        style={{ right: `${rightSidebarWidth}px` }}
-        className={cn(
-          "fixed inset-y-0 z-20 hidden w-2 translate-x-1/2 touch-none cursor-col-resize bg-transparent focus-visible:outline-2 focus-visible:outline-ring lg:block",
-          isRightSidebarOpen && !isRightSidebarFullScreen
-            ? "opacity-100"
-            : "pointer-events-none opacity-0"
-        )}
-      />
-
-      <SidebarProvider
-        defaultOpen
-        open={isRightSidebarOpen}
-        onOpenChange={setRightSidebarOpen}
-        persistCookie={false}
-        keyboardShortcut={false}
-        triggerRef={rightSidebarTriggerRef}
-        className="w-auto"
-        style={
-          {
-            "--sidebar-width": rightSidebarCssWidth,
-            "--sidebar-width-gap": rightSidebarGapWidth,
-            "--sidebar-width-icon": "0rem",
-          } as CSSProperties
-        }
-      >
-        <RightSidebar
-          mountChat={isRightSidebarOpen || hasOpenedChat}
-          isFullScreen={isRightSidebarFullScreen}
-          onFullScreenChange={setIsRightSidebarFullScreen}
-        />
-      </SidebarProvider>
-    </div>
+          </section>
+        </div>
+      </SidebarInset>
+    </>
   )
-}
-
-export default AppShell
-
-function getWorkspaceBreadcrumbs(
-  pathname: string,
-  currentWorkspace: Workspace | null,
-  workspaces: Workspace[],
-  t: TFunction
-): BreadcrumbEntry[] | null {
-  if (pathname === "/team-spaces/archived") {
-    return [{ label: t("shell.breadcrumbs.teamSpaces") }, { label: t("workspaceLifecycle.archived") }]
-  }
-  if (pathname === "/team-spaces/new") {
-    return [
-      { label: t("shell.breadcrumbs.teamSpaces") },
-      { label: t("shell.breadcrumbs.createSpace") },
-    ]
-  }
-
-  if (pathname === "/notifications") {
-    return [{ label: t("shell.breadcrumbs.invitations") }]
-  }
-
-  const membersMatch = pathname.match(/^\/team-spaces\/([^/]+)\/members$/)
-  if (membersMatch) {
-    const workspaceId = decodeURIComponent(membersMatch[1])
-    const workspace =
-      workspaces.find((candidate) => candidate.id === workspaceId) ??
-      (currentWorkspace?.id === workspaceId ? currentWorkspace : null)
-    return [
-      { label: t("shell.breadcrumbs.teamSpaces") },
-      {
-        label: workspace?.name || t("shell.breadcrumbs.teamSpaces"),
-        path: `/team-spaces/${workspaceId}/members`,
-      },
-      { label: t("shell.breadcrumbs.members") },
-    ]
-  }
-
-  if (pathname.startsWith("/workspace-invitations/")) {
-    return [
-      { label: t("shell.breadcrumbs.teamSpaces") },
-      { label: t("shell.breadcrumbs.invitationConfirm") },
-    ]
-  }
-
-  return null
 }

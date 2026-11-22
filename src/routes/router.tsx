@@ -140,6 +140,7 @@ const routeElements: Record<string, React.ReactElement> = {
       <SystemUserManagementPage />
     </RequireAdmin>
   ),
+  "/chat": <></>,
   "/automation": <AutomationPage />,
   "/agent-nodes": <AgentNodeManagementPage />,
   "/models": <ModelCenterPage />,

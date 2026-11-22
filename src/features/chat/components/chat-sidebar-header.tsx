@@ -29,6 +29,7 @@ import {
 } from "lucide-react"
 
 type ChatSidebarHeaderProps = {
+  workbench?: boolean
   bindStatus: string
   selectedConversationId: string | null
   selectedConversationTitle: string
@@ -150,7 +151,38 @@ function runtimeStatusBadge(status: ConversationRuntimeStatus) {
   }
 }
 
+// Presentation only: selection and status remain owned by the single chat runtime.
+export function ConversationNavigation({
+  selectedConversationId, conversations, onSelectConversation,
+  onRefreshConversations, onStartNewChat,
+}: Pick<ChatSidebarHeaderProps, "selectedConversationId" | "conversations" | "onSelectConversation" | "onRefreshConversations" | "onStartNewChat">) {
+  const { t } = useTranslation()
+  const [query, setQuery] = React.useState("")
+  const filtered = conversations.filter(item => item.title.toLowerCase().includes(query.trim().toLowerCase()))
+  return (
+    <nav aria-label={t("workbench.conversations")} className="border-b p-2">
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" className="min-w-0 flex-1 justify-start" onClick={onStartNewChat}><PlusIcon />{t("chat.header.newChat")}</Button>
+        <HeaderActionButton title={t("chat.header.refresh")} onClick={onRefreshConversations}><RefreshCcwIcon className="size-4" /></HeaderActionButton>
+      </div>
+      <Input aria-label={t("chat.header.search")} placeholder={t("chat.header.search")} value={query} onChange={event => setQuery(event.target.value)} className="my-2 h-8" />
+      <div className="max-h-[42svh] overflow-y-auto overscroll-contain">
+        {groupConversations(filtered).map(group => <div key={group.label}>
+          <div className="px-2 py-1 text-xs text-muted-foreground">{group.label}</div>
+          {group.items.map(item => <button key={item.id} type="button" aria-current={item.id === selectedConversationId ? "true" : undefined} onClick={() => onSelectConversation(item.id)} className={cn("flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent focus-visible:outline-ring", item.id === selectedConversationId && "bg-accent")}>
+            <MessageSquareTextIcon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
+            {item.runtimeStatus ? <StatusBadge status={item.runtimeStatus} {...runtimeStatusBadge(item.runtimeStatus)} className="shrink-0 px-1 text-[10px]" /> : null}
+          </button>)}
+        </div>)}
+        {!filtered.length ? <p className="px-2 py-3 text-xs text-muted-foreground">{t(conversations.length ? "chat.header.noMatches" : "workbench.empty")}</p> : null}
+      </div>
+    </nav>
+  )
+}
+
 export function ChatSidebarHeader({
+  workbench = false,
   bindStatus,
   selectedConversationId,
   selectedConversationTitle,
@@ -349,7 +381,7 @@ export function ChatSidebarHeader({
           >
             <PlusIcon className="size-4" />
           </HeaderActionButton>
-          <HeaderActionButton
+          {!workbench && <><HeaderActionButton
             title={
               isFullScreen
                 ? t("chat.header.exitFullScreen")
@@ -368,7 +400,8 @@ export function ChatSidebarHeader({
             onClick={onCollapseSidebar}
           >
             <PanelRightIcon className="size-4" />
-          </HeaderActionButton>
+          </HeaderActionButton></>}
+
         </div>
       </div>
     </SidebarHeader>

@@ -12,7 +12,7 @@ type BreadcrumbDefinition = {
   path?: string
 }
 
-export const defaultPath = "/automation"
+export const defaultPath = "/chat"
 
 export type RouteMeta = {
   path: string
@@ -27,6 +27,7 @@ type RouteMetaDefinition = {
 }
 
 const routeMetaDefinitions: RouteMetaDefinition[] = [
+  { path: "/chat", titleKey: "workbench.conversations", breadcrumbs: [{ labelKey: "workbench.conversations" }] },
   { path: "/settings", titleKey: "interaction.settings", breadcrumbs: [{ labelKey: "interaction.settings" }] },
   { path: "/team-spaces", titleKey: "shell.breadcrumbs.teamSpaces", breadcrumbs: [{ labelKey: "shell.breadcrumbs.teamSpaces" }] },
   { path: "/channels", titleKey: "channels.title", breadcrumbs: [{ labelKey: "channels.title" }] },
