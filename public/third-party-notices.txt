@@ -37,6 +37,23 @@ Implemented adaptation inventory:
      24px desktop margins and sub-768px fullscreen horizontal navigation.
      Radix focus/dismissal, Ineffable auth/router and theme/i18n providers retained.
 
+- Sidebar: packages/client/ui-sidebar/src/client/SidebarRoot.tsx, scroll-handoff.ts;
+           packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx,
+           WorkspaceBrowser.module.css and Rows.module.css
+  -> src/features/workspace/app-sidebar.tsx,
+     src/features/workspace/components/sidebar-navigation-scroll.tsx,
+     src/features/chat/components/chat-sidebar-header.tsx:
+     fixed brand/new-session/footer, inline search, 32px rows and coordinated
+     viewport/browser wheel handoff (including non-cancelable momentum residual).
+     Workspace roots remain Ineffable resources; unbound conversations stay flat.
+     File operations retain the existing Ineffable owner in the resource surface.
+
+- Header: packages/client/ui-conversation/src/client/skeleton/ConversationHeader.tsx
+  and ConversationRoot.module.css
+  -> src/app/app-shell.tsx, src/features/chat/components/chat-sidebar-header.tsx:
+     title-first, grouped actions and aligned resource chrome. A single 48px row
+     replaces duplicate toolbars; no fictitious trace tabs or DSH session runtime.
+
 MIT License
 
 Copyright (c) 2026 DeepSeek

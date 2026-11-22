@@ -11,7 +11,7 @@ const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.ap
 assert.ok(executablePath, "Chrome is required")
 const instrumented = new Map([
   ["src/app/app-shell.tsx", [/function WorkbenchContent\([^\n]*\) \{/, "shell"]],
-  ["src/features/workspace/app-sidebar.tsx", ["export function AppSidebar({ children, ...props }: React.ComponentProps<typeof Sidebar>) {", "navigation"]],
+  ["src/features/workspace/app-sidebar.tsx", [/export function AppSidebar\([^\n]*\) \{/, "navigation"]],
   ["src/features/chat/gateway-chat-sidebar.tsx", ["}: GatewayChatSidebarProps) {", "chat"]],
 ])
 const server = production
@@ -102,7 +102,7 @@ try {
     await page.getByRole("link", { name: "Workspace", exact: true }).click()
     // A retained SPA document can already be networkidle before its lazy route
     // mounts. Wait for the directory's data-dependent UI, not that old state.
-    await page.locator('[data-slot="resource-workbench"]').getByRole("link", { name: "File 0.md", exact: true }).waitFor()
+    await page.locator('[data-slot="resource-workbench"]').getByRole("button", { name: "File 0.md", exact: true }).waitFor()
     await page.waitForLoadState("networkidle")
     const beforeReopen = apiRequests(fixture.requests).length
     const chat = page.locator('[data-slot="chat-workbench"]')

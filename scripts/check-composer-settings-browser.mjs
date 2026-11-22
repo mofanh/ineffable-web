@@ -154,7 +154,7 @@ try {
     const sandbox = page.getByRole("button", { name: /^Choose a Sandbox environment:/ })
     const capability = page.getByRole("button", { name: /^Capability exposure:/ })
     const model = page.getByRole("button", { name: /^Choose a model:/, includeHidden: true })
-    const history = page.locator('[data-slot="sidebar-header"] [data-slot="dropdown-menu-trigger"]').last()
+    const history = page.locator('[data-slot="conversation-header-content"] [data-slot="dropdown-menu-trigger"]').first()
     const attachments = page.getByRole("button", { name: "Add images", exact: true })
     const temporaryLayers = page.locator('[data-slot="popover-content"], [data-slot="dropdown-menu-content"]')
     await input.fill("KEEP_CENTRAL_DRAFT")

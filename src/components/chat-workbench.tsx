@@ -6,6 +6,8 @@ import { createDeferredModule } from "@/lib/app/deferred-module"
 const chatModule = createDeferredModule(() => import("@/features/chat/gateway-chat-sidebar"))
 
 type ChatWorkbenchProps = {
+  headerTarget: HTMLElement | null
+  navigationActionsTarget: HTMLElement | null
   navigationTarget: HTMLElement | null
   onReveal: () => void
 }

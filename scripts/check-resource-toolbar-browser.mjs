@@ -22,7 +22,8 @@ try {
     await page.route("**/gateway/v1/**/versions", route => route.fulfill({ json: { object, versions: [{ id: "version", version_no: 1 }] } }))
     await page.route("**/gateway/v1/**/content*", route => route.fulfill({ json: { object, version: { id: "version", version_no: 1 }, content: "ORIGINAL" } }))
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/chat`)
-    await page.getByRole("button", { name: "File 99.md", exact: true }).first().click()
+    await page.locator(`[data-slot="workspace-navigation"] a[href="/workspace/${workspace}/objects"]`).click()
+    await page.locator('[data-slot="resource-workbench"]').getByRole("button", { name: "File 99.md", exact: true }).first().click()
     const resource = page.locator('[data-slot="resource-workbench"]')
     const labels = await page.evaluate(async () => {
       const { i18n } = await import("/src/lib/i18n/i18n.ts")

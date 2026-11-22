@@ -21,7 +21,7 @@ const checks = [
   ["check:chat-browser"], ["check:chat-reading"], ["check:chat-window"],
   ["check:composer-settings"], ["check:capability-save"], ["check:run-observations"],
   ["check:file-references"], ["check:images"], ["check:workspace-rule"],
-  ["check:workspace-directory"], ["check:workspace-delete"], ["check:workspace-lifecycle"],
+  ["check:workspace-directory"], ["check:workspace-delete"], ["check:workspace-lifecycle"], ["check:workspace-navigation"],
   ["check:logic-invariants"], ["check:sandbox-delivery"], ["check:sandbox-delivery-browser"],
   ["check:admin-mobile"], ["check:admin-editor"], ["check:automation-runtime"],
   ["check:channels"], ["check:toast"], ["check:telemetry"], ["check:chunk-recovery"],

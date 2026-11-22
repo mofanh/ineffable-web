@@ -4,11 +4,30 @@
 
 **用户已明确授权“那实施吧”：主 Agent 在原目录、原功能分支执行 P0–P5；不自动合并、不推送。** 采用 DSH 成熟的整体页面结构和核心交互，不以“中央聊天 + 局部换肤”作为目标。保留用户已有改动，逐阶段中文提交；全部实施后再集中独立只读审计、整改与确定性 CI。
 
-- 实施仍在原前端目录、原分支 `feat/conversation-workbench`；当前 HEAD `57ebb24250c8c888c23cc495d477519dca152de8`，原始会话优先基线 `dc4083a`。不另开实现 worktree。
+- 实施仍在原前端目录、原分支 `feat/conversation-workbench`；启动时 HEAD `57ebb24250c8c888c23cc495d477519dca152de8`，原始会话优先基线 `dc4083a`。不另开实现 worktree。
 - 参考版本：运行 DSH 与 CLI/source manifest 均为 `0.2.2-rc.5`；参考 checkout HEAD `2e39e70496aa02986ca6a820c5d497e816b69d7e`。实施锁定此版本，不跟随上游漂移。
 - 保留用户的 [Dockerfile.source](</Users/bojingli/self/project/dev/Ineffable-web/Dockerfile.source>)、[design.md](</Users/bojingli/self/project/dev/Ineffable-web/design.md>) 及后端改动；不暂存、重写、回滚它们。既有布局测试的一行 dialog-hidden 等待保留，不算本轮新增实现。
 - 基线包含已独立复核的 breadcrumb/dirty editor 与 portal owner 修复；**57ebb24 后新目标的最终完整串行 CI 未执行**，不据旧绿灯宣称完成。
 - 本方案是获准实施的布局合同。同步更新 [开发指南 §3.6](</Users/bojingli/self/project/dev/Ineffable-web/FRONTEND_DEVELOPMENT_GUIDE.md#L99-L149>) 与 [AGENTS 布局规则](</Users/bojingli/self/project/dev/Ineffable-web/AGENTS.md#L426-L453>)，明确替代旧 256px 左栏、44% 右列与 1024 以下一律抽屉规则；P1–P4 逐阶段兑现，权限、状态、identity 和无障碍规则不得削弱。用户持有的旧设计文档不改写。
+
+## 1.1 侧栏追加合同（用户已授权，优先于 P5 收尾）
+
+- 线上 Workspace 统一视作 DSH 工作文件夹对应的资源容器；不再把会话历史与完整文件树上下拼接，不保留 40% 文件区。
+- 已核对 Gateway Conversation DTO：会话归用户，未提供 workspace_id。采用 DSH 支持的平铺会话展示；Workspace 根入口与会话共享浏览区，不伪造绑定、不按当前 Workspace 过滤历史、不改变普通发送 workspace disabled 或后端权限。
+- 固定品牌行内置折叠入口；固定新建会话；中部为紧凑全局导航及 Workspace/会话浏览器；设置与账号固定底部。会话行 32px、浏览标题行 36px、搜索图标按需在标题行展开（Escape 清空关闭并归还焦点）。
+- 完整文件树与既有 CRUD/复制引用/权限/分页/事件刷新 owner 一起迁往 Workspace 资源根页面。保留 ?path/?cursor 目录深链、编辑器、dirty guard、团队成员/状态管理与用户归属；不得复制第二套文件请求或写链路。
+- 中部按 DSH 协调滚动：向下先隐藏全局入口再滚浏览列表；向上先列表回顶再露出入口。外层隐藏滚动条，列表保留滚动条。固定新建/底栏不参与滚动；rail/drawer 和现有精确 DOM、权限隔离、零无关 navigation render 门禁不变。
+- 分阶段：完成 owner 迁移及侧栏 → 新增结构/搜索/滚动/文件行为回归与中英明暗截图 → 相关开发/production 门禁及阶段提交 → 集中只读审计、定向整改复核、最终串行 check:conversation-workbench 与证据整理。此阶段未通过前不宣称 P5 完成。
+- 当前已完成轻量根入口/平铺会话、双 portal 呈现槽位、文件 owner 迁移、搜索与滚动门禁（含非 cancelable momentum 剩余量、键盘 Home/End、固定上下栏）、/chat 零 directory 请求断言。开发态布局及 shell performance 通过，开合 navigation render=0；资源工具条、设置、阅读轴通过。production、文件业务专项、独立复核与最终 CI 继续执行，不据开发态结果代替全量验收。
+
+- 文件 owner 迁移补充：根页面使用已授权 access.workspace，而不是只含活跃空间的导航快照，保证归档/目录深链仍能浏览；?path/?cursor 的失败页继续由原目录 owner 控制只读提示。异步读取、递归复制和操作反馈加入 route/session/unmount 围栏；移除 loaded-key 锁存，避免 StrictMode effect 重启后丢失唯一有效观察者而永久 Loading。新增真实壳层的所选根懒加载、CRUD/复制、viewer 与卸载中断回归，正在验证。
+
+## 1.2 顶部追加合同（用户截图对照 DSH，优先于收尾）
+
+- 删除跨列 48px 的重复“会话／工作区”工具栏；会话列只保留一条 48px 顶部栏，标题为主、现有会话操作与资源入口集中右侧，资源列自身标题栏与其同轴。
+- 空会话与已有会话不再靠无内容的 76px 标题占位模拟 DSH 页签；Ineffable 没有独立轨迹视图，不伪造页签或模式。现有会话列表、重命名、新建、资源显隐/专注与 drawer 入口均保留。
+- 会话标题/操作仍由唯一 GatewayChatSidebar 持有，经稳定 portal 呈现到壳层槽位；不移动 runtime、textarea、滚动区、编辑器或 Outlet。宽窄屏与全局/资源页面不得丢失导航及返回会话入口，保持 navigation render=0。
+- 必须新增双列标题同轴、无重复顶部栏、长标题/320px、抽屉、资源返回会话、标题菜单键盘与脏编辑器/草稿精确 DOM 保留回归；更新中英明暗截图。
 
 ## 2. 代码结论与迁移策略
 
@@ -50,8 +69,8 @@ DSH 是 React/TypeScript + Cordis Client Slots；Ineffable 是 React/TypeScript 
 
 ```text
 Ineffable Shell（DSH 的结构与密度，Ineffable 的品牌与业务）
-├─ 左导航：品牌/折叠/新会话 → 全局入口 → 会话浏览 → 设置/账号
-│  └─ 工作区文件树：保留原功能，作为可折叠资源浏览区，不压住会话入口
+├─ 左导航：品牌/折叠/新会话 → 全局入口 → Workspace 根/平铺会话浏览 → 设置/账号
+│  └─ Workspace 根按需打开资源浏览器，不在左栏加载完整文件树
 ├─ 主区域：会话为默认中心；全局业务页在中央专注显示
 │  ├─ 会话头：当前标题、真实状态、现有会话动作
 │  ├─ 共享阅读轴：消息 → 思考/工具/子任务/审批 → 最终答复
@@ -60,7 +79,7 @@ Ineffable Shell（DSH 的结构与密度，Ineffable 的品牌与业务）
 └─ 设置层：DSH 式导航+内容对话框；窄屏全屏；复杂管理页进入中央
 ```
 
-默认进入 `/chat`，不展示仪表盘、欢迎营销块、第二个聊天窗口或常驻操作说明。左栏不再让会话区硬性受 `max-height:50%` 限制；顶/底操作固定，中部内容分区滚动，资源树默认收拢到合理层级。保留 workspace 菜单内团队创建/邀请/成员/归档等入口，不用 DSH 的“本地目录”概念替换它。
+默认进入 `/chat`，不展示仪表盘、欢迎营销块、第二个聊天窗口或常驻操作说明。左栏不再让会话区硬性受 `max-height:50%` 限制；顶/底操作固定，中部全局入口与 Workspace 根/会话浏览器协调滚动。资源树在所选 Workspace 资源根按需加载，默认收拢到合理层级。保留 Workspace 管理、团队创建/邀请/成员/归档等入口，把线上 Workspace 当作工作文件夹资源入口，但不伪造本地文件或会话绑定语义。
 
 ### 3.2 几何与响应式（明确替代当前固定三栏）
 
@@ -99,7 +118,7 @@ Ineffable Shell（DSH 的结构与密度，Ineffable 的品牌与业务）
 - 文件产物沿用 Workspace 对象与版本引用打开；终端文本仅展示现有可信输出，不能添加一个假的可交互 shell。未知/坏 payload 继续单节点 fallback，不能令整条对话崩溃。
 - Composer 保留单一 draft/attachments/selection；`@` 菜单、粘贴、拖图、输入法、模型/环境/能力/迭代选择和请求 readiness 使用原合同。DSH 的输入视觉不带入它的 pending 队列状态或提交协议。
 - 工具条采用 DSH 密度与分区，但模型/环境是现有 Ineffable 业务控件；小宽度优先省略长名称并保留 title/可访问名称，不隐藏环境语义或将发送挤出屏幕。若需换行，先用容器断点证明，显式替代旧“所有控件永远单行”规则。
-- 空会话采用 DSH 式居中的短品牌标题 + 输入卡（不是欢迎营销块）；首次发送后同一 composer 经 CSS 布局落到底部，不能 Hero 和 active 各建一个输入实例。会话头常规参考 min-height 76px，空会话 40px；输入文字区上限参考 336px，超过后内部滚动，按当前 viewport 进一步约束。
+- 空会话采用 DSH 式居中的短品牌标题 + 输入卡（不是欢迎营销块）；首次发送后同一 composer 经 CSS 布局落到底部，不能 Hero 和 active 各建一个输入实例。会话头按 §1.2 收敛为单一 48px 壳层标题栏；输入文字区上限参考 336px，超过后内部滚动，按当前 viewport 进一步约束。
 - 发送/停止/继续/预输入/引导输入均调用原命令，保留拒绝、在途禁用、幂等与操作 identity。Enter 发送、Shift+Enter 换行；菜单先消费、IME/repeat 不发送。DSH 的 Cmd/Ctrl+Enter accelerated delivery 不照搬为本项目的新执行语义；保留现有业务提交能力并把这个差异列入交付。
 - Mod+B 调同一导航动作，尊重已消费事件、modal 和输入上下文，不新增全局键盘总线。DSH 的 [双 Escape 停止](</Users/bojingli/self/project/dev/deepseek-harness/packages/client/ui-conversation/src/client/stop-sequence.ts#L1-L53>) 可接现有 stop 命令，但须同一 session/conversation/run/epoch/聚焦区、两次独立非 repeat 按键；菜单/弹窗/审批/IME/编辑器先消费。P0 先核对间隔设置及本项目既有快捷键，P2 明确参数与断言后才启用，不能全局一次 Esc 杀 run；无法满足时保留停止按钮并记录差异。
 - DSH 的 [scrollBody 与 sticky composer](</Users/bojingli/self/project/dev/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css#L444-L549>) 共用滚动区，输入卡上方有固定 36px 渐变带；不是独立锁死 footer。P2 在原 scroller/window owner 内适配这种结构，wheel 落在输入卡空白处也能滚动会话，输入内部到边界再交接；稳定 gutter 防横漂。若必须移动 DOM 层级，作为一次受测结构迁移，完成后 Hero/active/resize 不再换树。
@@ -217,7 +236,7 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
   - 证据：四组中英/明暗主题、1440→390→320→1440、长模型/设备名称、classic gutter、32px 宽差/同轴、Shift+Enter/IME/229/repeat、首次发送 exact textarea/scrollport、新草稿输入重置和无隐式 Stop 已通过。附件上传/迟到 ACK/换登录/换 Workspace/新草稿、原生图片流与历史、文件引用/键盘/IME、模型目录失败与竞态、输入设置全部窄屏矩阵、预输入队列/恢复、submission ownership 全场景通过。
   - 长历史 simple/mixed × 1,000/10,000 有界窗口通过；10,000 simple/mixed 展开约 12.6/16.6s，挂载 19/11，输入 p95 约 15–16ms。原生 wheel 的输入内部滚动→边界向历史交接、触摸/键盘跟随、SSE 结束接管与 classic/overlay 边界测试通过。
   - 视觉证据为临时目录 `ineffable-chat-reading`；已实际检查 dark/ZH 桌面与 320px、light/EN 首条用户消息图。它们是 mock Gateway 的真实 Shell 截图，非真实 provider 完成图、非 DSH GUI 对照。新增 `check:chat-reading` 可复现。
-  - 明确保留差异：Shell 的 48px 会话/Workspace 导航条继续独立于 40/76px 会话头，服务 Ineffable 全局页/资源返回，不伪称逐像素一致；字体/语义主题/代码渲染资产仍属 Ineffable。双 Esc 未启用：保留原有显式 Stop，不在尚无统一 modal/menu/approval/terminal fencing 的条件下添加误停风险。DSH ChatView 的过程行密度归 P3。
+  - P2 阶段曾保留的差异（现已由 §1.2 替代）：Shell 的 48px 会话/Workspace 导航条独立于 40/76px 会话头；当前删除重复条并将返回入口并入资源/全局页标题，不伪称逐像素一致；字体/语义主题/代码渲染资产仍属 Ineffable。双 Esc 未启用：保留原有显式 Stop，不在尚无统一 modal/menu/approval/terminal fencing 的条件下添加误停风险。DSH ChatView 的过程行密度归 P3。
 - P3 已完成（阶段检查点，非整体验收）：沿用同一 renderer registry、ChatRowWindow 和 measured row，以行内 padding 实现过程 4px／正文 12px／分组 16px；分支 rail 随 clearance 正确接续。ToolCallShell 的成功态降为中性、保留失败/等待/运行语义和展开权限；人工问题 renderer 的等待强制展开与 agent report 原生 details 已符合目标，未复制第二套状态机。
   - 旧审批卡改为中性卡片与紧凑主/次按钮，pending/error 保留原 need/run/kind 围栏与 entry.id 回调，busy/resolved 禁用不变；已结算标题不再错误显示“等待审批”。中英×明暗、320px、6 状态及 need/run/kind 不匹配通过。
   - 资源工具条允许换行，脏状态始终显示，窄列丢弃按钮补上可见图标。新 `check:resource-toolbar` 在 classic scrollbar、300px 面板、1440/1024/390/320/1440 与四组语言/主题下验证保存/丢弃可见可操作、exact editor/draft、无隐式 Gateway 写操作。目录/版本/保存/授权路径不变。
@@ -231,6 +250,13 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
   - 开发截图 `ineffable-settings-overlay` 已实际抽检 ZH 深色管理员桌面和 EN 浅色 320px；production 截图 `ineffable-settings-overlay-production` 已实际抽检同两例及 ZH 深色 320px。均为 mock HTTP 的真实 Shell，不是 provider 或 DSH 实机证据。
 - P5 进行中：集中独立只读审计覆盖 `dc4083a4..ecaab147`，按 P0 固定合同复核，结论 0 P0 / 1 P1（WB-A01）。中屏资源路由把“默认 rail”误作永久禁止展开，Shell 与列求解两次覆盖手动意图，Workspace 树不可达；旧布局测试又把 <1024 误当 drawer。主 Agent 统一整改：由单一 layout hook 在进入断点/新资源时默认收起，后续手动展开优先，列计算仅按有效展开意图让资源退出并排；临时状态不污染账号桌面偏好，关闭资源不撤销手动选择。新增 768/900/1023 的真实资源导航、按钮/快捷键、exact composer/editor、dirty draft 与桌面偏好回归，并区分 <768 drawer 与中屏 dock。
   - 整改门禁正在串行执行；新增结构测试曾误复用 reload 之前的 ElementHandle（DOM context 已销毁），已改为在 reload 后当前资源阶段冻结 identity；另一处新增等待误把保留新建图标的 nav 当成会隐藏，已改为等待实际隐藏/显示的搜索框。因此旧 nav visible 也不能证明展开，更不能仅凭源码断言旧聚合一定在该处超时；以新增几何/真实可访问内容断言和后续执行结果为准。不改变生产实现或降低 identity 断言。后续仍须定向独立复核与最终完整串行 CI；不以修复提交代替验收，不合并、不推送。
+- WB-A01 已单独提交 `e4c67c9` 并经定向独立复核 PASS；侧栏/顶部新增变更尚未包含在该结论中。
+- 用户追加的侧栏统一阶段：全局入口与平铺会话共享滚动浏览区，固定品牌/新建与底部设置/账户；Workspace 根只导航，文件浏览所有权迁入已选根资源页。`?path/?cursor` Directory 所有权不变，不建立虚假会话绑定。新 navigator 保留 CRUD/引用/分页/事件/权限，异步操作按 Workspace/路由/会话/卸载 fencing，归档根使用授权 access.workspace；开发 owner/viewer/archived 与晚到复制回归已通过。
+- 用户追加的顶部收敛阶段：删除外层重复导航栏，唯一 48px 会话标题与资源标题顶沿对齐。标题/菜单/操作由同一 Gateway runtime portal 到稳定 Shell 槽位；全局/专注资源提供返回会话，小屏保留抽屉，长标题截断保留原文。不增加无权威的模式/轨迹页签，不移动 composer 或文件 editor owner。
+  - TypeScript/lint 与开发布局、结构、Shell performance、设置、composer/settings 矩阵通过；新增断言覆盖标题 Enter/Escape 与原焦点恢复、320/1440 长标题、无溢出及操作可达，保持 exact composer/editor 和 dirty guard。
+  - 生产设置旧脚本的第二次 reopen 后 raw mouse 过早于 Radix pointerdown 的 setTimeout(0) 安装；改为 actionable backdrop locator click，开发和生产矩阵均通过，不改生产关闭语义。生产构建、布局/结构/Shell performance、Workspace navigation 新截图回归串行通过；生产长标题断点检查改为等待实际几何收敛，仍要求原阈值与原 DOM，不只等待旧几何下也可见的标题。
+  - 截图抽检发现旧布局 fixture 故意返回 evolution 404 的 toast 遮住顶部；改用完整 disabled projection，增加零错误通知断言，重新生成截图。不在生产隐藏错误或将遮挡截图作为证据。
+  - 新增变更完成后仍须阶段提交、集中独立只读复核和最终完整串行 CI；目前不能宣称 P5 完成。
 - 参考图缺口：当前只有 DSH 源码可读，没有已连接 GUI 的浏览器控制工具。遵循参考安装的验证限制，不从 shell 新开浏览器访问 DSH/profile。后续本项目 Chrome fixture 截图是 Ineffable 测试证据，不冒充 DSH 实机对照。
 - 键盘核查：DSH `shortcuts/src/index.ts` 的双 Esc 默认为 500ms（Host volatile，1–2147483646）；`stop-shortcut.ts` 在菜单/modal/审批/terminal/IME/repeat/defaultPrevented 或身份/region 变化时重置。Ineffable 文件菜单先消费 Esc、Radix 分层关闭；现有输入无双 Esc。P2 仅在同 session/conversation/run/epoch/generation/region 和冲突门禁齐全时启用 500ms，否则保留显式停止按钮并记录差异；不引入 Host 配置。
 

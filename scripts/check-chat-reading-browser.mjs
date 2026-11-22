@@ -47,7 +47,7 @@ try {
     const input = page.locator("textarea")
     await input.waitFor()
     await page.evaluate(() => document.fonts.ready)
-    await page.locator('[data-slot="workspace-navigation"]').getByText("File 0.md", { exact: true }).first().waitFor()
+    await page.locator('[data-slot="workspace-navigation"]').getByRole("link", { name: /^Personal/ }).waitFor()
     const pickerLabels = await page.evaluate(async () => {
       const { i18n } = await import("/src/lib/i18n/i18n.ts")
       return { model: i18n.t("chat.composer.modelPickerLabel"), sandbox: i18n.t("chat.composer.sandboxPickerLabel") }
@@ -100,7 +100,7 @@ try {
     assert.ok(await originalScroller.evaluate(node => node === document.querySelector("div[data-chat-scroll-region]")), "empty-to-first-message preserves exact scrollport DOM")
     await page.screenshot({ path: join(output, `${theme}-${language}-active.png`) })
     const newLabel = await page.evaluate(async () => (await import("/src/lib/i18n/i18n.ts")).i18n.t("chat.header.newChat"))
-    await page.locator('[data-sidebar="header"]').getByRole("button", { name: newLabel, exact: true }).click()
+    await page.locator('[data-slot="conversation-navigation-actions"]').getByRole("button", { name: newLabel, exact: true }).click()
     assert.ok(await originalInput.evaluate(node => !node.isConnected), "a distinct new draft still resets native input/IME context")
     assert.ok(await originalScroller.evaluate(node => node === document.querySelector("div[data-chat-scroll-region]")), "new draft preserves the one scrollport")
     assert.deepEqual(fixture.requests.filter(request => request.method === "POST" && request.path.startsWith("/gateway/")).map(request => request.path).sort(), ["/gateway/v1/conversations/create", "/gateway/v1/conversations/send"], "new navigation never sends Stop")

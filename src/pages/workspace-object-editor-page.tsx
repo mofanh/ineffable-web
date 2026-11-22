@@ -25,6 +25,7 @@ import { useAppHeader } from "@/app/shell/app-header-context"
 import { AppDialog, DataState, Notice, EmptyState } from "@/components/app"
 import { useWorkspaceAccess } from "@/features/workspace/hooks/use-workspace-access"
 import { useWorkspaceLifecycle } from "@/features/workspace/hooks/use-workspace-lifecycle"
+import { WorkspaceFilesNavigator } from "@/features/workspace/components/workspace-files-navigator"
 import { WorkspaceDirectory } from "@/features/workspace/components/workspace-directory"
 import { WorkspaceStatusActions } from "@/features/workspace/components/workspace-status-actions"
 import { Badge } from "@/components/ui/badge"
@@ -1273,7 +1274,14 @@ export function WorkspaceObjectEditorPage() {
   if (!objectId) {
     return (
       <section className="space-y-4 px-4 py-6 sm:px-8">
-        <WorkspaceDirectory workspaceId={workspaceId} notice={!canWrite && <Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>} />
+        {directoryParams.has("path") || directoryParams.has("cursor") ? (
+          <WorkspaceDirectory workspaceId={workspaceId} notice={!canWrite && <Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>} />
+        ) : (
+          <>
+            {!canWrite && <Notice>{t(access.workspace.status === "archived" ? "workspaceLifecycle.readOnly" : "interaction.readOnly")}</Notice>}
+            <WorkspaceFilesNavigator key={workspaceId} workspace={access.workspace} canWrite={canWrite} />
+          </>
+        )}
       </section>
     )
   }

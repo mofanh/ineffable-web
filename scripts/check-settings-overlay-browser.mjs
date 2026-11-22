@@ -36,7 +36,8 @@ try {
     await page.route("**/gateway/v1/**/versions", route => route.fulfill({ json: { object, versions: [{ id: "version", version_no: 1 }] } }))
     await page.route("**/gateway/v1/**/content*", route => route.fulfill({ json: { object, version: { id: "version", version_no: 1 }, content: "ORIGINAL" } }))
     await page.goto(`${origin}/chat`)
-    await page.getByRole("button", { name: "File 99.md", exact: true }).first().click()
+    await page.locator(`[data-slot="workspace-navigation"] a[href="/workspace/${workspace}/objects"]`).click()
+    await page.locator('[data-slot="resource-workbench"]').getByRole("button", { name: "File 99.md", exact: true }).first().click()
     const labels = Object.fromEntries(Object.entries({ settings: "interaction.settings", general: "interaction.general", edit: "workspace.actions.edit", cancel: "common.cancel", close: "common.close", unsaved: "interaction.unsavedTitle", discard: "workspace.actions.discard", appearance: "theme.appearance", dark: "theme.dark", light: "theme.light", system: "theme.system" }).map(([key, path]) => [key, path.split(".").reduce((value, segment) => value[segment], resources[language].translation)]))
     const resource = page.locator('[data-slot="resource-workbench"]')
     const composer = page.locator('[data-slot="chat-workbench"] textarea').first()
@@ -112,7 +113,9 @@ try {
     assert.equal(page.url(), path)
     await trigger.click()
     await overlay.waitFor()
-    await page.mouse.click(4, 4)
+    // Use an actionable backdrop click, not a raw input before Radix's new
+    // dismissable-layer effect has installed its document pointer listener.
+    await page.locator(".settings-overlay-mask").click({ position: { x: 4, y: 4 } })
     await overlay.waitFor({ state: "hidden" })
     await page.waitForFunction(node => node === document.activeElement, await trigger.elementHandle())
     assert.equal(page.url(), path)

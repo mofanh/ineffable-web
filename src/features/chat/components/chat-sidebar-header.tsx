@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { ConversationTitleEditor } from "./conversation-title-editor"
 import { useTranslation } from "react-i18next"
 
@@ -29,6 +30,7 @@ import {
 } from "lucide-react"
 
 type ChatSidebarHeaderProps = {
+  headerTarget?: HTMLElement | null
   workbench?: boolean
   empty?: boolean
   bindStatus: string
@@ -155,36 +157,39 @@ function runtimeStatusBadge(status: ConversationRuntimeStatus) {
 // Presentation only: selection and status remain owned by the single chat runtime.
 export function ConversationNavigation({
   selectedConversationId, conversations, onSelectConversation,
-  onRefreshConversations, onStartNewChat,
-}: Pick<ChatSidebarHeaderProps, "selectedConversationId" | "conversations" | "onSelectConversation" | "onRefreshConversations" | "onStartNewChat">) {
+  onRefreshConversations, onStartNewChat, actionsTarget,
+}: Pick<ChatSidebarHeaderProps, "selectedConversationId" | "conversations" | "onSelectConversation" | "onRefreshConversations" | "onStartNewChat"> & { actionsTarget?: HTMLElement | null }) {
   const { t } = useTranslation()
   const [query, setQuery] = React.useState("")
+  const [searchOpen, setSearchOpen] = React.useState(false)
+  const searchButtonRef = React.useRef<HTMLButtonElement>(null)
   const filtered = conversations.filter(item => item.title.toLowerCase().includes(query.trim().toLowerCase()))
-  return (
-    <nav aria-label={t("workbench.conversations")} className="flex min-h-0 flex-col gap-1 border-b border-sidebar-border/60 px-3 py-2 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:px-2">
-      <div className="flex items-center gap-1 group-data-[collapsible=icon]:justify-center">
-        <Button variant="ghost" aria-label={t("chat.header.newChat")} title={t("chat.header.newChat")} className="min-w-0 flex-1 justify-start group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0" onClick={onStartNewChat}><PlusIcon /><span className="group-data-[collapsible=icon]:hidden">{t("chat.header.newChat")}</span></Button>
-        <span className="group-data-[collapsible=icon]:hidden"><HeaderActionButton title={t("chat.header.refresh")} onClick={onRefreshConversations}><RefreshCcwIcon className="size-4" /></HeaderActionButton></span>
+  const newChat = <Button variant="ghost" aria-label={t("chat.header.newChat")} title={t("chat.header.newChat")} className="h-[38px] w-full min-w-0 justify-start gap-1.5 px-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0" onClick={onStartNewChat}><PlusIcon className="size-4" /><span className="group-data-[collapsible=icon]:hidden">{t("chat.header.newChat")}</span></Button>
+  return <>
+    {actionsTarget ? createPortal(newChat, actionsTarget) : newChat}
+    <nav aria-label={t("workbench.conversations")} className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
+      <div className="flex h-9 items-center gap-1 px-2">
+        {searchOpen ? <Input autoFocus aria-label={t("chat.header.search")} placeholder={t("chat.header.search")} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); setQuery(""); setSearchOpen(false); requestAnimationFrame(() => searchButtonRef.current?.focus()) } }} className="h-7 min-w-0 flex-1 rounded-md border-transparent bg-sidebar-accent/40 px-2 text-xs shadow-none focus-visible:border-ring" /> : <>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">{t("workbench.conversations")}</span>
+          <Button ref={searchButtonRef} variant="ghost" size="icon-sm" aria-label={t("chat.header.search")} title={t("chat.header.search")} onClick={() => setSearchOpen(true)}><SearchIcon className="size-4" /></Button>
+          <HeaderActionButton title={t("chat.header.refresh")} onClick={onRefreshConversations}><RefreshCcwIcon className="size-4" /></HeaderActionButton>
+        </>}
       </div>
-      <div className="relative my-1 shrink-0 group-data-[collapsible=icon]:hidden">
-        <SearchIcon aria-hidden="true" className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-        <Input aria-label={t("chat.header.search")} placeholder={t("chat.header.search")} value={query} onChange={event => setQuery(event.target.value)} className="h-9 rounded-lg border-transparent bg-sidebar-accent/40 pl-8 shadow-none focus-visible:border-ring" />
-      </div>
-      <div className="min-h-0 overflow-y-auto overscroll-contain group-data-[collapsible=icon]:hidden">
-        {groupConversations(filtered).map(group => <div key={group.label}>
-          <div className="px-2 pb-1 pt-3 text-[11px] font-medium text-muted-foreground">{group.label}</div>
-          {group.items.map(item => <button key={item.id} type="button" aria-current={item.id === selectedConversationId ? "true" : undefined} onClick={() => onSelectConversation(item.id)} className={cn("flex min-h-9 w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent focus-visible:outline-ring", item.id === selectedConversationId && "bg-sidebar-accent font-medium text-sidebar-foreground")}>
-            <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
-            {item.runtimeStatus ? <StatusBadge status={item.runtimeStatus} {...runtimeStatusBadge(item.runtimeStatus)} className="shrink-0 px-1 text-[10px]" /> : null}
-          </button>)}
-        </div>)}
-        {!filtered.length ? <p className="px-2 py-3 text-xs text-muted-foreground">{t(conversations.length ? "chat.header.noMatches" : "workbench.empty")}</p> : null}
-      </div>
+      {groupConversations(filtered).map(group => <div key={group.label}>
+        <div className="px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground">{group.label}</div>
+        {group.items.map(item => <button key={item.id} type="button" aria-current={item.id === selectedConversationId ? "true" : undefined} onClick={() => onSelectConversation(item.id)} className={cn("flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-left text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent focus-visible:outline-ring", item.id === selectedConversationId && "bg-sidebar-accent font-medium text-sidebar-foreground")}>
+          <MessageSquareTextIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
+          {item.runtimeStatus ? <StatusBadge status={item.runtimeStatus} {...runtimeStatusBadge(item.runtimeStatus)} className="shrink-0 px-1 text-[10px]" /> : null}
+        </button>)}
+      </div>)}
+      {!filtered.length ? <p className="px-2 py-3 text-xs text-muted-foreground">{t(conversations.length ? "chat.header.noMatches" : "workbench.empty")}</p> : null}
     </nav>
-  )
+  </>
 }
 
 export function ChatSidebarHeader({
+  headerTarget,
   workbench = false,
   empty = false,
   bindStatus,
@@ -234,13 +239,8 @@ export function ChatSidebarHeader({
     () => groupConversations(filteredConversations),
     [filteredConversations]
   )
-  return (
-    <SidebarHeader className={cn(
-      "relative z-20 shrink-0 gap-0 pt-[10px] pr-7 pb-0 pl-5",
-      empty ? "min-h-10" : "min-h-[76px]",
-      isFullScreen ? "bg-transparent" : "bg-sidebar/80 backdrop-blur-md"
-    )}>
-      <div className="flex min-h-8 shrink-0 items-center gap-2.5">
+  const content = (
+      <div data-slot="conversation-title-row" className="flex min-h-8 min-w-0 flex-1 items-center gap-2">
         <DropdownMenu open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
             <button
@@ -249,13 +249,13 @@ export function ChatSidebarHeader({
               aria-expanded={open}
               title={selectedConversationTitle}
             >
-              <span
+              {!workbench ? <span
                 className="flex size-6 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground"
                 title={t("chat.header.assistant")}
               >
                 <BotIcon className="size-3.5" />
-              </span>
-              <span className="truncate text-[14px] font-semibold text-foreground">
+              </span> : null}
+              <span className="truncate text-[15px] font-semibold text-foreground">
                 {selectedConversationTitle}
               </span>
               <span
@@ -409,6 +409,12 @@ export function ChatSidebarHeader({
 
         </div>
       </div>
-    </SidebarHeader>
   )
+  // Chrome moves into a stable shell slot; the runtime and scroll/composer owners do not.
+  if (workbench) return headerTarget ? createPortal(content, headerTarget) : null
+  return <SidebarHeader className={cn(
+    "relative z-20 shrink-0 gap-0 pt-[10px] pr-7 pb-0 pl-5",
+    empty ? "min-h-10" : "min-h-[76px]",
+    isFullScreen ? "bg-transparent" : "bg-sidebar/80 backdrop-blur-md"
+  )}>{content}</SidebarHeader>
 }

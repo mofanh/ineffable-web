@@ -63,8 +63,11 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
     ?? getWorkspaceBreadcrumbs(pathname, currentWorkspace, workspaces, t)
     ?? getRouteMeta(pathname)?.breadcrumbs
     ?? []
+  const [headerTarget, setHeaderTarget] = useState<HTMLDivElement | null>(null)
   const [navigationTarget, setNavigationTarget] = useState<HTMLDivElement | null>(null)
-  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:flex-none" />, [])
+  const [navigationActionsTarget, setNavigationActionsTarget] = useState<HTMLDivElement | null>(null)
+  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" />, [])
+  const conversationActionsSlot = useMemo(() => <div ref={setNavigationActionsTarget} data-slot="conversation-navigation-actions" className="shrink-0 pb-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center" />, [])
   // Panel preferences are local view state, never conversation/run ownership.
   // A new deep link opens its resource; hiding/focusing keeps the Outlet mounted.
   const hasResource = kind === "resource"
@@ -98,30 +101,26 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
 
   return (
     <>
-      <NavigationSidebar collapsible="icon">{conversationSlot}</NavigationSidebar>
+      <NavigationSidebar collapsible="icon" actions={conversationActionsSlot}>{conversationSlot}</NavigationSidebar>
       {!drawer && navigationExpanded ? <WorkbenchResizeHandle label={t("workbench.resizeNavigation")} value={columns.sidebar} min={SIDEBAR_MIN} max={Math.min(SIDEBAR_MAX, layout.width - CENTER_MIN)} onPreview={sidebar => layout.updatePreview({ sidebar })} onChange={sidebar => layout.update({ sidebar })} className="left-(--sidebar-width) -translate-x-1/2" /> : null}
       <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-          <SidebarTrigger aria-label={t("shell.sidebar.toggle")} title={t("shell.sidebar.toggle")} />
-          <Button variant="ghost" size="sm" onClick={revealChat} aria-pressed={showChat}>
-            <MessageSquareTextIcon />{t("workbench.conversations")}
-          </Button>
-          <div className="ml-auto flex min-w-0 items-center gap-1">
-            {hasResource ? (
-              <Button variant="ghost" size="sm" onClick={openResource} aria-pressed={showResource} className="min-w-0">
-                <FolderOpenIcon /><span className="truncate">{t("workbench.resources")}</span>
-              </Button>
-            ) : currentWorkspace ? (
-              <Button variant="ghost" size="sm" asChild className="min-w-0">
-                <Link to={`/workspace/${currentWorkspace.id}/objects`}><FolderOpenIcon /><span className="truncate">{t("workbench.resources")}</span></Link>
-              </Button>
-            ) : null}
-          </div>
-        </header>
         <div className="relative flex min-h-0 min-w-0 flex-1">
           {/* This position never changes across routes or panel/viewport changes. */}
           <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" onPointerDownCapture={() => setCompactChat(pathname)} onFocusCapture={() => setCompactChat(pathname)} className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
-            <ChatWorkbench navigationTarget={navigationTarget} onReveal={revealChat} />
+            <header data-slot="workbench-conversation-header" className="flex h-12 shrink-0 items-center gap-1 border-b pr-3 pl-5">
+              {drawer ? <SidebarTrigger aria-label={t("shell.sidebar.toggle")} title={t("shell.sidebar.toggle")} /> : null}
+              <div ref={setHeaderTarget} data-slot="conversation-header-content" className="flex min-w-0 flex-1 items-center" />
+              {hasResource ? (
+                <Button variant="ghost" size="icon-sm" onClick={openResource} aria-label={t("workbench.resources")} title={t("workbench.resources")} aria-pressed={showResource}>
+                  <FolderOpenIcon />
+                </Button>
+              ) : currentWorkspace ? (
+                <Button variant="ghost" size="icon-sm" asChild>
+                  <Link to={`/workspace/${currentWorkspace.id}/objects`} aria-label={t("workbench.resources")} title={t("workbench.resources")}><FolderOpenIcon /></Link>
+                </Button>
+              ) : null}
+            </header>
+            <ChatWorkbench headerTarget={headerTarget} navigationActionsTarget={navigationActionsTarget} navigationTarget={navigationTarget} onReveal={revealChat} />
           </section>
           <section aria-label={t("workbench.resources")} data-slot="resource-workbench" onPointerDownCapture={() => setCompactChat(null)} onFocusCapture={() => setCompactChat(null)} className={cn(
             "relative min-h-0 min-w-0 flex-col overflow-hidden bg-background",
@@ -129,7 +128,9 @@ function WorkbenchContent({ layout, columns, view, setView }: { layout: ReturnTy
             showChat ? "shrink-0 border-l" : "flex-1",
           )} style={showChat && showResource ? { width: columns.right } : undefined}>
             {showChat && showResource ? <WorkbenchResizeHandle label={t("workbench.resizeResource")} value={columns.right} min={RIGHT_MIN} max={Math.min(layout.width * RIGHT_MAX_RATIO, layout.width - columns.sidebar - CENTER_MIN)} direction={-1} onPreview={right => layout.updatePreview({ right })} onChange={right => layout.update({ right })} className="left-0" /> : null}
-            <header className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1">
+            <header data-slot="workbench-resource-header" className="flex min-h-12 shrink-0 flex-wrap items-center gap-1 border-b px-3 py-1">
+              {!showChat && drawer ? <SidebarTrigger aria-label={t("shell.sidebar.toggle")} title={t("shell.sidebar.toggle")} /> : null}
+              {!showChat ? <Button variant="ghost" size="icon-sm" onClick={revealChat} aria-label={t("workbench.conversations")} title={t("workbench.conversations")}><MessageSquareTextIcon /></Button> : null}
               <div className="min-w-0 flex-1 basis-48 truncate text-sm font-medium">
                 {headerContent?.leading ?? (
                   <Breadcrumb className="min-w-0 overflow-hidden">

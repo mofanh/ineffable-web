@@ -291,6 +291,8 @@ function findToolInEntries(entries: ChatEntry[], toolId: string, runId: string) 
 
 type GatewayChatSidebarProps = {
   workbench?: boolean
+  headerTarget?: HTMLElement | null
+  navigationActionsTarget?: HTMLElement | null
   navigationTarget?: HTMLElement | null
   onReveal?: () => void
   isFullScreen: boolean
@@ -335,7 +337,9 @@ function mergeAssistantVisualUpdate(
 
 export function GatewayChatSidebar({
   workbench = false,
+  headerTarget,
   navigationTarget,
+  navigationActionsTarget,
   onReveal,
   isFullScreen,
   onFullScreenChange,
@@ -4175,6 +4179,7 @@ export function GatewayChatSidebar({
     <div className="chat-conversation relative flex min-h-0 flex-1 flex-col">
       {navigationTarget ? createPortal(
         <ConversationNavigation
+          actionsTarget={navigationActionsTarget}
           selectedConversationId={currentConversationId}
           conversations={headerConversations}
           onSelectConversation={(id) => { selectConversationTarget(id); onReveal?.() }}
@@ -4184,6 +4189,7 @@ export function GatewayChatSidebar({
         navigationTarget,
       ) : null}
       <ChatSidebarHeader
+        headerTarget={headerTarget}
         workbench={workbench}
         empty={renderedEntries.length === 0 && !isAwaitingVisibleResponse && !isLoadingMessages}
         bindStatus={bindStatus}

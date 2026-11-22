@@ -425,6 +425,12 @@ const confirmed = await confirm({
 
 ## 工作台布局与页面密度
 
+- 左栏固定品牌/折叠、新对话与底部设置/账号；中部全局入口和 Workspace 根/平铺会话按 DSH 协调滚动。
+  36px 浏览标题按需展开搜索（Escape 清空关闭归还焦点），会话行 32px；不把完整文件树与会话上下分区。
+  Conversation 无 workspace_id，不能伪造绑定或过滤；/chat 不加载 directory。
+  原文件树唯一 owner WorkspaceFilesNavigator 随权限、CRUD、分页、事件和引用迁到资源根；
+  ?path/?cursor 保留分页目录语义。AppSidebar 不订阅 presentation context，由叶子消费，开合零无关 render。
+
 - 默认 /chat 展示中央会话；获准的 DSH 结构迁移采用 280px 左栏（拖拽 264–420px）、
   56px rail；小于 1024px 自动 rail，小于 768px 才是 modal drawer。导航呈现与内容可并排
   是两个维度，不能共用一个 compact boolean。右列默认 45% 视口、最小 300px、最大 70%，
@@ -437,6 +443,9 @@ const confirmed = await confirm({
   兄弟挂载，不按位置换父树、加 layout key 或复制 Outlet。布局切换保留精确 DOM 与草稿；
   真正换路由仍经未保存保护，不承诺任意页面 keepalive。跨断点保留最近交互面及 portal owner。
   资源 header 保留完整祖先 breadcrumb 和 leading/trailing；拥挤时换行，不将链接挤成零宽。
+  会话只保留一条 48px 顶栏，与资源标题同轴，不叠跨列工具栏或伪造轨迹页签；标题/操作
+  由唯一 runtime portal 到稳定 Shell 槽位，不移动滚动/composer owner。长标题截断保留 title，
+  专注资源/全局页提供返回会话，小屏保留抽屉入口；布局切换验证精确 DOM 与操作可达。
 - 消息/输入卡共用扣除相同 scrollbar/gutter 的可用宽 A：B=clamp(680,columnWidth*.64,880)，
   M=min(B,A-64)，C=M+32（最大 912）。窄屏仍保持实际 32px 宽差、同一中心轴，不能分别夹取成等宽。
   聊天 scroll/window owner 唯一；sticky composer 与消息共用原滚动区，阅读历史不因 delta/resize 拉尾。

@@ -102,8 +102,8 @@
 
 #### 3.6.1 页面信息架构
 
-1. 左栏优先展示会话搜索、新建和既有 runtime 状态，保留工作区树、管理导航与账户入口。
-2. 中央会话承载 transcript、执行过程与 composer；导航 portal 复用唯一 Gateway runtime 的 guarded selection/new/refresh 回调，不建立第二份状态或订阅。
+1. 左栏采用 DSH 层次：固定品牌/折叠与新对话、中部全局入口和 Workspace 根/平铺会话、固定设置/账号。搜索默认图标，按需在 36px 标题行展开；会话行 32px。Conversation 无 workspace_id，不伪造工作区绑定或过滤。完整文件树不再占左栏。
+2. 中央会话承载 transcript、执行过程与 composer；导航与标题 portal 复用唯一 Gateway runtime 的 guarded selection/new/refresh 回调，不建立第二份状态或订阅。顶部仅一条 48px 会话栏，与资源标题同轴，不另叠跨列“会话／工作区”栏或空白页签带；标题截断保留完整 title，操作按钮保持可达。资源/全局页面专注时自身标题提供返回会话，小屏仍保留 drawer 入口。
 3. 文件深链 `/workspace/:workspaceId/objects/:objectId?` 打开旁侧资源；管理、Automation、账户等 global 路由在中央显示，settings 由 Shell 唯一 overlay 协调。切换会话不隐式停止后台 run。
 4. 同一认证 session 内聊天始终在同一位置挂载；资源 Outlet 在布局隐藏或专注切换时不卸载，保留聊天草稿、附件与未保存文件编辑；实际换路由经 dirty guard 后可替换页面，不建立任意跨路由 keepalive。
 
@@ -112,8 +112,9 @@
 ```
 App Shell
 |- Navigation
-|  |- Conversations (portal from the single runtime)
-|  |- Workspace Tree / Management / Account
+|  |- Brand / Collapse / New Conversation (fixed; action portal from single runtime)
+|  |- Global navigation + Workspace roots / Conversations (coordinated browser scroll)
+|  |- Settings / Account (fixed)
 |- Central Conversation (persistent)
 |  |- Transcript / Execution / Composer
 |- Contextual Resource (persistent Outlet)
@@ -126,7 +127,7 @@ App Shell
 1. 视口高度使用 svh；紧凑布局跟随 visualViewport 高度与偏移，保证软键盘下输入区可见。
 2. 左栏默认 280px、拖拽 264–420px、折叠 56px rail；右列初始 45% 视口、最小 300px、最大 70%。保护中央 400px，右列先让步；不足并排时同一资源进入专注面。宽度偏好仅当前登录 session，刷新重置；计算夹取不污染拖拽偏好。
 3. 小于 1024px 导航自动 rail，可手动展开；小于 768px 才使用 modal drawer。自动收起只在进入断点/打开新资源时决定默认值，不能在 Shell 或列求解器中以 resourceOpen 永久覆盖显式展开；临时中屏选择不写桌面偏好，关闭资源保留明确导航选择。导航 presentation 与内容几何分开求解；资源因不足并排而专注时可切回同一聊天实例；选择会话时关闭 drawer。跨断点保留最近交互的会话/资源面，确保设置等 portal 不悬在已隐藏的所属面板之外；新资源路由仍先展示目标资源。
-4. 视觉参照 DSH 的低噪音会话界面：柔和导航底色、平整主画布、共轴居中的消息/输入卡片、轻边框与有限阴影；保持 Ineffable 品牌和现有组件，不引入 DSH 插件或运行时依赖。会话列表与工作区树各自滚动，长资源树不能把会话搜索/新建挤出视口。
+4. 视觉参照 DSH 的低噪音会话界面：柔和导航底色、平整主画布、共轴居中的消息/输入卡片、轻边框与有限阴影；保持 Ineffable 品牌和现有组件，不引入 DSH 插件或运行时依赖。Workspace 根与会话共享浏览区；向下先移出全局入口再滚列表，向上先列表回顶再露出全局入口，列表保留原生滚动条及键盘滚动。完整文件树在资源根页面内滚动，不与会话竞争左栏空间。
 5. 不读取旧右栏 open/width 偏好决定会话可用性，不保留另一套 Agent mode。
 6. 消息与输入卡共用扣除同一 gutter 的可用宽 A，B=clamp(680,columnWidth*.64,880)，M=min(B,A−64)，C=M+32≤912；窄屏也保持实际 32px 宽差与同轴。sticky composer 在原会话滚动 owner 内，不另造跟随状态机。
 7. 设置桌面最大 800×800、导航 188、圆角 28、四周至少 24；小于 768 全屏/横导航。普通打开不变地址/历史，直链 /settings 协调同一层并以 replace /chat 显式关闭；实际业务导航仍受 dirty guard 约束，只有 location 真正提交才卸掉设置，取消不得丢失 modal 或 exact editor。通用页唯一复用原外观/语言 providers，不复制账户整页到 modal；抽屉先关闭再打开设置，关闭回稳定 Shell 按钮，内层 Select 先消费 Escape。check:settings-overlay 覆盖 EN/ZH、明暗、双断点/短视口、焦点、权限、脏导航与历史；旧 /settings 子路由重定向继续保留原目标。
@@ -136,7 +137,7 @@ App Shell
 
 - AppShell 只拥有路由种类、几何、显示/专注、设置层与导航容器，不持有 run 或会话副本。ChatWorkbench 和 RoutedSurface/Outlet 保持稳定 DOM 兄弟，不通过 key/portal 重挂编辑器。
 - ChatWorkbench 延迟加载 GatewayChatSidebar；会话导航通过 portal 放入 AppSidebar。导航只过滤和展示，选择/新建/刷新调用既有受控命令。
-- AppSidebar 继续拥有唯一工作区树与管理入口；文件、自动化、设置和系统管理继续使用既有路由组件。
+- AppSidebar 仅拥有轻量工作区根和管理入口，/chat 不请求 directory。WorkspaceFilesNavigator 是原文件树的唯一业务 owner，随 CRUD、权限、复制引用、分页与事件刷新迁到 Workspace 资源根；?path/?cursor 继续进入既有分页目录，文件深链继续进入同一编辑器。导航 presentation context 只由叶子订阅，保持开合时 AppSidebar 零无关 render。资源根从已授权 access.workspace 获取元数据，不以仅含活跃空间的导航快照排除归档深链；异步操作在关键 await 后检查 route/session/unmount scope。加载 effect 每个 lifetime 都要有有效观察者，不用 loaded-key 锁存阻止 StrictMode 重启后的替代观察者。
 - Gateway runtime、canonical timeline reducer、run store 和 renderer registry 继续独占聊天投影。不得按布局建立额外订阅、全会话详情 N+1 或第二个 composer。
 - 选中会话与执行所有权不同。导航、隐藏、专注和窗口变化不能隐式 Stop；会话身份变化仍使用原 generation/session fence。
 - 图片引用沿用 request/probe、preventDefault 和接收端 readiness 协议；只在接收端确认后显露中央会话，壳层不缓存待投递附件。

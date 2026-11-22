@@ -63,7 +63,7 @@ export const countPath = (requests, suffix) => requests.filter(r => r.path.endsW
 
 export async function waitForShell(page) {
   await page.locator('[data-slot="sidebar-trigger"]').waitFor()
-  await page.getByRole("button", { name: "File 99.md", exact: true }).first().waitFor()
+  await page.locator(`[data-slot="workspace-navigation"] a[href="/workspace/${workspace}/objects"]`).waitFor()
   await page.waitForLoadState("networkidle")
 }
 

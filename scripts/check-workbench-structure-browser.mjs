@@ -87,8 +87,8 @@ try {
   check((await sample(page, "navigation-shortcut-expand")).left === 328, "navigation shortcut restores preferred width")
   await page.locator('[data-slot="sidebar-trigger"]').first().click()
   geometry = await sample(page, "desktop-rail")
-  const railCenters = await page.locator('[data-slot="sidebar-container"][data-side="left"] a[aria-label="Ineffable"], [data-slot="sidebar-container"][data-side="left"] button[aria-label="New conversation"]').evaluateAll(elements => elements.map(element => { const r = element.getBoundingClientRect(); return r.x + r.width / 2 }))
-  check(railCenters.length === 2 && railCenters.every(center => Math.abs(center - 27.5) < 1), "rail brand and new-chat actions share the 56px rail center")
+  const railCenters = await page.locator('[data-slot="sidebar-container"][data-side="left"] [data-slot="sidebar-trigger"], [data-slot="sidebar-container"][data-side="left"] button[aria-label="New conversation"]').evaluateAll(elements => elements.map(element => { const r = element.getBoundingClientRect(); return r.x + r.width / 2 }))
+  check(railCenters.length === 2 && railCenters.every(center => Math.abs(center - 27.5) < 1), "rail toggle and new-chat actions share the 56px rail center")
   check(Math.abs(geometry.left - 56) <= 2, `collapsed rail must be 56px, actual ${geometry.left}`)
   for (const width of [1024, 1023, 768, 767, 390, 320, 1440]) {
     await page.setViewportSize({ width, height: 900 })
