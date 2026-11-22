@@ -53,7 +53,11 @@ try {
   browser = await chromium.launch({ executablePath, headless: true })
   const page = await browser.newPage({ locale: "zh-CN" })
   const scrollToText = async (text) => {
-    const scroller = page.locator('[data-chat-scroll-content]').locator('..')
+    // The immediate message parent is a reading-width wrapper, not the scroll
+    // owner shared by transcript and composer. Seek through the real scrollport.
+    const scroller = page.locator('[data-chat-scroll-region]')
+    assert.ok(await scroller.evaluate(node => node.scrollHeight > node.clientHeight
+      && /auto|scroll/.test(getComputedStyle(node).overflowY)), "history seek targets the overflowing chat scrollport")
     // Enter reading mode through real input before seeking measured rows.
     // Geometry-only writes must not disable the production tail follower.
     const box = await scroller.boundingBox()
