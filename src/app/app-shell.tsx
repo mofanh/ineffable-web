@@ -45,7 +45,7 @@ function WorkbenchContent() {
     ?? getRouteMeta(pathname)?.breadcrumbs
     ?? []
   const [navigationTarget, setNavigationTarget] = useState<HTMLDivElement | null>(null)
-  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" />, [])
+  const conversationSlot = useMemo(() => <div ref={setNavigationTarget} data-slot="conversation-navigation" className="flex max-h-1/2 min-h-0 shrink-0 flex-col" />, [])
   // Panel preferences are local view state, never conversation/run ownership.
   // A new deep link opens its resource; hiding/focusing keeps the Outlet mounted.
   const [view, setView] = useState({ path: pathname, open: true, focused: !pathname.startsWith("/workspace/") })

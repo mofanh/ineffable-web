@@ -24,7 +24,7 @@ try {
       localStorage.setItem("ineffable.ui.language", language)
       localStorage.setItem("theme", dark ? "dark" : "light")
     }, { language, dark })
-    const conversations = [{ id: "alpha", title: "Alpha task", current_run: null }, { id: "beta", title: "Beta task", current_run: null }]
+    const conversations = [{ id: "alpha", title: "Alpha task", current_run: null }, { id: "beta", title: "Beta task", current_run: null }, ...Array.from({ length: 30 }, (_, index) => ({ id: `older-${index}`, title: `Earlier task ${index}`, current_run: null }))]
     await page.route("**/gateway/v1/conversations/list*", route => route.fulfill({ json: { conversations } }))
     await page.route("**/gateway/v1/conversations/get*", route => route.fulfill({ json: conversations.find(item => item.id === new URL(route.request().url()).searchParams.get("conversation_id")) }))
     await page.route("**/gateway/v1/conversations/*/pending-inputs*", route => route.fulfill({ json: { pending_inputs: [] } }))
@@ -55,12 +55,18 @@ try {
     await page.getByRole("button", { name: "File 99.md", exact: true }).first().click()
     await resource.waitFor({ state: "visible" })
     await page.waitForLoadState("networkidle")
+    assert.equal(await page.locator('[data-slot="workspace-navigation"]').evaluate(el => el.scrollTop > 0), true, "large resource trees scroll in their own region")
+    assert.equal(await nav.getByRole("textbox").evaluate(el => {
+      const rect = el.getBoundingClientRect()
+      return rect.top >= 0 && rect.bottom <= window.innerHeight
+    }), true, "resource tree scrolling must not displace conversation search")
     assert.equal(await composer.inputValue(), "KEEP_CONVERSATION_DRAFT", "file route retains composer draft")
     assert.ok(await composerIdentity.evaluate(node => node === document.querySelector('[data-slot="chat-workbench"] textarea')), "route change retains exact composer node")
     await resource.getByRole("button", { name: zh ? "编辑文件" : "Edit file", exact: true }).click()
     const editor = resource.locator('.cm-content[contenteditable="true"]').first()
     await editor.waitFor()
     await editor.fill("UNSAVED_WORKSPACE_DRAFT")
+    await page.screenshot({ path: join(output, `${language}-${dark ? "dark" : "light"}-split.png`) })
     const editorIdentity = await editor.elementHandle()
     await chat.getByRole("button", { name: zh ? "运行设置" : "Run settings", exact: true }).click()
     await page.getByRole("dialog").waitFor()
@@ -70,6 +76,7 @@ try {
     await composer.waitFor({ state: "visible" })
     assert.equal(await resource.isVisible(), false, "compact layout retains the active chat that owns the settings portal")
     assert.equal(await page.getByRole("dialog").isVisible(), true)
+    await page.screenshot({ path: join(output, `${language}-${dark ? "dark" : "light"}-settings-390.png`) })
     await page.keyboard.press("Escape")
     await page.getByRole("dialog").waitFor({ state: "hidden" })
     await page.setViewportSize({ width: 1440, height: 900 })

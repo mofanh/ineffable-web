@@ -160,17 +160,19 @@ export function ConversationNavigation({
   const [query, setQuery] = React.useState("")
   const filtered = conversations.filter(item => item.title.toLowerCase().includes(query.trim().toLowerCase()))
   return (
-    <nav aria-label={t("workbench.conversations")} className="border-b p-2">
+    <nav aria-label={t("workbench.conversations")} className="flex min-h-0 flex-col gap-1 border-b border-sidebar-border/60 px-3 py-2">
       <div className="flex items-center gap-1">
         <Button variant="ghost" className="min-w-0 flex-1 justify-start" onClick={onStartNewChat}><PlusIcon />{t("chat.header.newChat")}</Button>
         <HeaderActionButton title={t("chat.header.refresh")} onClick={onRefreshConversations}><RefreshCcwIcon className="size-4" /></HeaderActionButton>
       </div>
-      <Input aria-label={t("chat.header.search")} placeholder={t("chat.header.search")} value={query} onChange={event => setQuery(event.target.value)} className="my-2 h-8" />
-      <div className="max-h-[42svh] overflow-y-auto overscroll-contain">
+      <div className="relative my-1 shrink-0">
+        <SearchIcon aria-hidden="true" className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+        <Input aria-label={t("chat.header.search")} placeholder={t("chat.header.search")} value={query} onChange={event => setQuery(event.target.value)} className="h-9 rounded-lg border-transparent bg-sidebar-accent/40 pl-8 shadow-none focus-visible:border-ring" />
+      </div>
+      <div className="min-h-0 overflow-y-auto overscroll-contain">
         {groupConversations(filtered).map(group => <div key={group.label}>
-          <div className="px-2 py-1 text-xs text-muted-foreground">{group.label}</div>
-          {group.items.map(item => <button key={item.id} type="button" aria-current={item.id === selectedConversationId ? "true" : undefined} onClick={() => onSelectConversation(item.id)} className={cn("flex min-h-9 w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent focus-visible:outline-ring", item.id === selectedConversationId && "bg-accent")}>
-            <MessageSquareTextIcon className="size-4 shrink-0 text-muted-foreground" />
+          <div className="px-2 pb-1 pt-3 text-[11px] font-medium text-muted-foreground">{group.label}</div>
+          {group.items.map(item => <button key={item.id} type="button" aria-current={item.id === selectedConversationId ? "true" : undefined} onClick={() => onSelectConversation(item.id)} className={cn("flex min-h-9 w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent focus-visible:outline-ring", item.id === selectedConversationId && "bg-sidebar-accent font-medium text-sidebar-foreground")}>
             <span className="min-w-0 flex-1 truncate" title={item.title}>{item.title}</span>
             {item.runtimeStatus ? <StatusBadge status={item.runtimeStatus} {...runtimeStatusBadge(item.runtimeStatus)} className="shrink-0 px-1 text-[10px]" /> : null}
           </button>)}

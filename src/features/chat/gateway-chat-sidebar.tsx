@@ -4191,7 +4191,7 @@ export function GatewayChatSidebar({
         onCollapseSidebar={toggleSidebar}
       />
 
-      <SidebarContent className="overflow-hidden bg-sidebar/50">
+      <SidebarContent className={workbench ? "overflow-hidden bg-background" : "overflow-hidden bg-sidebar/50"}>
         <ChatMessageList
           key={currentConversationId ?? "draft"}
           rowWindowRef={rowWindowRef}

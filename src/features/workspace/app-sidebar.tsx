@@ -1282,7 +1282,7 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
   )
 
   return (
-    <Sidebar variant="inset" {...props}>
+    <Sidebar variant="sidebar" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -1298,8 +1298,9 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="px-0">
+      <SidebarContent className="gap-0 overflow-hidden px-0">
         {children}
+        <div data-slot="workspace-navigation" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <AutomationNav onSelectEntry={setSelectedEntryId} />
         <SidebarSeparator />
         <SpaceSection
@@ -1349,6 +1350,7 @@ export function AppSidebar({ children, ...props }: React.ComponentProps<typeof S
           }}
           onAction={handleObjectAction}
         />
+        </div>
       </SidebarContent>
       <SidebarFooter className="gap-2">
         <SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild isActive={location.pathname === "/settings"}><Link to="/settings"><SettingsIcon /><span>{t("interaction.settings")}</span></Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>

@@ -424,7 +424,7 @@ export function ChatComposer({
         {showFileMenu && <WorkspaceFileMenu key={scope} ref={menuRef} accessToken={accessToken!} workspaces={workspaces} currentWorkspaceId={currentWorkspaceId} query={trigger?.query ?? ""} onSelect={selectReference} />}
 
         <InputGroup
-          className="h-auto overflow-hidden rounded-[26px] border border-sidebar-border/90 bg-background shadow-[0_10px_32px_-20px_rgba(15,23,42,0.45)] transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-[0_14px_38px_-20px_rgba(15,23,42,0.5)] dark:shadow-[0_12px_34px_-22px_rgba(0,0,0,0.8)]"
+          className="h-auto overflow-hidden rounded-2xl border border-border/60 bg-muted/35 shadow-sm transition-[border-color,box-shadow] focus-within:border-foreground/25 focus-within:shadow-md dark:bg-muted/50"
           ref={scrollBoundaryRef}
         >
           {imageCount > 0 ? <InputGroupAddon align="block-start" className="min-w-0 px-3 pt-3 pb-0">{imageAttachments}</InputGroupAddon> : null}

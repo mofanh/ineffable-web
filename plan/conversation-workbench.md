@@ -11,7 +11,9 @@
 ## 阶段
 1. 新分支与合同、路由/布局/会话导航实现；局部结构检查、lint/i18n/build 后中文阶段提交。
 2. 更新受布局变化影响的行为门禁，补充桌面/窄屏、深链、草稿/图片引用、资源专注回归；完整集成测试、长期文档更新并提交。
-3. 干净工作树后在 detached worktree 对基线到 HEAD 做一次独立只读全量审计；集中修复 P0/P1，独立定向复核；确定性 CI 通过后移除已完成计划并提交，保留 Git 历史证据。
+3. 干净工作树后在 detached worktree 对基线到 HEAD 做一次独立只读全量审计，记录具体生产发现。
+4. 主 Agent 集中整改发现；按用户新增方向参考 DSH 收敛 shell、会话导航与输入表面，不移植 runtime 或重做工具展示；局部验证后阶段提交。
+5. 全新独立定向复核发现、修复与增量 UI 影响；确定性 CI 通过后移除已完成计划并提交，保留 Git 历史证据。
 
 ## 验收
 - 登录/根路径默认进入可直接输入的中央会话，不读取旧右栏开关来决定可用性。
@@ -36,4 +38,6 @@
 - 门禁补强：聚合追加 workspace-delete/lifecycle；旧 main submit/form selector 限定到资源语义，生命周期 fixture 禁用 watcher/HMR，并将旧 main identity 断言限定到资源内容宿主（权限刷新仍允许既有页面 loading branch 切换）；布局切换的真实 editor/textarea identity 则由工作台布局门禁单独覆盖。
 - 整改局部回归通过：workspace-lifecycle；check:workbench-layout 开发/production（EN/ZH×light/dark）。缩屏回归等待资源隐藏这一断点提交事实，而非桌面已可见的 composer，继续断言所属 chat 与 settings dialog 可见。
 - 用户补充设计方向：以 DSH 前端为主要视觉/交互参照。只读参考 DSH 的 sidebar、ConversationRoot、InputBar、ChatView 源码；借鉴低噪音导航、平整主画布、居中共享阅读轴和输入卡片层级，不移植 DSH runtime/插件协议/品牌素材，不重做工具投影。
-- 当前：先提交 WB-01/WB-02 修复，再在原分支集中收敛 shell/会话导航/输入表面视觉，复跑受影响浏览器检查；完成后由全新只读 auditor 定向复核发现、增量差异与受影响生产链，再跑最终确定性 CI。用户已有改动不纳入提交；不合并、不推送。
+- WB-01/WB-02 修复已提交 37454d1；DSH 参照视觉已实施：平整主画布、低噪音会话列表、独立的资源树滚动区域、轻量输入卡片、简洁空态，仍复用原 runtime/编辑器/组件。浏览器 fixture 增加 30 条历史会话，100 文件树滚动后继续断言会话搜索留在可见视口。
+- 本轮 lint/i18n/build、responsive-layout、workbench-layout 开发/production、shell-performance 开发/production 均通过（含原有六类图片引用隔离）。已读取 production 中文深色首页、英文浅色分屏及390px设置截图；分屏截图时机改为 editor ready 后，最终门禁重新生成。
+- 当前：视觉阶段提交后由全新只读 auditor 定向复核发现、增量差异与受影响生产链，再跑最终确定性 CI。用户已有改动不纳入提交；不合并、不推送。
