@@ -34,6 +34,12 @@ try {
   for (const { entryPath, scenario } of cases) {
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 }, locale: "en-US" })
     const fixture = await installShellFixture(page, false)
+    // The conversation-first shell hydrates the selected transcript immediately.
+    await page.route("**/gateway/v1/conversations/get*", route => route.fulfill({ json: { id: new URL(route.request().url()).searchParams.get("conversation_id"), title: "Reconciled conversation", current_run: null } }))
+    await page.route("**/gateway/v1/conversations/messages*", route => route.fulfill({ json: { messages: [], next_seq: 0, page: { has_older: false, before: null } } }))
+    await page.route("**/gateway/v1/conversations/*/pending-inputs*", route => route.fulfill({ json: { pending_inputs: [] } }))
+    await page.route("**/gateway/v1/conversations/events*", route => route.fulfill({ json: { events: [], next_seq: 0, has_more: false } }))
+    await page.route("**/gateway/v1/plugins/agent-evolution*", route => route.fulfill({ status: 404, json: { message: "Unavailable in entry fixture" } }))
     await page.addInitScript(scenario => {
       if (scenario === "draft") localStorage.removeItem("ineffable.chat.conversation_id")
       else localStorage.setItem("ineffable.chat.conversation_id", "old")
@@ -107,14 +113,22 @@ try {
           await page.waitForFunction(() => !window.__entryAuth.isBootstrapping)
           const expected = scenario === "removed" || scenario === "draft" ? null : scenario === "selection-change" ? "chosen" : scenario === "session-change" ? "new-account" : "old"
           await page.waitForFunction(id => window.__entryConversation === id, expected)
-          assert.equal(countPath(apiRequests(fixture.requests), "/models/profiles"), 0, "closed chat remains unloaded")
+          await page.locator('[data-slot="chat-workbench"] textarea').waitFor({ state: "attached" })
+          await page.waitForLoadState("networkidle")
+          assert.equal(countPath(apiRequests(fixture.requests), "/models/profiles"), 1, "central chat initializes once after hydration")
           if (scenario === "session-change") assert.equal(await page.evaluate(() => window.__entryAuth.currentUser.id), "user-b")
         }
         assert.equal(moduleRequests, 1, "preload and route reuse one module request, including rejection")
-        // The existing Automation landing page refreshes the list once after mounting.
-        const expectedLists = scenario === "selection-change" ? 3 : scenario === "chunk-failure" ? 1 : ["session-change", "token-refresh-overlap"].includes(scenario) ? 3 : 2
-        if (scenario !== "chunk-failure") await page.getByRole("heading", { name: /automation/i }).first().waitFor()
-        assert.equal(listRequests, expectedLists, `${scenario}: only bootstrap and existing landing-page refresh`)
+        // Central chat mounts only after selection reconciliation. Explicit
+        // management deep links remain on their resource, root enters /chat.
+        const bootstrapLists = ["selection-change", "session-change", "token-refresh-overlap"].includes(scenario) ? 2 : 1
+        const selectedRuntimeRefresh = ["removed", "draft", "chunk-failure"].includes(scenario) ? 0 : 1
+        const expectedLists = bootstrapLists + selectedRuntimeRefresh + (entryPath === "/automation" && scenario !== "chunk-failure" ? 1 : 0)
+        if (scenario !== "chunk-failure") {
+          assert.equal(new URL(page.url()).pathname, entryPath === "/" ? "/chat" : entryPath)
+          if (entryPath === "/automation") await page.getByRole("heading", { name: /automation/i }).first().waitFor()
+        }
+        assert.equal(listRequests, expectedLists, `${scenario}: only bootstrap and existing initialization refresh`)
       }
       assert.deepEqual(fixture.errors, [], scenario)
       assert.deepEqual(fixture.unexpected, [], scenario)

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import { existsSync, writeFileSync } from "node:fs"
-import { execFileSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { chromium } from "playwright-core"
@@ -8,25 +7,23 @@ import { createServer, preview } from "vite"
 import { installShellFixture, apiRequests, countPath, waitForShell, measureToggle, workspace, imageId, image } from "./shell-performance-fixture.mjs"
 
 const production = process.argv.includes("--production")
-const baseline = process.env.INEFFABLE_SHELL_BASELINE_REF
 const executablePath = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].find(p => p && existsSync(p))
 assert.ok(executablePath, "Chrome is required")
 const instrumented = new Map([
-  ["src/app/app-shell.tsx", ["function AppShellContent() {", "shell"]],
-  ["src/features/workspace/app-sidebar.tsx", ["export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {", "navigation"]],
+  ["src/app/app-shell.tsx", ["function WorkbenchContent() {", "shell"]],
+  ["src/features/workspace/app-sidebar.tsx", ["export function AppSidebar({ children, ...props }: React.ComponentProps<typeof Sidebar>) {", "navigation"]],
   ["src/features/chat/gateway-chat-sidebar.tsx", ["}: GatewayChatSidebarProps) {", "chat"]],
 ])
-const baselineFiles = new Set([...instrumented.keys(), "src/features/auth/app-session.tsx", "src/components/ui/sidebar.tsx", "src/features/workspace/components/workspace-image-preview.tsx", "src/lib/image-reference-events.ts"])
 const server = production
   ? await preview({ preview: { host: "127.0.0.1", port: 0 } })
   : await createServer({ root: process.cwd(), logLevel: "error", server: { host: "127.0.0.1", port: 0, watch: null, hmr: false }, plugins: [{ name: "shell-measure", enforce: "pre", transform(source, id) {
     const path = id.split("?")[0].slice(process.cwd().length + 1)
-    let code = baseline && baselineFiles.has(path) ? execFileSync("git", ["show", `${baseline}:${path}`], { encoding: "utf8" }) : source
+    let code = source
     const counter = instrumented.get(path)
     if (counter) code = code.replace(counter[0], `${counter[0]}\nwindow.__shellRenders.${counter[1]}++;`)
     if (path === "src/components/ui/sidebar.tsx") {
       const geometryRead = "const rect = element.getBoundingClientRect()"
-      if (!baseline) assert.ok(code.includes(geometryRead), "instrument Sidebar focus-return geometry")
+      assert.ok(code.includes(geometryRead), "instrument Sidebar focus-return geometry")
       code = code.replace(geometryRead, `window.__shellFocusReturnReads++;\n${geometryRead}`)
     }
     // Only expose the real selection command in this test build; it still updates
@@ -35,7 +32,7 @@ const server = production
     if (path === "src/features/chat/gateway-chat-sidebar.tsx") code = code.replace("onStartNewChat={startNewChat}", "onStartNewChat={(window.__shellStartNewChat = startNewChat)}")
     return { code, map: null }
   } }] })
-const results = { mode: production ? "production" : "development", baseline, scenarios: [] }
+const results = { mode: production ? "production" : "development", scenarios: [] }
 const output = process.env.INEFFABLE_SHELL_BENCHMARK_OUTPUT || join(tmpdir(), `ineffable-shell-${results.mode}.json`)
 let browser
 try {
@@ -47,11 +44,11 @@ try {
     const fixture = await installShellFixture(page, open)
     await page.goto(`${url}/channels`)
     await waitForShell(page)
-    if (open) {
+    {
       // The eager chat mount has its own async initialization. On slower CI
       // runners its final state updates can land inside the first left toggle,
       // even though the toggle did not cause those renders.
-      await page.locator('[data-side="right"] textarea').first().waitFor()
+      await page.locator('[data-slot="chat-workbench"] textarea').first().waitFor({ state: "attached" })
       await page.waitForLoadState("networkidle")
       const chatSettled = await page.evaluate(async () => {
         let lastRenders = window.__shellRenders.chat
@@ -83,7 +80,7 @@ try {
       if (!production) {
         assert.ok(sample.renders.shell <= 4, `no per-frame shell renders: ${JSON.stringify(sample.renders)}`)
         assert.equal(sample.renders.navigation, 0, "left animation does not render the workspace tree owner")
-        assert.equal(sample.renders.chat, 0, "left animation does not render the chat owner")
+        assert.ok(sample.renders.chat <= 2, "one shared sidebar context transition, never per-frame chat renders")
         assert.equal(sample.focusReturnReads, 0, "ordinary toggles do not measure focus-return targets")
       }
       assert.ok(sample.frames >= 10 && sample.p95 < 100, `sidebar frame budget: ${JSON.stringify(sample)}`)
@@ -91,55 +88,29 @@ try {
     const responseTimes = scenario.toggles.map(sample => sample.firstFrameMs).sort((a, b) => a - b)
     assert.ok((responseTimes[1] + responseTimes[2]) / 2 < 100, "median toggle-to-first-frame stays below 100 ms")
     assert.equal(countPath(initialApi, "/workspace-invitations/incoming"), 1, "sidebar shares the canonical invitation resource")
-    if (!open) {
-      assert.equal(countPath(initialApi, "/models/profiles"), 0, "closed first visit does not initialize chat")
-      assert.equal(countPath(initialApi, "/conversations/preferences"), 0)
-      assert.equal(initialApi.length, 6, "only auth, conversation summary, roots, invitations and current page load")
-      await page.getByRole("button", { name: "Open AI assistant", exact: true }).click()
-    }
-    const composer = page.locator('[data-side="right"] textarea').first()
+    assert.equal(countPath(initialApi, "/models/profiles"), 1, "central chat initializes regardless of retired sidebar preference")
+    const composer = page.locator('[data-slot="chat-workbench"] textarea').first()
+    assert.equal(await composer.isVisible(), false, "management deep link focuses resources")
+    await page.getByRole("button", { name: "Conversations", exact: true }).click()
     await composer.waitFor()
     await composer.fill("KEEP_SIDEBAR_DRAFT")
     await page.waitForLoadState("networkidle")
     const beforeReopen = apiRequests(fixture.requests).length
-    await page.getByRole("button", { name: "Close AI assistant", exact: true }).click()
-    await page.getByRole("button", { name: "Open AI assistant", exact: true }).click()
-    assert.equal(await composer.inputValue(), "KEEP_SIDEBAR_DRAFT", "closing an initialized panel preserves the draft")
-    await page.waitForTimeout(300)
-    assert.equal(apiRequests(fixture.requests).length, beforeReopen, "reopen preserves the mounted conversation, with no new reads or stop")
-
-    // Rapid reversal still commits the correct final boundary; resizing the right
-    // side afterward uses that boundary, not an intermediate animation width.
-    await page.evaluate(async () => {
-      document.querySelector('[data-slot="sidebar-trigger"]').click()
-      await new Promise(resolve => setTimeout(resolve, 60))
-      document.querySelector('[data-slot="sidebar-trigger"]').click()
-    })
-    await page.waitForTimeout(350)
-    const resize = page.getByRole("separator", { name: "Resize AI assistant", exact: true })
-    await resize.focus(); await page.keyboard.press("End")
-    assert.equal(Number(await resize.getAttribute("aria-valuemax")), 688)
-    const dockGeometry = await page.evaluate(() => ({
-      contentRight: document.querySelector('[data-slot="sidebar-inset"]').getBoundingClientRect().right,
-      chatLeft: document.querySelector('[data-side="right"][data-slot="sidebar-container"]').getBoundingClientRect().left,
-    }))
-    assert.ok(dockGeometry.contentRight <= dockGeometry.chatLeft, "maximized docked chat does not cover the page or header")
-    await page.getByRole("button", { name: "Close AI assistant", exact: true }).click()
-    await page.getByRole("button", { name: "Open AI assistant", exact: true }).click()
-    // Restore the minimum for the remaining compact-layout scenario.
-    await page.keyboard.press("Home")
-    await page.getByRole("button", { name: "Close AI assistant", exact: true }).click()
+    const chat = page.locator('[data-slot="chat-workbench"]')
+    const node = await composer.elementHandle()
+    assert.equal(await chat.isVisible(), true)
+    await page.getByRole("button", { name: "Focus resource", exact: true }).click()
+    await page.getByRole("button", { name: "Conversations", exact: true }).click()
+    assert.equal(await composer.inputValue(), "KEEP_SIDEBAR_DRAFT")
+    assert.equal(await node.evaluate(el => el.isConnected), true)
+    await page.waitForLoadState("networkidle")
+    assert.equal(apiRequests(fixture.requests).length, beforeReopen, "focus/hide do not reload business data or stop execution")
     await page.setViewportSize({ width: 900, height: 900 })
     await page.locator('[data-slot="sidebar-trigger"]').click()
     await page.locator('[data-side="left"][data-compact="true"]').waitFor()
-    await page.waitForFunction(() => document.querySelector('[data-side="left"][data-compact="true"]')?.contains(document.activeElement))
-    await page.locator('[data-side="left"][data-compact="true"]').focus()
-    await page.waitForTimeout(100)
     await page.keyboard.press("Escape")
     await page.locator('[data-side="left"][data-compact="true"]').waitFor({ state: "hidden" })
-    await page.setViewportSize({ width: 1200, height: 900 })
-    await page.waitForTimeout(350)
-    assert.equal(Number(await resize.getAttribute("aria-valuemax")), 704, "compact close leaves desktop left sidebar collapsed")
+    assert.equal(await node.evaluate(el => el.isConnected), true)
     assert.deepEqual(fixture.errors, [])
     assert.deepEqual(fixture.unexpected, [])
     await page.close()
@@ -178,7 +149,7 @@ try {
     if (!production) {
       const deadline = Date.now() + 10_000
       while (!started && Date.now() < deadline) await page.waitForTimeout(20)
-      assert.ok(started, "reference opens the previously unloaded composer")
+      assert.ok(started, "central composer deferred module is held for readiness fencing")
       if (scenario === "reconcile") {
         releaseList()
         await page.waitForFunction(() => localStorage.getItem("ineffable.chat.conversation_id") === null)
@@ -199,7 +170,7 @@ try {
       }
       release()
     }
-    await page.locator('[data-side="right"] textarea').first().waitFor()
+    await page.locator('[data-slot="chat-workbench"] textarea').first().waitFor({ state: "attached" })
     if (scenario === "success") {
       await attachments.waitFor()
       if (!production) {

@@ -87,7 +87,7 @@ function WorkbenchContent() {
             ) : null}
           </div>
         </header>
-        <div className="flex min-h-0 min-w-0 flex-1">
+        <main className="flex min-h-0 min-w-0 flex-1">
           {/* This position never changes across routes or panel/viewport changes. */}
           <section aria-label={t("workbench.conversations")} data-slot="chat-workbench" className={cn("min-h-0 min-w-0 flex-1 flex-col", showChat ? "flex" : "hidden")}>
             <ChatWorkbench navigationTarget={navigationTarget} onReveal={revealChat} />
@@ -111,7 +111,7 @@ function WorkbenchContent() {
               <Suspense fallback={<RouteLoading />}><Outlet /></Suspense>
             </div>
           </section>
-        </div>
+        </main>
       </SidebarInset>
     </>
   )

@@ -53,8 +53,8 @@ try {
       return route.fulfill({ json: { conversations: [{ id: "new-account", title: "Existing conversation", current_run: null }] } })
     })
     try {
-      await page.goto(origin + (entry === "storage" ? "/automation" : `/${entry}`))
-      const composer = page.locator('[data-side="right"] textarea').first()
+      await page.goto(origin + (entry === "storage" ? "/chat" : `/${entry}`))
+      const composer = page.locator('[data-slot="chat-workbench"] textarea').first()
       if (entry === "storage") {
         await composer.waitFor(); await page.waitForLoadState("networkidle")
         await page.evaluate(() => {

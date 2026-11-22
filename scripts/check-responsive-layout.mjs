@@ -12,7 +12,6 @@ function source(path) {
 
 const sidebar = source("src/components/ui/sidebar.tsx")
 const appShell = source("src/app/app-shell.tsx")
-const rightSidebarResize = source("src/app/shell/use-right-sidebar-resize.ts")
 
 assert.equal(DESKTOP_LAYOUT_BREAKPOINT, 1024)
 assert.equal(isCompactLayoutWidth(0), true)
@@ -39,15 +38,13 @@ assert.doesNotMatch(
   /\b(?:sm|md):(block|flex|peer-data|after|opacity)/,
   "Sidebar interaction styles must not activate below the desktop boundary"
 )
-assert.match(appShell, /cursor-col-resize[^"\n]*lg:block/)
-assert.doesNotMatch(appShell, /cursor-col-resize[^"\n]*md:block/)
 assert.match(appShell, /useIsCompactLayout/)
-assert.match(appShell, /\[isLeftSidebarCompact\]/)
-assert.match(appShell, /compact=\{isLeftSidebarCompact\}/)
-assert.match(appShell, /viewportWidth < THREE_COLUMN_MIN_WIDTH/)
-assert.match(appShell, /keyboardShortcut=\{false\}/)
+assert.match(appShell, /useVisualViewport\(compact\)/)
+assert.match(appShell, /data-slot="chat-workbench"/)
+assert.match(appShell, /data-slot="resource-workbench"/)
+assert.equal((appShell.match(/<ChatWorkbench /g) ?? []).length, 1, "one persistent chat mount")
+assert.match(appShell, /showResource \? "flex" : "hidden"/)
+assert.doesNotMatch(appShell, /isRightSidebarOpen|useRightSidebarResize/, "chat availability is not a sidebar preference")
 assert.match(sidebar, /if \(!keyboardShortcut\)/)
-assert.match(rightSidebarResize, /isCompactLayoutWidth\(window\.innerWidth\)/)
-assert.doesNotMatch(rightSidebarResize, /window\.innerWidth\s*<\s*(768|1024)/)
 
 console.log("responsive layout checks passed")

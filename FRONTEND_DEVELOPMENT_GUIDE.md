@@ -96,144 +96,55 @@
 2. 用户回到页面或网络恢复后再触发一次补偿拉取。
 3. 对重复消息做幂等处理（按 event/tool_call_id/time 组合键去重）。
 
-### 3.6 基于 moxt.ai 的 UI 设计方案（建议稿）
+### 3.6 会话优先工作台
 
-本节是基于页面 https://moxt.ai/w/hvsb8xkr 的结构观察，结合本仓库现有组件体系给出的落地设计方案。
+默认 `/chat` 以会话为中心，不另设 Agent mode；文件深链和后端执行链保持不变。
 
 #### 3.6.1 页面信息架构
 
-1. 全局采用三栏工作台模型。
-2. 左栏承担导航与工作区上下文。
-3. 中栏承担主内容视图切换。
-4. 右栏承担聊天与会话输入，不随左侧菜单切换而消失。
+1. 左栏优先展示会话搜索、新建和既有 runtime 状态，保留工作区树、管理导航与账户入口。
+2. 中央会话承载 transcript、执行过程与 composer；导航 portal 复用唯一 Gateway runtime 的 guarded selection/new/refresh 回调，不建立第二份状态或订阅。
+3. 文件深链 `/workspace/:workspaceId/objects/:objectId?` 打开旁侧资源，管理路由默认专注资源。切换会话不隐式停止后台 run。
+4. 同一认证 session 内聊天始终在同一位置挂载；资源 Outlet 隐藏或专注切换也不卸载，保留聊天草稿、附件与未保存文件编辑。
 
-建议结构：
+结构：
 
 ```
 App Shell
-|- Left Sidebar
-|  |- Main Menu (AI Teammates / Automation / Skills, Rules, Memory / Inbox)
-|  |- Workspace Tree (Team Space / Personal Space / GitHub)
-|- Center Workspace
-|  |- Active View Header
-|  |- Active View Content
-|- Right Chat Panel
-   |- Top Actions (New Chat)
-   |- Conversation Area
-   |- Composer
+|- Navigation
+|  |- Conversations (portal from the single runtime)
+|  |- Workspace Tree / Management / Account
+|- Central Conversation (persistent)
+|  |- Transcript / Execution / Composer
+|- Contextual Resource (persistent Outlet)
+   |- File editor / Management routes
 ```
 
-#### 3.6.2 桌面布局规格
+#### 3.6.2 布局规格
 
-1. 视口高度：100vh。
-2. 左栏宽度：256px（固定）。
-3. 中栏宽度：flex-1，最小 520px。
-4. 右栏宽度：380px（固定，允许 340px 到 420px 之间可调）。
-5. 主栏之间使用 1px 分隔线，颜色为边框弱对比色。
+1. 视口高度使用 svh；紧凑布局跟随 visualViewport 高度与偏移，保证软键盘下输入区可见。
+2. 桌面左栏沿用 256px 可折叠导航；资源约占内容区 44%，可专注资源或隐藏；会话使用剩余宽度。
+3. 小于 1024px 时会话与资源互斥显示，导航使用抽屉；选择会话时关闭抽屉并显露同一聊天实例。
+4. 不读取旧右栏 open/width 偏好决定会话可用性，不保留另一套 Agent mode。
+5. check:workbench-layout 在开发和 --production 下验证单实例、草稿、路由/专注/宽度切换、EN/ZH 与 light/dark。真实后端/provider 和真实移动端软键盘仍需人工验收。
 
-建议 Tailwind 栅格表达：
+#### 3.6.3 组件职责与状态边界
 
-```
-grid-cols-[256px_minmax(520px,1fr)_380px]
-```
+- AppShell 只拥有路由资源的显示/专注和导航容器，不持有 run 或会话副本。
+- ChatWorkbench 延迟加载 GatewayChatSidebar；会话导航通过 portal 放入 AppSidebar。导航只过滤和展示，选择/新建/刷新调用既有受控命令。
+- AppSidebar 继续拥有唯一工作区树与管理入口；文件、自动化、设置和系统管理继续使用既有路由组件。
+- Gateway runtime、canonical timeline reducer、run store 和 renderer registry 继续独占聊天投影。不得按布局建立额外订阅、全会话详情 N+1 或第二个 composer。
+- 选中会话与执行所有权不同。导航、隐藏、专注和窗口变化不能隐式 Stop；会话身份变化仍使用原 generation/session fence。
+- 图片引用沿用 request/probe、preventDefault 和接收端 readiness 协议；只在接收端确认后显露中央会话，壳层不缓存待投递附件。
 
-#### 3.6.3 视觉风格与 Token
+#### 3.6.4 交互、视觉与验证
 
-建议保留轻量、信息密度高的工作台风格，避免大面积高饱和色块。
-
-建议 Token：
-1. --bg-app: #f6f8fb
-2. --bg-panel: #ffffff
-3. --bg-subtle: #f1f4f8
-4. --border-soft: #e6ebf2
-5. --text-primary: #0f172a
-6. --text-secondary: #475569
-7. --text-muted: #64748b
-8. --accent: #0ea5e9
-9. --accent-soft: #e0f2fe
-10. --success: #10b981
-11. --warning: #f59e0b
-12. --danger: #ef4444
-
-排版建议：
-1. 主字体使用 Inter Variable（与现有依赖一致）。
-2. 导航项字号 13 到 14px，行高 20 到 22px。
-3. 日志正文 13px，代码与元信息 12px。
-
-#### 3.6.4 组件清单与职责（按 moxt 结构映射）
-
-1. AppShell
-   - 职责：三栏容器、全局背景、响应式切换。
-2. LeftNavMenu
-   - 职责：顶部四个主菜单切换。
-3. WorkspaceTree
-   - 职责：分组树与文件条目展示（含行级按钮）。
-4. CenterViewSwitcher
-   - 职责：根据主菜单切换中栏内容。
-5. TeammatesView
-   - 职责：展示 Agent 模板卡片与创建入口。
-6. AutomationView
-   - 职责：Cron/Webhook 子筛选和任务列表。
-7. SkillsRulesMemoryView
-   - 职责：三段式切换（可先用分段按钮实现）。
-8. InboxDrawer
-   - 职责：通知抽屉（空态、加载态、错误态）。
-9. RightChatPanel
-   - 职责：会话区 + New Chat 触发 + 输入区。
-10. NewChatPicker
-    - 职责：会话检索与快速切换（Combobox）。
-11. MainAgentLogs
-    - 职责：主代理 token/tool/final 三路日志。
-12. SubAgentGroups
-    - 职责：按 subagent_id 动态分组展示日志。
-
-#### 3.6.5 关键交互流程
-
-1. 主菜单切换
-   - 点击左栏主菜单后，中栏视图切换，右栏保持不变。
-2. Inbox 交互
-   - 采用左侧滑出抽屉，不打断中栏上下文。
-3. New Chat
-   - 右栏顶部按钮触发会话选择弹层。
-4. 流式日志
-   - text_delta 和 reasoning_delta 采用追加拼接。
-5. 工具调用日志
-   - tool_call_start、tool_call_delta、tool_call_done 三阶段聚合展示。
-6. 子代理分组
-   - 根据 metadata.subagent_id 自动创建分组容器。
-
-#### 3.6.6 响应式策略
-
-1. >= 1024px：Desktop 交互模式
-   - 左右 Sidebar 可以常驻，左栏可折叠为 icon rail，右栏支持拖拽调整与全屏。
-2. < 1024px：Compact 交互模式
-   - 手机、平板与窄窗口统一使用该模式；左栏改为 Drawer，右栏使用全屏会话页。
-3. `sm`、`md`、`lg`、`xl` 仍可用于页面内部的密度、列数与间距适配，但不得据此新增第三套设备交互模式。
-
-#### 3.6.7 动效方案
-
-1. 菜单切换
-   - 中栏内容采用 140ms 到 180ms 的淡入上移动画。
-2. 抽屉开合
-   - 左右抽屉采用 180ms ease-out 平移。
-3. 流式输出
-   - 日志追加不做逐字符动画，仅做行级出现动画，避免性能抖动。
-
-#### 3.6.8 可访问性与可观测性
-
-1. 交互组件需要明确 aria-label。
-2. 主菜单支持键盘上下移动和 Enter 触发。
-3. 右栏输入区支持 Cmd/Ctrl+Enter 发送。
-4. 日志区按类型上报指标：delta 量、tool call 次数、final 延迟。
-
-#### 3.6.9 基于现有组件的实现映射
-
-1. 左栏与壳层：优先复用 SidebarProvider、Sidebar、SidebarInset。
-2. 抽屉：复用 Sheet。
-3. 检索选择：复用 Combobox。
-4. 输入区：复用 InputGroup + Textarea + Button。
-5. 日志卡片：复用 Card、Badge、Avatar。
-6. Skills/Rules/Memory 分段：短期用 Button Group，后续可补 Tabs Primitive。
+- EN/ZH 文案使用同构 i18n key；light/dark 沿用现有语义主题变量。浏览器 fixture 使用主题提供者的 `theme` 存储键，并断言实际根节点主题。
+- 显示资源、隐藏资源、专注资源和返回会话均有明确可访问名称。会话/编辑器不应为了布局动效重新挂载；紧凑导航沿用既有 Sheet 的焦点恢复与 Escape 行为。
+- `check:workbench-layout` 在开发和 production 下验证视口边界、单实例、草稿、路由、导航搜索/选择/新建及主题；`check:shell-performance` 保留导航开合预算与图片引用在延迟加载、换会话、换身份、源卸载和超时下的 fencing 回归。
+- `check:automation-runtime` 验证窄资源列，`check:toast` 验证中央会话及紧凑导航模态层的通知可操作性；管理端 editor/mobile fixture 禁用 watcher/HMR，避免源文件编辑触发页面刷新干扰行为断言。
+- `npm run check:conversation-workbench` 串行执行本工作台确定性门禁（含 production artifacts 和受影响的认证/工作区检查），避免多个浏览器门禁争抢帧预算。
+- 本地 HTTP fixture 不代替真实后端/provider、生产部署、移动设备软键盘及后台长任务的端到端人工验收。
 
 ## 4. 网关接口规范（前端必读）
 

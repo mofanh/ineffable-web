@@ -190,10 +190,12 @@ try {
     await mobile.waitForLoadState("networkidle")
     await mobile.evaluate(() => document.fonts.ready)
     if (docked) {
-      const center = await mobile.locator('[data-slot="sidebar-inset"]').evaluate(element => element.getBoundingClientRect().width)
-      assert.ok(center >= 479 && center <= 497, "automation exercises an actual constrained desktop center")
-      assert.equal(await mobile.locator('[data-slot="card-header"] input').isVisible(), false, "narrow centers keep search out of the title row")
-      assert.equal(await mobile.locator('[data-slot="card-content"] input').isVisible(), true, "search remains available below the title")
+      assert.equal(await mobile.locator('[data-slot="chat-workbench"]').isVisible(), false, "management deep link focuses resource")
+      await mobile.getByRole("button", { name: language === "zh-CN" ? "返回会话与资源" : "Show conversation and resource", exact: true }).click()
+      const resourceWidth = await mobile.locator('[data-slot="resource-workbench"]').evaluate(element => element.getBoundingClientRect().width)
+      assert.ok(resourceWidth > 380 && resourceWidth < 650, "automation exercises the constrained contextual resource panel")
+      assert.equal(await mobile.locator('[data-slot="card-header"] input').isVisible(), false, "narrow resources keep search out of title row")
+      assert.equal(await mobile.locator('[data-slot="card-content"] input').isVisible(), true, "search remains available below title")
     }
     assert.equal(await item.locator('[data-slot="automation-run"]').count(), 2, "both run records remain available")
     assert.ok(await mobile.locator('[data-slot="card"]').evaluateAll(cards => cards.every(card => card.scrollWidth <= card.clientWidth + 1)), "automation cards must not clip their contents")
