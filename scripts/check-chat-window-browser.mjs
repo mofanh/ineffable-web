@@ -57,11 +57,17 @@ try {
     assert.ok(await page.locator("[data-chat-entry-role]").count() <= 80)
     assert.ok(await page.locator("[data-web-node-row]").count() <= 80)
   }
-  await page.evaluate(() => window.chatWindowFixture.restore("human-entry", 0, { key: "node-200", top: 30 }))
-  await page.waitForTimeout(250)
-  const nestedTop = await page.locator('[data-chat-row-key="node-200"]').evaluate((row) => row.getBoundingClientRect().top - row.closest('[data-chat-scroll-region]').getBoundingClientRect().top)
-  assert.ok(Math.abs(nestedTop - 30) < 2, `nested node identity restores measured offset: ${nestedTop}`)
-  assert.equal(await answer.inputValue(), "draft survives both virtual windows")
+  for (const key of ["node-0", "node-200", "node-500"]) {
+    await page.evaluate(key => window.chatWindowFixture.restore("human-entry", 0, { key, top: 30 }), key)
+    await page.waitForTimeout(250)
+    const geometry = await page.locator(`[data-chat-row-key="${key}"]`).evaluate(row => ({
+      top: row.getBoundingClientRect().top - row.closest('[data-chat-scroll-region]').getBoundingClientRect().top,
+      inset: row.getBoundingClientRect().top - row.closest('[data-window-key]').getBoundingClientRect().top,
+    }))
+    assert.ok(Math.abs(geometry.top - 30) < 2, `nested ${key} identity restores measured offset: ${geometry.top}`)
+    if (key === "node-200") assert.ok(geometry.inset > 0, "restore exercises content inset inside a measured process row")
+    assert.equal(await answer.inputValue(), "draft survives both virtual windows")
+  }
   await page.evaluate(() => window.chatWindowFixture.human(40))
   await page.waitForFunction(() => document.querySelector("[data-human-node-count]").dataset.humanNodeCount === "40")
   await page.getByRole("radio").last().click()

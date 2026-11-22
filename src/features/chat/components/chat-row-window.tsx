@@ -112,7 +112,12 @@ export function ChatRowWindow<T>({ items, getKey, estimateSize, gap, pinnedKeys 
       }
       const row = Array.from(root.children).find((element) => element.getAttribute("data-window-key") === key)
       if (row && !child) {
-        const offset = scroller.scrollTop + row.getBoundingClientRect().top - scroller.getBoundingClientRect().top - top
+        // Cache capture records the semantic entry/node, not this measurement
+        // wrapper. Process density clearance lives inside the wrapper, so align
+        // the same keyed content seat or restored reading positions drift.
+        const anchor = Array.from(row.querySelectorAll<HTMLElement>("[data-chat-row-key]"))
+          .find((element) => element.dataset.chatRowKey === key) ?? row
+        const offset = scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - top
         if (Math.abs(scroller.scrollTop - offset) > 0.5) {
           stableFrames = 0
           scroller.scrollTop = offset

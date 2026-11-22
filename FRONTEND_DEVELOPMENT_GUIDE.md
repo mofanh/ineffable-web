@@ -129,7 +129,7 @@ App Shell
 3. 小于 1024px 导航自动 rail，可手动展开；小于 768px 才使用 modal drawer。自动收起只在进入断点/打开新资源时决定默认值，不能在 Shell 或列求解器中以 resourceOpen 永久覆盖显式展开；临时中屏选择不写桌面偏好，关闭资源保留明确导航选择。导航 presentation 与内容几何分开求解；资源因不足并排而专注时可切回同一聊天实例；选择会话时关闭 drawer。跨断点保留最近交互的会话/资源面，确保设置等 portal 不悬在已隐藏的所属面板之外；新资源路由仍先展示目标资源。
 4. 视觉参照 DSH 的低噪音会话界面：柔和导航底色、平整主画布、共轴居中的消息/输入卡片、轻边框与有限阴影；保持 Ineffable 品牌和现有组件，不引入 DSH 插件或运行时依赖。Workspace 根与会话共享浏览区；向下先移出全局入口再滚列表，向上先列表回顶再露出全局入口，列表保留原生滚动条及键盘滚动。完整文件树在资源根页面内滚动，不与会话竞争左栏空间。
 5. 不读取旧右栏 open/width 偏好决定会话可用性，不保留另一套 Agent mode。
-6. 消息与输入卡共用扣除同一 gutter 的可用宽 A，B=clamp(680,columnWidth*.64,880)，M=min(B,A−64)，C=M+32≤912；窄屏也保持实际 32px 宽差与同轴。sticky composer 在原会话滚动 owner 内，不另造跟随状态机。
+6. 消息与输入卡共用扣除同一 gutter 的可用宽 A，B=clamp(680,columnWidth*.64,880)，M=min(B,A−64)，C=M+32≤912；窄屏也保持实际 32px 宽差与同轴。sticky composer 在原会话滚动 owner 内，不另造跟随状态机。阅读锚点采集与恢复必须对齐同一 key 的语义 entry/node；虚拟测量包装层可包含过程行留白，不能拿包装层顶部替代内容节点顶部或硬减固定像素。
 7. 设置桌面最大 800×800、导航 188、圆角 28、四周至少 24；小于 768 全屏/横导航。普通打开不变地址/历史，直链 /settings 协调同一层并以 replace /chat 显式关闭；实际业务导航仍受 dirty guard 约束，只有 location 真正提交才卸掉设置，取消不得丢失 modal 或 exact editor。通用页唯一复用原外观/语言 providers，不复制账户整页到 modal；抽屉先关闭再打开设置，关闭回稳定 Shell 按钮，内层 Select 先消费 Escape。check:settings-overlay 覆盖 EN/ZH、明暗、双断点/短视口、焦点、权限、脏导航与历史；旧 /settings 子路由重定向继续保留原目标。
 8. check:workbench-layout 在开发和 --production 下验证单实例、草稿、路由/专注/宽度切换、EN/ZH 与 light/dark；双断点覆盖 767/768/1023/1024。真实后端/provider 和真实移动端软键盘仍需人工验收。
 
@@ -151,7 +151,7 @@ App Shell
 - `check:workbench-layout` 在开发和 production 下验证视口边界、单实例、草稿、路由、导航搜索/选择/新建及主题；`check:shell-performance` 保留导航开合预算与图片引用在延迟加载、换会话、换身份、源卸载和超时下的 fencing 回归。
 - `check:automation-runtime` 验证窄资源列，`check:toast` 验证中央会话及紧凑导航模态层的通知可操作性；管理端 editor/mobile fixture 禁用 watcher/HMR，避免源文件编辑触发页面刷新干扰行为断言。
 - `npm run check:conversation-workbench` 串行执行本工作台确定性门禁（含 production artifacts 和受影响的认证/工作区检查），避免多个浏览器门禁争抢帧预算。开发与 production 的导航性能都要求无关 AppSidebar render 为零，不能降低预算换绿灯。两种模式必须使用相同真实 owner 探针，并在计时前确认 shell/navigation/chat 初始计数全部大于零，不能把 fixture 初始化的零当成生产测量。生产性能检查独立构建带探针的 production bundle 至临时目录，不覆盖其它生产布局门禁使用的常规构建；报告记录插桩标识、产物目录及初始计数。
-- 浏览器门禁通过稳定语义属性定位真实交互 owner，不把消息容器的直接父节点当成滚动区；历史定位使用 `data-chat-scroll-region`，保留真实滚轮输入、reading/following 与可滚动几何断言。稳定挂载的隐藏导航可以保留品牌 trigger，操作入口应严格选择唯一可见 trigger，不能用 first/force、放宽超时或删除断言掩盖重复匹配。
+- 浏览器门禁通过稳定语义属性定位真实交互 owner，不把消息容器的直接父节点当成滚动区；历史定位使用 `data-chat-scroll-region`，保留真实滚轮输入、reading/following 与可滚动几何断言。稳定挂载的隐藏导航可以保留品牌 trigger，操作入口应严格选择唯一可见 trigger，不能用 first/force、放宽超时或删除断言掩盖重复匹配。独立输入用例须设置并核验自己的滚动前置条件；hook 忽略的按键仍可能触发浏览器默认滚动动画，不能假定固定 50ms 后 scrollTop 尚未变化。集成 fixture 同步实际组件所有权：联合验证树与 editor 的恢复时显式挂载单一经 useWorkspaceAccess 授权的资源树，不能假设统一导航仍内嵌整树；真实 Shell 的 HTTP mock 必须返回合法 DTO（如 invitations 数组），不能用 {} 冒充成功列表。
 - 源码架构门禁约束函数/分支所有权时优先解析语法，不以两段代码相隔的字符数作为业务合同；仍保留 target/scope、异步身份与 ACK 边界断言，并用删除真实调用的负对照证明门禁有效。例如首发迭代交接在 accepted、cursor prime failure、admission failure 各自 body 内对账；已 ACK 后的观察错误不能撤销接纳。这类源码检查不替代浏览器或运行时行为验证。
 - DSH 参考固定在 0.2.2-rc.5 / 2e39e70496aa02986ca6a820c5d497e816b69d7e；发行时保留 [第三方 notice](<public/third-party-notices.txt>) 的来源清单与完整 MIT。保留 Ineffable 品牌、Inter/Lucide、模型/环境/管理页和 Workspace 对象版本语义，不引入 Host 插件/本地终端/工作目录会话分组，不添加 DSH 的 accelerated delivery 或未经 modal/IME/identity fencing 验证的双 Escape Stop。显式停止仍走原命令。
 - 本地 HTTP fixture 不代替真实 Gateway/PostgreSQL/provider、生产部署、真实移动设备触控/软键盘、Safari/Firefox 及后台长任务的端到端人工验收。本地截图也不是 DSH 已连接 GUI 的同尺寸像素对照；没有独立实机证据时，只能声称源码支撑的结构适配，不声称完整产品或逐像素等价。

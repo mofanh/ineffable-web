@@ -58,7 +58,15 @@ try {
   await page.keyboard.press('Shift+Space')
   await page.waitForTimeout(50)
   assert.equal(await intents(),0,'editing and React-consumed keys do not suspend follow')
-  await page.locator('#boundary').dispatchEvent('wheel',{deltaY:-30,bubbles:true,cancelable:true})
+  // Native Shift+Space may still be animating to the top. Start this separate
+  // wheel case away from the edge and dispatch in the same task: an up wheel
+  // at the top correctly emits no intent, irrespective of the key assertion.
+  assert.equal(await page.locator('#boundary').evaluate(el=>{
+   el.scrollTop=150
+   const top=el.scrollTop
+   el.dispatchEvent(new WheelEvent('wheel',{deltaY:-30,bubbles:true,cancelable:true}))
+   return top
+  }),150,'fresh wheel case starts inside the scroll range')
   await page.waitForFunction(()=>Number(document.getElementById('boundary').dataset.intents)===1)
   await page.locator('#boundary').evaluate(el=>{el.scrollTop=150;el.focus({preventScroll:true})})
   await page.keyboard.press('PageUp')

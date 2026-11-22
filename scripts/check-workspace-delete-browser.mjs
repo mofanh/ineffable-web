@@ -37,6 +37,8 @@ try {
       else if (url.pathname.endsWith("/auth/refresh")) { refreshes++; status = 401 }
       else if (url.pathname.endsWith("/auth/me")) body = { user, workspaces: [{ id: "w", name: "Workspace", workspace_type: "personal" }] }
       else if (url.pathname.includes("conversations/list")) body = { conversations: [] }
+      // Login-return mounts the real unified shell, including its account menu.
+      else if (url.pathname.endsWith("/workspace-invitations/incoming")) body = { invitations: [] }
       else if (url.pathname.endsWith("/directory")) body = { objects: [], next_cursor: null }
       else if (url.pathname.endsWith("/access") && (scenario.endsWith("-space") || loginReturn)) {
         status = scenario === "denied-space" ? 403 : 404
