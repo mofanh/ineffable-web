@@ -20,7 +20,7 @@ import { useVisualViewport } from "@/hooks/use-visual-viewport"
 import { cn } from "@/lib/utils"
 import { defaultPath, getRouteKind, getRouteMeta } from "@/routes/navigation"
 
-import { AUTO_RAIL_BREAKPOINT, DRAWER_BREAKPOINT, CENTER_MIN, SIDEBAR_MIN, SIDEBAR_MAX, RIGHT_MIN, RIGHT_MAX_RATIO, computeWorkbenchColumns } from "@/app/shell/workbench-layout"
+import { DRAWER_BREAKPOINT, CENTER_MIN, SIDEBAR_MIN, SIDEBAR_MAX, RIGHT_MIN, RIGHT_MAX_RATIO, computeWorkbenchColumns } from "@/app/shell/workbench-layout"
 import { useWorkbenchLayout } from "@/app/shell/use-workbench-layout"
 import { WorkbenchResizeHandle } from "@/app/shell/workbench-resize-handle"
 import { SettingsOverlayProvider } from "@/app/shell/settings-overlay-context"
@@ -32,12 +32,12 @@ const NavigationSidebar = memo(AppSidebar)
 export function AppShell() {
   const compact = useIsCompactLayout()
   const viewport = useVisualViewport(compact)
-  const layout = useWorkbenchLayout()
   const { pathname } = useLocation()
-  const drawer = layout.width < DRAWER_BREAKPOINT
   const [view, setView] = useState<WorkbenchView>({ path: pathname, open: true, focused: false })
   const resourceOpen = getRouteKind(pathname) === "resource" && (view.path !== pathname || view.open)
-  const expanded = layout.open && !(layout.width < AUTO_RAIL_BREAKPOINT && resourceOpen)
+  const layout = useWorkbenchLayout(resourceOpen ? pathname : null)
+  const drawer = layout.width < DRAWER_BREAKPOINT
+  const expanded = layout.open
   const columns = computeWorkbenchColumns(layout.width, expanded, layout.sidebar, layout.right, resourceOpen)
   return (
     <AppHeaderProvider>

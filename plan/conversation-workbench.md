@@ -229,7 +229,8 @@ P0 固定 DSH 同版参考与 Ineffable 同内容 fixture：1440×900、1280×80
   - 两次回归暴露并已处理：移动抽屉退出动画期间 DOM 短暂保留，等待改为真正 hidden 且焦点返回稳定 Shell 入口；资源树 owner 新订阅 sidebar context 导致 4 次额外 render，将订阅下沉到独立设置按钮，保留原性能零重渲染断言，开发/production 复验通过。Radix 关闭后的 autofocus 本来异步执行，焦点断言等待实际目标恢复，不以 portal hidden 代替焦点完成。旧 lifecycle/performance 脚本的 Settings 链接场景改为真实设置按钮 → 受保护业务 Link，不把设置开合误作导航。
   - 管理/交互补跑：admin mobile、15 个 admin editor 场景、automation、channels、toast 通过。自动化旧测试仍假设 global 管理页可进聊天分屏，已改为验证独立全局面板并保留 600px 窄容器的搜索/操作检查；toast 区分 <768 抽屉与 768–1023 触屏横向 dock，保留层级、实际点击和 exact draft 检查。最终串行聚合已补齐结构/设置 dev+production、展示/输入/队列/滚动与状态门禁，待 P5 审计后执行。
   - 开发截图 `ineffable-settings-overlay` 已实际抽检 ZH 深色管理员桌面和 EN 浅色 320px；production 截图 `ineffable-settings-overlay-production` 已实际抽检同两例及 ZH 深色 320px。均为 mock HTTP 的真实 Shell，不是 provider 或 DSH 实机证据。
-- P5 尚待集中独立只读审计、主 Agent 修复、定向复核与最终串行 CI；尚无最终验收结论，不合并、不推送。
+- P5 进行中：集中独立只读审计覆盖 `dc4083a4..ecaab147`，按 P0 固定合同复核，结论 0 P0 / 1 P1（WB-A01）。中屏资源路由把“默认 rail”误作永久禁止展开，Shell 与列求解两次覆盖手动意图，Workspace 树不可达；旧布局测试又把 <1024 误当 drawer。主 Agent 统一整改：由单一 layout hook 在进入断点/新资源时默认收起，后续手动展开优先，列计算仅按有效展开意图让资源退出并排；临时状态不污染账号桌面偏好，关闭资源不撤销手动选择。新增 768/900/1023 的真实资源导航、按钮/快捷键、exact composer/editor、dirty draft 与桌面偏好回归，并区分 <768 drawer 与中屏 dock。
+  - 整改门禁正在串行执行；新增结构测试曾误复用 reload 之前的 ElementHandle（DOM context 已销毁），已改为在 reload 后当前资源阶段冻结 identity；另一处新增等待误把保留新建图标的 nav 当成会隐藏，已改为等待实际隐藏/显示的搜索框。因此旧 nav visible 也不能证明展开，更不能仅凭源码断言旧聚合一定在该处超时；以新增几何/真实可访问内容断言和后续执行结果为准。不改变生产实现或降低 identity 断言。后续仍须定向独立复核与最终完整串行 CI；不以修复提交代替验收，不合并、不推送。
 - 参考图缺口：当前只有 DSH 源码可读，没有已连接 GUI 的浏览器控制工具。遵循参考安装的验证限制，不从 shell 新开浏览器访问 DSH/profile。后续本项目 Chrome fixture 截图是 Ineffable 测试证据，不冒充 DSH 实机对照。
 - 键盘核查：DSH `shortcuts/src/index.ts` 的双 Esc 默认为 500ms（Host volatile，1–2147483646）；`stop-shortcut.ts` 在菜单/modal/审批/terminal/IME/repeat/defaultPrevented 或身份/region 变化时重置。Ineffable 文件菜单先消费 Esc、Radix 分层关闭；现有输入无双 Esc。P2 仅在同 session/conversation/run/epoch/generation/region 和冲突门禁齐全时启用 500ms，否则保留显式停止按钮并记录差异；不引入 Host 配置。
 

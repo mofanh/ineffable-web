@@ -41,7 +41,7 @@ try {
     await page.route("**/gateway/v1/**/content*", route => route.fulfill({ json: { object: textObject, version: { id: "text-version", version_no: 1 }, content: "WORKSPACE_DRAFT" } }))
     await page.goto(`${url}/chat`)
     await composer.waitFor()
-    await nav.waitFor()
+    await nav.getByRole("textbox").waitFor()
     await page.waitForLoadState("networkidle")
     assert.equal(await page.evaluate(() => document.documentElement.classList.contains("dark")), dark, "requested theme actually applied")
     await page.screenshot({ path: join(output, `${language}-${dark ? "dark" : "light"}-home.png`) })
@@ -52,9 +52,17 @@ try {
     for (let i = 0; i < 2; i++) await page.locator('[data-slot="sidebar-trigger"]').click()
     await page.waitForTimeout(250)
     assert.deepEqual(apiRequests(fixture.requests).slice(before), [], "navigation animation does not reload business data")
+    await page.setViewportSize({ width: 900, height: 900 })
+    await nav.getByRole("textbox").waitFor({ state: "hidden" })
+    await page.locator('[data-slot="sidebar-trigger"]').click()
+    await nav.getByRole("textbox").waitFor()
     await page.getByRole("button", { name: "File 99.md", exact: true }).first().click()
     await resource.waitFor({ state: "visible" })
     await page.waitForLoadState("networkidle")
+    await nav.getByRole("textbox").waitFor({ state: "hidden" })
+    assert.equal(await page.locator('[data-slot="sidebar-gap"]').evaluate(node => node.getBoundingClientRect().width), 56, "opening a new resource defaults medium navigation to rail")
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await nav.getByRole("textbox").waitFor()
     assert.equal(await page.locator('[data-slot="workspace-navigation"]').evaluate(el => el.scrollTop > 0), true, "large resource trees scroll in their own region")
     assert.equal(await nav.getByRole("textbox").evaluate(el => {
       const rect = el.getBoundingClientRect()
@@ -104,18 +112,26 @@ try {
     assert.equal(await resource.isVisible(), false)
     await page.getByRole("button", { name: zh ? "工作区" : "Workspace", exact: true }).click()
     assert.ok(await editorIdentity.evaluate(node => node.isConnected && node.textContent.includes("UNSAVED_WORKSPACE_DRAFT")), "hide/focus preserves mounted editor and unsaved file draft")
-    for (const width of [1280, 1024, 1023, 768, 390, 320, 1440]) {
+    for (const width of [1280, 1024, 1023, 900, 768, 390, 320, 1440]) {
       await page.setViewportSize({ width, height: 900 })
       await page.waitForTimeout(250)
       if (width < 1024) {
         await page.getByRole("button", { name: zh ? "会话" : "Conversations", exact: true }).click()
         await composer.waitFor({ state: "visible" })
         await page.locator('[data-slot="sidebar-trigger"]').click()
-        await nav.waitFor()
+        await nav.getByRole("textbox").waitFor()
         await nav.getByRole("button", { name: zh ? "新对话" : "New conversation", exact: true }).waitFor()
-        // Escape returns focus from the drawer without touching conversation state.
-        await page.keyboard.press("Escape")
-        await page.locator('[data-side="left"][data-compact="true"]').waitFor({ state: "hidden" })
+        if (width < 768) {
+          await page.locator('[data-side="left"][data-compact="true"][role="dialog"]').waitFor()
+          await page.keyboard.press("Escape")
+          await page.locator('[data-side="left"][data-compact="true"]').waitFor({ state: "hidden" })
+        } else {
+          assert.equal(await page.locator('[data-side="left"][data-compact="true"]').count(), 0, "medium navigation is docked, not a modal drawer")
+          assert.ok(await nav.evaluate(node => node.getBoundingClientRect().width >= 264), "resource route allows explicit medium expansion")
+          await page.locator('[data-slot="sidebar-trigger"]').click()
+          await nav.getByRole("textbox").waitFor({ state: "hidden" })
+        }
+        assert.ok(await editorIdentity.evaluate(node => node.isConnected && node.textContent.includes("UNSAVED_WORKSPACE_DRAFT")), "responsive navigation retains exact dirty resource editor")
       }
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${language} ${width}: no page overflow`)
       assert.equal(await composer.inputValue(), "KEEP_CONVERSATION_DRAFT")

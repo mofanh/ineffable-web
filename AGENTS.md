@@ -429,6 +429,8 @@ const confirmed = await confirm({
   56px rail；小于 1024px 自动 rail，小于 768px 才是 modal drawer。导航呈现与内容可并排
   是两个维度，不能共用一个 compact boolean。右列默认 45% 视口、最小 300px、最大 70%，
   先缩/退出右列再侵占中央 400px 保留区；不足时同一资源进入专注面。
+  中屏自动 rail 仅是进入断点/新资源时的默认值，不能永久覆盖手动展开；资源不足并排时
+  退出右列到同一专注面。临时展开不写桌面偏好，关闭资源不重置已明确的导航选择。
   拖拽偏好仅当前登录 session 存活，刷新重置；resize 计算夹取不回写偏好。
 - 路由显式区分 conversation/global/resource/settings；全局业务页中央显示，文件在右列或
   专注面，设置由唯一 Shell overlay 拥有。ChatWorkbench 与唯一 RoutedSurface/Outlet 稳定

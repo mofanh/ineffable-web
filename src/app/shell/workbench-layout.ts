@@ -18,9 +18,8 @@ export function clampWidth(value: number, min: number, max: number) {
 
 export function computeWorkbenchColumns(viewport: number, expanded: boolean, sidebarPreference: number, rightPreference: number | null, resourceOpen: boolean) {
   const drawer = viewport < DRAWER_BREAKPOINT
-  // A requested contextual panel wins over an expanded medium-width navigation.
-  const autoRail = viewport < AUTO_RAIL_BREAKPOINT && resourceOpen
-  const sidebar = drawer ? 0 : expanded && !autoRail ? Math.min(viewport - CENTER_MIN, clampWidth(sidebarPreference, SIDEBAR_MIN, SIDEBAR_MAX)) : SIDEBAR_RAIL
+  // The layout owner resolves automatic defaults vs explicit user intent first.
+  const sidebar = drawer ? 0 : expanded ? Math.min(viewport - CENTER_MIN, clampWidth(sidebarPreference, SIDEBAR_MIN, SIDEBAR_MAX)) : SIDEBAR_RAIL
   const available = viewport - sidebar - CENTER_MIN
   const right = !resourceOpen || drawer || available < RIGHT_MIN ? 0
     : Math.min(available, clampWidth(rightPreference ?? viewport * RIGHT_DEFAULT_RATIO, RIGHT_MIN, viewport * RIGHT_MAX_RATIO))
